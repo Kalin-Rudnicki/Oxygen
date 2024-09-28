@@ -7,7 +7,7 @@ trait StringEncoder[A] { self =>
   /**
     * Contra-map the input to this StringEncoder.
     */
-  final def cmap[B](f: B => A): StringEncoder[B] =
+  final def contramap[B](f: B => A): StringEncoder[B] =
     new StringEncoder[B] {
       override def encode(value: B): String = self.encode(f(value))
     }
@@ -27,5 +27,10 @@ object StringEncoder {
   // =====|  |=====
 
   def usingToString[A]: StringEncoder[A] = _.toString
+
+  val string: StringEncoder[String] =
+    new StringEncoder[String] {
+      override def encode(value: String): String = value
+    }
 
 }

@@ -38,7 +38,7 @@ object Enum {
 
     implicit val stringCodec: StringCodec[E] =
       StringCodec(
-        StringEncoder.usingToString[String].cmap(ToString.encode),
+        StringEncoder.usingToString[String].contramap(ToString.encode),
         StringDecoder.string.mapOption(ToString.decode),
       )
 

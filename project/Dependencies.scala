@@ -26,6 +26,12 @@ object Dependencies {
 
     val izumiReflect = "izumi-reflect"
 
+    // =====| Json |=====
+
+    val zioJsonVersion = "0.7.3"
+
+    val zioJson = "zio-json"
+
   }
 
 }

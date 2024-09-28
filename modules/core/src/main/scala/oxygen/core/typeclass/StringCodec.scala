@@ -24,7 +24,7 @@ final case class StringCodec[A](
     * Transforms the value of this StringCodec in an infallible manner.
     */
   def transform[B: TypeTag](mapF: A => B, cmapF: B => A): StringCodec[B] =
-    StringCodec(encoder.cmap(cmapF), decoder.map(mapF))
+    StringCodec(encoder.contramap(cmapF), decoder.map(mapF))
 
   /**
     * Attempts to transform the value of this StringCodec.
@@ -32,7 +32,7 @@ final case class StringCodec[A](
     * hint-message: none
     */
   def transformOrFail[B: TypeTag](mapF: A => Either[String, B], cmapF: B => A): StringCodec[B] =
-    StringCodec(encoder.cmap(cmapF), decoder.mapOrFail(mapF))
+    StringCodec(encoder.contramap(cmapF), decoder.mapOrFail(mapF))
 
   /**
     * Attempts to transform the value of this StringCodec.
@@ -40,7 +40,7 @@ final case class StringCodec[A](
     * hint-message: from provided hint
     */
   def transformOrFail[B: TypeTag](hint: StringDecoder.Hint, mapF: A => Either[String, B], cmapF: B => A): StringCodec[B] =
-    StringCodec(encoder.cmap(cmapF), decoder.mapOrFail(hint, mapF))
+    StringCodec(encoder.contramap(cmapF), decoder.mapOrFail(hint, mapF))
 
   /**
     * Attempts to transform the value of this StringCodec.
@@ -48,7 +48,7 @@ final case class StringCodec[A](
     * hint-message: none
     */
   def transformOption[B: TypeTag](mapF: A => Option[B], cmapF: B => A): StringCodec[B] =
-    StringCodec(encoder.cmap(cmapF), decoder.mapOption(mapF))
+    StringCodec(encoder.contramap(cmapF), decoder.mapOption(mapF))
 
   /**
     * Attempts to transform the value of this StringCodec.
@@ -56,7 +56,7 @@ final case class StringCodec[A](
     * hint-message: from provided hint
     */
   def transformOption[B: TypeTag](hint: StringDecoder.Hint, mapF: A => Option[B], cmapF: B => A): StringCodec[B] =
-    StringCodec(encoder.cmap(cmapF), decoder.mapOption(hint, mapF))
+    StringCodec(encoder.contramap(cmapF), decoder.mapOption(hint, mapF))
 
   /**
     * Attempts to transform the value of this StringCodec.
@@ -64,7 +64,7 @@ final case class StringCodec[A](
     * hint-message: none
     */
   def transformCatchFail[B: TypeTag](mapF: A => B, cmapF: B => A): StringCodec[B] =
-    StringCodec(encoder.cmap(cmapF), decoder.mapCatchFail(mapF))
+    StringCodec(encoder.contramap(cmapF), decoder.mapCatchFail(mapF))
 
   /**
     * Attempts to transform the value of this StringCodec.
@@ -72,7 +72,7 @@ final case class StringCodec[A](
     * hint-message: from provided hint
     */
   def transformCatchFail[B: TypeTag](hint: StringDecoder.Hint, mapF: A => B, cmapF: B => A): StringCodec[B] =
-    StringCodec(encoder.cmap(cmapF), decoder.mapCatchFail(hint, mapF))
+    StringCodec(encoder.contramap(cmapF), decoder.mapCatchFail(hint, mapF))
 
   /**
     * Attempts to transform the value of this StringCodec.
@@ -80,7 +80,7 @@ final case class StringCodec[A](
     * hint-message: none
     */
   def transformCatchOption[B: TypeTag](mapF: A => B, cmapF: B => A): StringCodec[B] =
-    StringCodec(encoder.cmap(cmapF), decoder.mapCatchOption(mapF))
+    StringCodec(encoder.contramap(cmapF), decoder.mapCatchOption(mapF))
 
   /**
     * Attempts to transform the value of this StringCodec.
@@ -88,7 +88,7 @@ final case class StringCodec[A](
     * hint-message: from provided hint
     */
   def transformCatchOption[B: TypeTag](hint: StringDecoder.Hint, mapF: A => B, cmapF: B => A): StringCodec[B] =
-    StringCodec(encoder.cmap(cmapF), decoder.mapCatchOption(hint, mapF))
+    StringCodec(encoder.contramap(cmapF), decoder.mapCatchOption(hint, mapF))
 
   // =====|  |=====
 
@@ -96,13 +96,13 @@ final case class StringCodec[A](
     * @see [[transform]]
     */
   def imap[B: TypeTag](mapF: A => B, cmapF: B => A): StringCodec[B] =
-    StringCodec(encoder.cmap(cmapF), decoder.map(mapF))
+    StringCodec(encoder.contramap(cmapF), decoder.map(mapF))
 
   /**
     * @see [[transformOrFail]]
     */
   def iemap[B: TypeTag](mapF: A => Either[String, B], cmapF: B => A): StringCodec[B] =
-    StringCodec(encoder.cmap(cmapF), decoder.mapOrFail(mapF))
+    StringCodec(encoder.contramap(cmapF), decoder.mapOrFail(mapF))
 
 }
 object StringCodec {
@@ -113,7 +113,7 @@ object StringCodec {
   //      Default
   //////////////////////////////////////////////////////////////////////////////////////////////////////
 
-  implicit val string: StringCodec[String] = StringCodec(StringEncoder.usingToString, StringDecoder.string)
+  implicit val string: StringCodec[String] = StringCodec(StringEncoder.string, StringDecoder.string)
 
   implicit val boolean: StringCodec[Boolean] = StringCodec.string.transformOption(_.toBooleanOption, _.toString)
 
@@ -155,6 +155,9 @@ object StringCodec {
       StringEncoder.usingToString,
       StringDecoder.string.mapCatchOption(Duration.parse) <> StringDecoder.duration,
     )
+
+  implicit val `class`: StringCodec[Class[?]] =
+    StringCodec.string.transform(str => Try { Class.forName(str) }.getOrElse { classOf[Any] }, _.getName)
 
   //////////////////////////////////////////////////////////////////////////////////////////////////////
   //      Manual
