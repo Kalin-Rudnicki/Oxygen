@@ -102,8 +102,18 @@ object string {
 
     // =====| Casing |=====
 
+    // --- Camel -> ___ ---
+
     def camelToSnake: String =
       camelRegex.replaceAllIn(self, m => if (m.start == 0) m.matched else s"_${m.matched}").toLowerCase
+
+    def camelToDash: String =
+      camelToSnake.snakeToDash
+
+    // --- Snake -> ___ ---
+
+    def snakeToDash: String =
+      self.replace('_', '-')
 
     def snakeToLowerCamel: String =
       snakeRegex.replaceAllIn(self, _.matched.substring(1).capitalize)
@@ -111,11 +121,16 @@ object string {
     def snakeToUpperCamel: String =
       self.snakeToLowerCamel.capitalize
 
+    // --- Dash -> ___ ---
+
     def dashToSnake: String =
       self.replace('-', '_')
 
-    def snakeToDash: String =
-      self.replace('_', '-')
+    def dashToLowerCamel: String =
+      dashToSnake.snakeToLowerCamel
+
+    def dashToUpperCamel: String =
+      dashToSnake.snakeToUpperCamel
 
   }
 

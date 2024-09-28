@@ -5,7 +5,7 @@ import oxygen.core.syntax.seq.*
 import scala.collection.mutable
 import scala.util.matching.Regex
 
-final case class ColorString(color: ColorString.FgBgColor, elems: Seq[String | ColorString]) {
+final case class ColorString(color: ColorState, elems: Seq[String | ColorString]) {
 
   // =====|  |=====
 
@@ -13,7 +13,7 @@ final case class ColorString(color: ColorString.FgBgColor, elems: Seq[String | C
     if (this.color == that.color) ColorString(this.color, this.elems ++ that.elems)
     else if (this.isEmpty) that
     else if (that.isEmpty) this
-    else ColorString(ColorString.FgBgColor.empty, this :: that :: Nil)
+    else ColorString(ColorState.empty, this :: that :: Nil)
 
   def isEmpty: Boolean = elems.isEmpty
   def nonEmpty: Boolean = elems.nonEmpty
@@ -46,42 +46,9 @@ final case class ColorString(color: ColorString.FgBgColor, elems: Seq[String | C
   def split(regex: Regex): Seq[ColorString] =
     split(regex, true, true)
 
-  private def optimize(outerColor: ColorString.FgBgColor): Seq[String | ColorString] = {
-    val newColor = outerColor.overwrite(this.color)
-    val newElems: Seq[String | ColorString] =
-      this.elems
-        .flatMap {
-          case string: String           => Seq(string)
-          case colorString: ColorString => colorString.optimize(newColor)
-        }
-        .filter {
-          case string: String           => string.nonEmpty
-          case colorString: ColorString => colorString.nonEmpty
-        }
-
-    if (newElems.isEmpty) Seq.empty
-    else if (newColor == outerColor) newElems
-    else {
-      val (last, acc) = newElems.tail.foldLeft((newElems.head, List.empty[String | ColorString])) {
-        case ((last: String, acc), next: String)                                       => (last + next, acc)
-        case ((last: ColorString, acc), next: ColorString) if last.color == next.color => (ColorString(last.color, last.elems ++ next.elems), acc)
-        case ((last, acc), next)                                                       => (next, last :: acc)
-      }
-
-      Seq(
-        ColorString(
-          this.color,
-          (last :: acc).toIndexedSeq.reverse,
-        ),
-      )
-    }
-  }
-
-  def optimize: ColorString = ColorString(this.color, this.optimize(ColorString.FgBgColor.empty))
-
   // =====| Modification |=====
 
-  inline def withColor(color: ColorString.FgBgColor): ColorString = copy(color = color)
+  inline def withColor(color: ColorState): ColorString = copy(color = color)
 
   // --- FG ---
 
@@ -97,6 +64,12 @@ final case class ColorString(color: ColorString.FgBgColor, elems: Seq[String | C
   def magentaFg: ColorString = withFg(Color.Named.Magenta)
   def cyanFg: ColorString = withFg(Color.Named.Cyan)
   def whiteFg: ColorString = withFg(Color.Named.White)
+
+  def rgbFg(r: Int, g: Int, b: Int): ColorString = withFg(Color.RGB(r, g, b))
+  def rgbFg(r: Int, g: Int, b: Int, backup: Color.Simple): ColorString = withFg(Color.RGB(r, g, b) :> backup)
+  inline def hexFg(inline hexStr: String): ColorString = withFg(Color.RGB.hex(hexStr))
+  inline def hexFg(inline hexStr: String, backup: Color.Simple): ColorString = withFg(Color.RGB.hex(hexStr) :> backup)
+
   def resetFg: ColorString = withFg(Color.Default)
 
   // --- BG ---
@@ -113,6 +86,12 @@ final case class ColorString(color: ColorString.FgBgColor, elems: Seq[String | C
   def magentaBg: ColorString = withBg(Color.Named.Magenta)
   def cyanBg: ColorString = withBg(Color.Named.Cyan)
   def whiteBg: ColorString = withBg(Color.Named.White)
+
+  def rgbBg(r: Int, g: Int, b: Int): ColorString = withBg(Color.RGB(r, g, b))
+  def rgbBg(r: Int, g: Int, b: Int, backup: Color.Simple): ColorString = withBg(Color.RGB(r, g, b) :> backup)
+  inline def hexBg(inline hexStr: String): ColorString = withBg(Color.RGB.hex(hexStr))
+  inline def hexBg(inline hexStr: String, backup: Color.Simple): ColorString = withBg(Color.RGB.hex(hexStr) :> backup)
+
   def resetBg: ColorString = withBg(Color.Default)
 
   // =====| Show |=====
@@ -129,7 +108,7 @@ final case class ColorString(color: ColorString.FgBgColor, elems: Seq[String | C
     builder.toString()
   }
 
-  private def writeToStringBuilder(builder: mutable.StringBuilder, outerState: ColorString.FgBgColor): Unit = {
+  private def writeToStringBuilder(builder: mutable.StringBuilder, outerState: ColorState.Concrete): Unit = {
     val (open, close, newState) = outerState.diff(this.color)
 
     builder.append(open)
@@ -142,63 +121,38 @@ final case class ColorString(color: ColorString.FgBgColor, elems: Seq[String | C
     builder.append(close)
   }
 
-  def toString(outerColorState: ColorString.FgBgColor): String = {
-    val builder = mutable.StringBuilder()
-    writeToStringBuilder(builder, outerColorState)
-    builder.toString()
-  }
+  def toString(outerColorState: ColorState, colorMode: ColorMode): String =
+    colorMode match {
+      case colorMode: ColorMode.NonColorless =>
+        val builder = mutable.StringBuilder()
+        writeToStringBuilder(builder, ColorState.Concrete(colorMode, outerColorState))
+        builder.toString()
+      case ColorMode.Colorless =>
+        rawString
+    }
   def toString(outerFgColor: Color): String =
-    toString(ColorString.FgBgColor(outerFgColor.some, None))
+    toString(ColorState.fg(outerFgColor), ColorMode.Extended)
+  def toString(colorMode: ColorMode): String =
+    toString(ColorState.empty, colorMode)
   override def toString: String =
-    toString(ColorString.FgBgColor.empty)
+    toString(ColorState.empty, ColorMode.Extended)
 
 }
 object ColorString {
 
-  def make(color: FgBgColor)(elems: (String | ColorString)*): ColorString = ColorString(color, elems)
-  def make(elems: (String | ColorString)*): ColorString = ColorString(FgBgColor.empty, elems)
+  def make(color: ColorState)(elems: (String | ColorString)*): ColorString = ColorString(color, elems)
+  def make(elems: (String | ColorString)*): ColorString = ColorString(ColorState.empty, elems)
 
-  final case class FgBgColor(fg: Option[Color], bg: Option[Color]) { outer =>
+  def fromAny(any: Any): ColorString = any.asInstanceOf[Matchable] match
+    case colorString: ColorString => colorString
+    case string: String           => ColorString.make(string)
+    case _                        => ColorString.make(any.toString)
 
-    def overwrite(inner: FgBgColor): FgBgColor = FgBgColor(inner.fg.orElse(outer.fg), inner.bg.orElse(outer.bg))
-    def underwrite(inner: FgBgColor): FgBgColor = FgBgColor(outer.fg.orElse(inner.fg), outer.bg.orElse(inner.bg))
-
-    def isUnaffectedBy(inner: FgBgColor): Boolean = outer.overwrite(inner) == outer
-
-    def diff(inner: FgBgColor): (String, String, FgBgColor) = {
-      def newColor(outer: Option[Color], inner: Option[Color], mod: Color => String): (Option[String], Option[String]) =
-        (outer, inner) match
-          case (None, Some(inner))                          => (mod(inner).some, mod(Color.Default).some)
-          case (Some(outer), Some(inner)) if outer != inner => (mod(inner).some, mod(outer).some)
-          case _                                            => (None, None)
-
-      def joinMods(mods: Option[String]*): String = {
-        val flat = mods.flatten
-        if (flat.isEmpty) ""
-        else s"$ANSIEscapeString${flat.mkString(";")}m"
-      }
-
-      val (a, b) = newColor(outer.fg, inner.fg, _.fgMod)
-      val (c, d) = newColor(outer.bg, inner.bg, _.bgMod)
-      (
-        joinMods(a, c),
-        joinMods(b, d),
-        outer.overwrite(inner),
-      )
-    }
-
-  }
-  object FgBgColor {
-
-    val empty: FgBgColor = FgBgColor(None, None)
-
-  }
-
-  val empty: ColorString = ColorString(FgBgColor.empty, Nil)
+  val empty: ColorString = ColorString(ColorState.empty, Nil)
 
 }
 
-given convertStringToColorString: Conversion[String, ColorString] = str => ColorString(ColorString.FgBgColor(None, None), str :: Nil)
+given convertStringToColorString: Conversion[String, ColorString] = str => ColorString(ColorState.empty, str :: Nil)
 
 implicit class ColorStringInterpolator(sc: StringContext) {
 
@@ -212,24 +166,21 @@ implicit class ColorStringInterpolator(sc: StringContext) {
         builder.addOne(colorString)
     }
 
-    ColorString(
-      ColorString.FgBgColor(None, None),
-      builder.result(),
-    )
+    ColorString(ColorState.empty, builder.result())
   }
 
 }
 
 extension (self: Seq[ColorString]) {
 
-  def csMkString: ColorString = ColorString(ColorString.FgBgColor.empty, self)
+  def csMkString: ColorString = ColorString(ColorState.empty, self)
 
   def csMkString(sep: String | ColorString): ColorString =
     if (self.isEmpty) ColorString.empty
-    else ColorString(ColorString.FgBgColor.empty, self.head +: self.tail.flatMap(Seq(sep, _)))
+    else ColorString(ColorState.empty, self.head +: self.tail.flatMap(Seq(sep, _)))
 
   def csMkString(start: String | ColorString, sep: String | ColorString, end: String | ColorString): ColorString =
-    if (self.isEmpty) ColorString(ColorString.FgBgColor.empty, Seq(start, end))
-    else ColorString(ColorString.FgBgColor.empty, start +: self.head +: self.tail.flatMap(Seq(sep, _)) :+ end)
+    if (self.isEmpty) ColorString(ColorState.empty, Seq(start, end))
+    else ColorString(ColorState.empty, start +: self.head +: self.tail.flatMap(Seq(sep, _)) :+ end)
 
 }

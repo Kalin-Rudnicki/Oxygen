@@ -5,13 +5,7 @@ import oxygen.core.typeclass.*
 import scala.quoted.*
 import scala.util.Try
 
-sealed trait Color {
-  def fgMod: String
-  def bgMod: String
-  final def fgANSI: String = s"$ANSIEscapeString${fgMod}m"
-  final def bgANSI: String = s"$ANSIEscapeString${bgMod}m"
-}
-
+sealed trait Color
 object Color {
 
   def apply(r: Int, g: Int, b: Int): Color.RGB =
@@ -21,10 +15,10 @@ object Color {
 
     def apply(color: String): Option[Color] =
       color.toUpperCase match
-        case "DEFAULT"                 => Color.Default.some
-        case Named.upperNameMap(named) => named.some
-        case Color.RGB.parse(color)    => color.some
-        case _                         => None
+        case "DEFAULT"                        => Color.Default.some
+        case Named.stringCodec.decoder(named) => named.some
+        case Color.RGB.parse(color)           => color.some
+        case _                                => None
 
     def unapply(color: String): Option[Color] =
       Color.parse(color)
@@ -32,18 +26,26 @@ object Color {
   }
 
   implicit val stringCodec: StringCodec[Color] =
-    StringCodec(
-      StringEncoder.usingToString,
-      StringDecoder.string.mapOption(Color.parse(_)),
-    )
+    StringCodec.string.transformOption(Color.parse(_), _.toString)
 
-  sealed trait Simple extends Color
-
-  sealed abstract class Named(n: Char) extends Color.Simple {
-    override def fgMod: String = s"3$n"
-    override def bgMod: String = s"4$n"
+  sealed trait Concrete extends Color {
+    def fgMod: String
+    def bgMod: String
+    final def fgANSI: String = s"$ANSIEscapeString${fgMod}m"
+    final def bgANSI: String = s"$ANSIEscapeString${bgMod}m"
   }
-  object Named {
+
+  sealed trait Simple extends Color.Concrete
+
+  sealed abstract class Named(n: Char) extends Color.Simple with Enum[Named] {
+
+    final val lowerName: String = toString.toLowerCase
+
+    override final def fgMod: String = s"3$n"
+    override final def bgMod: String = s"4$n"
+
+  }
+  object Named extends Enum.Companion[Named] {
 
     case object Black extends Named('0')
     case object Red extends Named('1')
@@ -54,12 +56,11 @@ object Color {
     case object Cyan extends Named('6')
     case object White extends Named('7')
 
-    val upperNameMap: Map[String, Color.Named] =
-      List(Black, Red, Green, Yellow, Blue, Magenta, Cyan, White).map(c => c.toString.toUpperCase -> c).toMap
+    override def values: Array[Named] = Array(Black, Red, Green, Yellow, Blue, Magenta, Cyan, White)
 
   }
 
-  final case class RGB(r: Int, g: Int, b: Int) extends Color {
+  final case class RGB(r: Int, g: Int, b: Int) extends Color.Concrete {
 
     def toRGBString: String = List(r, g, b).mkString("rgb(", ", ", ")")
     def toHexString: String = List(r, g, b).map(Integer.toString(_, 16).alignRight(2, '0')).mkString("#", "", "")
@@ -69,14 +70,13 @@ object Color {
 
     override def toString: String = toHexString
 
+    def :>(simple: Color.Simple): Color.Cased = Color.Cased(this, simple)
+
   }
   object RGB {
 
     implicit val stringCodec: StringCodec[Color.RGB] =
-      StringCodec(
-        StringEncoder.usingToString,
-        StringDecoder.string.mapOption(Color.RGB.parse(_)),
-      )
+      StringCodec.string.transformOption(Color.RGB.parse(_), _.toString)
 
     private val hexReg3 = "^(?:#|0X|)([0-9A-Z])([0-9A-Z])([0-9A-Z])$".r
     private val hexReg6 = "^(?:#|0X|)([0-9A-Z]{2})([0-9A-Z]{2})([0-9A-Z]{2})$".r
@@ -194,5 +194,7 @@ object Color {
     override def fgMod: String = "39"
     override def bgMod: String = "49"
   }
+
+  final case class Cased(extended: Color.RGB, simple: Color.Simple) extends Color
 
 }
