@@ -26,6 +26,4 @@ object SemigroupLowPriority {
 
   }
 
-  Option
-  
 }
