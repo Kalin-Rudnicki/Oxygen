@@ -1,9 +1,8 @@
 package oxygen.test
 
+import oxygen.test.OxygenSpec.DefaultEnv
 import zio.*
 import zio.test.*
-import oxygen.test.OxygenSpec.DefaultEnv
-
 
 sealed trait LayerProvider[+R] {
   // TODO (KR) : def build[E] (?)
