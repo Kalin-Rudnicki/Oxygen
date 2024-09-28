@@ -90,27 +90,30 @@ object OAssertions {
       actual.showPretty(RED, show).prefixAndIndent(s"  ${CYAN}actual$RESET: ")
 
   private def showGeneric(any: Any, color: String, show: Any => Option[String]): String =
-    show(any).getOrElse {
-      any.asInstanceOf[Matchable] match {
-        case iterable: IterableOnce[?] if !iterable.isInstanceOf[Option[?]] =>
-          val pairs = Seq.from(iterable).zipWithIndex
-          val maxIdxStrLen = pairs.map(_._2.toString.length).maxOption.getOrElse(0)
-          s"${color}Seq[_]$RESET:" +
-            pairs
-              .map { case (value, i) => "\n" + showGeneric(value, color, show).prefixAndIndent(s"$MAGENTA${i.toString.alignRight(maxIdxStrLen)}$RESET: ") }
-              .mkString
-              .replaceAll("\n", s"\n$color|$RESET   ")
-        case product: Product =>
-          val pairs = product.productElementNames.zip(product.productIterator).toSeq
-          val maxFieldStrLen = pairs.map(_._1.length).maxOption.getOrElse(0)
-          color + product.productPrefix + RESET + ":" +
-            pairs
-              .map { case (field, value) => "\n" + showGeneric(value, color, show).prefixAndIndent(s"$MAGENTA${field.alignRight(maxFieldStrLen)}$RESET: ") }
-              .mkString
-              .replaceAll("\n", s"\n$color|$RESET   ")
-        case _ =>
-          Value.Actual(any).showPretty(color, _.toString.some)
-      }
+    show(any) match {
+      case Some(value) =>
+        Value.Actual(value).showPretty(color, _.toString.some)
+      case None =>
+        any.asInstanceOf[Matchable] match {
+          case iterable: IterableOnce[?] if !iterable.isInstanceOf[Option[?]] =>
+            val pairs = Seq.from(iterable).zipWithIndex
+            val maxIdxStrLen = pairs.map(_._2.toString.length).maxOption.getOrElse(0)
+            s"${color}Seq[_]$RESET:" +
+              pairs
+                .map { case (value, i) => "\n" + showGeneric(value, color, show).prefixAndIndent(s"$MAGENTA${i.toString.alignRight(maxIdxStrLen)}$RESET: ") }
+                .mkString
+                .replaceAll("\n", s"\n$color|$RESET   ")
+          case product: Product =>
+            val pairs = product.productElementNames.zip(product.productIterator).toSeq
+            val maxFieldStrLen = pairs.map(_._1.length).maxOption.getOrElse(0)
+            color + product.productPrefix + RESET + ":" +
+              pairs
+                .map { case (field, value) => "\n" + showGeneric(value, color, show).prefixAndIndent(s"$MAGENTA${field.alignRight(maxFieldStrLen)}$RESET: ") }
+                .mkString
+                .replaceAll("\n", s"\n$color|$RESET   ")
+          case _ =>
+            Value.Actual(any).showPretty(color, _.toString.some)
+        }
     }
   def showGeneric(any: Any, color: String)(show: PartialFunction[Matchable, String]): String =
     showGeneric(any, color, any => show.lift(any.asInstanceOf[Matchable]))

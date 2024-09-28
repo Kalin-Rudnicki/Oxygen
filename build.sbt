@@ -51,6 +51,7 @@ lazy val `oxygen-modules-jvm`: Project =
     .aggregate(
       // General
       `oxygen-core`.jvm,
+      `oxygen-json`.jvm,
 
       // Testing
       `oxygen-test`.jvm,
@@ -70,6 +71,7 @@ lazy val `oxygen-modules-js`: Project =
     .aggregate(
       // General
       `oxygen-core`.js,
+      `oxygen-json`.js,
 
       // Testing
       `oxygen-test`.js,
@@ -89,6 +91,7 @@ lazy val `oxygen-modules-native`: Project =
     .aggregate(
       // General
       `oxygen-core`.native,
+      `oxygen-json`.native,
 
       // Testing
       `oxygen-test`.native,
@@ -114,6 +117,22 @@ lazy val `oxygen-core`: CrossProject =
       ),
     )
 
+lazy val `oxygen-json`: CrossProject =
+  crossProject(JSPlatform, JVMPlatform, NativePlatform)
+    .crossType(CrossType.Pure)
+    .in(file("modules/json"))
+    .settings(
+      publishedProjectSettings,
+      name := "oxygen-json",
+      description := "Lightweight wrapper around `zio-json` to add compatibility with the `oxygen` ecosystem.",
+      libraryDependencies ++= Seq(
+        zio.organization %%% zio.zioJson % zio.zioJsonVersion,
+      ),
+    )
+    .dependsOn(
+      `oxygen-core` % testAndCompile,
+    )
+
 //////////////////////////////////////////////////////////////////////////////////////////////////////
 //      Testing
 //////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -132,7 +151,7 @@ lazy val `oxygen-test`: CrossProject =
       ),
     )
     .dependsOn(
-      `oxygen-core` % testAndCompile, // TODO (KR) : this will need to depend on whichever library adds zio+Logger and all that stuff
+      `oxygen-json` % testAndCompile, // TODO (KR) : this will need to depend on whichever library adds zio+Logger and all that stuff
     )
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////

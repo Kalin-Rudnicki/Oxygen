@@ -35,6 +35,10 @@ trait TypeTag[A] extends TypeTag.Showable {
   override def canonicalName(genericsString: TypeRef.Single => String): String = tag.polyShow(_.canonicalName(genericsString))
   override def canonicalNameNoGenerics: String = tag.polyShow(_.canonicalNameNoGenerics)
 
+  override def hashCode: Int = tag.hashCode
+  override def equals(that: Any): Boolean = that.asInstanceOf[Matchable] match
+    case that: TypeTag[?] => this.tag == that.tag
+    case _                => false
   override def toString: String = tag.polyShow(_.prefixObject)
 
 }
@@ -66,6 +70,7 @@ object TypeTag {
         case (self: TypeRef.Intersection, 0) => self.cases.map(rec(_, depth + 1)).mkString(" & ")
         case (self: TypeRef.Union, _)        => self.cases.map(rec(_, depth + 1)).mkString("(", " | ", ")")
         case (self: TypeRef.Intersection, _) => self.cases.map(rec(_, depth + 1)).mkString("(", " & ", ")")
+        case (TypeRef.Wildcard, _)           => "?"
 
       rec(this, 0)
     }
@@ -176,6 +181,8 @@ object TypeTag {
 
     final case class Intersection(cases: Set[TypeRef]) extends TypeRef
 
+    case object Wildcard extends TypeRef
+
   }
 
   trait Showable {
@@ -280,9 +287,10 @@ object TypeTag {
           TypeRef.Intersection(refs.map(fromTagRef))
         case LightTypeTagRef.Refinement(reference, _) =>
           fromTagRef(reference)
+        case LightTypeTagRef.WildcardReference(_) =>
+          TypeRef.Wildcard
 
-        case LightTypeTagRef.WildcardReference(_) => throw new RuntimeException(s"Can not parse TypeTag from: ${self.repr}")
-        case LightTypeTagRef.Lambda(_, _)         => throw new RuntimeException(s"Can not parse TypeTag from: ${self.repr}")
+        case LightTypeTagRef.Lambda(_, _) => throw new RuntimeException(s"Can not parse TypeTag from lambda: ${self.repr}")
       }
 
     TypeTag(fromTagRef(tag.ref), classOf[Any])
