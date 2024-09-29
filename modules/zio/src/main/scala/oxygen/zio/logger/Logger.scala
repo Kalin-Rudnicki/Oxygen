@@ -164,13 +164,13 @@ object Logger {
 
   // --- Target ---
 
-  def withTargets(targets: Chunk[LoggerTarget]): FiberRefModification = OxygenEnv.logTargets.modification.set(targets)
-  def withTargets(targets: LoggerTarget*): FiberRefModification = OxygenEnv.logTargets.modification.set(Chunk.fromIterable(targets))
+  def withTargets(targets: Chunk[LogTarget]): FiberRefModification = OxygenEnv.logTargets.modification.set(targets)
+  def withTargets(targets: LogTarget*): FiberRefModification = OxygenEnv.logTargets.modification.set(Chunk.fromIterable(targets))
 
-  def addTargets(targets: Chunk[LoggerTarget]): FiberRefModification = OxygenEnv.logTargets.modification.update(_ ++ targets)
-  def addTargets(targets: LoggerTarget*): FiberRefModification = OxygenEnv.logTargets.modification.update(_ ++ Chunk.fromIterable(targets))
+  def addTargets(targets: Chunk[LogTarget]): FiberRefModification = OxygenEnv.logTargets.modification.update(_ ++ targets)
+  def addTargets(targets: LogTarget*): FiberRefModification = OxygenEnv.logTargets.modification.update(_ ++ Chunk.fromIterable(targets))
 
-  def withoutStdOutTargets: FiberRefModification = OxygenEnv.logTargets.modification.update(_.filterNot(s => LoggerTarget.names.allStdOut.contains(s.name)))
+  def withoutStdOutTargets: FiberRefModification = OxygenEnv.logTargets.modification.update(_.filterNot(s => LogTarget.names.allStdOut.contains(s.name)))
 
   // --- Context ---
 
@@ -196,7 +196,7 @@ object Logger {
   // --- Defaults ---
 
   def defaultToZio: FiberRefModification = Logger.withTargets() >>> Logger.withForwardToZio(true)
-  def defaultToOxygen: FiberRefModification = Logger.withTargets(LoggerTarget.stdOut(None, ColorMode.Extended, true, true, true, true)) >>> Logger.withForwardToZio(false)
+  def defaultToOxygen: FiberRefModification = Logger.withTargets(LogTarget.stdOut(None, ColorMode.Extended, true, true, true, true)) >>> Logger.withForwardToZio(false)
 
   //////////////////////////////////////////////////////////////////////////////////////////////////////
   //      Execute
@@ -279,7 +279,7 @@ object Logger {
   private def handle(
       e: LogEvent,
       minLogLevel: LogLevel,
-      target: LoggerTarget,
+      target: LogTarget,
   )(
       fiberId: FiberId,
       logAnnotations: Logger.LogContext,

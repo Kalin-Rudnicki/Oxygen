@@ -5,9 +5,9 @@ import zio.{LogLevel as _, *}
 
 object OxygenEnv {
 
-  val logTargets: FiberRef[Chunk[LoggerTarget]] =
+  val logTargets: FiberRef[Chunk[LogTarget]] =
     Unsafe.unsafely {
-      FiberRef.unsafe.make(Chunk.empty[LoggerTarget])
+      FiberRef.unsafe.make(Chunk.empty[LogTarget])
     }
 
   val minLogLevel: FiberRef[LogLevel] =

@@ -6,7 +6,7 @@ import oxygen.predef.json.*
 import scala.collection.mutable
 import zio.{Chunk, UIO, ZIO}
 
-final case class LoggerTarget(
+final case class LogTarget(
     name: String,
     log: ExecutedLogEvent => UIO[Unit],
     minLogLevel: Option[LogLevel],
@@ -19,7 +19,7 @@ final case class LoggerTarget(
   }
 
 }
-object LoggerTarget {
+object LogTarget {
 
   object names {
 
@@ -41,8 +41,8 @@ object LoggerTarget {
       logTrace: Boolean,
       logStack: Boolean,
       logFiberId: Boolean,
-  ): LoggerTarget =
-    LoggerTarget(
+  ): LogTarget =
+    LogTarget(
       names.stdOut,
       logToPrintStream(scala.Console.out, _.formatted(colorMode, logTimestamp, logTrace, logStack, logFiberId)),
       minLogLevel,
@@ -51,8 +51,8 @@ object LoggerTarget {
 
   def stdOutJson(
       minLogLevel: Option[LogLevel],
-  ): LoggerTarget =
-    LoggerTarget(
+  ): LogTarget =
+    LogTarget(
       names.stdOutJson,
       logToPrintStream(scala.Console.out, _.toJson),
       minLogLevel,
@@ -67,8 +67,8 @@ object LoggerTarget {
       logTrace: Boolean,
       logStack: Boolean,
       logFiberId: Boolean,
-  ): LoggerTarget =
-    LoggerTarget(
+  ): LogTarget =
+    LogTarget(
       names.stdOut,
       event => ZIO.succeed { sb.append(event.formatted(colorMode, logTimestamp, logTrace, logStack, logFiberId)); sb.append('\n') },
       minLogLevel,
