@@ -53,6 +53,7 @@ lazy val `oxygen-modules-jvm`: Project =
       `oxygen-core`.jvm,
       `oxygen-json`.jvm,
       `oxygen-zio`.jvm,
+      `oxygen-socket`,
 
       // Testing
       `oxygen-test`.jvm,
@@ -151,6 +152,19 @@ lazy val `oxygen-zio`: CrossProject =
     )
     .dependsOn(
       `oxygen-json` % testAndCompile,
+    )
+
+// TODO (KR) : Add cross-compile support
+lazy val `oxygen-socket`: Project =
+  project
+    .in(file("modules/socket"))
+    .settings(
+      publishedProjectSettings,
+      name := "oxygen-socket",
+      description := "Interop between java sockets and zio.",
+    )
+    .dependsOn(
+      `oxygen-zio`.jvm % testAndCompile,
     )
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////
