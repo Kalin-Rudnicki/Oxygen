@@ -1,7 +1,7 @@
 package oxygen.core.typeclass
 
 import java.time.*
-import java.util.{Base64, TimeZone}
+import java.util.{Base64, TimeZone, UUID}
 import oxygen.core.TypeTag
 import oxygen.core.syntax.either.*
 import oxygen.core.syntax.string.*
@@ -116,6 +116,7 @@ object StringCodec {
   implicit val string: StringCodec[String] = StringCodec(StringEncoder.string, StringDecoder.string)
 
   implicit val boolean: StringCodec[Boolean] = StringCodec.string.transformOption(_.toBooleanOption, _.toString)
+  implicit val uuid: StringCodec[UUID] = StringCodec.string.transformCatchOption(UUID.fromString, _.toString)
 
   // TODO (KR) : support hex
   implicit val byte: StringCodec[Byte] = StringCodec.string.transformOption(parseInt(_.toByte, _.toByte), _.toString)
