@@ -2,6 +2,7 @@ package oxygen.json
 
 import oxygen.json.syntax.instances.*
 import oxygen.predef.core.*
+import zio.*
 import zio.json.*
 
 object instances {
@@ -32,6 +33,14 @@ object instances {
         dec => Encoded(dec.tag, dec.closestClass),
       )
   }
+
+  implicit val traceJsonCodec: JsonCodec[Trace] = JsonCodec[String].asInstanceOf[JsonCodec[Trace]]
+
+  implicit val logSpanJsonCodec: JsonCodec[LogSpan] = JsonCodec.derived
+
+  implicit val fiberIdJsonCodec: JsonCodec[FiberId] = JsonCodec.derived
+
+  implicit val stackTraceJsonCodec: JsonCodec[StackTrace] = JsonCodec.derived
 
   implicit val throwableJsonCodec: JsonCodec[Throwable] =
     JsonCodec[EncodedThrowable].transform(_.toThrowable, EncodedThrowable.fromThrowable)

@@ -52,6 +52,7 @@ lazy val `oxygen-modules-jvm`: Project =
       // General
       `oxygen-core`.jvm,
       `oxygen-json`.jvm,
+      `oxygen-zio`.jvm,
 
       // Testing
       `oxygen-test`.jvm,
@@ -72,6 +73,7 @@ lazy val `oxygen-modules-js`: Project =
       // General
       `oxygen-core`.js,
       `oxygen-json`.js,
+      `oxygen-zio`.js,
 
       // Testing
       `oxygen-test`.js,
@@ -92,6 +94,7 @@ lazy val `oxygen-modules-native`: Project =
       // General
       `oxygen-core`.native,
       `oxygen-json`.native,
+      `oxygen-zio`.native,
 
       // Testing
       `oxygen-test`.native,
@@ -133,6 +136,23 @@ lazy val `oxygen-json`: CrossProject =
       `oxygen-core` % testAndCompile,
     )
 
+lazy val `oxygen-zio`: CrossProject =
+  crossProject(JSPlatform, JVMPlatform, NativePlatform)
+    .crossType(CrossType.Pure)
+    .in(file("modules/zio"))
+    .settings(
+      publishedProjectSettings,
+      name := "oxygen-zio",
+      description := "Opinionated library of basic utilities to integrate with the `zio` ecosystem.",
+      libraryDependencies ++= Seq(
+        zio.organization %%% zio.zio % zio.coreVersion,
+        zio.organization %%% zio.zioJson % zio.zioJsonVersion,
+      ),
+    )
+    .dependsOn(
+      `oxygen-json` % testAndCompile,
+    )
+
 //////////////////////////////////////////////////////////////////////////////////////////////////////
 //      Testing
 //////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -151,7 +171,7 @@ lazy val `oxygen-test`: CrossProject =
       ),
     )
     .dependsOn(
-      `oxygen-json` % testAndCompile, // TODO (KR) : this will need to depend on whichever library adds zio+Logger and all that stuff
+      `oxygen-zio` % testAndCompile,
     )
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -168,6 +188,6 @@ lazy val `oxygen-pre-test-ut`: CrossProject =
       description := "This serves no purpose besides being able to use `oxygen-test` to write tests for sub-projects that `oxygen-test` depends on.",
     )
     .dependsOn(
-      `oxygen-core` % testAndCompile,
+      `oxygen-zio` % testAndCompile,
       `oxygen-test` % Test,
     )
