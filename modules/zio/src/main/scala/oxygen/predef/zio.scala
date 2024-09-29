@@ -8,4 +8,5 @@ object zio {
   export _root_.zio.{Layer, RLayer, TaskLayer, URLayer, ZLayer}
   export oxygen.zio.{FiberRefModification, FiberRefModificationR, OxygenEnv, ZIOAspectAtLeastR, ZIOAspectPoly}
   export oxygen.zio.logger.{Logger, LogLevel}
+  export oxygen.zio.telemetry.Telemetry
 }

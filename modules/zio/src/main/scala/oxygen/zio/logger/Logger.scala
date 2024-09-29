@@ -28,13 +28,13 @@ object Logger {
 
     sealed class LogAtLevel(logLevel: LogLevel) {
       def apply(message: => Any, context: => (String, Any)*)(implicit trace: zio.Trace): UIO[Unit] =
-        Logger.execute(LogEvent(logLevel, String.valueOf(message), Logger.LogContext(context), LogCause.Empty, trace, None))
+        Logger.handleEvent(LogEvent(logLevel, String.valueOf(message), Logger.LogContext(context), LogCause.Empty, trace, None))
     }
 
     def apply(logLevel: LogLevel): LogAtLevel = new LogAtLevel(logLevel)
 
     def apply(message: => Any, context: => (String, Any)*)(implicit trace: zio.Trace): UIO[Unit] =
-      Logger.execute(LogEvent(String.valueOf(message), Logger.LogContext(context), LogCause.Empty, trace, None))
+      Logger.handleEvent(LogEvent(String.valueOf(message), Logger.LogContext(context), LogCause.Empty, trace, None))
 
     object never extends LogAtLevel(LogLevel.Never)
     object trace extends LogAtLevel(LogLevel.Trace)
@@ -54,7 +54,7 @@ object Logger {
     sealed class LogAtLevel(logLevel: LogLevel) {
       def apply(message: => Any, context: => (String, Any)*)(implicit trace: zio.Trace): UIO[Unit] =
         ZIO.stackTrace.flatMap { stackTrace =>
-          Logger.execute(LogEvent(logLevel, String.valueOf(message), Logger.LogContext(context), LogCause.Empty, trace, stackTrace.some))
+          Logger.handleEvent(LogEvent(logLevel, String.valueOf(message), Logger.LogContext(context), LogCause.Empty, trace, stackTrace.some))
         }
     }
 
@@ -62,7 +62,7 @@ object Logger {
 
     def apply(message: => Any, context: => (String, Any)*)(implicit trace: zio.Trace): UIO[Unit] =
       ZIO.stackTrace.flatMap { stackTrace =>
-        Logger.execute(LogEvent(String.valueOf(message), Logger.LogContext(context), LogCause.Empty, trace, stackTrace.some))
+        Logger.handleEvent(LogEvent(String.valueOf(message), Logger.LogContext(context), LogCause.Empty, trace, stackTrace.some))
       }
 
     object never extends LogAtLevel(LogLevel.Never)
@@ -82,8 +82,8 @@ object Logger {
 
     def apply[E](causeLevel: Option[LogLevel], message: => Any, cause: Cause[E], context: => (String, Any)*)(implicit trace: zio.Trace, errorLogger: ErrorLogger[E]): UIO[Unit] =
       cause.failures.map(errorLogger.logLevel).maxByOption(_.logPriority).orElse(causeLevel) match
-        case Some(level) => Logger.execute(LogEvent(level, String.valueOf(message), Logger.LogContext(context), LogCause.fromZio(cause, errorLogger), trace, None))
-        case None        => Logger.execute(LogEvent(String.valueOf(message), Logger.LogContext(context), LogCause.fromZio(cause, errorLogger), trace, None))
+        case Some(level) => Logger.handleEvent(LogEvent(level, String.valueOf(message), Logger.LogContext(context), LogCause.fromZio(cause, errorLogger), trace, None))
+        case None        => Logger.handleEvent(LogEvent(String.valueOf(message), Logger.LogContext(context), LogCause.fromZio(cause, errorLogger), trace, None))
 
     sealed class LogCauseAtLevel(causeLevel: LogLevel) {
 
@@ -123,9 +123,9 @@ object Logger {
         val stackTrace2 = stackTrace.some
         cause.failures.map(errorLogger.logLevel).maxByOption(_.logPriority).orElse(causeLevel) match
           case Some(level) =>
-            Logger.execute(LogEvent(level, String.valueOf(message), Logger.LogContext(context), LogCause.fromZio(cause, errorLogger), trace, stackTrace2))
+            Logger.handleEvent(LogEvent(level, String.valueOf(message), Logger.LogContext(context), LogCause.fromZio(cause, errorLogger), trace, stackTrace2))
           case None =>
-            Logger.execute(LogEvent(String.valueOf(message), Logger.LogContext(context), LogCause.fromZio(cause, errorLogger), trace, stackTrace2))
+            Logger.handleEvent(LogEvent(String.valueOf(message), Logger.LogContext(context), LogCause.fromZio(cause, errorLogger), trace, stackTrace2))
       }
 
     sealed class LogCauseAtLevel(causeLevel: LogLevel) {
@@ -196,10 +196,10 @@ object Logger {
   def defaultToOxygen: FiberRefModification = Logger.withTargets(LogTarget.StdOut.defaultWithAdditionalContext) >>> Logger.withForwardToZio(false)
 
   //////////////////////////////////////////////////////////////////////////////////////////////////////
-  //      Execute
+  //      Internal
   //////////////////////////////////////////////////////////////////////////////////////////////////////
 
-  def execute(e: LogEvent): UIO[Unit] =
+  private def handleEvent(e: LogEvent): UIO[Unit] =
     OxygenEnv.logToZio.getWith {
       case false =>
         for {
