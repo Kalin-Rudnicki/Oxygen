@@ -1,7 +1,6 @@
 package oxygen.zio.logger
 
 import java.time.Instant
-import oxygen.core.ColorMode
 import oxygen.predef.core.*
 import oxygen.zio.*
 import oxygen.zio.typeclass.ErrorLogger
@@ -170,8 +169,6 @@ object Logger {
   def addTargets(targets: Chunk[LogTarget]): FiberRefModification = OxygenEnv.logTargets.modification.update(_ ++ targets)
   def addTargets(targets: LogTarget*): FiberRefModification = OxygenEnv.logTargets.modification.update(_ ++ Chunk.fromIterable(targets))
 
-  def withoutStdOutTargets: FiberRefModification = OxygenEnv.logTargets.modification.update(_.filterNot(s => LogTarget.names.allStdOut.contains(s.name)))
-
   // --- Context ---
 
   def withContext(context: Logger.LogContext): FiberRefModification = FiberRef.currentLogAnnotations.modification.set(context)
@@ -196,7 +193,7 @@ object Logger {
   // --- Defaults ---
 
   def defaultToZio: FiberRefModification = Logger.withTargets() >>> Logger.withForwardToZio(true)
-  def defaultToOxygen: FiberRefModification = Logger.withTargets(LogTarget.stdOut(None, ColorMode.Extended, true, true, true, true)) >>> Logger.withForwardToZio(false)
+  def defaultToOxygen: FiberRefModification = Logger.withTargets(LogTarget.StdOut.defaultWithAdditionalContext) >>> Logger.withForwardToZio(false)
 
   //////////////////////////////////////////////////////////////////////////////////////////////////////
   //      Execute
@@ -290,7 +287,7 @@ object Logger {
       case LogEvent(Some(logLevel), _, _, _, _, _) if logLevel.logPriority < minLogLevel.tolerancePriority =>
         ZIO.unit
       case _ =>
-        target.log(ExecutedLogEvent(e.level, e.message, logAnnotations ++ e.context, logSpans, fiberId, e.cause, e.trace, e.stackTrace, now))
+        target.handle(ExecutedLogEvent(e.level, e.message, logAnnotations ++ e.context, logSpans, fiberId, e.cause, e.trace, e.stackTrace, now))
     }
 
 }
