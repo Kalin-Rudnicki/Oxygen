@@ -4,62 +4,65 @@ import java.io.PrintStream
 import oxygen.core.ColorMode
 import oxygen.predef.json.*
 import scala.collection.mutable
-import zio.{Chunk, UIO, ZIO}
+import zio.{LogLevel as _, *}
 
-final case class LogTarget(
-    name: String,
-    log: ExecutedLogEvent => UIO[Unit],
-    minLogLevel: Option[LogLevel],
-    args: Chunk[(String, String)],
-) {
+trait LogTarget {
+
+  val name: String
+  val handle: ExecutedLogEvent => UIO[Unit]
+  val minLogLevel: Option[LogLevel]
+  val args: Chunk[(String, String)]
 
   override def toString: String = {
     val allArgs: Chunk[(String, String)] = ("level", minLogLevel.fold("default")(_.rawDisplayName)) +: args
-    s"Source[$name${allArgs.map { case (k, v) => s", $k=$v" }.mkString}]"
+    s"LogTarget[$name${allArgs.map { case (k, v) => s", $k=$v" }.mkString}]"
   }
 
 }
 object LogTarget {
 
-  object names {
-
-    val stdOut = "std-out"
-    val stdOutJson = "std-out-json"
-    val stringBuilder = "string-builder"
-
-    val allStdOut: Set[String] = Set(stdOut, stdOutJson)
-
-  }
-
   private def logToPrintStream(printStream: PrintStream, eventToString: ExecutedLogEvent => String): ExecutedLogEvent => UIO[Unit] =
     event => ZIO.succeed { printStream.println(eventToString(event)) }
 
-  def stdOut(
+  final case class StdOut(
       minLogLevel: Option[LogLevel],
       colorMode: ColorMode,
       logTimestamp: Boolean,
       logTrace: Boolean,
       logStack: Boolean,
       logFiberId: Boolean,
-  ): LogTarget =
-    LogTarget(
-      names.stdOut,
-      logToPrintStream(scala.Console.out, _.formatted(colorMode, logTimestamp, logTrace, logStack, logFiberId)),
-      minLogLevel,
-      Chunk("logTimestamp" -> logTimestamp.toString, "logTrace" -> logTrace.toString, "logStack" -> logStack.toString),
-    )
+  ) extends LogTarget {
 
-  def stdOutJson(
+    override val name: String = "std-out"
+
+    override val handle: ExecutedLogEvent => UIO[Unit] = logToPrintStream(scala.Console.out, _.formatted(colorMode, logTimestamp, logTrace, logStack, logFiberId))
+
+    override val args: Chunk[(String, String)] = Chunk("logTimestamp" -> logTimestamp.toString, "logTrace" -> logTrace.toString, "logStack" -> logStack.toString)
+
+  }
+  object StdOut {
+
+    val defaultWithoutAdditionalContext: StdOut =
+      StdOut(None, ColorMode.Extended, false, false, false, false)
+
+    val defaultWithAdditionalContext: StdOut =
+      StdOut(None, ColorMode.Extended, true, true, true, true)
+
+  }
+
+  final case class StdOutJson(
       minLogLevel: Option[LogLevel],
-  ): LogTarget =
-    LogTarget(
-      names.stdOutJson,
-      logToPrintStream(scala.Console.out, _.toJson),
-      minLogLevel,
-      Chunk.empty,
-    )
+  ) extends LogTarget {
 
-  def stringBuilder(
+    override val name: String = "std-out-json"
+
+    override val handle: ExecutedLogEvent => UIO[Unit] = logToPrintStream(scala.Console.out, _.toJson)
+
+    override val args: Chunk[(String, String)] = Chunk.empty
+
+  }
+
+  final case class StringBuilder(
       sb: mutable.StringBuilder,
       minLogLevel: Option[LogLevel],
       colorMode: ColorMode,
@@ -67,12 +70,14 @@ object LogTarget {
       logTrace: Boolean,
       logStack: Boolean,
       logFiberId: Boolean,
-  ): LogTarget =
-    LogTarget(
-      names.stdOut,
-      event => ZIO.succeed { sb.append(event.formatted(colorMode, logTimestamp, logTrace, logStack, logFiberId)); sb.append('\n') },
-      minLogLevel,
-      Chunk("logTimestamp" -> logTimestamp.toString, "logTrace" -> logTrace.toString, "logStack" -> logStack.toString),
-    )
+  ) extends LogTarget {
+
+    override val name: String = "string-builder"
+
+    override val handle: ExecutedLogEvent => UIO[Unit] = event => ZIO.succeed { sb.append(event.formatted(colorMode, logTimestamp, logTrace, logStack, logFiberId)); sb.append('\n') }
+
+    override val args: Chunk[(String, String)] = Chunk("logTimestamp" -> logTimestamp.toString, "logTrace" -> logTrace.toString, "logStack" -> logStack.toString)
+
+  }
 
 }
