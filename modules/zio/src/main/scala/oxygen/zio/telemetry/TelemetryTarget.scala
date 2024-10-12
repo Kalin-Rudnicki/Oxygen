@@ -5,7 +5,7 @@ import oxygen.predef.core.*
 import oxygen.zio.logger.*
 import zio.{LogLevel as _, *}
 
-trait TraceTarget {
+trait TelemetryTarget {
 
   val name: String
   val handle: TraceEntry => UIO[Unit]
@@ -13,11 +13,11 @@ trait TraceTarget {
   override def toString: String = s"TraceTarget[$name]"
 
 }
-object TraceTarget {
+object TelemetryTarget {
 
   final class InMemory private (
       private val tracesRef: Ref[Map[String, Chunk[TraceEntry]]],
-  ) extends TraceTarget {
+  ) extends TelemetryTarget {
 
     override val name: String = "in-memory"
 
@@ -88,7 +88,7 @@ object TraceTarget {
           else {
             val tmp1 =
               traces.groupMap { t =>
-                Chunk.fromIterable(aggregator.segregateByArgs.map(a => a -> t.args.getOrElse(a, "<missing>"))).sorted :+ ("<result>" -> t.result.toString)
+                Chunk.fromIterable(aggregator.segregateByArgs.map(a => a -> t.args.getOrElse(a, "<missing>"))).sorted :+ ("<outcome>" -> t.outcome.toString)
               }(_.duration.toMillis)
             val tmp2 =
               ("all" -> Stats.calculate(traces.map(_.duration.toMillis))) +:
@@ -123,7 +123,7 @@ object TraceTarget {
       } yield ()).repeat(Schedule.fixed(duration)).forkScoped.unit
 
     // TODO (KR) : support an option for logging unspecified keys
-    def make(aggregators0: TraceAggregator, aggregatorsN: TraceAggregator*): URIO[Scope, TraceTarget] =
+    def make(aggregators0: TraceAggregator, aggregatorsN: TraceAggregator*): URIO[Scope, TelemetryTarget] =
       for {
         tracesRef <- Ref.make(Map.empty[String, Chunk[TraceEntry]])
         inMemory = InMemory(tracesRef)
