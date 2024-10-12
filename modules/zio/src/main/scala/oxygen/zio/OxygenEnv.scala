@@ -7,7 +7,7 @@ import zio.{LogLevel as _, *}
 object OxygenEnv {
 
   //////////////////////////////////////////////////////////////////////////////////////////////////////
-  //      Logging
+  //      Logger
   //////////////////////////////////////////////////////////////////////////////////////////////////////
 
   val logTargets: FiberRef[Chunk[LogTarget]] =
@@ -29,9 +29,9 @@ object OxygenEnv {
   //      Telemetry
   //////////////////////////////////////////////////////////////////////////////////////////////////////
 
-  val traceTargets: FiberRef[Chunk[TraceTarget]] =
+  val telemetryTargets: FiberRef[Chunk[TelemetryTarget]] =
     Unsafe.unsafely {
-      FiberRef.unsafe.make(Chunk.empty[TraceTarget])
+      FiberRef.unsafe.make(Chunk.empty[TelemetryTarget])
     }
 
 }
