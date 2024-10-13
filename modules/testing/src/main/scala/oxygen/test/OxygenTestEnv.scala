@@ -4,7 +4,7 @@ import zio.*
 
 // TODO (KR) : LogCache
 type OxygenTestEnv = Any
-object HarnessTestEnv {
+object OxygenTestEnv {
 
   val layer: ULayer[OxygenTestEnv] =
     ZLayer.make[OxygenTestEnv](

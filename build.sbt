@@ -42,7 +42,7 @@ lazy val `oxygen-modules`: Project =
 
 lazy val `oxygen-modules-jvm`: Project =
   project
-    .in(file("modules/.jvm"))
+    .in(file("aggregates/.jvm"))
     .settings(
       nonPublishedProjectSettings,
       name := "oxygen-modules-jvm",
@@ -51,6 +51,7 @@ lazy val `oxygen-modules-jvm`: Project =
     .aggregate(
       // General
       `oxygen-core`.jvm,
+      `oxygen-cli`.jvm,
       `oxygen-json`.jvm,
       `oxygen-zio`.jvm,
 
@@ -63,7 +64,7 @@ lazy val `oxygen-modules-jvm`: Project =
 
 lazy val `oxygen-modules-js`: Project =
   project
-    .in(file("modules/.js"))
+    .in(file("aggregates/.js"))
     .settings(
       nonPublishedProjectSettings,
       name := "oxygen-modules-js",
@@ -72,6 +73,7 @@ lazy val `oxygen-modules-js`: Project =
     .aggregate(
       // General
       `oxygen-core`.js,
+      `oxygen-cli`.js,
       `oxygen-json`.js,
       `oxygen-zio`.js,
 
@@ -84,7 +86,7 @@ lazy val `oxygen-modules-js`: Project =
 
 lazy val `oxygen-modules-native`: Project =
   project
-    .in(file("modules/.native"))
+    .in(file("aggregates/.native"))
     .settings(
       nonPublishedProjectSettings,
       name := "oxygen-modules-native",
@@ -93,6 +95,7 @@ lazy val `oxygen-modules-native`: Project =
     .aggregate(
       // General
       `oxygen-core`.native,
+      `oxygen-cli`.native,
       `oxygen-json`.native,
       `oxygen-zio`.native,
 
@@ -118,6 +121,20 @@ lazy val `oxygen-core`: CrossProject =
       libraryDependencies ++= Seq(
         zio.organization %%% zio.izumiReflect % zio.izumiVersion,
       ),
+    )
+
+lazy val `oxygen-cli`: CrossProject =
+  crossProject(JSPlatform, JVMPlatform, NativePlatform)
+    .crossType(CrossType.Pure)
+    .in(file("modules/cli"))
+    .settings(
+      publishedProjectSettings,
+      name := "oxygen-cli",
+      description := "Command line parsing for the enlightened.",
+    )
+    .dependsOn(
+      `oxygen-core` % testAndCompile,
+      `oxygen-test` % Test,
     )
 
 lazy val `oxygen-json`: CrossProject =
