@@ -9,11 +9,16 @@ final case class ColorString(color: ColorState, elems: Seq[String | ColorString]
 
   // =====|  |=====
 
-  def +(that: ColorString): ColorString =
+  def +(other: String | ColorString): ColorString = {
+    val that: ColorString = other match
+      case string: String           => ColorString.make(string)
+      case colorString: ColorString => colorString
+
     if (this.color == that.color) ColorString(this.color, this.elems ++ that.elems)
     else if (this.isEmpty) that
     else if (that.isEmpty) this
     else ColorString(ColorState.empty, this :: that :: Nil)
+  }
 
   def isEmpty: Boolean = elems.isEmpty
   def nonEmpty: Boolean = elems.nonEmpty

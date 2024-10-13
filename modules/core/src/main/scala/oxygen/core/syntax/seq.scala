@@ -20,6 +20,41 @@ object seq {
       (builder.result(), pass)
     }
 
+    def intersperse[B >: A](join: B): F[B] = {
+      val builder = self.iterableFactory.newBuilder[B]
+      val iter = self.iterator
+
+      if (iter.hasNext) {
+        builder.addOne(iter.next())
+        while (iter.hasNext) {
+          builder.addOne(join)
+          builder.addOne(iter.next())
+        }
+      }
+
+      builder.result()
+    }
+
+    def surround[B >: A](start: B, join: B, end: B): F[B] = {
+      val builder = self.iterableFactory.newBuilder[B]
+      val iter = self.iterator
+
+      builder.addOne(start)
+      if (iter.hasNext) {
+        builder.addOne(iter.next())
+        while (iter.hasNext) {
+          builder.addOne(join)
+          builder.addOne(iter.next())
+        }
+      }
+      builder.addOne(end)
+
+      builder.result()
+    }
+
+    def surround[B >: A](startJoinEnd: B): F[B] =
+      surround(startJoinEnd, startJoinEnd, startJoinEnd)
+
   }
 
 }

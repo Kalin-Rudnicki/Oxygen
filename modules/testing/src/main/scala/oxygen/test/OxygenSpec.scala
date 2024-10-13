@@ -42,7 +42,7 @@ abstract class OxygenSpec[_R: EnvironmentTag] extends ZIOSpecDefault {
       if (withDefaultAspects) OxygenSpec.defaultTestAspects.foldRight(spec3) { case (a, s) => s @@ a }
       else spec3
     val spec5: Spec[TestEnvironment & Scope, Any] =
-      spec4.provideSomeLayer(HarnessTestEnv.layer)
+      spec4.provideSomeLayer(OxygenTestEnv.layer)
 
     spec5
   }
