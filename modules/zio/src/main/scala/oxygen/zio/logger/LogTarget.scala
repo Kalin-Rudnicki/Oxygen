@@ -2,6 +2,8 @@ package oxygen.zio.logger
 
 import java.io.PrintStream
 import oxygen.core.ColorMode
+import oxygen.json.KeyedMapDecoder
+import oxygen.json.autoInstances.*
 import oxygen.predef.json.*
 import scala.collection.mutable
 import zio.{LogLevel as _, *}
@@ -77,6 +79,52 @@ object LogTarget {
     override val handle: ExecutedLogEvent => UIO[Unit] = event => ZIO.succeed { sb.append(event.formatted(colorMode, logTimestamp, logTrace, logStack, logFiberId)); sb.append('\n') }
 
     override val args: Chunk[(String, String)] = Chunk("logTimestamp" -> logTimestamp.toString, "logTrace" -> logTrace.toString, "logStack" -> logStack.toString)
+
+  }
+
+  final case class ConfigBuilder(logTarget: RIO[Scope, Chunk[LogTarget]])
+  object ConfigBuilder {
+
+    private final case class StdOutConfig(
+        minLogLevel: Option[LogLevel],
+        colorMode: Option[ColorMode],
+        logTimestamp: Option[Boolean],
+        logTrace: Option[Boolean],
+        logStack: Option[Boolean],
+        logFiberId: Option[Boolean],
+    ) derives JsonDecoder
+
+    val stdOut: KeyedMapDecoder.Decoder[ConfigBuilder] =
+      KeyedMapDecoder.Decoder.make[StdOutConfig]("stdOut").map { cfg =>
+        val target = LogTarget.StdOut(
+          minLogLevel = cfg.minLogLevel,
+          colorMode = cfg.colorMode.getOrElse(ColorMode.Extended),
+          logTimestamp = cfg.logTimestamp.getOrElse(false),
+          logTrace = cfg.logTrace.getOrElse(false),
+          logStack = cfg.logStack.getOrElse(false),
+          logFiberId = cfg.logFiberId.getOrElse(false),
+        )
+
+        ConfigBuilder(ZIO.succeed(Chunk.single(target)))
+      }
+
+    private final case class StdOutJsonConfig(
+        minLogLevel: Option[LogLevel],
+    ) derives JsonDecoder
+
+    val stdOutJson: KeyedMapDecoder.Decoder[ConfigBuilder] =
+      KeyedMapDecoder.Decoder.make[StdOutJsonConfig]("stdOutJson").map { cfg =>
+        val target = LogTarget.StdOutJson(
+          minLogLevel = cfg.minLogLevel,
+        )
+
+        ConfigBuilder(ZIO.succeed(Chunk.single(target)))
+      }
+
+    // =====|  |=====
+
+    val default: Seq[KeyedMapDecoder.Decoder[ConfigBuilder]] =
+      Seq(stdOut, stdOutJson)
 
   }
 

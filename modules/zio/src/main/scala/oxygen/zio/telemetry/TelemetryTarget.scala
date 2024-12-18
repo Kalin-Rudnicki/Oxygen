@@ -1,9 +1,11 @@
 package oxygen.zio.telemetry
 
+import oxygen.json.KeyedMapDecoder
 import oxygen.predef.color.{*, given}
 import oxygen.predef.core.*
 import oxygen.zio.logger.*
 import zio.{LogLevel as _, *}
+import zio.json.JsonDecoder
 
 trait TelemetryTarget {
 
@@ -42,7 +44,7 @@ object TelemetryTarget {
         aggregationDuration: Duration,
         someLevel: LogLevel,
         noneLevel: Option[LogLevel],
-    )
+    ) derives JsonDecoder
 
     final case class Stats(
         count: Int,
@@ -133,6 +135,21 @@ object TelemetryTarget {
         _ <- ZIO.foreachDiscard(aggregators)(runAggregationFiber(inMemory, _))
         _ <- runCleanupFiber(inMemory, aggregators.map(_.aggregationDuration).max.dividedBy(3))
       } yield inMemory
+
+  }
+
+  final case class ConfigBuilder(telemetryTarget: RIO[Scope, Chunk[TelemetryTarget]])
+  object ConfigBuilder {
+
+    val inMemory: KeyedMapDecoder.Decoder[ConfigBuilder] =
+      KeyedMapDecoder.Decoder.make[NonEmptyChunk[InMemory.TraceAggregator]]("inMemory").map { aggs =>
+        ConfigBuilder(InMemory.make(aggs.head, aggs.tail*).map(Chunk.single))
+      }
+
+    // =====|  |=====
+
+    val default: Seq[KeyedMapDecoder.Decoder[ConfigBuilder]] =
+      Seq(inMemory)
 
   }
 

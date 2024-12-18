@@ -6,10 +6,25 @@ import zio.json.ast.Json
 object conversion {
 
   extension [A](self: A) {
-    def safeToJsonAST(implicit encoder: JsonEncoder[A]): Json = {
-      val encoded = self.toJson
-      Json.decoder.decodeJson(encoded).getOrElse(Json.Str(encoded))
-    }
+
+    /**
+      * Encodes the given A to a string, and then parses it back into a Json AST.
+      * If the given json encoder is somehow bricked, and does not produce a valid Json AST, the result will be a raw Json string.
+      */
+    def safeToJsonAST(implicit encoder: JsonEncoder[A]): Json =
+      self.toJson.toJsonASTDefaultString
+
+  }
+
+  extension (self: String) {
+
+    /**
+      * Attempts to decode the given string into a Json AST.
+      * If the given string is not valid Json, the result with be a raw Json string.
+      */
+    def toJsonASTDefaultString: Json =
+      Json.decoder.decodeJson(self).getOrElse(Json.Str(self))
+
   }
 
   extension (self: Json) {

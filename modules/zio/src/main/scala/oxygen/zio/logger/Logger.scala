@@ -1,10 +1,13 @@
 package oxygen.zio.logger
 
 import java.time.Instant
+import oxygen.json.KeyedMapDecoder
 import oxygen.predef.core.*
 import oxygen.zio.*
 import oxygen.zio.typeclass.ErrorLogger
 import zio.{LogLevel as _, *}
+import zio.json.JsonDecoder
+import zio.json.ast.Json
 
 object Logger {
 
@@ -179,8 +182,28 @@ object Logger {
 
   // --- Span ---
 
-  def span(label: String): FiberRefModification =
-    FiberRef.currentLogSpan.modification.updateUIO { spans => Clock.instant.map { instant => LogSpan(label, instant.toEpochMilli) :: spans } }
+  final case class Span(label: String, startTime: Option[Long]) {
+    def toLogSpan(now: Long): LogSpan = LogSpan(label, startTime.getOrElse(now))
+  }
+  object Span {
+    given JsonDecoder[Span] = JsonDecoder.string.map(Span(_, None)) <> JsonDecoder.derived[Span]
+  }
+
+  type SpanT = String | Span
+  object SpanT {
+
+    extension (self: SpanT)
+      def toLogSpan(now: Long): LogSpan = self match
+        case string: String => Span(string, None).toLogSpan(now)
+        case span: Span     => span.toLogSpan(now)
+
+  }
+
+  import SpanT.toLogSpan
+  def addSpan(span: SpanT): FiberRefModification = addSpan(span :: Nil)
+  def addSpan(span0: SpanT, span1: SpanT, spanN: SpanT*): FiberRefModification = addSpan(span0 :: span1 :: spanN.toList)
+  def addSpan(spans: List[SpanT]): FiberRefModification =
+    FiberRef.currentLogSpan.modification.updateUIO { current => Clock.instant.map { instant => spans.map(_.toLogSpan(instant.toEpochMilli)) ::: current } }
 
   // --- Level ---
 
@@ -188,18 +211,27 @@ object Logger {
 
   // --- Forward to Zio ---
 
-  def withForwardToZio(forwardToZio: Boolean): FiberRefModification = OxygenEnv.logToZio.modification.set(forwardToZio)
+  def withLogToZio(forwardToZio: Boolean): FiberRefModification = OxygenEnv.logToZio.modification.set(forwardToZio)
+
+  // --- Env ---
+
+  def env(env: OxygenEnv.LoggerEnv): FiberRefModification =
+    Logger.withTargets(env.targets) >>>
+      Logger.withContext(env.context) >>>
+      Logger.addSpan(env.spans) >>>
+      Logger.level(env.level) >>>
+      Logger.withLogToZio(env.logToZio)
 
   // --- Defaults ---
 
-  def defaultToZio: FiberRefModification = Logger.withTargets() >>> Logger.withForwardToZio(true)
-  def defaultToOxygen: FiberRefModification = Logger.withTargets(LogTarget.StdOut.defaultWithAdditionalContext) >>> Logger.withForwardToZio(false)
+  def defaultToZio: FiberRefModification = Logger.withTargets() >>> Logger.withLogToZio(true)
+  def defaultToOxygen: FiberRefModification = Logger.withTargets(LogTarget.StdOut.defaultWithAdditionalContext) >>> Logger.withLogToZio(false)
 
   //////////////////////////////////////////////////////////////////////////////////////////////////////
   //      Internal
   //////////////////////////////////////////////////////////////////////////////////////////////////////
 
-  private def handleEvent(e: LogEvent): UIO[Unit] =
+  def handleEvent(e: LogEvent): UIO[Unit] =
     OxygenEnv.logToZio.getWith {
       case false =>
         for {
@@ -268,6 +300,19 @@ object Logger {
           }
         } yield ()
     }
+
+  final case class Config(
+      targets: Json,
+      context: Option[Map[String, String]],
+      spans: Option[List[Span]],
+      level: LogLevel,
+      logToZio: Option[Boolean],
+  ) derives JsonDecoder {
+
+    def decodeTargets(decoder: KeyedMapDecoder[LogTarget.ConfigBuilder]): ZIO[Scope, String | Throwable, Chunk[LogTarget]] =
+      ZIO.fromEither(decoder.decoder.decodeJson(targets.toString)).flatMap(ZIO.foreach(_)(_.logTarget)).map(_.flatten)
+
+  }
 
   //////////////////////////////////////////////////////////////////////////////////////////////////////
   //      Helpers

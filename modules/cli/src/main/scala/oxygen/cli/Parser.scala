@@ -5,6 +5,10 @@ import oxygen.predef.core.*
 import scala.annotation.tailrec
 import scala.annotation.unchecked.uncheckedVariance
 
+//////////////////////////////////////////////////////////////////////////////////////////////////////
+//      Parser
+//////////////////////////////////////////////////////////////////////////////////////////////////////
+
 sealed trait Parser[+A] {
 
   def optionalName: Option[Name]
@@ -13,6 +17,16 @@ sealed trait Parser[+A] {
 
   def parse(values: List[Arg.ValueLike], params: List[Arg.ParamLike]): Parser.ParseResult[A]
 
+  final def apply(args: List[String]): Parser.FinalParseResult[A] =
+    Arg.parse(args) match {
+      case Right((values, params)) => this.parse(values, params).toFinal
+      case Left(error)             => Parser.FinalParseResult.Fail(ParseError.UnableToParseArgs(error), HelpMessage.RootMessage.Empty)
+    }
+
+  final def apply(args: String*): Parser.FinalParseResult[A] =
+    apply(args.toList)
+
+  // TODO (KR) : does it make sense to do this in different stages?
   /**
     * This should do 2 things:
     *   1) Fail if there are duplicate param names
@@ -27,22 +41,14 @@ sealed trait Parser[+A] {
     Parser.merge(this, that)(
       Values.Or(_, _),
       Params.Or(_, _),
-      {
-        case (Parser.Empty, b: Parser[A2]) => b
-        case (a: Parser[A], Parser.Empty)  => a
-        case (a, b)                        => Parser.Or(a, b)
-      },
+      Parser.Or(_, _),
     )
 
   final def <||>[B](that: Parser[B]): Parser[Either[A, B]] =
     Parser.merge(this, that)(
       (a, b) => Values.Or(a.map(_.asLeft), b.map(_.asRight)),
       (a, b) => Params.Or(a.map(_.asLeft), b.map(_.asRight)),
-      {
-        case (Parser.Empty, b: Parser[B]) => b.map(_.asRight)
-        case (a: Parser[A], Parser.Empty) => a.map(_.asLeft)
-        case (a, b)                       => Parser.Or(a.map(_.asLeft), b.map(_.asRight))
-      },
+      (a, b) => Parser.Or(a.map(_.asLeft), b.map(_.asRight)),
     )
 
   final def ^>>[B](that: Parser[B])(implicit zip: Zip[A @uncheckedVariance, B]): Parser[zip.Out] =
@@ -231,7 +237,13 @@ object Parser {
     final case class Fail(error: ParseError, help: HelpMessage) extends ParseResult[Nothing]
   }
 
-  sealed trait FinalParseResult[+A]
+  sealed trait FinalParseResult[+A] {
+
+    final def toEither: Either[(ParseError, HelpMessage), A] = this match
+      case FinalParseResult.Success(value, _) => value.asRight
+      case FinalParseResult.Fail(error, help) => (error, help).asLeft
+
+  }
   object FinalParseResult {
     final case class Success[+A](value: A, parsed: List[ParsedArg]) extends FinalParseResult[A]
     final case class Fail(error: ParseError, help: HelpMessage) extends FinalParseResult[Nothing]
@@ -280,6 +292,10 @@ object Parser {
       Params.Ignored
 
 }
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////
+//      Values
+//////////////////////////////////////////////////////////////////////////////////////////////////////
 
 sealed trait Values[+A] extends Parser[A] {
 
@@ -651,6 +667,10 @@ object Values {
 
 }
 
+//////////////////////////////////////////////////////////////////////////////////////////////////////
+//      Params
+//////////////////////////////////////////////////////////////////////////////////////////////////////
+
 sealed trait Params[+A] extends Parser[A] {
 
   def parseParams(params: List[Arg.ParamLike]): Params.ParseResult[A]
@@ -673,9 +693,24 @@ sealed trait Params[+A] extends Parser[A] {
   final def withDefault[A2 >: A](default: A2): Params[A2] = Params.WithDefault(this, default)
   final def withOptionalDefault[A2 >: A](default: Option[A2]): Params[A2] = default.fold(this)(this.withDefault(_))
 
+  /**
+    * @see [[Params.And]].
+    */
   final def &&[B](that: Params[B])(implicit zip: Zip[A @uncheckedVariance, B]): Params[zip.Out] = Params.And(this, that, zip)
+
+  /**
+    * @see [[Params.Or]].
+    */
   final def <||[A2 >: A](that: Params[A2]): Params[A2] = Params.Or(this, that)
+
+  /**
+    * @see [[Params.Or]].
+    */
   final def <||>[B](that: Params[B]): Params[Either[A, B]] = Params.Or(this.map(_.asLeft), that.map(_.asRight))
+
+  /**
+    * @see [[Params.FirstOfByArgIndex]].
+    */
   final def ||[A2 >: A](that: Params[A2]): Params[A2] = (this, that) match
     case (Params.FirstOfByArgIndex(options1), Params.FirstOfByArgIndex(options2)) => Params.FirstOfByArgIndex(options1 ::: options2)
     case (Params.FirstOfByArgIndex(options1), _)                                  => Params.FirstOfByArgIndex(options1 :+ that)
@@ -830,6 +865,9 @@ object Params {
 
   }
 
+  /**
+    * @see [[Params.FirstOfByArgIndex]].
+    */
   def firstOf[A](
       parser0: Params[A],
       parser1: Params[A],
@@ -1168,6 +1206,10 @@ object Params {
 
   }
 
+  /**
+    * Will attempt to parse [[left]], and then [[right]] with the remaining args after parsing [[left]].
+    * Both [[left]] and [[right]] must succeed in order for this parser to succeed.
+    */
   final case class And[A, B, O](
       left: Params[A],
       right: Params[B],
@@ -1200,6 +1242,23 @@ object Params {
 
   }
 
+  /**
+    * Will take all parsers specified, each attempting to parse the remaining arguments.
+    * If none succeed, will return the errors from all parsers.
+    * If only one succeeds, will return the success of that parser.
+    * If multiple succeed, will return the first success order wise.
+    *
+    * Multi example:
+    * --key-1=value-1 --key-2=value-2
+    * Both succeed with `Key1("value-1")` and `Key2("value-2")`.
+    * `Key1("value-1")` would be the success that is returned.
+    *
+    * This is useful when you want to be able to parse an ADT, and have the results come back in a fixed order.
+    * In the above example, if you had 2 separate list parsers for `key-1` and `key-2`, you would not know what order they were parsed in.
+    * But, if you combined them into an ADT, used [[Params.firstOf]], and [[Params.repeated]], then you would be able to know what order things were parsed in:
+    * -  --key-1=value-1 --key-2=value-2     ->     `List(Key1("value-1"), Key2("value-2"))`
+    * -  --key-2=value-2 --key-1=value-1     ->     `List(Key2("value-2"), Key1("value-1"))`
+    */
   final case class FirstOfByArgIndex[A](
       options: NonEmptyList[Params[A]],
   ) extends Params[A] {
@@ -1230,6 +1289,13 @@ object Params {
 
   }
 
+  /**
+    * Will attempt to parse [[left]].
+    * If parsing [[left]] succeeds, parsing [[right]] will not be attempted, and this parser will succeed with [[left]]'s success.
+    * If parsing [[left]] fails, parsing [[right]] will be attempted.
+    * If parsing [[right]] succeeds, this parser will succeed with [[right]]'s success.
+    * If parsing [[right]] fails, this parser will fail with both the errors of [[left]] and [[right]].
+    */
   final case class Or[A](
       left: Params[A],
       right: Params[A],
@@ -1321,7 +1387,7 @@ object Params {
             case (Nil, Nil)    => 0
           }
 
-        loop(x.params, y.params)
+        loop(x.params.sorted, y.params.sorted)
       }
 
   }
