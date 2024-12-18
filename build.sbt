@@ -61,6 +61,7 @@ lazy val `oxygen-modules-jvm`: Project =
       // General
       `oxygen-core`.jvm,
       `oxygen-cli`.jvm,
+      `oxygen-executable`.jvm,
       `oxygen-json`.jvm,
       `oxygen-meta`.jvm,
       `oxygen-zio`.jvm,
@@ -84,6 +85,7 @@ lazy val `oxygen-modules-js`: Project =
       // General
       `oxygen-core`.js,
       `oxygen-cli`.js,
+      `oxygen-executable`.js,
       `oxygen-json`.js,
       `oxygen-meta`.js,
       `oxygen-zio`.js,
@@ -107,6 +109,7 @@ lazy val `oxygen-modules-native`: Project =
       // General
       `oxygen-core`.native,
       `oxygen-cli`.native,
+      `oxygen-executable`.native,
       `oxygen-json`.native,
       `oxygen-meta`.native,
       `oxygen-zio`.native,
@@ -146,6 +149,21 @@ lazy val `oxygen-cli`: CrossProject =
     )
     .dependsOn(
       `oxygen-core` % testAndCompile,
+      `oxygen-test` % Test,
+    )
+
+lazy val `oxygen-executable`: CrossProject =
+  crossProject(JSPlatform, JVMPlatform, NativePlatform)
+    .crossType(CrossType.Pure)
+    .in(file("modules/executable"))
+    .settings(
+      publishedProjectSettings,
+      name := "oxygen-executable",
+      description := "An entry-point for your ZIO applications that provides seamless integration with the `oxygen` ecosystem.",
+    )
+    .dependsOn(
+      `oxygen-cli` % testAndCompile,
+      `oxygen-zio` % testAndCompile,
       `oxygen-test` % Test,
     )
 
