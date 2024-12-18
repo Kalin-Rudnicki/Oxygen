@@ -1,7 +1,10 @@
 package oxygen.zio.telemetry
 
+import oxygen.json.KeyedMapDecoder
 import oxygen.zio.*
 import zio.{LogLevel as _, *}
+import zio.json.JsonDecoder
+import zio.json.ast.Json
 
 object Telemetry {
 
@@ -34,11 +37,18 @@ object Telemetry {
   //      Fiber Ref Modification
   //////////////////////////////////////////////////////////////////////////////////////////////////////
 
+  // --- Target ---
+
   def withTargets(targets: Chunk[TelemetryTarget]): FiberRefModification = OxygenEnv.telemetryTargets.modification.set(targets)
   def withTargets(targets: TelemetryTarget*): FiberRefModification = OxygenEnv.telemetryTargets.modification.set(Chunk.fromIterable(targets))
 
   def addTargets(targets: Chunk[TelemetryTarget]): FiberRefModification = OxygenEnv.telemetryTargets.modification.update(_ ++ targets)
   def addTargets(targets: TelemetryTarget*): FiberRefModification = OxygenEnv.telemetryTargets.modification.update(_ ++ Chunk.fromIterable(targets))
+
+  // --- Env ---
+
+  def env(env: OxygenEnv.TelemetryEnv): FiberRefModification =
+    Telemetry.withTargets(env.targets)
 
   //////////////////////////////////////////////////////////////////////////////////////////////////////
   //      Internal
@@ -48,5 +58,14 @@ object Telemetry {
     OxygenEnv.telemetryTargets.getWith {
       ZIO.foreachDiscard(_)(_.handle(e))
     }
+
+  final case class Config(
+      targets: Json,
+  ) derives JsonDecoder {
+
+    def decodeTargets(decoder: KeyedMapDecoder[TelemetryTarget.ConfigBuilder]): ZIO[Scope, String | Throwable, Chunk[TelemetryTarget]] =
+      ZIO.fromEither(decoder.decoder.decodeJson(targets.toString())).flatMap(ZIO.foreach(_)(_.telemetryTarget)).map(_.flatten)
+
+  }
 
 }

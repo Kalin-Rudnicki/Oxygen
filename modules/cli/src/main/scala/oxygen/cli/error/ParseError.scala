@@ -3,7 +3,11 @@ package oxygen.cli.error
 import oxygen.cli.*
 import oxygen.predef.core.*
 
-sealed trait ParseError
+sealed trait ParseError {
+
+  // TODO (KR) : define [[toString]]
+
+}
 object ParseError {
 
   final case class FailedValidation(error: String) extends ValueCause with ParamCause
@@ -71,6 +75,8 @@ object ParseError {
   final case class UnparsedParams(args: NonEmptyList[Arg.ParamLike]) extends ParseError
 
   // =====| Root |=====
+
+  final case class UnableToParseArgs(error: String) extends ParseError
 
   final case class RootAnd(left: ParseError, right: ParseError) extends ParseError
   final case class RootOr(left: ParseError, right: ParseError) extends ParseError

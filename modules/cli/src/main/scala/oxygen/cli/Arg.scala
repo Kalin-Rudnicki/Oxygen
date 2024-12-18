@@ -36,6 +36,20 @@ object Arg {
       bracketed <- parseBracketed(-1, groupedArgs)
     } yield (bracketed.values, bracketed.params)
 
+  /**
+    * Splits on the first occurrence of the string "--", returning args `(before the "--", after the "--")`.
+    * If no "--" is found, returns `(Nil, all args)`.
+    */
+  def splitOn_--(stringArgs: List[String]): (List[String], List[String]) = {
+    @tailrec
+    def loop(queue: List[String], rStack: List[String]): (List[String], List[String]) = queue match
+      case "--" :: tail => (rStack.reverse, tail)
+      case head :: tail => loop(tail, head :: rStack)
+      case Nil          => (Nil, stringArgs)
+
+    loop(stringArgs, Nil)
+  }
+
   @tailrec
   private def parseAllValueLike(
       queue: List[GroupedArg],

@@ -8,7 +8,7 @@ sealed trait HelpMessage {
 
   def addHints(messages: List[HelpHint]): HelpMessage
 
-  private[cli] def isEmpty: Boolean = this match
+  private[cli] final def isEmpty: Boolean = this match
     case HelpMessage.RootMessage.Empty              => true
     case HelpMessage.ValueMessage.Empty             => true
     case HelpMessage.ParamMessage.Empty             => true
@@ -20,7 +20,8 @@ sealed trait HelpMessage {
     case HelpMessage.ParamMessage.And(left, right)  => left.isEmpty && right.isEmpty
     case _                                          => false
 
-  private[cli] def removeEmpties: HelpMessage = this match
+  // TODO (KR) : implement in children for better type safety
+  private[cli] final def removeEmpties: HelpMessage = this match
     case HelpMessage.RootMessage.Or(left, right) if left.isEmpty     => right.removeEmpties
     case HelpMessage.RootMessage.Or(left, right) if right.isEmpty    => left.removeEmpties
     case HelpMessage.RootMessage.Or(left, right)                     => HelpMessage.RootMessage.Or(left.removeEmpties, right.removeEmpties)
@@ -41,7 +42,7 @@ sealed trait HelpMessage {
     case HelpMessage.ParamMessage.And(left, right)                   => HelpMessage.ParamMessage.And(left.removeEmpties.asInstanceOf, right.removeEmpties.asInstanceOf)
     case _                                                           => this
 
-  private[cli] def flattenOrs: List[HelpMessage] = this.removeEmpties match
+  private[cli] final def flattenOrs: List[HelpMessage] = this.removeEmpties match
     case HelpMessage.RootMessage.Or(left, right)  => left.flattenOrs ::: right.flattenOrs
     case HelpMessage.ValueMessage.Or(left, right) => left.flattenOrs ::: right.flattenOrs
     case HelpMessage.ParamMessage.Or(left, right) => left.flattenOrs ::: right.flattenOrs
@@ -50,12 +51,12 @@ sealed trait HelpMessage {
     case HelpMessage.ParamMessage.Empty           => Nil
     case self                                     => self :: Nil
 
-  private[cli] def orToRepr: List[HelpMessage.Repr] = this.flattenOrs match
+  private[cli] final def orToRepr: List[HelpMessage.Repr] = this.flattenOrs match
     case head :: Nil => head.toRepr(Nil)
     case Nil         => Nil
     case ors         => ors.map(_.toRepr(Nil).map(_.scoped)).intersperse(HelpMessage.Repr(color"OR" :: Nil, Nil, color"") :: Nil).flatten
 
-  private[cli] def toRepr(hints: List[HelpHint]): List[HelpMessage.Repr] =
+  private[cli] final def toRepr(hints: List[HelpHint]): List[HelpMessage.Repr] =
     this match {
 
       // --- Empty ---
@@ -103,7 +104,7 @@ sealed trait HelpMessage {
 
     }
 
-  override def toString: String = HelpMessage.Repr.format(this.removeEmpties.toRepr(Nil))
+  override final def toString: String = HelpMessage.Repr.format(this.removeEmpties.toRepr(Nil))
 
 }
 object HelpMessage {
@@ -185,12 +186,12 @@ object HelpMessage {
       case Arg.ScopedParam(index, name, _)     => color"Unparsed param ${name.showParam.yellowFg} at index ${index.toString.yellowFg}".redFg
 
     def format(reprs: List[Repr]): String = {
-      val normalized = reprs.map(_.normalize(color""))
-      val lefts = normalized.flatMap(_._1)
-      val rights = normalized.flatMap(_._2)
+      val normalized: List[(List[ColorString], List[ColorString])] = reprs.map(_.normalize(color""))
+      val lefts: List[ColorString] = normalized.flatMap(_._1)
+      val rights: List[ColorString] = normalized.flatMap(_._2)
 
-      val tmpLefts = lefts.map { s => (s, s.rawString.length) }
-      val maxLeft = tmpLefts.map(_._2).maxOption.getOrElse(0)
+      val tmpLefts: List[(ColorString, Int)] = lefts.map { s => (s, s.rawString.length) }
+      val maxLeft: Int = tmpLefts.map(_._2).maxOption.getOrElse(0)
 
       tmpLefts.map { case (str, len) => str + (" " * (maxLeft - len)) }.zip(rights).map { case (left, right) => color"$left    $right" }.csMkString("\n").toString
     }

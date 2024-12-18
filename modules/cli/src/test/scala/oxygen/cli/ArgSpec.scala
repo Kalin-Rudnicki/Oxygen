@@ -4,9 +4,18 @@ import oxygen.predef.test.*
 
 object ArgSpec extends OxygenSpecDefault {
 
-  private def passingSpec(name: String)(args: String*)(exp: Arg*)(implicit loc: SourceLocation): TestSpec =
+  private def passingSpec(name: String)(args: String*)(exp: Arg*)(using SourceLocation): TestSpec =
     test(name) {
       assert(Arg.parse(args.toList).map { case (a, p) => a ::: p })(isRight(equalTo(exp.toList)))
+    }
+
+  private def splitOnTest(name: String)(inputs: String*)(expLeft: List[String], expRight: List[String])(using SourceLocation): TestSpec =
+    test(name) {
+      val (left, right) = Arg.splitOn_--(inputs.toList)
+      assertTrue(
+        left == expLeft,
+        right == expRight,
+      )
     }
 
   override def testSpec: TestSpec =
@@ -48,6 +57,13 @@ object ArgSpec extends OxygenSpecDefault {
         suite("fails")(
           // TODO (KR) :
         ),
+      ),
+      suite("splitOn_--")(
+        splitOnTest("empty")()(Nil, Nil),
+        splitOnTest("left only (explicit)")("a", "b", "c", "--")(List("a", "b", "c"), Nil),
+        splitOnTest("right only (explicit)")("--", "a", "b", "c")(Nil, List("a", "b", "c")),
+        splitOnTest("right only (implicit)")("a", "b", "c")(Nil, List("a", "b", "c")),
+        splitOnTest("left and right")("a", "b", "c", "--", "d", "e", "f")(List("a", "b", "c"), List("d", "e", "f")),
       ),
     )
 

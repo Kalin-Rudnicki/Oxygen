@@ -10,6 +10,14 @@ object OxygenEnv {
   //      Logger
   //////////////////////////////////////////////////////////////////////////////////////////////////////
 
+  final case class LoggerEnv(
+      targets: Chunk[LogTarget],
+      context: Logger.LogContext,
+      spans: List[Logger.Span],
+      level: LogLevel,
+      logToZio: Boolean,
+  )
+
   val logTargets: FiberRef[Chunk[LogTarget]] =
     Unsafe.unsafely {
       FiberRef.unsafe.make(Chunk.empty[LogTarget])
@@ -28,6 +36,10 @@ object OxygenEnv {
   //////////////////////////////////////////////////////////////////////////////////////////////////////
   //      Telemetry
   //////////////////////////////////////////////////////////////////////////////////////////////////////
+
+  final case class TelemetryEnv(
+      targets: Chunk[TelemetryTarget],
+  )
 
   val telemetryTargets: FiberRef[Chunk[TelemetryTarget]] =
     Unsafe.unsafely {
