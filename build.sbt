@@ -53,6 +53,7 @@ lazy val `oxygen-modules-jvm`: Project =
       `oxygen-core`.jvm,
       `oxygen-cli`.jvm,
       `oxygen-json`.jvm,
+      `oxygen-meta`.jvm,
       `oxygen-zio`.jvm,
 
       // Testing
@@ -75,6 +76,7 @@ lazy val `oxygen-modules-js`: Project =
       `oxygen-core`.js,
       `oxygen-cli`.js,
       `oxygen-json`.js,
+      `oxygen-meta`.js,
       `oxygen-zio`.js,
 
       // Testing
@@ -97,6 +99,7 @@ lazy val `oxygen-modules-native`: Project =
       `oxygen-core`.native,
       `oxygen-cli`.native,
       `oxygen-json`.native,
+      `oxygen-meta`.native,
       `oxygen-zio`.native,
 
       // Testing
@@ -151,6 +154,20 @@ lazy val `oxygen-json`: CrossProject =
     )
     .dependsOn(
       `oxygen-core` % testAndCompile,
+    )
+
+lazy val `oxygen-meta`: CrossProject =
+  crossProject(JSPlatform, JVMPlatform, NativePlatform)
+    .crossType(CrossType.Pure)
+    .in(file("modules/meta"))
+    .settings(
+      publishedProjectSettings,
+      name := "oxygen-meta",
+      description := "Metaprogramming for scala-3.",
+    )
+    .dependsOn(
+      `oxygen-core` % testAndCompile,
+      `oxygen-test` % Test,
     )
 
 lazy val `oxygen-zio`: CrossProject =

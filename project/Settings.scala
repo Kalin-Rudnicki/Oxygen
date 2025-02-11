@@ -25,6 +25,7 @@ object Settings {
       name := { throw new RuntimeException("You must define a project name!!!") },
       description := { throw new RuntimeException("You must define a project description!!!") },
       testFrameworks := Seq(new TestFramework("zio.test.sbt.ZTestFramework")),
+      scalacOptions ++= Seq("-Yretain-trees"),
     )
 
   val nonPublishedProjectSettings: Seq[Def.Setting[_]] =
