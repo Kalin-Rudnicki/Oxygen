@@ -7,7 +7,7 @@ on:
 jobs:
 
   test-jvm:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     env:
       # define Java options for both official sbt and sbt-extras
       JAVA_OPTS: -Xms2048M -Xmx2048M -Xss6M -XX:ReservedCodeCacheSize=256M -Dfile.encoding=UTF-8
@@ -24,7 +24,7 @@ jobs:
         run: sbt +oxygen-modules-jvm/test
 
   fix-todo:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     steps:
       - name: Checkout
         uses: actions/checkout@v2
@@ -32,7 +32,7 @@ jobs:
         run: bash check-for-fix.sh
 
   check-formatting:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     env:
       # define Java options for both official sbt and sbt-extras
       JAVA_OPTS: -Xms2048M -Xmx2048M -Xss6M -XX:ReservedCodeCacheSize=256M -Dfile.encoding=UTF-8

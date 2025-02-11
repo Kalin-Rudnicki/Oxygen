@@ -44,13 +44,14 @@ trait TypeTag[A] extends TypeTag.Showable {
 }
 object TypeTag {
 
+  private final case class Inst[A, _RefT <: TypeRef](_tag: _RefT, _closestClass: Class[?]) extends TypeTag[A] {
+    override type RefT = _RefT
+    override val tag: _RefT = _tag
+    override val closestClass: Class[?] = _closestClass
+  }
+
   inline def apply[A](implicit ev: TypeTag[A]): ev.type = ev
-  inline def apply[A, _RefT <: TypeRef](_tag: _RefT, _closestClass: Class[?]): TypeTag.Aux[A, _RefT] =
-    new TypeTag[A] {
-      override type RefT = _RefT
-      override val tag: _RefT = _tag
-      override val closestClass: Class[?] = _closestClass
-    }
+  inline def apply[A, _RefT <: TypeRef](_tag: _RefT, _closestClass: Class[?]): TypeTag.Aux[A, _RefT] = Inst[A, _RefT](_tag, _closestClass)
 
   //////////////////////////////////////////////////////////////////////////////////////////////////////
   //      Types

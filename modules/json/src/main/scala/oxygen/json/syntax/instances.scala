@@ -70,14 +70,14 @@ object instances {
 
   extension (self: StringCodec.type) {
 
-    def usingJsonCodec[A: JsonCodec: TypeTag]: StringCodec[A] = JsonCodec[A].toStringCodec
+    def usingJsonCodec[A: {JsonCodec, TypeTag}]: StringCodec[A] = JsonCodec[A].toStringCodec
 
     def jsonString: StringCodec[String] = StringCodec.usingJsonCodec
 
   }
 
   extension (self: StringDecoder.type) {
-    def usingJsonDecoder[A: JsonDecoder: TypeTag]: StringDecoder[A] = JsonDecoder[A].toStringDecoder
+    def usingJsonDecoder[A: {JsonDecoder, TypeTag}]: StringDecoder[A] = JsonDecoder[A].toStringDecoder
   }
 
   extension (self: StringEncoder.type) {

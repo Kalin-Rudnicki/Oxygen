@@ -26,8 +26,8 @@ object Defaultable {
 
 }
 
-given [A]: Conversion[A, Defaultable.NonOptional[A]] = Defaultable.Some(_)
-given [A]: Conversion[Option[A], Defaultable.Optional[A]] = {
+given [A] => Conversion[A, Defaultable.NonOptional[A]] = Defaultable.Some(_)
+given [A] => Conversion[Option[A], Defaultable.Optional[A]] = {
   case Some(value) => Defaultable.Some(value)
   case None        => Defaultable.None
 }
