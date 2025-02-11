@@ -8,7 +8,7 @@ import zio.{Duration as _, *}
 
 object StringCodecSpec extends OxygenSpecDefault {
 
-  private def roundTripTest[A: TypeTag: StringCodec](string: String, value: A): TestSpec =
+  private def roundTripTest[A: {StringCodec, TypeTag}](string: String, value: A): TestSpec =
     test(s"${TypeTag[A].prefixObject} : ${value.toString.unesc("")}") {
       assert(StringCodec[A].decoder.decode(string))(isRight(equalTo(value))) &&
       assert(StringCodec[A].encoder.encode(value))(equalTo(string))
@@ -19,7 +19,7 @@ object StringCodecSpec extends OxygenSpecDefault {
       assert(codec.encoder.encode(value))(equalTo(string))
     }
 
-  private def decodeTest[A: TypeTag: StringDecoder](string: String, value: A): TestSpec =
+  private def decodeTest[A: {StringDecoder, TypeTag}](string: String, value: A): TestSpec =
     test(s"${TypeTag[A].prefixObject} : ${value.toString.unesc("")}") {
       assert(StringDecoder[A].decode(string))(isRight(equalTo(value)))
     }

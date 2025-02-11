@@ -20,9 +20,9 @@ object autoInstances {
   //      Json___ -> String___
   //////////////////////////////////////////////////////////////////////////////////////////////////////
 
-  implicit def jsonCodecToStringCodec[A: JsonCodec: TypeTag]: StringCodec[A] = JsonCodec[A].toStringCodec
+  implicit def jsonCodecToStringCodec[A: {JsonCodec, TypeTag}]: StringCodec[A] = JsonCodec[A].toStringCodec
 
-  implicit def jsonDecoderToStringDecoder[A: JsonDecoder: TypeTag]: StringDecoder[A] = JsonDecoder[A].toStringDecoder
+  implicit def jsonDecoderToStringDecoder[A: {JsonDecoder, TypeTag}]: StringDecoder[A] = JsonDecoder[A].toStringDecoder
 
   implicit def jsonEncoderToStringEncoder[A: JsonEncoder]: StringEncoder[A] = JsonEncoder[A].toStringEncoder
 
