@@ -1,4 +1,4 @@
-package oxygen.core.tmp
+package oxygen.meta.tmp
 
 object Types {
 
