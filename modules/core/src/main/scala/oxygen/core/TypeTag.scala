@@ -298,6 +298,6 @@ object TypeTag {
   }
 
   inline def fromTag[A](tag: Tag[A]): TypeTag[A] = fromLightTypeTag[A](tag.tag).withClosestClass(tag.closestClass)
-  implicit inline def usingTag[A](implicit tag: Tag[A]): TypeTag[A] = fromTag(tag)
+  inline given usingTag: [A: {Tag as tag}] => TypeTag[A] = fromTag(tag)
 
 }

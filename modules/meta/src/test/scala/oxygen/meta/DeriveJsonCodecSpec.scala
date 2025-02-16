@@ -29,6 +29,8 @@ object DeriveJsonCodecSpec extends OxygenSpecDefault {
   given JsonCodec[Enum1.Case3.type] = JsonCodec.derived
   given JsonCodec[Enum1] = JsonCodec.derived
 
+  given [A: {JsonEncoder, JsonDecoder}, B: {JsonEncoder, JsonDecoder}] => JsonCodec[SealedTrait3[A, B]] = JsonCodec.derived
+
   private def productSpec: TestSpec =
     suite("product")(
       suite("CaseClass1")(
@@ -111,10 +113,53 @@ object DeriveJsonCodecSpec extends OxygenSpecDefault {
           Enum1.Case3,
         ),
       ),
+      suite("SealedTrait3")(
+        makeRoundTripTest[SealedTrait3[Int, String]]("A")(
+          JsonAST.JObject(
+            "A" -> JsonAST.JObject(
+              "a" -> JsonAST.JNumber(1),
+            ),
+          ),
+          SealedTrait3.A(1),
+        ),
+        makeRoundTripTest[SealedTrait3[Int, String]]("B")(
+          JsonAST.JObject(
+            "B" -> JsonAST.JObject(
+              "b" -> JsonAST.JString("str"),
+            ),
+          ),
+          SealedTrait3.B("str"),
+        ),
+        makeRoundTripTest[SealedTrait3[Int, String]]("AB1")(
+          JsonAST.JObject(
+            "AB1" -> JsonAST.JObject(
+              "a" -> JsonAST.JNumber(1),
+              "b" -> JsonAST.JString("str"),
+            ),
+          ),
+          SealedTrait3.AB1(1, "str"),
+        ),
+        makeRoundTripTest[SealedTrait3[Int, String]]("AB1")(
+          JsonAST.JObject(
+            "AB2" -> JsonAST.JObject(
+              "a" -> JsonAST.JString("str"),
+              "b" -> JsonAST.JNumber(1),
+            ),
+          ),
+          SealedTrait3.AB2("str", 1),
+        ),
+        makeRoundTripTest[SealedTrait3[Int, String]]("Neither")(
+          JsonAST.JObject(
+            "Neither" -> JsonAST.JObject(
+            ),
+          ),
+          SealedTrait3.Neither,
+        ),
+      ),
     )
 
   override def testSpec: TestSpec =
-    suite("DeriveShowSpec")(
+    suite("DeriveJsonCodecSpec")(
       productSpec,
       sumSpec,
     )

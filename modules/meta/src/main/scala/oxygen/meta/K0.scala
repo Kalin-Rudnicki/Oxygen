@@ -337,7 +337,7 @@ final class K0[Q <: Quotes](val meta: Meta[Q]) {
 
     def attemptOf[A](using Type[A]): Either[String, ProductGeneric[A]] = {
       val _typeRepr: TypeRepr = TypeRepr.of[A]
-      _typeRepr.typeTypeCase.toRight("not a `case object` or `case class`").flatMap { typeTypeCase =>
+      _typeRepr.typeTypeCase.toRight(s"not a `case object` or `case class`\n  [${_typeRepr.typeOrTermSymbol.flags.show}]").flatMap { typeTypeCase =>
         if (typeTypeCase.isObject) attemptOfCaseObject[A](_typeRepr, typeTypeCase)
         else attemptOfCaseClass[A](_typeRepr, typeTypeCase)
       }
@@ -792,7 +792,12 @@ final class K0[Q <: Quotes](val meta: Meta[Q]) {
         _typeSymbol: Symbol = _typeRepr.typeSymbol
 
         sealedTypeType: Symbol.TypeType.Sealed <-
-          (if (_typeRepr.isSingleton) _typeRepr.termSymbol else _typeRepr.typeSymbol).typeTypeSealed.toRight("not a `sealed trait`, `sealed abstract class`, or `enum`")
+          _typeSymbol.typeTypeSealed.toRight(s"not a `sealed trait`, `sealed abstract class`, or `enum`\n  [${_typeSymbol.flags.show}]")
+
+        parentTParams = _typeRepr match {
+          case applied: TypeRepr.AppliedType => applied.args.toNonEmpty
+          case _                             => None
+        }
 
         childTypeSymbols: NonEmptyList[Symbol] <- {
           def rec(typeSym: Symbol): Either[String, NonEmptyList[Symbol]] =
@@ -806,20 +811,94 @@ final class K0[Q <: Quotes](val meta: Meta[Q]) {
               case Some(_: Symbol.TypeType.Case) =>
                 NonEmptyList.one(typeSym).asRight
               case None =>
-                s"child is not a `case class`, `case object`, `sealed trait`, `sealed abstract class`, or `enum`: $typeSym".asLeft
+                s"child is not a `case class`, `case object`, `sealed trait`, `sealed abstract class`, or `enum`: $typeSym\n  [${typeSym.flags.show}]".asLeft
             }
 
           rec(_typeSymbol).map(_.distinct)
         }
 
         _childGenerics: NonEmptyList[ProductGeneric[? <: A]] <- childTypeSymbols.traverse { sym =>
-          type _T <: A
-          @scala.annotation.unused
-          given Type[_T] =
-            if (sym.typeTypeCase.get.isObject) sym.termRef.asTyped
-            else sym.typeRef.asTyped
+          val childTypeType: Symbol.TypeType.Case = sym.typeTypeCase.get
+          def extensionArgs: Either[String, (List[String], List[TypeRepr])] =
+            sym.tree match {
+              case classDef: Tree.Statement.Definition.ClassDef =>
+                classDef.constructor.symbol.paramSymss match {
+                  case tParams :: _ :: Nil =>
+                    // TODO (KR) : support extension chains
+                    //           : sealed trait Outer[+A]
+                    //           : sealed trait Inner[+A] extends Outer[A]
+                    //           : final case class Innest[+A](a: A) extends Inner[A]
 
-          ProductGeneric.attemptOf[_T].leftMap(e => s"error deriving product generic for child `$sym`: $e")
+                    classDef.parents
+                      .flatMap {
+                        case tt: Tree.TypeTree =>
+                          tt.tpe match {
+                            case at: TypeRepr.AppliedType if at.tycon.typeSymbol == _typeSymbol => at.args.some
+                            case _                                                              => None
+                          }
+                        case _: Tree.Statement.Term =>
+                          None
+                      }
+                      .headOption
+                      .map((tParams.map(_.name), _))
+                      .toRight(s"unable to find extension relationship for $sym -> ${_typeSymbol}")
+                  case _ =>
+                    s"unable to get type params for child $sym".asLeft
+                }
+              case _ =>
+                s"not a class def? $sym".asLeft
+            }
+
+          type _T <: A
+
+          val tType: Either[String, Type[_T]] =
+            (parentTParams, childTypeType.isObject) match {
+              case (Some(parentTParams), false) =>
+                val nothingRepr = TypeRepr.of[Nothing]
+                for {
+                  (symNames, extArgs) <- extensionArgs
+                  tupList <- parentTParams.toList.zip(extArgs).traverse {
+                    case (_, extArg) if extArg.show == nothingRepr.show => None.asRight
+                    case (parentTParam, extArg: TypeRepr.NamedType.TypeRef) =>
+                      extArg.qualifier match {
+                        case _: TypeRepr.ThisType =>
+                          (extArg.name, parentTParam).some.asRight
+                        case _ =>
+                          report.errorAndAbort(extArg.raw.toString)
+                      }
+                    case (parentTParam, extArg) =>
+                      s"Non-decipherable arg extension relationship: `${sym.fullName}` ${extArg.show} -> ${parentTParam.show}".asLeft
+                  }
+                  tupMap <-
+                    tupList.flatten
+                      .groupMap(_._1)(_._2)
+                      .toList
+                      .traverse {
+                        case (k, v :: Nil) => (k, v).asRight
+                        // TODO (KR) : might be possible to use an intersection type here?
+                        case (k, vs) => s"param ${sym.fullName}.$k maps to multiple parents: ${vs.map(_.show).mkString(", ")}".asLeft
+                      }
+                      .map(_.toMap)
+
+                  orderedArgs <-
+                    symNames.traverse { n =>
+                      tupMap.get(n).toRight(s"No such arg? ${sym.fullName}.$n")
+                    }
+
+                } yield sym.typeRef.appliedTo(orderedArgs).asTyped[_T]
+              case (None, false) =>
+                sym.typeRef.asTyped[_T].asRight
+              case (_, true) =>
+                if (childTypeType.isScala2) sym.companionModule.termRef.asTyped[_T].asRight
+                else sym.termRef.asTyped[_T].asRight
+            }
+
+          tType.flatMap { tTpe =>
+            @scala.annotation.unused
+            given Type[_T] = tTpe
+
+            ProductGeneric.attemptOf[_T].leftMap(e => s"error deriving product generic for child `$sym`: $e")
+          }
         }
       } yield new SumGeneric[A] { self =>
         override val label: String = _typeSymbol.name

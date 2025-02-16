@@ -25,11 +25,6 @@ object Show extends K0.Derivable[Show] {
   given Show[String] = _.unesc
   given Show[Boolean] = _.toString
 
-  given [A: {Show as show}] => Show[Option[A]] = {
-    case Some(value) => show.show(value)
-    case None        => "none"
-  }
-
   override protected def internalDeriveProduct[Q <: Quotes, A](k0: K0[Q])(g: k0.ProductGeneric[A])(using quotes: Q, tpe: Type[A]): Expr[Show[A]] =
     g.builders.instanceFromLazyTypeClasses[Show] { tcs =>
       import k0.meta.*
