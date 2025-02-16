@@ -10,6 +10,9 @@ import sbtcrossproject.CrossProject
 
 ThisBuild / watchBeforeCommand := Watch.clearScreen
 
+ThisBuild / sonatypeCredentialHost := "s01.oss.sonatype.org"
+sonatypeRepository := "https://s01.oss.sonatype.org/service/local"
+
 enablePlugins(GitVersioning)
 git.gitTagToVersionNumber := { tag =>
   if (tag.matches("^\\d+\\..*$")) Some(tag)
