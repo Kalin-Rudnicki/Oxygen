@@ -2,6 +2,7 @@
 
 import sbt.*
 import sbt.Keys.*
+import xerial.sbt.Sonatype.SonatypeKeys.{sonatypeCredentialHost, sonatypeRepository}
 
 object Settings {
 
@@ -10,7 +11,7 @@ object Settings {
   private val Scala_3 = "3.6.3"
 
   private val GithubUsername = "Kalin-Rudnicki"
-  private val GithubProject = "oxygen"
+  private val GithubProject = "Oxygen"
 
   // =====|  |=====
 
@@ -34,7 +35,18 @@ object Settings {
 
   val publishedProjectSettings: Seq[Def.Setting[_]] =
     settingsForAll ++ Seq(
-      // TODO (KR) :
+      licenses := List("MIT" -> new URL("https://opensource.org/licenses/MIT")),
+      homepage := Some(url(s"https://github.com/$GithubUsername/$GithubProject")),
+      developers := List(
+        Developer(
+          id = "Kalin-Rudnicki",
+          name = "Kalin Rudnicki",
+          email = "kalin.rudnicki@gmail.com",
+          url = url(s"https://github.com/$GithubUsername"),
+        ),
+      ),
+      sonatypeCredentialHost := "s01.oss.sonatype.org",
+      sonatypeRepository := "https://s01.oss.sonatype.org/service/local",
     )
 
 }
