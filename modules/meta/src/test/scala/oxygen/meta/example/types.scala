@@ -25,6 +25,10 @@ final case class CaseClass5(
     cc2: CaseClass2,
 )
 
+final case class CaseClass6[A](
+    field: A,
+)
+
 case object CaseObject1
 
 sealed trait SealedTrait1
@@ -32,6 +36,15 @@ object SealedTrait1 {
   final case class Case1(int: Int, string: String) extends SealedTrait1
   final case class Case2() extends SealedTrait1
   case object Case3 extends SealedTrait1
+}
+
+sealed trait SealedTrait3[+A, +B] derives Show
+object SealedTrait3 {
+  final case class AB1[+B, +A](a: B, b: A) extends SealedTrait3[B, A]
+  final case class AB2[+C, +D](a: C, b: D) extends SealedTrait3[D, C]
+  final case class A[+A](a: A) extends SealedTrait3[A, Nothing]
+  final case class B[+B](b: B) extends SealedTrait3[Nothing, B]
+  case object Neither extends SealedTrait3[Nothing, Nothing]
 }
 
 sealed abstract class SealedAbstractClass1
@@ -46,4 +59,13 @@ enum Enum1 {
   case Case1(int: Int, string: String)
   case Case2()
   case Case3
+}
+
+// @oxygen.meta.annotation.showDerivation
+enum Enum2[+A, +B] derives Show {
+  case AB1(a: A, b: B)
+  case AB2(a: B, b: A)
+  case A(a: A)
+  case B(b: B)
+  case Neither
 }
