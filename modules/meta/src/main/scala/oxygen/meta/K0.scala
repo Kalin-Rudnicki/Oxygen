@@ -38,6 +38,12 @@ final class K0[Q <: Quotes](val meta: Meta[Q]) {
     final def requiredAnnotationT[Annot[_]: Type]: Expr[Annot[A]] =
       typeRepr.requiredAnnotation[Annot[A]]
 
+    final def optionalAnnotationValue[Annot: {Type, FromExpr}]: Option[Annot] =
+      typeRepr.optionalAnnotationValue[Annot]
+
+    final def requiredAnnotationValue[Annot: {Type, FromExpr}]: Annot =
+      typeRepr.requiredAnnotationValue[Annot]
+
   }
   object Generic {
 
@@ -83,6 +89,7 @@ final class K0[Q <: Quotes](val meta: Meta[Q]) {
     final case class Field[I](
         idx: Int,
         symRepr: Symbol,
+        constructorSymRepr: Symbol,
         typeRepr: TypeRepr,
         tpe: Type[I],
         valDef: Tree.Statement.Definition.ValDef,
@@ -97,16 +104,28 @@ final class K0[Q <: Quotes](val meta: Meta[Q]) {
         instances.instances(idx).asInstanceOf[Expr[TC[I]]]
 
       def optionalAnnotation[Annot: Type]: Option[Expr[Annot]] =
-        symRepr.optionalAnnotation[Annot]
+        constructorSymRepr.optionalAnnotation[Annot]
 
       def requiredAnnotation[Annot: Type]: Expr[Annot] =
-        symRepr.requiredAnnotation[Annot]
+        constructorSymRepr.requiredAnnotation[Annot]
 
       def optionalAnnotationT[Annot[_]: Type]: Option[Expr[Annot[I]]] =
-        symRepr.optionalAnnotation[Annot[I]]
+        constructorSymRepr.optionalAnnotation[Annot[I]]
 
       def requiredAnnotationT[Annot[_]: Type]: Expr[Annot[I]] =
-        symRepr.requiredAnnotation[Annot[I]]
+        constructorSymRepr.requiredAnnotation[Annot[I]]
+
+      def optionalAnnotationValue[Annot: {Type, FromExpr}]: Option[Annot] =
+        constructorSymRepr.optionalAnnotationValue[Annot]
+
+      def requiredAnnotationValue[Annot: {Type, FromExpr}]: Annot =
+        constructorSymRepr.requiredAnnotationValue[Annot]
+
+      def optionalAnnotationTValue[Annot[_]: Type](using FromExpr[Annot[I]]): Option[Annot[I]] =
+        constructorSymRepr.optionalAnnotationValue[Annot[I]]
+
+      def requiredAnnotationTValue[Annot[_]: Type](using FromExpr[Annot[I]]): Annot[I] =
+        constructorSymRepr.requiredAnnotationValue[Annot[I]]
 
     }
 
@@ -166,12 +185,64 @@ final class K0[Q <: Quotes](val meta: Meta[Q]) {
       /**
         * This is useful for when you want to produce an `A` as an output.
         * As long as you can produce an instance of all the fields of `A`, then you can produce an `A`.
-        * If you need a fallible `Either[E, A]`, see [[eitherMapToInstance]].
+        * If you need a fallible `Option[A]` or `Either[E, A]`, see [[optionMapToInstance]] or [[eitherMapToInstance]].
         *
         * Hint: You are almost certainly going to want to call [[ProductGeneric.typeClassInstance]] from within [[makeFieldValue]].
         */
       def mapToInstance(makeFieldValue: [i] => Field[i] => Expr[i]): Expr[A] =
         fieldsToInstance(fields.map(makeFieldValue(_)))
+
+      // TODO (KR) : Create a more generic version of this using Monad.
+      /**
+        * This is useful for when you want to produce an `A` as an output.
+        * As long as you can produce an instance of all the fields of `A`, then you can produce an `A`.
+        * This differs from [[mapToInstance]] in that it allows a fallible `Option[A]`.
+        *
+        * Hint: You are almost certainly going to want to call [[ProductGeneric.typeClassInstance]] from within [[makeFieldValue]].
+        */
+      def optionMapToInstance(makeFieldValue: [i] => Field[i] => Expr[Option[i]]): Expr[Option[A]] = {
+        def rec(
+            queue: List[(Field[?], Expr[Option[?]])],
+            acc: IArray[Expr[?]],
+        ): Expr[Option[A]] =
+          queue match {
+            case (_field, last) :: Nil =>
+              type _T
+              val field: Field[_T] = _field.asInstanceOf[Field[_T]]
+              import field.given
+
+              val _last: Expr[Option[_T]] = last.asExprOf[Option[_T]]
+
+              '{
+                val res: Option[_T] = $_last
+                res.map { v => ${ fieldsToInstance(acc :+ 'v) } }
+              }
+            case (_field, head) :: tail =>
+              type _T
+              val field: Field[_T] = _field.asInstanceOf[Field[_T]]
+              import field.given
+
+              val _head: Expr[Option[_T]] = head.asExprOf[Option[_T]]
+
+              '{
+                val res: Option[_T] = $_head
+                res.flatMap { v => ${ rec(tail, acc :+ 'v) } }
+              }
+            case Nil =>
+              '{ Some(${ fieldsToInstance(acc) }) }
+          }
+
+        rec(
+          fields.map { _field =>
+            type _T
+            val field: Field[_T] = _field.asInstanceOf[Field[_T]]
+            import field.given
+
+            (field, makeFieldValue(field))
+          }.toList,
+          IArray.empty,
+        )
+      }
 
       // TODO (KR) : Create a more generic version of this using Monad.
       /**
@@ -291,6 +362,8 @@ final class K0[Q <: Quotes](val meta: Meta[Q]) {
             }
           }
 
+        constructorSymMap = primaryConstructor.paramSymss.flatten.filter(_.isTerm).map { s => s.name -> s }.toMap
+
       } yield new ProductGeneric[A] { self =>
         override val label: String = _symRepr.name
 
@@ -310,6 +383,7 @@ final class K0[Q <: Quotes](val meta: Meta[Q]) {
               self.Field[_T](
                 idx = idx,
                 symRepr = sym,
+                constructorSymRepr = constructorSymMap(sym.name),
                 typeRepr = typeRepr,
                 tpe = tpe,
                 valDef = valDef,
@@ -383,6 +457,18 @@ final class K0[Q <: Quotes](val meta: Meta[Q]) {
 
       def requiredAnnotationT[Annot[_]: Type]: Expr[Annot[I]] =
         productGeneric.requiredAnnotation[Annot[I]]
+
+      def optionalAnnotationValue[Annot: {Type, FromExpr}]: Option[Annot] =
+        productGeneric.optionalAnnotationValue[Annot]
+
+      def requiredAnnotationValue[Annot: {Type, FromExpr}]: Annot =
+        productGeneric.requiredAnnotationValue[Annot]
+
+      def optionalAnnotationTValue[Annot[_]: Type](using FromExpr[Annot[I]]): Option[Annot[I]] =
+        productGeneric.optionalAnnotationValue[Annot[I]]
+
+      def requiredAnnotationTValue[Annot[_]: Type](using FromExpr[Annot[I]]): Annot[I] =
+        productGeneric.requiredAnnotationValue[Annot[I]]
 
     }
 

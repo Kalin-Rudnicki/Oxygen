@@ -87,7 +87,9 @@ object JsonDecoder extends K0.Derivable[JsonDecoder] {
               (field: g.Field[i]) =>
                 import field.given
 
-                val label: Expr[String] = Expr(field.name)
+                val fieldRename: Option[Expr[String]] = field.optionalAnnotation[fieldName].map { e => '{ $e.name } }
+
+                val label: Expr[String] = fieldRename.getOrElse(Expr(field.name))
                 val tc: Expr[JsonDecoder[i]] = field.typeClassInstance(tcs)
 
                 '{
@@ -143,8 +145,13 @@ object JsonDecoder extends K0.Derivable[JsonDecoder] {
 
                 val tc: Expr[JsonDecoder[i]] = kase.typeClassInstance(tcs)
 
+                val name: Expr[String] =
+                  kase.optionalAnnotation[caseName] match
+                    case Some(caseName) => '{ $caseName.name }
+                    case None           => Expr(kase.name)
+
                 (
-                  Expr(kase.name),
+                  name,
                   '{
                     $tc.decode($value).leftMap(JError.InField($key, _))
                   },

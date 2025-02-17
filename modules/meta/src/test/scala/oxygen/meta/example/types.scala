@@ -43,7 +43,7 @@ object SealedTrait3 {
   final case class AB1[+B, +A](a: B, b: A) extends SealedTrait3[B, A]
   final case class AB2[+C, +D](a: C, b: D) extends SealedTrait3[D, C]
   final case class A[+A](a: A) extends SealedTrait3[A, Nothing]
-  final case class B[+B](b: B) extends SealedTrait3[Nothing, B]
+  @caseName("_B_") final case class B[+B](b: B) extends SealedTrait3[Nothing, B]
   case object Neither extends SealedTrait3[Nothing, Nothing]
 }
 
