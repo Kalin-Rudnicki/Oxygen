@@ -45,17 +45,22 @@ object Show extends K0.Derivable[Show] {
                     val tc: Expr[Show[i]] = field.typeClassInstance(tcs)
                     val value: Expr[i] = field.get(a)
 
-                    // TODO (KR) : figure out why field annotations are not being returned
                     val fieldRename: Option[Expr[fieldName]] = field.optionalAnnotation[fieldName]
+                    val constFieldRename: Option[String] = fieldRename.flatMap(_.value).map(_.name)
 
-                    fieldRename match {
-                      case Some(fieldRename) =>
+                    (fieldRename, constFieldRename) match {
+                      case (_, Some(constFieldRename)) =>
+                        Seq[Expr[Any]](
+                          '{ $sb.append(${ Expr(constFieldRename + " = ") }) },
+                          '{ $tc.appendToStringBuilder($sb, $value) },
+                        )
+                      case (Some(fieldRename), _) =>
                         Seq[Expr[Any]](
                           '{ $sb.append($fieldRename.name) },
                           '{ $sb.append(" = ") },
                           '{ $tc.appendToStringBuilder($sb, $value) },
                         )
-                      case None =>
+                      case _ =>
                         Seq[Expr[Any]](
                           '{ $sb.append(${ Expr(field.name + " = ") }) },
                           '{ $tc.appendToStringBuilder($sb, $value) },

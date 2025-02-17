@@ -43,7 +43,9 @@ object JsonEncoder extends K0.Derivable[JsonEncoder] {
                 (field: g.Field[i]) =>
                   import field.given
 
-                  val label: Expr[String] = Expr(field.name)
+                  val fieldRename: Option[Expr[String]] = field.optionalAnnotation[fieldName].map { e => '{ $e.name } }
+
+                  val label: Expr[String] = fieldRename.getOrElse(Expr(field.name))
                   val tc: Expr[JsonEncoder[i]] = field.typeClassInstance(tcs)
                   val value: Expr[i] = field.get(a)
 
@@ -86,8 +88,13 @@ object JsonEncoder extends K0.Derivable[JsonEncoder] {
 
                 val tc: Expr[JsonEncoder[i]] = kase.typeClassInstance(tcs)
 
+                val name: Expr[String] =
+                  kase.optionalAnnotation[caseName] match
+                    case Some(caseName) => '{ $caseName.name }
+                    case None           => Expr(kase.name)
+
                 '{
-                  JsonAST.JObject(${ Expr(kase.name) } -> $tc.encode($value))
+                  JsonAST.JObject($name -> $tc.encode($value))
               }
           }
 

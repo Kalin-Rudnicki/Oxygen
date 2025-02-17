@@ -35,13 +35,11 @@ object DeriveShowSpec extends OxygenSpecDefault {
       suite("CaseClass1")(
         makeTest("false")(
           CaseClass1(0, "no", false),
-          // TODO (KR) : swap these when field annotations start working
-          // """{ my-int = 0, string = "no", boolean = false }""",
-          """{ int = 0, string = "no", boolean = false }""",
+          """{ my-int = 0, string = "no", boolean = false }""",
         ),
         makeTest("true")(
           CaseClass1(1, "yes", true),
-          """{ int = 1, string = "yes", boolean = true }""",
+          """{ my-int = 1, string = "yes", boolean = true }""",
         ),
       ),
       makeTest("CaseClass2")(
@@ -69,7 +67,7 @@ object DeriveShowSpec extends OxygenSpecDefault {
         ),
         makeTest("CaseClass1")(
           CaseClass6(CaseClass1(0, "no", false)),
-          """{ field = { int = 0, string = "no", boolean = false } }""",
+          """{ field = { my-int = 0, string = "no", boolean = false } }""",
         ),
       ),
       makeTest("SealedTrait3.A")(

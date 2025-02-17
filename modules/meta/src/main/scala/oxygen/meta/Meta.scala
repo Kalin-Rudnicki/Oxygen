@@ -1752,10 +1752,21 @@ final class Meta[Q <: Quotes](val quotes: Q) {
     final def requiredAnnotation[Annot: Type]: Expr[Annot] =
       optionalAnnotation[Annot].getOrElse(report.errorAndAbort(s"Missing required annotation `${TypeRepr.of[Annot].show}` for `${this.show}`"))
 
+    final def optionalAnnotationValue[Annot: {Type, FromExpr}]: Option[Annot] =
+      optionalAnnotation[Annot].map { expr =>
+        expr.value.getOrElse(report.errorAndAbort(s"Found annotation `${TypeRepr.of[Annot].show}` for `${this.show}`, but are unable to extract Expr.value\n${expr.show}"))
+      }
+
+    final def requiredAnnotationValue[Annot: {Type, FromExpr}]: Annot = {
+      val expr = requiredAnnotation[Annot]
+      expr.value.getOrElse(report.errorAndAbort(s"Found annotation `${TypeRepr.of[Annot].show}` for `${this.show}`, but are unable to extract Expr.value\n${expr.show}"))
+    }
+
     final def typeTree: Tree.TypeTree =
       Tree.TypeTree.fromType(this.asType)
 
   }
+
   object TypeRepr {
 
     def apply(raw: Raw.TypeRepr): TypeRepr = raw match
@@ -2825,6 +2836,16 @@ final class Meta[Q <: Quotes](val quotes: Q) {
 
     def requiredAnnotation[Annot: Type]: Expr[Annot] =
       optionalAnnotation[Annot].getOrElse(report.errorAndAbort(s"Missing required annotation `${TypeRepr.of[Annot].show}` for `$this`"))
+
+    def optionalAnnotationValue[Annot: {Type, FromExpr}]: Option[Annot] =
+      optionalAnnotation[Annot].map { expr =>
+        expr.value.getOrElse(report.errorAndAbort(s"Found annotation `${TypeRepr.of[Annot].show}` for `$this`, but are unable to extract Expr.value\n${expr.show}"))
+      }
+
+    def requiredAnnotationValue[Annot: {Type, FromExpr}]: Annot = {
+      val expr = requiredAnnotation[Annot]
+      expr.value.getOrElse(report.errorAndAbort(s"Found annotation `${TypeRepr.of[Annot].show}` for `$this`, but are unable to extract Expr.value\n${expr.show}"))
+    }
 
   }
   object Symbol {

@@ -36,7 +36,7 @@ object DeriveJsonCodecSpec extends OxygenSpecDefault {
       suite("CaseClass1")(
         makeRoundTripTest("false")(
           JsonAST.JObject(
-            "int" -> JsonAST.JNumber(0),
+            "my-int" -> JsonAST.JNumber(0),
             "string" -> JsonAST.JString("no"),
             "boolean" -> JsonAST.JBoolean(false),
           ),
@@ -44,7 +44,7 @@ object DeriveJsonCodecSpec extends OxygenSpecDefault {
         ),
         makeRoundTripTest("true")(
           JsonAST.JObject(
-            "int" -> JsonAST.JNumber(1),
+            "my-int" -> JsonAST.JNumber(1),
             "string" -> JsonAST.JString("yes"),
             "boolean" -> JsonAST.JBoolean(true),
           ),
@@ -124,7 +124,7 @@ object DeriveJsonCodecSpec extends OxygenSpecDefault {
         ),
         makeRoundTripTest[SealedTrait3[Int, String]]("B")(
           JsonAST.JObject(
-            "B" -> JsonAST.JObject(
+            "_B_" -> JsonAST.JObject(
               "b" -> JsonAST.JString("str"),
             ),
           ),
