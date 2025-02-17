@@ -121,6 +121,7 @@ lazy val `oxygen-core`: CrossProject =
       libraryDependencies ++= Seq(
         zio.organization %%% zio.izumiReflect % zio.izumiVersion,
       ),
+      scalacOptions ++= Seq("-Yretain-trees"),
     )
 
 lazy val `oxygen-cli`: CrossProject =
