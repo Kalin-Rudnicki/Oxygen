@@ -188,12 +188,20 @@ object Logger {
 
   // --- Forward to Zio ---
 
-  def withForwardToZio(forwardToZio: Boolean): FiberRefModification = OxygenEnv.logToZio.modification.set(forwardToZio)
+  def withLogToZio(forwardToZio: Boolean): FiberRefModification = OxygenEnv.logToZio.modification.set(forwardToZio)
+
+  // --- Env ---
+
+  def env(env: OxygenEnv.LoggerEnv): FiberRefModification =
+    Logger.withTargets(env.targets) >>>
+      Logger.withContext(env.context) >>>
+      Logger.level(env.level) >>>
+      Logger.withLogToZio(env.logToZio)
 
   // --- Defaults ---
 
-  def defaultToZio: FiberRefModification = Logger.withTargets() >>> Logger.withForwardToZio(true)
-  def defaultToOxygen: FiberRefModification = Logger.withTargets(LogTarget.StdOut.defaultWithAdditionalContext) >>> Logger.withForwardToZio(false)
+  def defaultToZio: FiberRefModification = Logger.withTargets() >>> Logger.withLogToZio(true)
+  def defaultToOxygen: FiberRefModification = Logger.withTargets(LogTarget.StdOut.defaultWithAdditionalContext) >>> Logger.withLogToZio(false)
 
   //////////////////////////////////////////////////////////////////////////////////////////////////////
   //      Internal

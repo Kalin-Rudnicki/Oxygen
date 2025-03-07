@@ -1,16 +1,12 @@
 package oxygen.executable
 
-trait ExecutableApp {
+import zio.*
 
-  // TODO (KR) :  
-  
-}
-object ExecutableApp {
-  
-  trait Simple extends ExecutableApp {
+trait ExecutableApp extends ZIOAppDefault {
 
-    // TODO (KR) :  
-    
-  }
-  
+  val executable: Executable
+
+  override final def run: ZIO[ZIOAppArgs & Scope, Nothing, Unit] = ???
+  // TODO (KR) :
+
 }

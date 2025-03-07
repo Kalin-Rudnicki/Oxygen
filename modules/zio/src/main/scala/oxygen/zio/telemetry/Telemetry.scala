@@ -34,11 +34,18 @@ object Telemetry {
   //      Fiber Ref Modification
   //////////////////////////////////////////////////////////////////////////////////////////////////////
 
+  // --- Target ---
+
   def withTargets(targets: Chunk[TelemetryTarget]): FiberRefModification = OxygenEnv.telemetryTargets.modification.set(targets)
   def withTargets(targets: TelemetryTarget*): FiberRefModification = OxygenEnv.telemetryTargets.modification.set(Chunk.fromIterable(targets))
 
   def addTargets(targets: Chunk[TelemetryTarget]): FiberRefModification = OxygenEnv.telemetryTargets.modification.update(_ ++ targets)
   def addTargets(targets: TelemetryTarget*): FiberRefModification = OxygenEnv.telemetryTargets.modification.update(_ ++ Chunk.fromIterable(targets))
+
+  // --- Env ---
+
+  def env(env: OxygenEnv.TelemetryEnv): FiberRefModification =
+    Telemetry.withTargets(env.targets)
 
   //////////////////////////////////////////////////////////////////////////////////////////////////////
   //      Internal
