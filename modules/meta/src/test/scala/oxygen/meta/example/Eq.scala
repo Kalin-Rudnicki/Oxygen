@@ -6,7 +6,7 @@ import scala.quoted.*
 trait Eq[A] {
   def areEqual(a: A, b: A): Boolean
 }
-object Eq extends K0.Derivable[Eq] {
+object Eq extends K0.Derivable[Eq], K0.DerivableUnion.Fold[Eq], K0.DerivableIntersection.Fold[Eq] {
 
   def id[A]: Eq[A] = _ == _
 
@@ -99,6 +99,28 @@ object Eq extends K0.Derivable[Eq] {
       }
     }
 
+  override protected def foldUnion[Q <: Quotes, A1, A2](a1: Expr[Eq[A1]], a2: Expr[Eq[A2]])(using quotes: Q, tpe1: Type[A1], tpe2: Type[A2], tTpe: Type[Eq]): Expr[Eq[A1 | A2]] =
+    '{
+      new Eq[A1 | A2] {
+        override def areEqual(a: A1 | A2, b: A1 | A2): Boolean = (a.asInstanceOf[Matchable], b.asInstanceOf[Matchable]) match
+          case (a: A1, b: A1) => $a1.areEqual(a, b)
+          case (a: A2, b: A2) => $a2.areEqual(a, b)
+          case _              => false
+      }
+    }
+
+  override protected def foldIntersection[Q <: Quotes, A1, A2](a1: Expr[Eq[A1]], a2: Expr[Eq[A2]])(using quotes: Q, tpe1: Type[A1], tpe2: Type[A2], tTpe: Type[Eq]): Expr[Eq[A1 & A2]] =
+    '{
+      new Eq[A1 & A2] {
+        override def areEqual(a: A1 & A2, b: A1 & A2): Boolean =
+          $a1.areEqual(a, b) && $a2.areEqual(a, b)
+      }
+    }
+
   inline def derived[A]: Eq[A] = ${ derivedImpl[A] }
+
+  inline def derivedUnion[A]: Eq[A] = ${ derivedUnionImpl[A] }
+
+  inline def derivedIntersection[A]: Eq[A] = ${ derivedIntersectionImpl[A] }
 
 }

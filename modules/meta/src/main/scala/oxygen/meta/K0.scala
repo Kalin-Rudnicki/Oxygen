@@ -1013,6 +1013,206 @@ final class K0[Q <: Quotes](val meta: Meta[Q]) {
   }
 
   //////////////////////////////////////////////////////////////////////////////////////////////////////
+  //      UnionGeneric
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
+
+  @scala.annotation.nowarn("msg=unused import")
+  trait UnionGeneric[A] {
+
+    final case class Case[I <: A](
+        idx: Int,
+        typeRepr: TypeRepr,
+    ) {
+
+      given tpe: Type[I] = typeRepr.asTyped
+
+      def typeClassInstance[TC[_]](instances: LazyTypeClasses[TC]): Expr[TC[I]] =
+        instances.instances(idx).asInstanceOf[Expr[TC[I]]]
+
+    }
+
+    val typeRepr: TypeRepr
+
+    val cases: IArray[Case[? <: A]]
+
+    final given tpe: Type[A] = typeRepr.asTyped
+
+    private def summonTypeClass[TC[_]: Type]: IArray[Expr[TC[Any]]] =
+      cases.map { _case =>
+        type _T <: A
+        val kase: Case[_T] = _case.asInstanceOf[Case[_T]]
+        import kase.given
+
+        Expr
+          .summon[TC[_T]]
+          .getOrElse(report.errorAndAbort(s"Unable to find instance `${TypeRepr.of[TC[_T]].show}` for union case `${kase.typeRepr.show}` in type ${typeRepr.show}"))
+          .asInstanceOf[Expr[TC[Any]]]
+      }
+
+    object builders {
+
+      def withLazyTypeClasses[TC[_]: Type, O: Type](
+          useTypeClassInstances: LazyTypeClasses[TC] => Expr[O],
+      ): Expr[O] = {
+        def loop(
+            queue: List[(Case[?], Expr[TC[Any]])],
+            acc: IArray[Expr[TC[Any]]],
+        ): Expr[O] =
+          queue match {
+            case (_case, i) :: tail =>
+              type _T <: A
+              val kase: Case[_T] = _case.asInstanceOf[Case[_T]]
+              import kase.given
+
+              '{
+                lazy val inst: TC[_T] = ${ i.asExprOf[TC[_T]] }
+                ${ loop(tail, acc :+ 'inst.asInstanceOf[Expr[TC[Any]]]) }
+              }
+            case Nil =>
+              useTypeClassInstances(new LazyTypeClasses[TC](acc))
+          }
+
+        loop(cases.zip(summonTypeClass[TC]).toList, IArray.empty)
+      }
+
+      def instanceFromLazyTypeClasses[TC[_]: Type](
+          useTypeClassInstances: LazyTypeClasses[TC] => Expr[TC[A]],
+      ): Expr[TC[A]] =
+        withLazyTypeClasses[TC, TC[A]](useTypeClassInstances)
+
+    }
+
+  }
+  object UnionGeneric {
+
+    def of[A](using Type[A]): UnionGeneric[A] =
+      UnionGeneric.attemptOf[A].getOrAbort(s"Unable to derive UnionGeneric[${TypeRepr.of[A].show}]:\n  ")
+
+    def attemptOf[A](using Type[A]): Either[String, UnionGeneric[A]] = {
+      def expandTypes(repr: TypeRepr): NonEmptyList[TypeRepr] = repr.dealias match
+        case TypeRepr.AndOrType.OrType(a, b) => expandTypes(a) ::: expandTypes(b)
+        case _                               => NonEmptyList.one(repr)
+
+      val _typeRepr: TypeRepr = TypeRepr.of[A]
+      val expanded: NonEmptyList[TypeRepr] = expandTypes(_typeRepr)
+
+      Either.cond(expanded.length >= 2, (), s"Type ${_typeRepr.show} is not an union type").map { _ =>
+        new UnionGeneric[A] {
+          override val typeRepr: TypeRepr = _typeRepr
+          override val cases: IArray[Case[? <: A]] =
+            IArray.from {
+              expanded.toList.zipWithIndex.map { case (repr, i) =>
+                type _T <: A
+                Case[_T](i, repr)
+              }
+            }
+        }
+      }
+    }
+
+  }
+
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
+  //      UnionGeneric
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
+
+  @scala.annotation.nowarn("msg=unused import")
+  trait IntersectionGeneric[A] {
+
+    final case class Case[I >: A](
+        idx: Int,
+        typeRepr: TypeRepr,
+    ) {
+
+      given tpe: Type[I] = typeRepr.asTyped
+
+      def typeClassInstance[TC[_]](instances: LazyTypeClasses[TC]): Expr[TC[I]] =
+        instances.instances(idx).asInstanceOf[Expr[TC[I]]]
+
+    }
+
+    val typeRepr: TypeRepr
+
+    val cases: IArray[Case[? >: A]]
+
+    final given tpe: Type[A] = typeRepr.asTyped
+
+    private def summonTypeClass[TC[_]: Type]: IArray[Expr[TC[Any]]] =
+      cases.map { _case =>
+        type _T >: A
+        val kase: Case[_T] = _case.asInstanceOf[Case[_T]]
+        import kase.given
+
+        Expr
+          .summon[TC[_T]]
+          .getOrElse(report.errorAndAbort(s"Unable to find instance `${TypeRepr.of[TC[_T]].show}` for intersection case `${kase.typeRepr.show}` in type ${typeRepr.show}"))
+          .asInstanceOf[Expr[TC[Any]]]
+      }
+
+    object builders {
+
+      def withLazyTypeClasses[TC[_]: Type, O: Type](
+          useTypeClassInstances: LazyTypeClasses[TC] => Expr[O],
+      ): Expr[O] = {
+        def loop(
+            queue: List[(Case[?], Expr[TC[Any]])],
+            acc: IArray[Expr[TC[Any]]],
+        ): Expr[O] =
+          queue match {
+            case (_case, i) :: tail =>
+              type _T >: A
+              val kase: Case[_T] = _case.asInstanceOf[Case[_T]]
+              import kase.given
+
+              '{
+                lazy val inst: TC[_T] = ${ i.asExprOf[TC[_T]] }
+                ${ loop(tail, acc :+ 'inst.asInstanceOf[Expr[TC[Any]]]) }
+              }
+            case Nil =>
+              useTypeClassInstances(new LazyTypeClasses[TC](acc))
+          }
+
+        loop(cases.zip(summonTypeClass[TC]).toList, IArray.empty)
+      }
+
+      def instanceFromLazyTypeClasses[TC[_]: Type](
+          useTypeClassInstances: LazyTypeClasses[TC] => Expr[TC[A]],
+      ): Expr[TC[A]] =
+        withLazyTypeClasses[TC, TC[A]](useTypeClassInstances)
+
+    }
+
+  }
+  object IntersectionGeneric {
+
+    def of[A](using Type[A]): IntersectionGeneric[A] =
+      IntersectionGeneric.attemptOf[A].getOrAbort(s"Unable to derive IntersectionGeneric[${TypeRepr.of[A].show}]:\n  ")
+
+    def attemptOf[A](using Type[A]): Either[String, IntersectionGeneric[A]] = {
+      def expandTypes(repr: TypeRepr): NonEmptyList[TypeRepr] = repr.dealias match
+        case TypeRepr.AndOrType.AndType(a, b) => expandTypes(a) ::: expandTypes(b)
+        case _                                => NonEmptyList.one(repr)
+
+      val _typeRepr: TypeRepr = TypeRepr.of[A]
+      val expanded: NonEmptyList[TypeRepr] = expandTypes(_typeRepr)
+
+      Either.cond(expanded.length >= 2, (), s"Type ${_typeRepr.show} is not an intersection type").map { _ =>
+        new IntersectionGeneric[A] {
+          override val typeRepr: TypeRepr = _typeRepr
+          override val cases: IArray[Case[? >: A]] =
+            IArray.from {
+              expanded.toList.zipWithIndex.map { case (repr, i) =>
+                type _T >: A
+                Case[_T](i, repr)
+              }
+            }
+        }
+      }
+    }
+
+  }
+
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
   //      Helpers
   //////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -1051,6 +1251,128 @@ object K0 {
     /*
     inline def derived[A]: T[A] = ${ derivedImpl[A] }
      */
+
+  }
+
+  trait DerivableUnion[T[_]] {
+
+    protected def internalDeriveUnion[Q <: Quotes, A](k0: K0[Q])(g: k0.UnionGeneric[A])(using quotes: Q, aTpe: Type[A], tTpe: Type[T]): Expr[T[A]]
+
+    protected final def derivedUnionImpl[A](using quotes: Quotes, aTpe: Type[A], tTpe: Type[T]): Expr[T[A]] = {
+      val meta: Meta[quotes.type] = Meta(quotes)
+      val k0: K0[quotes.type] = K0(meta)
+
+      val g: k0.UnionGeneric[A] = k0.UnionGeneric.of[A]
+
+      internalDeriveUnion[quotes.type, A](k0)(g)(using quotes, aTpe, tTpe)
+    }
+
+    /*
+    inline def derivedUnion[A]: T[A] = ${ derivedUnionImpl[A] }
+     */
+
+  }
+  object DerivableUnion {
+
+    trait Fold[T[_]] extends DerivableUnion[T] {
+
+      override protected final def internalDeriveUnion[Q <: Quotes, A](k0: K0[Q])(g: k0.UnionGeneric[A])(using quotes: Q, tpe: Type[A], tTpe: Type[T]): Expr[T[A]] = {
+        val expr: Expr[T[A]] =
+          g.builders.instanceFromLazyTypeClasses[T] { tcs =>
+            val head = g.cases.head
+            val tail = g.cases.tail
+
+            tail
+              .foldLeft((head.typeRepr, head.typeClassInstance(tcs).asInstanceOf[Expr[T[Any]]])) { case ((_accT, _acc), _kase) =>
+                type A1 <: A
+                type A2 <: A
+                val acc: Expr[T[A1]] = _acc.asInstanceOf[Expr[T[A1]]]
+                val kase: g.Case[A2] = _kase.asInstanceOf[g.Case[A2]]
+                val tpe1: Type[A1] = _accT.asTyped
+                val tpe2: Type[A2] = kase.tpe
+
+                (
+                  k0.meta.TypeRepr.AndOrType.OrType(_accT, kase.typeRepr),
+                  foldUnion[Q, A1, A2](acc, kase.typeClassInstance(tcs))(using quotes, tpe1, tpe2, tTpe).asInstanceOf[Expr[T[Any]]],
+                )
+              }
+              ._2
+              .asInstanceOf[Expr[T[A]]]
+          }
+
+        // k0.meta.report.info(expr.show)
+
+        expr
+      }
+
+      protected def foldUnion[Q <: Quotes, A1, A2](a1: Expr[T[A1]], a2: Expr[T[A2]])(using quotes: Q, tpe1: Type[A1], tpe2: Type[A2], tTpe: Type[T]): Expr[T[A1 | A2]]
+
+      /*
+      inline def derivedUnion[A]: T[A] = ${ derivedUnionImpl[A] }
+       */
+
+    }
+
+  }
+
+  trait DerivableIntersection[T[_]] {
+
+    protected def internalDeriveIntersection[Q <: Quotes, A](k0: K0[Q])(g: k0.IntersectionGeneric[A])(using quotes: Q, aTpe: Type[A], tTpe: Type[T]): Expr[T[A]]
+
+    protected final def derivedIntersectionImpl[A](using quotes: Quotes, aTpe: Type[A], tTpe: Type[T]): Expr[T[A]] = {
+      val meta: Meta[quotes.type] = Meta(quotes)
+      val k0: K0[quotes.type] = K0(meta)
+
+      val g: k0.IntersectionGeneric[A] = k0.IntersectionGeneric.of[A]
+
+      internalDeriveIntersection[quotes.type, A](k0)(g)(using quotes, aTpe, tTpe)
+    }
+
+    /*
+    inline def derivedIntersection[A]: T[A] = ${ derivedIntersectionImpl[A] }
+     */
+
+  }
+  object DerivableIntersection {
+
+    trait Fold[T[_]] extends DerivableIntersection[T] {
+
+      override protected final def internalDeriveIntersection[Q <: Quotes, A](k0: K0[Q])(g: k0.IntersectionGeneric[A])(using quotes: Q, tpe: Type[A], tTpe: Type[T]): Expr[T[A]] = {
+        val expr: Expr[T[A]] =
+          g.builders.instanceFromLazyTypeClasses[T] { tcs =>
+            val head = g.cases.head
+            val tail = g.cases.tail
+
+            tail
+              .foldLeft((head.typeRepr, head.typeClassInstance(tcs).asInstanceOf[Expr[T[Any]]])) { case ((_accT, _acc), _kase) =>
+                type A1 >: A
+                type A2 >: A
+                val acc: Expr[T[A1]] = _acc.asInstanceOf[Expr[T[A1]]]
+                val kase: g.Case[A2] = _kase.asInstanceOf[g.Case[A2]]
+                val tpe1: Type[A1] = _accT.asTyped
+                val tpe2: Type[A2] = kase.tpe
+
+                (
+                  k0.meta.TypeRepr.AndOrType.AndType(_accT, kase.typeRepr),
+                  foldIntersection[Q, A1, A2](acc, kase.typeClassInstance(tcs))(using quotes, tpe1, tpe2, tTpe).asInstanceOf[Expr[T[Any]]],
+                )
+              }
+              ._2
+              .asInstanceOf[Expr[T[A]]]
+          }
+
+        // k0.meta.report.info(expr.show)
+
+        expr
+      }
+
+      protected def foldIntersection[Q <: Quotes, A1, A2](a1: Expr[T[A1]], a2: Expr[T[A2]])(using quotes: Q, tpe1: Type[A1], tpe2: Type[A2], tTpe: Type[T]): Expr[T[A1 & A2]]
+
+      /*
+      inline def derivedIntersection[A]: T[A] = ${ derivedIntersectionImpl[A] }
+       */
+
+    }
 
   }
 
