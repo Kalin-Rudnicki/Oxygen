@@ -69,3 +69,13 @@ enum Enum2[+A, +B] derives Show {
   case B(b: B)
   case Neither
 }
+
+trait ALike {
+  val a: Int
+}
+trait BLike {
+  val b: Int
+}
+trait CLike {
+  val c: Int
+}

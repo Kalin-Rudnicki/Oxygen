@@ -1896,7 +1896,10 @@ final class Meta[Q <: Quotes](val quotes: Q) {
         def apply(lhs: TypeRepr, rhs: TypeRepr): AndType =
           AndType(Raw.AndType(lhs.raw, rhs.raw))
 
-        // def unapply(x: AndType): (TypeRepr, TypeRepr)
+        def unapply(x: AndType): (TypeRepr, TypeRepr) = {
+          val (a, b) = Raw.AndType.unapply(x.raw)
+          (TypeRepr(a), TypeRepr(b))
+        }
 
       }
 
@@ -1906,8 +1909,10 @@ final class Meta[Q <: Quotes](val quotes: Q) {
         def apply(lhs: TypeRepr, rhs: TypeRepr): OrType =
           OrType(Raw.OrType(lhs.raw, rhs.raw))
 
-        // def unapply(x: OrType): (TypeRepr, TypeRepr)
-
+        def unapply(x: OrType): (TypeRepr, TypeRepr) = {
+          val (a, b) = Raw.OrType.unapply(x.raw)
+          (TypeRepr(a), TypeRepr(b))
+        }
       }
 
     }
