@@ -64,6 +64,7 @@ lazy val `oxygen-modules-jvm`: Project =
       `oxygen-executable`.jvm,
       `oxygen-json`.jvm,
       `oxygen-meta`.jvm,
+      `oxygen-web-model`.jvm,
       `oxygen-zio`.jvm,
 
       // Testing
@@ -88,6 +89,7 @@ lazy val `oxygen-modules-js`: Project =
       `oxygen-executable`.js,
       `oxygen-json`.js,
       `oxygen-meta`.js,
+      `oxygen-web-model`.js,
       `oxygen-zio`.js,
 
       // Testing
@@ -112,6 +114,7 @@ lazy val `oxygen-modules-native`: Project =
       `oxygen-executable`.native,
       `oxygen-json`.native,
       `oxygen-meta`.native,
+      `oxygen-web-model`.native,
       `oxygen-zio`.native,
 
       // Testing
@@ -197,6 +200,20 @@ lazy val `oxygen-meta`: CrossProject =
       `oxygen-test` % Test,
     )
 
+lazy val `oxygen-web-model`: CrossProject =
+  crossProject(JSPlatform, JVMPlatform, NativePlatform)
+    .crossType(CrossType.Pure)
+    .in(file("modules/web-model"))
+    .settings(
+      publishedProjectSettings,
+      name := "oxygen-web-model",
+      description := "Adds standard models representing the web.",
+    )
+    .dependsOn(
+      `oxygen-core` % testAndCompile,
+      `oxygen-test` % Test,
+    )
+
 lazy val `oxygen-zio`: CrossProject =
   crossProject(JSPlatform, JVMPlatform, NativePlatform)
     .crossType(CrossType.Pure)
@@ -252,3 +269,5 @@ lazy val `oxygen-pre-test-ut`: CrossProject =
       `oxygen-zio` % testAndCompile,
       `oxygen-test` % Test,
     )
+
+addCommandAlias("jvm-test", "oxygen-modules-jvm/test")
