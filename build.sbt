@@ -64,6 +64,7 @@ lazy val `oxygen-modules-jvm`: Project =
       `oxygen-executable`.jvm,
       `oxygen-json`.jvm,
       `oxygen-meta`.jvm,
+      `oxygen-schema`.jvm,
       `oxygen-web-model`.jvm,
       `oxygen-zio`.jvm,
 
@@ -89,6 +90,7 @@ lazy val `oxygen-modules-js`: Project =
       `oxygen-executable`.js,
       `oxygen-json`.js,
       `oxygen-meta`.js,
+      `oxygen-schema`.js,
       `oxygen-web-model`.js,
       `oxygen-zio`.js,
 
@@ -114,6 +116,7 @@ lazy val `oxygen-modules-native`: Project =
       `oxygen-executable`.native,
       `oxygen-json`.native,
       `oxygen-meta`.native,
+      `oxygen-schema`.native,
       `oxygen-web-model`.native,
       `oxygen-zio`.native,
 
@@ -197,6 +200,21 @@ lazy val `oxygen-meta`: CrossProject =
     )
     .dependsOn(
       `oxygen-core` % testAndCompile,
+      `oxygen-test` % Test,
+    )
+
+lazy val `oxygen-schema`: CrossProject =
+  crossProject(JSPlatform, JVMPlatform, NativePlatform)
+    .crossType(CrossType.Pure)
+    .in(file("modules/schema"))
+    .settings(
+      publishedProjectSettings,
+      name := "oxygen-schema",
+      description := "Schema to align with zio json codecs.",
+    )
+    .dependsOn(
+      `oxygen-json` % testAndCompile,
+      `oxygen-meta` % testAndCompile,
       `oxygen-test` % Test,
     )
 

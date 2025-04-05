@@ -42,7 +42,7 @@ object Eq extends K0.Derivable[Eq], K0.DerivableUnion.Fold[Eq], K0.DerivableInte
                 (field: g.Field[i]) =>
                   import field.given
 
-                  val tc: Expr[Eq[i]] = field.typeClassInstance(tcs)
+                  val tc: Expr[Eq[i]] = field.getExpr(tcs)
 
                   '{ $tc.areEqual(${ field.get(a) }, ${ field.get(b) }) }
             }
@@ -82,7 +82,7 @@ object Eq extends K0.Derivable[Eq], K0.DerivableUnion.Fold[Eq], K0.DerivableInte
               (kase: g.Case[i], tup: (Expr[i], Expr[i])) =>
                 import kase.given
 
-                val tc: Expr[Eq[i]] = kase.typeClassInstance(tcs)
+                val tc: Expr[Eq[i]] = kase.getExpr(tcs)
                 val a: Expr[i] = tup._1
                 val b: Expr[i] = tup._2
 

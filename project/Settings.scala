@@ -8,7 +8,7 @@ object Settings {
 
   // =====|  |=====
 
-  private val Scala_3 = "3.6.3"
+  private val Scala_3 = "3.6.4"
 
   private val GithubUsername = "Kalin-Rudnicki"
   private val GithubProject = "Oxygen"

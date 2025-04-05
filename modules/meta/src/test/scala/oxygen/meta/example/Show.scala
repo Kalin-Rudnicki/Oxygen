@@ -42,7 +42,7 @@ object Show extends K0.Derivable[Show] {
                   (field: g.Field[i]) =>
                     import field.given
 
-                    val tc: Expr[Show[i]] = field.typeClassInstance(tcs)
+                    val tc: Expr[Show[i]] = field.getExpr(tcs)
                     val value: Expr[i] = field.get(a)
 
                     val fieldRename: Option[Expr[fieldName]] = field.optionalAnnotation[fieldName]
@@ -112,7 +112,7 @@ object Show extends K0.Derivable[Show] {
               (kase: g.Case[i], value: Expr[i]) =>
                 import kase.given
 
-                val tc: Expr[Show[i]] = kase.typeClassInstance(tcs)
+                val tc: Expr[Show[i]] = kase.getExpr(tcs)
 
                 '{
                   $sb.append(${ Expr(kase.name + ": ") })

@@ -10,7 +10,7 @@ final class K0[Q <: Quotes](val meta: Meta[Q]) {
   given Quotes = meta.quotes
   import meta.*
 
-  final class LazyTypeClasses[TC[_]] private[K0] (private[K0] val instances: IArray[Expr[TC[Any]]])
+  final class ValExpressions[F[_]] private[K0] (private[K0] val expressions: IArray[Expr[F[Any]]])
 
   //////////////////////////////////////////////////////////////////////////////////////////////////////
   //      Generic
@@ -74,7 +74,7 @@ final class K0[Q <: Quotes](val meta: Meta[Q]) {
   //////////////////////////////////////////////////////////////////////////////////////////////////////
 
   @scala.annotation.nowarn("msg=unused import")
-  trait ProductGeneric[A] extends Generic[A] {
+  trait ProductGeneric[A] extends Generic[A] { productGeneric =>
 
     // =====| Abstract |=====
 
@@ -100,8 +100,13 @@ final class K0[Q <: Quotes](val meta: Meta[Q]) {
 
       def name: String = valDef.name
 
-      def typeClassInstance[TC[_]](instances: LazyTypeClasses[TC]): Expr[TC[I]] =
-        instances.instances(idx).asInstanceOf[Expr[TC[I]]]
+      def summonTypeClass[TC[_]: Type]: Expr[TC[I]] =
+        Expr
+          .summon[TC[I]]
+          .getOrElse(report.errorAndAbort(s"Unable to find instance `${TypeRepr.of[TC[I]].show}` for field `$name` in type `${productGeneric.typeRepr.show}`"))
+
+      def getExpr[F[_]](expressions: ValExpressions[F]): Expr[F[I]] =
+        expressions.expressions(idx).asInstanceOf[Expr[F[I]]]
 
       def optionalAnnotation[Annot: Type]: Option[Expr[Annot]] =
         constructorSymRepr.optionalAnnotation[Annot]
@@ -131,56 +136,77 @@ final class K0[Q <: Quotes](val meta: Meta[Q]) {
 
     // =====| Functions |=====
 
-    private def summonTypeClass[TC[_]: Type]: IArray[Expr[TC[Any]]] =
-      fields.map { _field =>
-        type _T
-        val field: Field[_T] = _field.asInstanceOf[Field[_T]]
-        import field.given
+    object builders {
 
-        Expr
-          .summon[TC[_T]]
-          .getOrElse(report.errorAndAbort(s"Unable to find instance `${TypeRepr.of[TC[_T]].show}` for field `${field.name}` in type ${typeRepr.show}"))
-          .asInstanceOf[Expr[TC[Any]]]
+      def withValExpressions[F[_]: Type, O: Type](
+          make: [i] => Field[i] => Expr[F[i]],
+      )(
+          use: ValExpressions[F] => Expr[O],
+      ): Expr[O] = {
+        def loop(
+            queue: List[Field[?]],
+            acc: IArray[Expr[F[Any]]],
+        ): Expr[O] =
+          queue match {
+            case _field :: tail =>
+              type _T
+              val field: Field[_T] = _field.asInstanceOf[Field[_T]]
+              import field.given
+
+              '{
+                val value: F[_T] = ${ make(field) }
+                ${ loop(tail, acc :+ 'value.asInstanceOf[Expr[F[Any]]]) }
+              }
+            case Nil =>
+              use(new ValExpressions[F](acc))
+          }
+
+        loop(fields.toList, IArray.empty)
       }
 
-    object builders {
+      def withLazyValExpressions[F[_]: Type, O: Type](
+          make: [i] => Field[i] => Expr[F[i]],
+      )(
+          use: ValExpressions[F] => Expr[O],
+      ): Expr[O] = {
+        def loop(
+            queue: List[Field[?]],
+            acc: IArray[Expr[F[Any]]],
+        ): Expr[O] =
+          queue match {
+            case _field :: tail =>
+              type _T
+              val field: Field[_T] = _field.asInstanceOf[Field[_T]]
+              import field.given
+
+              '{
+                lazy val value: F[_T] = ${ make(field) }
+                ${ loop(tail, acc :+ 'value.asInstanceOf[Expr[F[Any]]]) }
+              }
+            case Nil =>
+              use(new ValExpressions[F](acc))
+          }
+
+        loop(fields.toList, IArray.empty)
+      }
 
       /**
         * This will summon instances for all fields.
         * If no instance is found, you will receive a compile error.
         */
       def withLazyTypeClasses[TC[_]: Type, O: Type](
-          useTypeClassInstances: LazyTypeClasses[TC] => Expr[O],
-      ): Expr[O] = {
-        def loop(
-            queue: List[(Field[?], Expr[TC[Any]])],
-            acc: IArray[Expr[TC[Any]]],
-        ): Expr[O] =
-          queue match {
-            case (_field, i) :: tail =>
-              type _T
-              val field: Field[_T] = _field.asInstanceOf[Field[_T]]
-              import field.given
-
-              '{
-                lazy val inst: TC[_T] = ${ i.asExprOf[TC[_T]] }
-                ${ loop(tail, acc :+ 'inst.asInstanceOf[Expr[TC[Any]]]) }
-              }
-            case Nil =>
-              useTypeClassInstances(new LazyTypeClasses[TC](acc))
-          }
-
-        loop(fields.zip(summonTypeClass[TC]).toList, IArray.empty)
-      }
+          use: ValExpressions[TC] => Expr[O],
+      ): Expr[O] =
+        withLazyValExpressions[TC, O] { [i] => (field: Field[i]) => field.summonTypeClass[TC] }(use)
 
       /**
         * Same as [[instanceFromLazyTypeClasses]], except typed for the most common case of:
         * summon[ TC[_] ] => TC[_]
         */
       def instanceFromLazyTypeClasses[TC[_]: Type](
-          useTypeClassInstances: LazyTypeClasses[TC] => Expr[TC[A]],
+          use: ValExpressions[TC] => Expr[TC[A]],
       ): Expr[TC[A]] =
-        withLazyTypeClasses[TC, TC[A]](useTypeClassInstances)
+        withLazyTypeClasses[TC, TC[A]](use)
 
       /**
         * This is useful for when you want to produce an `A` as an output.
@@ -443,8 +469,18 @@ final class K0[Q <: Quotes](val meta: Meta[Q]) {
 
       def name: String = productGeneric.label
 
-      def typeClassInstance[TC[_]](instances: LazyTypeClasses[TC]): Expr[TC[I]] =
-        instances.instances(idx).asInstanceOf[Expr[TC[I]]]
+      def summonTypeClass[TC[_]: Type]: Expr[TC[I]] =
+        Expr
+          .summon[TC[I]]
+          .getOrElse(report.errorAndAbort(s"Unable to summon child instance `${TypeRepr.of[TC[I]].show}`"))
+
+      def summonTypeClassOrAutoDerive[TC[_]: Type](autoDerive: ProductGeneric[I] => Expr[TC[I]]): Expr[TC[I]] =
+        Expr
+          .summon[TC[I]]
+          .getOrElse(autoDerive(productGeneric))
+
+      def getExpr[F[_]](expressions: ValExpressions[F]): Expr[F[I]] =
+        expressions.expressions(idx).asInstanceOf[Expr[F[I]]]
 
       def optionalAnnotation[Annot: Type]: Option[Expr[Annot]] =
         productGeneric.optionalAnnotation[Annot]
@@ -717,24 +753,59 @@ final class K0[Q <: Quotes](val meta: Meta[Q]) {
 
     // =====| Functions |=====
 
-    private def summonTypeClass[TC[_]: Type](
-        autoDeriveChildren: Option[[i <: A] => ProductGeneric[i] => Expr[TC[i]]],
-    ): IArray[Expr[TC[Any]]] =
-      cases.map { _kase =>
-        type _T <: A
-        val kase: Case[_T] = _kase.asInstanceOf[Case[_T]]
-        import kase.given
+    object builders {
 
-        val inst: Expr[TC[_T]] =
-          (Expr.summon[TC[_T]], autoDeriveChildren) match
-            case (Some(expr), _)                  => expr
-            case (None, Some(autoDeriveChildren)) => autoDeriveChildren(kase.productGeneric)
-            case (None, None)                     => report.errorAndAbort(s"Unable to summon child instance `${TypeRepr.of[TC[_T]].show}`")
+      def withValExpressions[F[_]: Type, O: Type](
+          make: [i <: A] => Case[i] => Expr[F[i]],
+      )(
+          use: ValExpressions[F] => Expr[O],
+      ): Expr[O] = {
+        def loop(
+            queue: List[Case[? <: A]],
+            acc: IArray[Expr[F[Any]]],
+        ): Expr[O] =
+          queue match {
+            case _case :: tail =>
+              type _T <: A
+              val kase: Case[_T] = _case.asInstanceOf[Case[_T]]
+              import kase.given
 
-        inst.asInstanceOf[Expr[TC[Any]]]
+              '{
+                val value: F[_T] = ${ make(kase) }
+                ${ loop(tail, acc :+ 'value.asInstanceOf[Expr[F[Any]]]) }
+              }
+            case Nil =>
+              use(new ValExpressions[F](acc))
+          }
+
+        loop(cases.toList, IArray.empty)
       }
 
-    object builders {
+      def withLazyValExpressions[F[_]: Type, O: Type](
+          make: [i <: A] => Case[i] => Expr[F[i]],
+      )(
+          use: ValExpressions[F] => Expr[O],
+      ): Expr[O] = {
+        def loop(
+            queue: List[Case[? <: A]],
+            acc: IArray[Expr[F[Any]]],
+        ): Expr[O] =
+          queue match {
+            case _case :: tail =>
+              type _T <: A
+              val kase: Case[_T] = _case.asInstanceOf[Case[_T]]
+              import kase.given
+
+              '{
+                lazy val value: F[_T] = ${ make(kase) }
+                ${ loop(tail, acc :+ 'value.asInstanceOf[Expr[F[Any]]]) }
+              }
+            case Nil =>
+              use(new ValExpressions[F](acc))
+          }
+
+        loop(cases.toList, IArray.empty)
+      }
 
       /**
         * This will summon instances for all case children.
@@ -744,30 +815,11 @@ final class K0[Q <: Quotes](val meta: Meta[Q]) {
         * You should not call `withLazyTypeClasses[OtherTC]` when you are trying to derive a `TC[A]`.
         */
       def withLazyTypeClasses[TC[_]: Type, O: Type](
-          autoDeriveChildren: [i <: A] => ProductGeneric[i] => Expr[TC[i]],
+          autoDerive: [i <: A] => ProductGeneric[i] => Expr[TC[i]],
       )(
-          useTypeClassInstances: LazyTypeClasses[TC] => Expr[O],
-      ): Expr[O] = {
-        def loop(
-            queue: List[(Case[? <: A], Expr[TC[Any]])],
-            acc: IArray[Expr[TC[Any]]],
-        ): Expr[O] =
-          queue match {
-            case (_kase, i) :: tail =>
-              type _T <: A
-              val kase: Case[_T] = _kase.asInstanceOf[Case[_T]]
-              import kase.given
-
-              '{
-                lazy val inst: TC[_T] = ${ i.asExprOf[TC[_T]] }
-                ${ loop(tail, acc :+ 'inst.asInstanceOf[Expr[TC[Any]]]) }
-              }
-            case Nil =>
-              useTypeClassInstances(new LazyTypeClasses[TC](acc))
-          }
-
-        loop(cases.zip(summonTypeClass[TC](autoDeriveChildren.some)).toList, IArray.empty)
-      }
+          use: ValExpressions[TC] => Expr[O],
+      ): Expr[O] =
+        withLazyValExpressions[TC, O] { [i <: A] => (kase: Case[i]) => kase.summonTypeClassOrAutoDerive[TC](autoDerive(_)) }(use)
 
       /**
         * Same as [[instanceFromLazyTypeClasses]], except typed for the most common case of:
@@ -776,9 +828,9 @@ final class K0[Q <: Quotes](val meta: Meta[Q]) {
       def instanceFromLazyTypeClasses[TC[_]: Type](
           autoDeriveChildren: [i <: A] => ProductGeneric[i] => Expr[TC[i]],
       )(
-          useTypeClassInstances: LazyTypeClasses[TC] => Expr[TC[A]],
+          use: ValExpressions[TC] => Expr[TC[A]],
       ): Expr[TC[A]] =
-        withLazyTypeClasses[TC, TC[A]](autoDeriveChildren)(useTypeClassInstances)
+        withLazyTypeClasses[TC, TC[A]](autoDeriveChildren)(use)
 
       /**
         * Similar to [[withLazyTypeClasses]], except if no instance is found, a compile error will be created instead of auto-deriving.
@@ -787,28 +839,9 @@ final class K0[Q <: Quotes](val meta: Meta[Q]) {
         * You should call `withLazyTypeClassesNoAutoDerive[OtherTC]` when you are trying to derive a `TC[A]`.
         */
       def withLazyTypeClassesNoAutoDerive[TC[_]: Type, O: Type](
-          useTypeClassInstances: LazyTypeClasses[TC] => Expr[O],
-      ): Expr[O] = {
-        def loop(
-            queue: List[(Case[? <: A], Expr[TC[Any]])],
-            acc: IArray[Expr[TC[Any]]],
-        ): Expr[O] =
-          queue match {
-            case (_kase, i) :: tail =>
-              type _T <: A
-              val kase: Case[_T] = _kase.asInstanceOf[Case[_T]]
-              import kase.given
-
-              '{
-                lazy val inst: TC[_T] = ${ i.asExprOf[TC[_T]] }
-                ${ loop(tail, acc :+ 'inst.asInstanceOf[Expr[TC[Any]]]) }
-              }
-            case Nil =>
-              useTypeClassInstances(new LazyTypeClasses[TC](acc))
-          }
-
-        loop(cases.zip(summonTypeClass[TC](None)).toList, IArray.empty)
-      }
+          use: ValExpressions[TC] => Expr[O],
+      ): Expr[O] =
+        withLazyValExpressions[TC, O] { [i <: A] => (kase: Case[i]) => kase.summonTypeClass[TC] }(use)
 
       /**
         * This is useful when you have an instance of `A`, and want to do things differently depending on which sub-type of `A` you have.
@@ -1017,7 +1050,7 @@ final class K0[Q <: Quotes](val meta: Meta[Q]) {
   //////////////////////////////////////////////////////////////////////////////////////////////////////
 
   @scala.annotation.nowarn("msg=unused import")
-  trait UnionGeneric[A] {
+  trait UnionGeneric[A] { unionGeneric =>
 
     final case class Case[I <: A](
         idx: Int,
@@ -1026,8 +1059,13 @@ final class K0[Q <: Quotes](val meta: Meta[Q]) {
 
       given tpe: Type[I] = typeRepr.asTyped
 
-      def typeClassInstance[TC[_]](instances: LazyTypeClasses[TC]): Expr[TC[I]] =
-        instances.instances(idx).asInstanceOf[Expr[TC[I]]]
+      def summonTypeClass[TC[_]: Type]: Expr[TC[I]] =
+        Expr
+          .summon[TC[I]]
+          .getOrElse(report.errorAndAbort(s"Unable to find instance `${TypeRepr.of[TC[I]].show}` for union case `${typeRepr.show}` in type `${unionGeneric.typeRepr.show}`"))
+
+      def getExpr[F[_]](expressions: ValExpressions[F]): Expr[F[I]] =
+        expressions.expressions(idx).asInstanceOf[Expr[F[I]]]
 
     }
 
@@ -1037,48 +1075,69 @@ final class K0[Q <: Quotes](val meta: Meta[Q]) {
 
     final given tpe: Type[A] = typeRepr.asTyped
 
-    private def summonTypeClass[TC[_]: Type]: IArray[Expr[TC[Any]]] =
-      cases.map { _case =>
-        type _T <: A
-        val kase: Case[_T] = _case.asInstanceOf[Case[_T]]
-        import kase.given
-
-        Expr
-          .summon[TC[_T]]
-          .getOrElse(report.errorAndAbort(s"Unable to find instance `${TypeRepr.of[TC[_T]].show}` for union case `${kase.typeRepr.show}` in type ${typeRepr.show}"))
-          .asInstanceOf[Expr[TC[Any]]]
-      }
-
     object builders {
 
-      def withLazyTypeClasses[TC[_]: Type, O: Type](
-          useTypeClassInstances: LazyTypeClasses[TC] => Expr[O],
+      def withValExpressions[F[_]: Type, O: Type](
+          make: [i <: A] => Case[i] => Expr[F[i]],
+      )(
+          use: ValExpressions[F] => Expr[O],
       ): Expr[O] = {
         def loop(
-            queue: List[(Case[?], Expr[TC[Any]])],
-            acc: IArray[Expr[TC[Any]]],
+            queue: List[Case[? <: A]],
+            acc: IArray[Expr[F[Any]]],
         ): Expr[O] =
           queue match {
-            case (_case, i) :: tail =>
+            case _case :: tail =>
               type _T <: A
               val kase: Case[_T] = _case.asInstanceOf[Case[_T]]
               import kase.given
 
               '{
-                lazy val inst: TC[_T] = ${ i.asExprOf[TC[_T]] }
-                ${ loop(tail, acc :+ 'inst.asInstanceOf[Expr[TC[Any]]]) }
+                val value: F[_T] = ${ make(kase) }
+                ${ loop(tail, acc :+ 'value.asInstanceOf[Expr[F[Any]]]) }
               }
             case Nil =>
-              useTypeClassInstances(new LazyTypeClasses[TC](acc))
+              use(new ValExpressions[F](acc))
           }
 
-        loop(cases.zip(summonTypeClass[TC]).toList, IArray.empty)
+        loop(cases.toList, IArray.empty)
       }
 
+      def withLazyValExpressions[F[_]: Type, O: Type](
+          make: [i <: A] => Case[i] => Expr[F[i]],
+      )(
+          use: ValExpressions[F] => Expr[O],
+      ): Expr[O] = {
+        def loop(
+            queue: List[Case[? <: A]],
+            acc: IArray[Expr[F[Any]]],
+        ): Expr[O] =
+          queue match {
+            case _case :: tail =>
+              type _T <: A
+              val kase: Case[_T] = _case.asInstanceOf[Case[_T]]
+              import kase.given
+
+              '{
+                lazy val value: F[_T] = ${ make(kase) }
+                ${ loop(tail, acc :+ 'value.asInstanceOf[Expr[F[Any]]]) }
+              }
+            case Nil =>
+              use(new ValExpressions[F](acc))
+          }
+
+        loop(cases.toList, IArray.empty)
+      }
+
+      def withLazyTypeClasses[TC[_]: Type, O: Type](
+          use: ValExpressions[TC] => Expr[O],
+      ): Expr[O] =
+        withLazyValExpressions[TC, O] { [i <: A] => (kase: Case[i]) => kase.summonTypeClass[TC] }(use)
+
       def instanceFromLazyTypeClasses[TC[_]: Type](
-          useTypeClassInstances: LazyTypeClasses[TC] => Expr[TC[A]],
+          use: ValExpressions[TC] => Expr[TC[A]],
       ): Expr[TC[A]] =
-        withLazyTypeClasses[TC, TC[A]](useTypeClassInstances)
+        withLazyTypeClasses[TC, TC[A]](use)
 
     }
 
@@ -1117,7 +1176,7 @@ final class K0[Q <: Quotes](val meta: Meta[Q]) {
   //////////////////////////////////////////////////////////////////////////////////////////////////////
 
   @scala.annotation.nowarn("msg=unused import")
-  trait IntersectionGeneric[A] {
+  trait IntersectionGeneric[A] { intersectionGeneric =>
 
     final case class Case[I >: A](
         idx: Int,
@@ -1126,8 +1185,13 @@ final class K0[Q <: Quotes](val meta: Meta[Q]) {
 
       given tpe: Type[I] = typeRepr.asTyped
 
-      def typeClassInstance[TC[_]](instances: LazyTypeClasses[TC]): Expr[TC[I]] =
-        instances.instances(idx).asInstanceOf[Expr[TC[I]]]
+      def summonTypeClass[TC[_]: Type]: Expr[TC[I]] =
+        Expr
+          .summon[TC[I]]
+          .getOrElse(report.errorAndAbort(s"Unable to find instance `${TypeRepr.of[TC[I]].show}` for intersection case `${typeRepr.show}` in type `${intersectionGeneric.typeRepr.show}`"))
+
+      def getExpr[TC[_]](expressions: ValExpressions[TC]): Expr[TC[I]] =
+        expressions.expressions(idx).asInstanceOf[Expr[TC[I]]]
 
     }
 
@@ -1137,48 +1201,69 @@ final class K0[Q <: Quotes](val meta: Meta[Q]) {
 
     final given tpe: Type[A] = typeRepr.asTyped
 
-    private def summonTypeClass[TC[_]: Type]: IArray[Expr[TC[Any]]] =
-      cases.map { _case =>
-        type _T >: A
-        val kase: Case[_T] = _case.asInstanceOf[Case[_T]]
-        import kase.given
-
-        Expr
-          .summon[TC[_T]]
-          .getOrElse(report.errorAndAbort(s"Unable to find instance `${TypeRepr.of[TC[_T]].show}` for intersection case `${kase.typeRepr.show}` in type ${typeRepr.show}"))
-          .asInstanceOf[Expr[TC[Any]]]
-      }
-
     object builders {
 
-      def withLazyTypeClasses[TC[_]: Type, O: Type](
-          useTypeClassInstances: LazyTypeClasses[TC] => Expr[O],
+      def withValExpressions[F[_]: Type, O: Type](
+          make: [i >: A] => Case[i] => Expr[F[i]],
+      )(
+          use: ValExpressions[F] => Expr[O],
       ): Expr[O] = {
         def loop(
-            queue: List[(Case[?], Expr[TC[Any]])],
-            acc: IArray[Expr[TC[Any]]],
+            queue: List[Case[? >: A]],
+            acc: IArray[Expr[F[Any]]],
         ): Expr[O] =
           queue match {
-            case (_case, i) :: tail =>
+            case _case :: tail =>
               type _T >: A
               val kase: Case[_T] = _case.asInstanceOf[Case[_T]]
               import kase.given
 
               '{
-                lazy val inst: TC[_T] = ${ i.asExprOf[TC[_T]] }
-                ${ loop(tail, acc :+ 'inst.asInstanceOf[Expr[TC[Any]]]) }
+                val value: F[_T] = ${ make(kase) }
+                ${ loop(tail, acc :+ 'value.asInstanceOf[Expr[F[Any]]]) }
               }
             case Nil =>
-              useTypeClassInstances(new LazyTypeClasses[TC](acc))
+              use(new ValExpressions[F](acc))
           }
 
-        loop(cases.zip(summonTypeClass[TC]).toList, IArray.empty)
+        loop(cases.toList, IArray.empty)
       }
 
+      def withLazyValExpressions[F[_]: Type, O: Type](
+          make: [i >: A] => Case[i] => Expr[F[i]],
+      )(
+          use: ValExpressions[F] => Expr[O],
+      ): Expr[O] = {
+        def loop(
+            queue: List[Case[? >: A]],
+            acc: IArray[Expr[F[Any]]],
+        ): Expr[O] =
+          queue match {
+            case _case :: tail =>
+              type _T >: A
+              val kase: Case[_T] = _case.asInstanceOf[Case[_T]]
+              import kase.given
+
+              '{
+                lazy val value: F[_T] = ${ make(kase) }
+                ${ loop(tail, acc :+ 'value.asInstanceOf[Expr[F[Any]]]) }
+              }
+            case Nil =>
+              use(new ValExpressions[F](acc))
+          }
+
+        loop(cases.toList, IArray.empty)
+      }
+
+      def withLazyTypeClasses[TC[_]: Type, O: Type](
+          use: ValExpressions[TC] => Expr[O],
+      ): Expr[O] =
+        withLazyValExpressions[TC, O] { [i >: A] => (kase: Case[i]) => kase.summonTypeClass[TC] }(use)
+
       def instanceFromLazyTypeClasses[TC[_]: Type](
-          useTypeClassInstances: LazyTypeClasses[TC] => Expr[TC[A]],
+          use: ValExpressions[TC] => Expr[TC[A]],
       ): Expr[TC[A]] =
-        withLazyTypeClasses[TC, TC[A]](useTypeClassInstances)
+        withLazyTypeClasses[TC, TC[A]](use)
 
     }
 
@@ -1287,7 +1372,7 @@ object K0 {
             val tail = g.cases.tail
 
             tail
-              .foldLeft((head.typeRepr, head.typeClassInstance(tcs).asInstanceOf[Expr[T[Any]]])) { case ((_accT, _acc), _kase) =>
+              .foldLeft((head.typeRepr, head.getExpr(tcs).asInstanceOf[Expr[T[Any]]])) { case ((_accT, _acc), _kase) =>
                 type A1 <: A
                 type A2 <: A
                 val acc: Expr[T[A1]] = _acc.asInstanceOf[Expr[T[A1]]]
@@ -1297,7 +1382,7 @@ object K0 {
 
                 (
                   k0.meta.TypeRepr.AndOrType.OrType(_accT, kase.typeRepr),
-                  foldUnion[Q, A1, A2](acc, kase.typeClassInstance(tcs))(using quotes, tpe1, tpe2, tTpe).asInstanceOf[Expr[T[Any]]],
+                  foldUnion[Q, A1, A2](acc, kase.getExpr(tcs))(using quotes, tpe1, tpe2, tTpe).asInstanceOf[Expr[T[Any]]],
                 )
               }
               ._2
@@ -1352,7 +1437,7 @@ object K0 {
             val tail = g.cases.tail
 
             tail
-              .foldLeft((head.typeRepr, head.typeClassInstance(tcs).asInstanceOf[Expr[T[Any]]])) { case ((_accT, _acc), _kase) =>
+              .foldLeft((head.typeRepr, head.getExpr(tcs).asInstanceOf[Expr[T[Any]]])) { case ((_accT, _acc), _kase) =>
                 type A1 >: A
                 type A2 >: A
                 val acc: Expr[T[A1]] = _acc.asInstanceOf[Expr[T[A1]]]
@@ -1362,7 +1447,7 @@ object K0 {
 
                 (
                   k0.meta.TypeRepr.AndOrType.AndType(_accT, kase.typeRepr),
-                  foldIntersection[Q, A1, A2](acc, kase.typeClassInstance(tcs))(using quotes, tpe1, tpe2, tTpe).asInstanceOf[Expr[T[Any]]],
+                  foldIntersection[Q, A1, A2](acc, kase.getExpr(tcs))(using quotes, tpe1, tpe2, tTpe).asInstanceOf[Expr[T[Any]]],
                 )
               }
               ._2
