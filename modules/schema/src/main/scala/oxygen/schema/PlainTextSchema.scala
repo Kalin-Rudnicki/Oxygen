@@ -8,6 +8,10 @@ sealed trait PlainTextSchema[A] extends SchemaLike[PlainTextSchema, A] {
   override final def transform[B](ab: A => B, ba: B => A): PlainTextSchema[B] = PlainTextSchema.Transform(name, this, ab, ba)
   override final def transformOrFail[B](ab: A => Either[String, B], ba: B => A): PlainTextSchema[B] = PlainTextSchema.TransformOrFail(name, this, ab, ba)
 
+  final def base64: PlainTextSchema[A] = PlainTextSchema.Base64(this)
+  final def base64Url: PlainTextSchema[A] = PlainTextSchema.Base64Url(this)
+  final def base64Mime: PlainTextSchema[A] = PlainTextSchema.Base64Mime(this)
+
 }
 object PlainTextSchema {
 
@@ -58,17 +62,17 @@ object PlainTextSchema {
     override final val decode: String => Either[String, A] = str => Try { dec.decode(str) }.toOption.toRight("Invalid Base64").flatMap { bytes => root.decode(new String(bytes)) }
   }
 
-  final case class Base64[A](root: PlainTextSchema[A]) extends Base64Like[A] {
+  final case class Base64[A] private[PlainTextSchema] (root: PlainTextSchema[A]) extends Base64Like[A] {
     override val enc: java.util.Base64.Encoder = java.util.Base64.getEncoder
     override val dec: java.util.Base64.Decoder = java.util.Base64.getDecoder
   }
 
-  final case class Base64Url[A](root: PlainTextSchema[A]) extends Base64Like[A] {
+  final case class Base64Url[A] private[PlainTextSchema] (root: PlainTextSchema[A]) extends Base64Like[A] {
     override val enc: java.util.Base64.Encoder = java.util.Base64.getUrlEncoder
     override val dec: java.util.Base64.Decoder = java.util.Base64.getUrlDecoder
   }
 
-  final case class Base64Mime[A](root: PlainTextSchema[A]) extends Base64Like[A] {
+  final case class Base64Mime[A] private[PlainTextSchema] (root: PlainTextSchema[A]) extends Base64Like[A] {
     override val enc: java.util.Base64.Encoder = java.util.Base64.getMimeEncoder
     override val dec: java.util.Base64.Decoder = java.util.Base64.getMimeDecoder
   }
@@ -78,5 +82,8 @@ object PlainTextSchema {
   //////////////////////////////////////////////////////////////////////////////////////////////////////
 
   given string: PlainTextSchema[String] = PlainString
+  given base64: [A: {PlainTextSchema as root}] => PlainTextSchema[oxygen.schema.Base64[A]] = root.base64.transform(oxygen.schema.Base64(_), _.value)
+  given base64Url: [A: {PlainTextSchema as root}] => PlainTextSchema[oxygen.schema.Base64.Url[A]] = root.base64Url.transform(oxygen.schema.Base64.Url(_), _.value)
+  given base64Mime: [A: {PlainTextSchema as root}] => PlainTextSchema[oxygen.schema.Base64.Mime[A]] = root.base64Mime.transform(oxygen.schema.Base64.Mime(_), _.value)
 
 }
