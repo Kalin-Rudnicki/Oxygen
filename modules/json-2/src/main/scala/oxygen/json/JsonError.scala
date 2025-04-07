@@ -1,4 +1,4 @@
-package oxygen.schema
+package oxygen.json
 
 final case class JsonError(rPath: List[JsonError.Path], cause: JsonError.Cause) extends Throwable {
 
@@ -32,11 +32,13 @@ object JsonError {
     case MissingRequired
     case DecodingFailed(message: String)
     case InvalidType(expected: Json.Type, actual: Json.Type)
+    case InvalidJson(idx: Int)
 
     final def show: String = this match
-      case Cause.MissingRequired               => "Missing required value"
       case Cause.DecodingFailed(message)       => message
+      case Cause.MissingRequired               => "Missing required value"
       case Cause.InvalidType(expected, actual) => s"Invalid type, expected `$expected`, but got `$actual`"
+      case Cause.InvalidJson(idx)              => s"Invalid json at idx $idx"
 
   }
 

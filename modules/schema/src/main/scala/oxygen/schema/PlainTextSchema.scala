@@ -1,5 +1,7 @@
 package oxygen.schema
 
+import java.time.*
+import java.util.UUID
 import oxygen.predef.core.*
 import scala.util.Try
 
@@ -81,7 +83,42 @@ object PlainTextSchema {
   //      Givens
   //////////////////////////////////////////////////////////////////////////////////////////////////////
 
+  extension [A](self: PlainTextSchema[A])
+    private def transformUnsafe[B](name: String)(ab: A => B, ba: B => A): PlainTextSchema[B] =
+      PlainTextSchema.TransformOrFail[A, B](
+        name,
+        self,
+        value => Try { ab(value) }.toOption.toRight(s"Invalid $name"),
+        ba,
+      )
+
   given string: PlainTextSchema[String] = PlainString
+  given boolean: PlainTextSchema[Boolean] = string.transformUnsafe("Boolean")(_.toBoolean, _.toString)
+  given uuid: PlainTextSchema[UUID] = string.transformUnsafe("UUID")(UUID.fromString, _.toString)
+
+  given byte: PlainTextSchema[Byte] = string.transformUnsafe("Byte")(_.toByte, _.toString)
+  given short: PlainTextSchema[Short] = string.transformUnsafe("Short")(_.toShort, _.toString)
+  given int: PlainTextSchema[Int] = string.transformUnsafe("Int")(_.toInt, _.toString)
+  given long: PlainTextSchema[Long] = string.transformUnsafe("Long")(_.toLong, _.toString)
+
+  given float: PlainTextSchema[Float] = string.transformUnsafe("Float")(_.toFloat, _.toString)
+  given double: PlainTextSchema[Double] = string.transformUnsafe("Double")(_.toDouble, _.toString)
+
+  // TODO (KR) : BigInt/BigDecimal
+
+  given instant: PlainTextSchema[Instant] = ???
+  given duration: PlainTextSchema[Duration] = ???
+  given period: PlainTextSchema[Period] = ???
+  given localDate: PlainTextSchema[LocalDate] = ???
+  given localTime: PlainTextSchema[LocalTime] = ???
+  given localDateTime: PlainTextSchema[LocalDateTime] = ???
+  given zonedDateTime: PlainTextSchema[ZonedDateTime] = ???
+  given offsetDateTime: PlainTextSchema[OffsetDateTime] = ???
+  given dayOfWeek: PlainTextSchema[DayOfWeek] = ???
+  given month: PlainTextSchema[Month] = ???
+  given zoneId: PlainTextSchema[ZoneId] = ???
+  given zoneOffset: PlainTextSchema[ZoneOffset] = ???
+
   given base64: [A: {PlainTextSchema as root}] => PlainTextSchema[oxygen.schema.Base64[A]] = root.base64.transform(oxygen.schema.Base64(_), _.value)
   given base64Url: [A: {PlainTextSchema as root}] => PlainTextSchema[oxygen.schema.Base64.Url[A]] = root.base64Url.transform(oxygen.schema.Base64.Url(_), _.value)
   given base64Mime: [A: {PlainTextSchema as root}] => PlainTextSchema[oxygen.schema.Base64.Mime[A]] = root.base64Mime.transform(oxygen.schema.Base64.Mime(_), _.value)

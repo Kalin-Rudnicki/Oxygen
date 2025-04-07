@@ -189,6 +189,20 @@ lazy val `oxygen-json`: CrossProject =
       `oxygen-core` % testAndCompile,
     )
 
+lazy val `oxygen-json-2`: CrossProject =
+  crossProject(JSPlatform, JVMPlatform, NativePlatform)
+    .crossType(CrossType.Pure)
+    .in(file("modules/json-2"))
+    .settings(
+      publishedProjectSettings,
+      name := "oxygen-json-2",
+      description := "Why not run your own json library... Not enough exist already...",
+    )
+    .dependsOn(
+      `oxygen-core` % testAndCompile,
+      `oxygen-test` % Test,
+    )
+
 lazy val `oxygen-meta`: CrossProject =
   crossProject(JSPlatform, JVMPlatform, NativePlatform)
     .crossType(CrossType.Pure)

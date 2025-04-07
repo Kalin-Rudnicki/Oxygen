@@ -1,5 +1,7 @@
 package oxygen.schema
 
+import java.time.*
+import java.util.UUID
 import oxygen.predef.core.*
 import scala.util.Try
 import scala.util.matching.Regex
@@ -47,7 +49,7 @@ object JsonSchema {
 
     override val fromJson: (List[JsonError.Path], Json) => Either[JsonError, A] = {
       case (rPath, Json.Str(value)) => plainTextSchema.decode(value).leftMap(e => JsonError(rPath, JsonError.Cause.DecodingFailed(e)))
-      case (rPath, _)               => JsonError(rPath, JsonError.Cause.DecodingFailed("Invalid JSON type, expected String")).asLeft
+      case (rPath, json)            => JsonError(rPath, JsonError.Cause.InvalidType(Json.Type.String, json.tpe)).asLeft
     }
 
   }
@@ -69,7 +71,8 @@ object JsonSchema {
     override val fromJson: (List[JsonError.Path], Json) => Either[JsonError, BigInt] = {
       case (_, Json.NumberWithoutDecimal(value)) => value.asRight
       case (_, Json.Str(stringToBigInt(value)))  => value.asRight
-      case (rPath, _)                            => JsonError(rPath, JsonError.Cause.DecodingFailed("Expected non-decimal number")).asLeft
+      case (rPath, Json.NumberWithDecimal(_))    => JsonError(rPath, JsonError.Cause.DecodingFailed("decimal not allowed")).asLeft
+      case (rPath, json)                         => JsonError(rPath, JsonError.Cause.InvalidType(Json.Type.Number, json.tpe)).asLeft
     }
 
     private[JsonSchema] def narrow[A](name: String, min: A, max: A, ab: BigInt => A, ba: A => BigInt): JsonSchema[A] = {
@@ -106,7 +109,7 @@ object JsonSchema {
     override val fromJson: (List[JsonError.Path], Json) => Either[JsonError, BigDecimal] = {
       case (_, Json.Number(value))                  => value.asRight
       case (_, Json.Str(stringToBigDecimal(value))) => value.asRight
-      case (rPath, _)                               => JsonError(rPath, JsonError.Cause.DecodingFailed("Expected number")).asLeft
+      case (rPath, json)                            => JsonError(rPath, JsonError.Cause.InvalidType(Json.Type.Number, json.tpe)).asLeft
     }
 
     private[JsonSchema] def narrow[A](name: String, min: A, max: A, ab: BigDecimal => A, ba: A => BigDecimal): JsonSchema[A] = {
@@ -140,7 +143,7 @@ object JsonSchema {
     override val fromJson: (List[JsonError.Path], Json) => Either[JsonError, Boolean] = {
       case (_, Json.Bool(value))                 => value.asRight
       case (_, Json.Str(stringToBoolean(value))) => value.asRight
-      case (rPath, _)                            => JsonError(rPath, JsonError.Cause.DecodingFailed("Expected boolean")).asLeft
+      case (rPath, json)                         => JsonError(rPath, JsonError.Cause.InvalidType(Json.Type.Boolean, json.tpe)).asLeft
     }
 
   }
@@ -179,12 +182,25 @@ object JsonSchema {
     }
 
     override val fromJson: (List[JsonError.Path], Json) => Either[JsonError, Specified[A]] =
-      (rPath, json) => inner.fromJson(rPath, json).map(Specified.WasSpecified(_))
+      inner.fromJson(_, _).map(Specified.WasSpecified(_))
 
     override val includeInObject: Specified[A] => Boolean = _.toOption.nonEmpty
 
     override val onMissing: Option[Specified[A]] = Specified.WasNotSpecified.some
 
+  }
+
+  final case class SeqSchema[A](elem: JsonSchema[A]) extends JsonSchema.RequiredSchema[Seq[A]] {
+    override val name: String = s"Seq[${elem.name}]"
+    override val jsonTypes: Set[Json.Type] = Set(Json.Type.Array)
+    override val toJson: Seq[A] => Json =
+      value => Json.arr(value.map(elem.toJson)*)
+    override val fromJson: (List[JsonError.Path], Json) => Either[JsonError, Seq[A]] = {
+      case (rPath, Json.Arr(value)) =>
+        value.zipWithIndex.toSeq.traverse { case (json, idx) => elem.fromJson(JsonError.Path.Index(idx) :: rPath, json) }
+      case (rPath, json) =>
+        JsonError(rPath, JsonError.Cause.InvalidType(Json.Type.Array, json.tpe)).asLeft
+    }
   }
 
   sealed trait ProductSchema[A] extends JsonSchema.RequiredSchema[A] {
@@ -255,6 +271,20 @@ object JsonSchema {
     JsonSchema.StringSchema(plainTextSchema)
 
   given string: JsonSchema[String] = fromPlainText
+  given uuid: JsonSchema[UUID] = fromPlainText
+
+  given instant: JsonSchema[Instant] = fromPlainText
+  given duration: JsonSchema[Duration] = fromPlainText
+  given period: JsonSchema[Period] = fromPlainText
+  given localDate: JsonSchema[LocalDate] = fromPlainText
+  given localTime: JsonSchema[LocalTime] = fromPlainText
+  given localDateTime: JsonSchema[LocalDateTime] = fromPlainText
+  given zonedDateTime: JsonSchema[ZonedDateTime] = fromPlainText
+  given offsetDateTime: JsonSchema[OffsetDateTime] = fromPlainText
+  given dayOfWeek: JsonSchema[DayOfWeek] = fromPlainText
+  given month: JsonSchema[Month] = fromPlainText
+  given zoneId: JsonSchema[ZoneId] = fromPlainText
+  given zoneOffset: JsonSchema[ZoneOffset] = fromPlainText
 
   // =====| Numbers |=====
 
@@ -273,6 +303,7 @@ object JsonSchema {
   given boolean: JsonSchema[Boolean] = BooleanSchema
 
   given option: [A: {JsonSchema as inner}] => JsonSchema[Option[A]] = JsonSchema.OptionalSchema(inner)
+  given specified: [A: {JsonSchema as inner}] => JsonSchema[Specified[A]] = JsonSchema.SpecifiedSchema(inner)
 
   //////////////////////////////////////////////////////////////////////////////////////////////////////
   //      Helpers
