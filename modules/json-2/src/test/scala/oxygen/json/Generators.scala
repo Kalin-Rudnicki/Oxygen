@@ -20,15 +20,22 @@ object Generators {
       )
 
     private val whiteSpaceGen: Gen[Any, String] =
-      Gen.chunkOfBounded(0, 10)(Gen.elements(' ', '\t', '\n')).map(_.mkString)
+      Gen.chunkOfBounded(0, 5)(Gen.elements(' ', '\t', '\n')).map(_.mkString)
 
     val stringGen: StringGen[Json.Str] =
-      Gen.chunkOfBounded(0, 10)(stringElem).map { elems =>
-        (
-          Json.Str(elems.map(_._1).mkString),
-          elems.map(_._2).mkString("\"", "", "\""),
+      Gen
+        .weighted(
+          Gen.const((0, 10)) -> 7.0,
+          Gen.const((10, 25)) -> 3.0,
         )
-      }
+        .flatMap { case (min, max) =>
+          Gen.chunkOfBounded(min, max)(stringElem).map { elems =>
+            (
+              Json.Str(elems.map(_._1).mkString),
+              elems.map(_._2).mkString("\"", "", "\""),
+            )
+          }
+        }
 
     val numberWithoutDecimalGen: StringGen[Json.NumberWithoutDecimal] =
       Gen.int.map { int => (Json.NumberWithoutDecimal(BigInt(int)), int.toString) }
@@ -44,14 +51,12 @@ object Generators {
 
     def arrayGen(maxDepth: Int): StringGen[Json.Arr] =
       if (maxDepth > 0)
-        for {
-          afterOpen <- whiteSpaceGen
-          beforeClose <- whiteSpaceGen
-          elems <- Gen.chunkOfBounded(0, 5) { Gen.int(0, maxDepth - 1).flatMap(anyJsonGen) }
-        } yield (
-          Json.arr(elems.map(_._1)*),
-          s"[$afterOpen${elems.map(_._2).mkString(", ")}$beforeClose]",
-        )
+        Gen.chunkOfBounded(0, 10) { Gen.int(0, maxDepth - 1).flatMap(anyJsonGen) }.map { elems =>
+          (
+            Json.arr(elems.map(_._1)*),
+            s"[${elems.map(_._2).mkString(",")}]",
+          )
+        }
       else
         whiteSpaceGen.map { whiteSpace => (Json.arr(), s"[$whiteSpace]") }
 
@@ -59,13 +64,11 @@ object Generators {
       for {
         a <- whiteSpaceGen
         b <- whiteSpaceGen
-        c <- whiteSpaceGen
-        d <- whiteSpaceGen
         key <- stringGen
         value <- Gen.int(0, maxDepth - 1).flatMap(anyJsonGen)
       } yield (
         (key._1.value, value._1),
-        s"$a${key._2}$b:$c${value._2}$d",
+        s"$a${key._2}$b:${value._2}",
       )
 
     def objectGen(maxDepth: Int): StringGen[Json.Obj] =
@@ -73,7 +76,7 @@ object Generators {
         for {
           afterOpen <- whiteSpaceGen
           beforeClose <- whiteSpaceGen
-          elems <- Gen.chunkOfBounded(0, 5) { objectPairGen(maxDepth) }
+          elems <- Gen.chunkOfBounded(0, 10) { objectPairGen(maxDepth) }
         } yield (
           Json.obj(elems.map(_._1)*),
           s"{$afterOpen${elems.map(_._2).mkString(", ")}$beforeClose}",
@@ -82,14 +85,14 @@ object Generators {
         whiteSpaceGen.map { whiteSpace => (Json.obj(), s"{$whiteSpace}") }
 
     private def anyJsonNoWhitespaceGen(maxDepth: Int): StringGen[Json] =
-      Gen.oneOf(
-        stringGen,
-        numberWithoutDecimalGen,
-        numberWithDecimalGen,
-        booleanGen,
-        nullGen,
-        arrayGen(maxDepth),
-        objectGen(maxDepth),
+      Gen.weighted(
+        stringGen -> 1.0,
+        numberWithoutDecimalGen -> 1.0,
+        numberWithDecimalGen -> 1.0,
+        booleanGen -> 1.0,
+        nullGen -> 1.0,
+        arrayGen(maxDepth) -> 1.0,
+        objectGen(maxDepth) -> 25.0,
       )
 
     def anyJsonGen(maxDepth: Int): StringGen[Json] =

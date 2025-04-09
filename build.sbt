@@ -227,7 +227,7 @@ lazy val `oxygen-schema`: CrossProject =
       description := "Schema to align with zio json codecs.",
     )
     .dependsOn(
-      // `oxygen-json` % testAndCompile,
+      `oxygen-json-2` % testAndCompile,
       `oxygen-meta` % testAndCompile,
       `oxygen-test` % Test,
     )

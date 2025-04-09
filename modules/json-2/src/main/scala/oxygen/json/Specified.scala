@@ -1,4 +1,4 @@
-package oxygen.schema
+package oxygen.json
 
 import oxygen.predef.core.*
 

@@ -4,6 +4,7 @@ import oxygen.core.{NonEmptyList, RightProjection}
 import oxygen.core.syntax.either.*
 import oxygen.core.syntax.option.*
 import scala.collection.IterableOnceOps
+import scala.reflect.ClassTag
 
 trait Monad[F[_]] extends Applicative[F] {
 
@@ -61,6 +62,27 @@ object Monad extends MonadLowPriority.LowPriority1 {
       override def map[A, B](self: Either[Left, A])(f: A => B): Either[Left, B] = self.map(f)
 
       override def pure[A](self: A): Either[Left, A] = self.asRight
+
+    }
+
+  implicit val iArray: Monad[IArray] =
+    new Monad[IArray] {
+
+      private given ct: [A] => ClassTag[A] = ClassTag(classOf[Any])
+
+      override def flatMap[A, B](self: IArray[A])(f: A => IArray[B]): IArray[B] = self.flatMap(f(_))
+
+      override def ap[A, B](f: IArray[A => B])(self: IArray[A]): IArray[B] =
+        for {
+          f <- f
+          self <- self
+        } yield f(self)
+
+      override def map[A, B](self: IArray[A])(f: A => B): IArray[B] =
+        self.map(f)
+
+      override def pure[A](self: A): IArray[A] =
+        IArray(self)
 
     }
 

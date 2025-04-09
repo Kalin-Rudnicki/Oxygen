@@ -2,7 +2,9 @@ package oxygen.schema
 
 import java.time.*
 import java.util.UUID
+import oxygen.json.*
 import oxygen.predef.core.*
+import scala.collection.Factory
 import scala.util.Try
 import scala.util.matching.Regex
 
@@ -190,17 +192,30 @@ object JsonSchema {
 
   }
 
-  final case class SeqSchema[A](elem: JsonSchema[A]) extends JsonSchema.RequiredSchema[Seq[A]] {
-    override val name: String = s"Seq[${elem.name}]"
+  final case class SeqSchema[A](elem: JsonSchema[A]) extends JsonSchema.RequiredSchema[IArray[A]] {
+
+    override val name: String = s"IArray[${elem.name}]"
+
     override val jsonTypes: Set[Json.Type] = Set(Json.Type.Array)
-    override val toJson: Seq[A] => Json =
-      value => Json.arr(value.map(elem.toJson)*)
-    override val fromJson: (List[JsonError.Path], Json) => Either[JsonError, Seq[A]] = {
+
+    override val toJson: IArray[A] => Json =
+      value => Json.Arr(value.map(elem.toJson))
+
+    override val fromJson: (List[JsonError.Path], Json) => Either[JsonError, IArray[A]] = {
       case (rPath, Json.Arr(value)) =>
-        value.zipWithIndex.toSeq.traverse { case (json, idx) => elem.fromJson(JsonError.Path.Index(idx) :: rPath, json) }
+        value.zipWithIndex.traverse { case (json, idx) => elem.fromJson(JsonError.Path.Index(idx) :: rPath, json) }
       case (rPath, json) =>
         JsonError(rPath, JsonError.Cause.InvalidType(Json.Type.Array, json.tpe)).asLeft
     }
+
+    private[JsonSchema] def transformSeq[S[_]](sName: String)(ab: IArray[A] => S[A], ba: S[A] => IArray[A]): JsonSchema[S[A]] =
+      Transform(
+        s"$sName[${elem.name}]",
+        this,
+        ab,
+        ba,
+      )
+
   }
 
   sealed trait ProductSchema[A] extends JsonSchema.RequiredSchema[A] {
