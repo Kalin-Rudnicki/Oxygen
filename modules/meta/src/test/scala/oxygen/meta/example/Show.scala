@@ -1,6 +1,5 @@
 package oxygen.meta.example
 
-import oxygen.core.syntax.seq.*
 import oxygen.meta.*
 import oxygen.predef.core.*
 import scala.collection.mutable

@@ -1,7 +1,6 @@
 package oxygen.core
 
 import oxygen.core.syntax.common.*
-import oxygen.core.syntax.seq.*
 import scala.collection.mutable
 import scala.util.matching.Regex
 

@@ -1,5 +1,6 @@
 package oxygen.core.syntax
 
+import oxygen.core.collection.Contiguous
 import scala.collection.IterableOps
 
 object seq {
@@ -56,5 +57,9 @@ object seq {
       surround(startJoinEnd, startJoinEnd, startJoinEnd)
 
   }
+
+  extension [A](self: IterableOnce[A])
+    def toContiguous: Contiguous[A] =
+      Contiguous.from(self)
 
 }
