@@ -1,6 +1,7 @@
 package oxygen.core.syntax
 
-import oxygen.core.{EitherNel, NonEmptyList}
+import oxygen.core.EitherNel
+import oxygen.core.collection.NonEmptyList
 
 object either {
 

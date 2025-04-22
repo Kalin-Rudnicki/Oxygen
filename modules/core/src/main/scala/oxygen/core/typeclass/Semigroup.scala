@@ -1,6 +1,6 @@
 package oxygen.core.typeclass
 
-import oxygen.core.NonEmptyList
+import oxygen.core.collection.NonEmptyList
 import scala.collection.IterableOps
 
 trait Semigroup[A] {

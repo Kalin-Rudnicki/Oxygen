@@ -1,6 +1,6 @@
 package oxygen.core.typeclass
 
-import oxygen.core.NonEmptyList
+import oxygen.core.collection.NonEmptyList
 import oxygen.core.syntax.option.*
 
 trait NonEmpty[F[_]] {

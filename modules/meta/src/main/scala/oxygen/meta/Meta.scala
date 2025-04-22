@@ -1,6 +1,6 @@
 package oxygen.meta
 
-import oxygen.core.NonEmptyList
+import oxygen.core.collection.NonEmptyList
 import oxygen.core.syntax.either.*
 import oxygen.core.syntax.option.*
 import scala.annotation.{compileTimeOnly, experimental}

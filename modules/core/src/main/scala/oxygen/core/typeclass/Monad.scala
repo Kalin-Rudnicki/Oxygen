@@ -1,6 +1,7 @@
 package oxygen.core.typeclass
 
-import oxygen.core.{NonEmptyList, RightProjection}
+import oxygen.core.RightProjection
+import oxygen.core.collection.NonEmptyList
 import oxygen.core.syntax.either.*
 import oxygen.core.syntax.option.*
 import scala.collection.IterableOnceOps

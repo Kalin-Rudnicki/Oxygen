@@ -1,5 +1,6 @@
 package oxygen.core
 
+import oxygen.core.collection.NonEmptyList
 import oxygen.core.typeclass.*
 
 trait Enum[E <: Enum[E]] { self: E => }
