@@ -1,6 +1,5 @@
 package oxygen.cli
 
-import oxygen.core.syntax.seq.*
 import oxygen.predef.color.{*, given}
 import oxygen.predef.core.*
 

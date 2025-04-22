@@ -5,6 +5,7 @@ object common {
   export groupBy.*
   export nonEmpty.*
   export option.*
+  export seq.*
   export string.*
   export throwable.*
   export traverse.*
