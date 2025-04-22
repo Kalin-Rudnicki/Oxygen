@@ -1,4 +1,4 @@
-package oxygen.core
+package oxygen.core.collection
 
 import oxygen.core.syntax.groupBy.*
 import oxygen.core.syntax.option.*

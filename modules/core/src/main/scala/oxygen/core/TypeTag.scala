@@ -3,6 +3,7 @@ package oxygen.core
 import izumi.reflect.Tag
 import izumi.reflect.macrortti.*
 import oxygen.core.TypeTag.TypeRef
+import oxygen.core.collection.NonEmptyList
 import oxygen.core.syntax.either.*
 import oxygen.core.syntax.option.*
 import scala.annotation.tailrec

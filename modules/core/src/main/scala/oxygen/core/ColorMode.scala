@@ -1,5 +1,6 @@
 package oxygen.core
 
+import oxygen.core.collection.NonEmptyList
 import oxygen.core.syntax.option.*
 import oxygen.core.syntax.string.*
 

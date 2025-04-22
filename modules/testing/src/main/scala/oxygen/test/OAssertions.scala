@@ -1,6 +1,6 @@
 package oxygen.test
 
-import oxygen.core.NonEmptyList
+import oxygen.core.collection.NonEmptyList
 import oxygen.core.syntax.common.*
 import scala.Console.*
 import zio.test.*

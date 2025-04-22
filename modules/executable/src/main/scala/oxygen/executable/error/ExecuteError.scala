@@ -2,7 +2,7 @@ package oxygen.executable.error
 
 import oxygen.cli.*
 import oxygen.cli.error.*
-import oxygen.core.NonEmptyList
+import oxygen.core.collection.NonEmptyList
 import oxygen.core.syntax.throwable.*
 import oxygen.executable.{Executable, ExecutableApp}
 import oxygen.executable.error.ExecuteError.SubCommandError

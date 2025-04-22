@@ -1,6 +1,7 @@
 package oxygen.web.model
 
-import oxygen.core.{Enum, NonEmptyList}
+import oxygen.core.Enum
+import oxygen.core.collection.NonEmptyList
 
 sealed abstract class HttpCode(val code: Int, val name: String) {
   private final val hundred = code / 100
