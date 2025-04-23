@@ -1,10 +1,10 @@
 package oxygen.zio.telemetry
 
-import oxygen.json.KeyedMapDecoder
+import oxygen.predef.core.*
+import oxygen.predef.json.*
 import oxygen.zio.*
+import oxygen.zio.syntax.seq.*
 import zio.{LogLevel as _, *}
-import zio.json.JsonDecoder
-import zio.json.ast.Json
 
 object Telemetry {
 
@@ -39,11 +39,11 @@ object Telemetry {
 
   // --- Target ---
 
-  def withTargets(targets: Chunk[TelemetryTarget]): FiberRefModification = OxygenEnv.telemetryTargets.modification.set(targets)
-  def withTargets(targets: TelemetryTarget*): FiberRefModification = OxygenEnv.telemetryTargets.modification.set(Chunk.fromIterable(targets))
+  def withTargets(targets: Contiguous[TelemetryTarget]): FiberRefModification = OxygenEnv.telemetryTargets.modification.set(targets)
+  def withTargets(targets: TelemetryTarget*): FiberRefModification = OxygenEnv.telemetryTargets.modification.set(Contiguous.from(targets))
 
-  def addTargets(targets: Chunk[TelemetryTarget]): FiberRefModification = OxygenEnv.telemetryTargets.modification.update(_ ++ targets)
-  def addTargets(targets: TelemetryTarget*): FiberRefModification = OxygenEnv.telemetryTargets.modification.update(_ ++ Chunk.fromIterable(targets))
+  def addTargets(targets: Contiguous[TelemetryTarget]): FiberRefModification = OxygenEnv.telemetryTargets.modification.update(_ ++ targets)
+  def addTargets(targets: TelemetryTarget*): FiberRefModification = OxygenEnv.telemetryTargets.modification.update(_ ++ Contiguous.from(targets))
 
   // --- Env ---
 
@@ -56,15 +56,15 @@ object Telemetry {
 
   private def handleTrace(e: TraceEntry): UIO[Unit] =
     OxygenEnv.telemetryTargets.getWith {
-      ZIO.foreachDiscard(_)(_.handle(e))
+      _.foreachZIO(_.handle(e))
     }
 
   final case class Config(
       targets: Json,
   ) derives JsonDecoder {
 
-    def decodeTargets(decoder: KeyedMapDecoder[TelemetryTarget.ConfigBuilder]): ZIO[Scope, String | Throwable, Chunk[TelemetryTarget]] =
-      ZIO.fromEither(decoder.decoder.decodeJson(targets.toString())).flatMap(ZIO.foreach(_)(_.telemetryTarget)).map(_.flatten)
+    def decodeTargets(decoder: KeyedMapDecoder[TelemetryTarget.ConfigBuilder]): ZIO[Scope, Throwable, Contiguous[TelemetryTarget]] =
+      ZIO.fromEither(decoder.decoder.decodeJsonAST(targets)).flatMap(_.flatMapZIO(_.telemetryTarget))
 
   }
 

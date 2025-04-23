@@ -2,19 +2,18 @@ package oxygen.core
 
 import oxygen.core.collection.NonEmptyList
 import oxygen.core.typeclass.*
+import scala.reflect.ClassTag
 
 trait Enum[E <: Enum[E]] { self: E => }
 object Enum {
 
-  inline def values[E <: Enum[E]](implicit hc: HasCompanion[E]): Seq[E] = hc.companion.enumValues
+  inline def values[E](implicit c: Companion[E]): Seq[E] = c.enumValues
 
   // =====|  |=====
 
-  final case class HasCompanion[E <: Enum[E]] private[Enum] (companion: Companion[E])
+  trait Companion[E: TypeTag] { self =>
 
-  trait Companion[E <: Enum[E]: TypeTag] {
-
-    implicit final val hasCompanion: HasCompanion[E] = Enum.HasCompanion(this)
+    given companion: Companion[E] = this
 
     protected val defaultToString: E => NonEmptyList[String] = e => NonEmptyList.one(e.toString)
 
@@ -42,6 +41,25 @@ object Enum {
         StringEncoder.usingToString[String].contramap(ToString.encode),
         StringDecoder.string.mapOption(ToString.decode),
       )
+
+    final def withDefaultToString(f: E => NonEmptyList[String]): Enum.Companion[E] =
+      new Enum.Companion[E] {
+        override def values: Array[E] = self.values
+        override protected val defaultToString: E => NonEmptyList[String] = f
+      }
+
+  }
+  object Companion {
+
+    def apply[A: {TypeTag, ClassTag}](_values: A*): Enum.Companion[A] =
+      new Companion[A] {
+        override def values: Array[A] = _values.toArray
+      }
+
+    def fromArray[A: TypeTag](array: Array[A]): Enum.Companion[A] =
+      new Companion[A] {
+        override def values: Array[A] = array
+      }
 
   }
 

@@ -1,17 +1,15 @@
 package oxygen.executable
 
 import oxygen.cli.*
-import oxygen.cli.given
 import oxygen.executable.error.ExecuteError
-import oxygen.json.{EncodedThrowable, KeyedMapDecoder}
-import oxygen.json.syntax.conversion.*
+import oxygen.json.KeyedMapDecoder
+import oxygen.json.syntax.interop.*
 import oxygen.predef.core.*
+import oxygen.predef.json.*
 import oxygen.predef.zio.*
 import oxygen.zio.logger.{LogCause, LogEvent, LogTarget}
 import oxygen.zio.telemetry.TelemetryTarget
 import zio.{Cause, ExitCode, LogSpan, StackTrace, ZIOAppArgs, ZIOAppDefault}
-import zio.json.*
-import zio.json.ast.Json
 
 trait ExecutableApp extends ZIOAppDefault {
 
@@ -29,7 +27,7 @@ trait ExecutableApp extends ZIOAppDefault {
         case ExecutableApp.Config.InitialLoggerDefault.Oxygen => Logger.defaultToOxygen.set
         case ExecutableApp.Config.InitialLoggerDefault.ZIO    => Logger.defaultToZio.set
       parsedJsons <- ZIO.foreach(config.sources)(ExecutableApp.Config.Source.eval)
-      jsonConfig = parsedJsons.foldLeft[Json](Json.Obj())(_ merge _)
+      jsonConfig = parsedJsons.foldLeft[Json](Json.obj())(_ merge _)
       context = ExecutableContext(
         KeyedMapDecoder(LogTarget.ConfigBuilder.default ++ additionalLoggerParsers),
         KeyedMapDecoder(TelemetryTarget.ConfigBuilder.default ++ additionalTelemetryParsers),
@@ -64,7 +62,7 @@ trait ExecutableApp extends ZIOAppDefault {
         empty0 = Chunk.empty,
         failCase0 = (e, stackTrace, spans, context) => Chunk.single(CapturedError.fromFail(Cause.Fail(e, stackTrace, spans, context))),
         dieCase0 = (e, stackTrace, spans, context) =>
-          Chunk.single(CapturedError(LogLevel.Fatal, "Fiber Death", LogCause.Die(EncodedThrowable.fromThrowable(e), stackTrace.some), spans, context, None, ExitCode.failure)),
+          Chunk.single(CapturedError(LogLevel.Fatal, "Fiber Death", LogCause.Die(ThrowableRepr.fromThrowable(e), stackTrace.some), spans, context, None, ExitCode.failure)),
         interruptCase0 =
           (id, stackTrace, spans, context) => Chunk.single(CapturedError(LogLevel.Fatal, "Fiber Interruption", LogCause.Interrupt(id, stackTrace.some), spans, context, None, ExitCode.failure)),
       )(
@@ -139,7 +137,7 @@ object ExecutableApp {
       }
 
       def nestJson(nesting: List[String], json: Json): Json =
-        nesting.foldRight(json) { (key, acc) => Json.Obj(key -> acc) }
+        nesting.foldRight(json) { (key, acc) => Json.obj(key -> acc) }
 
       def eval(source: Source): IO[ExecuteError.SourceError, Json] = {
         val tmp1: IO[Throwable | ExecuteError.SourceError.Cause, (List[String], String | Json)] = source match {
@@ -161,7 +159,7 @@ object ExecutableApp {
               case throwable: Throwable                  => ExecuteError.SourceError.Cause.Generic(throwable)
             }
             .flatMap {
-              case (nesting, string: String) => ZIO.fromEither(string.fromJson[Json]).mapBoth(ExecuteError.SourceError.Cause.InvalidJson(string, _), nestJson(nesting, _))
+              case (nesting, string: String) => ZIO.fromEither(Json.parse(string)).mapBoth(e => ExecuteError.SourceError.Cause.InvalidJson(string, e.toString), nestJson(nesting, _))
               case (nesting, json: Json)     => ZIO.succeed(nestJson(nesting, json))
             }
 
@@ -205,7 +203,7 @@ object ExecutableApp {
                 """    { "json": { "path": { "ex": $YOUR_JSON$ } } }""",
               ),
             )
-            .map(a => Source.Raw(a.nesting, a.value.toJsonASTDefaultString)),
+            .map(a => Source.Raw(a.nesting, Json.parseOrJsonString(a.value))),
         )
 
     }

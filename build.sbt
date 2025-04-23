@@ -177,13 +177,10 @@ lazy val `oxygen-json`: CrossProject =
     .settings(
       publishedProjectSettings,
       name := "oxygen-json",
-      description := "Lightweight wrapper around `zio-json` to add compatibility with the `oxygen` ecosystem.",
-      libraryDependencies ++= Seq(
-        zio.organization %%% zio.zioJson % zio.zioJsonVersion,
-      ),
+      description := "Why not run your own json library... Not enough exist already...",
     )
     .dependsOn(
-      `oxygen-core` % testAndCompile,
+      `oxygen-meta` % testAndCompile,
     )
 
 lazy val `oxygen-meta`: CrossProject =
@@ -197,7 +194,6 @@ lazy val `oxygen-meta`: CrossProject =
     )
     .dependsOn(
       `oxygen-core` % testAndCompile,
-      `oxygen-test` % Test,
     )
 
 lazy val `oxygen-web-model`: CrossProject =
@@ -224,7 +220,6 @@ lazy val `oxygen-zio`: CrossProject =
       description := "Opinionated library of basic utilities to integrate with the `zio` ecosystem.",
       libraryDependencies ++= Seq(
         zio.organization %%% zio.zio % zio.coreVersion,
-        zio.organization %%% zio.zioJson % zio.zioJsonVersion,
       ),
     )
     .dependsOn(
@@ -270,5 +265,6 @@ lazy val `oxygen-pre-test-ut`: CrossProject =
       `oxygen-test` % Test,
     )
 
-addCommandAlias("jvm-compile", "oxygen-modules-jvm/test:compile")
+addCommandAlias("jvm-compile", "oxygen-modules-jvm/compile")
+addCommandAlias("jvm-test-compile", "oxygen-modules-jvm/test:compile")
 addCommandAlias("jvm-test", "oxygen-modules-jvm/test")

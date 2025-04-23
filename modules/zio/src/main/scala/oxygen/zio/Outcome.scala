@@ -14,6 +14,4 @@ object Outcome extends Enum.Companion[Outcome] {
       case _                                      => Defect
     }
 
-  implicit val jsonCodec: JsonCodec[Outcome] = JsonCodec.usingStringCodec
-
 }

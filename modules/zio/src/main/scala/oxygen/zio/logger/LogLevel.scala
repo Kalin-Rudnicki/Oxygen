@@ -1,5 +1,6 @@
 package oxygen.zio.logger
 
+import oxygen.json.syntax.interop.*
 import oxygen.predef.color.*
 import oxygen.predef.core.*
 import oxygen.predef.json.*

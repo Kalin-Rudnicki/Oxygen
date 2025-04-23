@@ -1,6 +1,8 @@
 package oxygen.zio.logger
 
-import oxygen.predef.json.*
+import oxygen.core.ThrowableRepr
+import oxygen.predef.json.{*, given}
+import oxygen.zio.instances.given
 import oxygen.zio.typeclass.ErrorLogger
 import zio.*
 
@@ -30,7 +32,7 @@ object LogCause {
 
   case object Empty extends LogCause
   final case class Fail(value: Json, trace: Option[StackTrace]) extends LogCause.Base
-  final case class Die(value: EncodedThrowable, trace: Option[StackTrace]) extends LogCause.Base
+  final case class Die(value: ThrowableRepr, trace: Option[StackTrace]) extends LogCause.Base
   final case class Interrupt(fiberId: FiberId, trace: Option[StackTrace]) extends LogCause.Base
   final case class Then(left: LogCause, right: LogCause) extends LogCause
   final case class Both(left: LogCause, right: LogCause) extends LogCause
@@ -38,7 +40,7 @@ object LogCause {
   private def fromZio(cause: zio.Cause[Json], stack: Boolean): LogCause = cause match
     case zio.Cause.Empty                       => LogCause.Empty
     case zio.Cause.Fail(value, trace)          => LogCause.Fail(value, Option.when(stack)(trace))
-    case zio.Cause.Die(value, trace)           => LogCause.Die(EncodedThrowable.fromThrowable(value), Option.when(stack)(trace))
+    case zio.Cause.Die(value, trace)           => LogCause.Die(ThrowableRepr.fromThrowable(value), Option.when(stack)(trace))
     case zio.Cause.Interrupt(fiberId, trace)   => LogCause.Interrupt(fiberId, Option.when(stack)(trace))
     case zio.Cause.Stackless(cause, stackless) => LogCause.fromZio(cause, !stackless)
     case zio.Cause.Then(left, right)           => LogCause.Then(LogCause.fromZio(left, stack), LogCause.fromZio(right, stack))

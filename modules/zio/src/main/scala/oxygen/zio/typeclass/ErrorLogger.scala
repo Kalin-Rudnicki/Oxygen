@@ -1,9 +1,8 @@
 package oxygen.zio.typeclass
 
 import oxygen.predef.core.*
-import oxygen.predef.json.*
+import oxygen.predef.json.{*, given}
 import oxygen.zio.logger.*
-import zio.json.ast.Json
 
 final case class ErrorLogger[-E](
     logLevel: E => LogLevel,
@@ -28,13 +27,13 @@ object ErrorLogger {
   // =====|  |=====
 
   def stringEncoded[E: StringEncoder]: ErrorLogger.Builder[E] = Builder.string[E](StringEncoder[E].encode(_))
-  def jsonEncoded[E: JsonEncoder]: ErrorLogger.Builder[E] = Builder.json[E](_.safeToJsonAST)
+  def jsonEncoded[E: JsonEncoder]: ErrorLogger.Builder[E] = Builder.json[E](_.toJsonAST)
 
   def withShow[E](f: E => String): ErrorLogger.Builder[E] = Builder.string[E](f)
   def withJsonShow[E](f: E => Json): ErrorLogger.Builder[E] = Builder.json[E](f)
 
   def withToString[E]: ErrorLogger.Builder[E] = Builder.string[E](_.toString)
-  def encodedThrowable[E <: Throwable]: ErrorLogger.Builder[E] = Builder.json[E](EncodedThrowable.fromThrowable(_).safeToJsonAST)
+  def throwableRepr[E <: Throwable]: ErrorLogger.Builder[E] = Builder.json[E](ThrowableRepr.fromThrowable(_).toJsonAST)
   def throwableGetMessage[E <: Throwable]: ErrorLogger.Builder[E] = Builder.string[E](_.safeGetMessage)
 
   // =====|  |=====
@@ -57,7 +56,7 @@ object ErrorLogger {
   object ThrowableInstances {
 
     def throwableErrorLogger(level: LogLevel): ErrorLogger[Throwable] =
-      ErrorLogger.encodedThrowable[Throwable].atLevel(level)
+      ErrorLogger.throwableRepr[Throwable].atLevel(level)
     implicit def throwableErrorLogger: ErrorLogger[Throwable] =
       throwableErrorLogger(LogLevel.Error)
 

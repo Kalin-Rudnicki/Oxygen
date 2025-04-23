@@ -1,9 +1,8 @@
 package oxygen.zio.logger
 
 import java.io.PrintStream
-import oxygen.core.ColorMode
-import oxygen.json.KeyedMapDecoder
-import oxygen.json.autoInstances.*
+import oxygen.core.*
+import oxygen.core.collection.Contiguous
 import oxygen.predef.json.*
 import scala.collection.mutable
 import zio.{LogLevel as _, *}
@@ -58,7 +57,7 @@ object LogTarget {
 
     override val name: String = "std-out-json"
 
-    override val handle: ExecutedLogEvent => UIO[Unit] = logToPrintStream(scala.Console.out, _.toJson)
+    override val handle: ExecutedLogEvent => UIO[Unit] = logToPrintStream(scala.Console.out, _.toJsonStringCompact)
 
     override val args: Chunk[(String, String)] = Chunk.empty
 
@@ -82,7 +81,7 @@ object LogTarget {
 
   }
 
-  final case class ConfigBuilder(logTarget: RIO[Scope, Chunk[LogTarget]])
+  final case class ConfigBuilder(logTarget: RIO[Scope, Contiguous[LogTarget]])
   object ConfigBuilder {
 
     private final case class StdOutConfig(
@@ -105,7 +104,7 @@ object LogTarget {
           logFiberId = cfg.logFiberId.getOrElse(false),
         )
 
-        ConfigBuilder(ZIO.succeed(Chunk.single(target)))
+        ConfigBuilder(ZIO.succeed(Contiguous.single(target)))
       }
 
     private final case class StdOutJsonConfig(
@@ -118,7 +117,7 @@ object LogTarget {
           minLogLevel = cfg.minLogLevel,
         )
 
-        ConfigBuilder(ZIO.succeed(Chunk.single(target)))
+        ConfigBuilder(ZIO.succeed(Contiguous.single(target)))
       }
 
     // =====|  |=====

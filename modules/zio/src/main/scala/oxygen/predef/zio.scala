@@ -9,5 +9,6 @@ object zio {
   export oxygen.zio.{FiberRefModification, FiberRefModificationR, JarUtils, OxygenEnv, ZIOAspectAtLeastR, ZIOAspectPoly}
   export oxygen.zio.instances.given
   export oxygen.zio.logger.{Logger, LogLevel}
+  export oxygen.zio.syntax.seq.*
   export oxygen.zio.telemetry.Telemetry
 }

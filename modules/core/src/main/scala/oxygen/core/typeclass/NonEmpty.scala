@@ -8,6 +8,7 @@ trait NonEmpty[F[_]] {
   type G[_]
 
   def nonEmpty[A](self: F[A]): Option[G[A]]
+  def eraseNonEmpty[A](self: G[A]): F[A]
 
   final def unsafeNonEmpty[A](self: F[A]): G[A] = nonEmpty(self).getOrElse(throw NonEmpty.WasNotNonEmpty(self))
 
@@ -20,7 +21,7 @@ object NonEmpty {
     override def getMessage: String = s"Seq was not non-empty: $seq"
   }
 
-  implicit val nel: NonEmpty.Aux[List, NonEmptyList] =
+  given nel: NonEmpty.Aux[List, NonEmptyList] =
     new NonEmpty[List] {
 
       override type G[A] = NonEmptyList[A]
@@ -28,6 +29,9 @@ object NonEmpty {
       override def nonEmpty[A](self: List[A]): Option[NonEmptyList[A]] = self match
         case head :: tail => NonEmptyList(head, tail).some
         case Nil          => None
+
+      override def eraseNonEmpty[A](self: NonEmptyList[A]): List[A] =
+        self.toList
 
     }
 

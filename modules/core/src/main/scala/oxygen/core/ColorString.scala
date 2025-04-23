@@ -156,8 +156,6 @@ object ColorString {
 
 }
 
-given convertStringToColorString: Conversion[String, ColorString] = str => ColorString(ColorState.empty, str :: Nil)
-
 implicit class ColorStringInterpolator(sc: StringContext) {
 
   def color(args: ColorString*): ColorString = {

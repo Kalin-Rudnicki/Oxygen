@@ -3,7 +3,8 @@ package oxygen.zio.logger
 import java.time.Instant
 import oxygen.predef.color.{*, given}
 import oxygen.predef.core.*
-import oxygen.predef.json.*
+import oxygen.predef.json.{*, given}
+import oxygen.zio.instances.given
 import zio.{LogLevel as _, *}
 
 final case class ExecutedLogEvent(
@@ -31,7 +32,7 @@ final case class ExecutedLogEvent(
 
     val (tmpMessage, tmpCause) = (message, cause) match {
       case ("", LogCause.Fail(Json.Str(value), None)) => (value, LogCause.Empty)
-      case ("", LogCause.Fail(value, None))           => (value.toJsonPretty, LogCause.Empty)
+      case ("", LogCause.Fail(value, None))           => (value.toJsonStringPretty, LogCause.Empty)
       case _                                          => (message, cause)
     }
 
@@ -73,7 +74,7 @@ final case class ExecutedLogEvent(
       def showJson: IndentedString =
         (self match {
           case Json.Str(self) => self
-          case _              => self.toJsonPretty
+          case _              => self.toJsonStringPretty
         }).split('\n').toList
 
     extension (self: Option[StackTrace])
@@ -96,7 +97,7 @@ final case class ExecutedLogEvent(
             )
           case LogCause.Die(value, trace) =>
             IndentedString.inline(
-              IndentedString.section("Die:")(value.safeToJsonAST.showJson),
+              IndentedString.section("Die:")(value.toJsonAST.showJson),
               trace.showStackTrace,
             )
           case LogCause.Interrupt(fiberId, trace) =>

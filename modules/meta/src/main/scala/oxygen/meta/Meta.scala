@@ -2900,24 +2900,24 @@ final class Meta[Q <: Quotes](val quotes: Q) {
           flags.is(Flags.Case),
           flags.is(Flags.Sealed),
           flags.is(Flags.Trait),
-          flags.is(Flags.NoInits),
+          // flags.is(Flags.NoInits),
           flags.is(Flags.StableRealizable),
           flags.is(Flags.Module),
         ) match {
           // scala 3
-          case (false, false, true, false, false, true, false, false) => CaseClass.some
-          case (false, false, true, false, false, false, true, true)  => CaseObject.some
-          case (false, true, true, false, false, true, false, false)  => EnumCaseClass.some
-          case (false, true, true, false, false, false, true, false)  => EnumCaseObject.some
-          case (false, false, false, true, true, _, false, false)     => SealedTrait.some
-          case (false, false, false, true, false, _, false, false)    => SealedAbstractClass.some
-          case (false, true, false, true, false, _, false, false)     => SealedEnum.some
+          case (false, false, true, false, false, false, false) => CaseClass.some
+          case (false, false, true, false, false, true, true)   => CaseObject.some
+          case (false, true, true, false, false, false, false)  => EnumCaseClass.some
+          case (false, true, true, false, false, true, false)   => EnumCaseObject.some
+          case (false, false, false, true, true, false, false)  => SealedTrait.some
+          case (false, false, false, true, false, false, false) => SealedAbstractClass.some
+          case (false, true, false, true, false, false, false)  => SealedEnum.some
 
           // scala 2
-          case (true, false, true, false, false, false, false, false) => Scala2CaseClass.some
-          case (true, false, true, false, false, false, false, true)  => Scala2CaseObject.some
-          case (true, false, false, true, false, false, false, false) => Scala2SealedAbstractClass.some
-          case (true, false, false, true, true, false, false, false)  => Scala2SealedTrait.some
+          case (true, false, true, false, false, false, false) => Scala2CaseClass.some
+          case (true, false, true, false, false, false, true)  => Scala2CaseObject.some
+          case (true, false, false, true, false, false, false) => Scala2SealedAbstractClass.some
+          case (true, false, false, true, true, false, false)  => Scala2SealedTrait.some
 
           case _ => None
         }

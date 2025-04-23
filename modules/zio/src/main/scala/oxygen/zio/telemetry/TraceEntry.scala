@@ -1,9 +1,9 @@
 package oxygen.zio.telemetry
 
 import java.time.Instant
+import oxygen.json.JsonCodec
 import oxygen.zio.Outcome
 import zio.Duration
-import zio.json.JsonCodec
 
 final case class TraceEntry(
     key: String,
