@@ -24,7 +24,7 @@ object Show extends K0.Derivable[Show] {
   given Show[String] = _.unesc
   given Show[Boolean] = _.toString
 
-  override protected def internalDeriveProduct[Q <: Quotes, A](k0: K0[Q])(g: k0.ProductGeneric[A])(using quotes: Q, tpe: Type[A]): Expr[Show[A]] =
+  override protected def internalDeriveProduct[Q <: Quotes, A](k0: K0[Q])(g: k0.ProductGeneric[A])(using quotes: Q, tpe: Type[A], tTpe: Type[Show]): Expr[Show[A]] =
     g.builders.instanceFromLazyTypeClasses[Show] { tcs =>
       import k0.meta.*
 
@@ -41,7 +41,7 @@ object Show extends K0.Derivable[Show] {
                   (field: g.Field[i]) =>
                     import field.given
 
-                    val tc: Expr[Show[i]] = field.typeClassInstance(tcs)
+                    val tc: Expr[Show[i]] = field.getExpr(tcs)
                     val value: Expr[i] = field.get(a)
 
                     val fieldRename: Option[Expr[fieldName]] = field.optionalAnnotation[fieldName]
@@ -94,7 +94,7 @@ object Show extends K0.Derivable[Show] {
         }
     }
 
-  override protected def internalDeriveSum[Q <: Quotes, A](k0: K0[Q])(g: k0.SumGeneric[A])(using quotes: Q, tpe: Type[A]): Expr[Show[A]] =
+  override protected def internalDeriveSum[Q <: Quotes, A](k0: K0[Q])(g: k0.SumGeneric[A])(using quotes: Q, tpe: Type[A], tTpe: Type[Show]): Expr[Show[A]] =
     g.builders.instanceFromLazyTypeClasses[Show] {
       [i <: A] =>
         (pg: k0.ProductGeneric[i]) =>
@@ -111,7 +111,7 @@ object Show extends K0.Derivable[Show] {
               (kase: g.Case[i], value: Expr[i]) =>
                 import kase.given
 
-                val tc: Expr[Show[i]] = kase.typeClassInstance(tcs)
+                val tc: Expr[Show[i]] = kase.getExpr(tcs)
 
                 '{
                   $sb.append(${ Expr(kase.name + ": ") })

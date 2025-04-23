@@ -29,7 +29,7 @@ object Eq extends K0.Derivable[Eq], K0.DerivableUnion.Fold[Eq], K0.DerivableInte
     a.zip(b).forall(eq.areEqual(_, _))
   }
 
-  override protected def internalDeriveProduct[Q <: Quotes, A](k0: K0[Q])(g: k0.ProductGeneric[A])(using quotes: Q, tpe: Type[A]): Expr[Eq[A]] =
+  override protected def internalDeriveProduct[Q <: Quotes, A](k0: K0[Q])(g: k0.ProductGeneric[A])(using quotes: Q, tpe: Type[A], tTpe: Type[Eq]): Expr[Eq[A]] =
     g.builders.instanceFromLazyTypeClasses[Eq] { tcs =>
 
       object macros {
@@ -42,7 +42,7 @@ object Eq extends K0.Derivable[Eq], K0.DerivableUnion.Fold[Eq], K0.DerivableInte
                 (field: g.Field[i]) =>
                   import field.given
 
-                  val tc: Expr[Eq[i]] = field.typeClassInstance(tcs)
+                  val tc: Expr[Eq[i]] = field.getExpr(tcs)
 
                   '{ $tc.areEqual(${ field.get(a) }, ${ field.get(b) }) }
             }
@@ -62,7 +62,7 @@ object Eq extends K0.Derivable[Eq], K0.DerivableUnion.Fold[Eq], K0.DerivableInte
       }
     }
 
-  override protected def internalDeriveSum[Q <: Quotes, A](k0: K0[Q])(g: k0.SumGeneric[A])(using quotes: Q, tpe: Type[A]): Expr[Eq[A]] =
+  override protected def internalDeriveSum[Q <: Quotes, A](k0: K0[Q])(g: k0.SumGeneric[A])(using quotes: Q, tpe: Type[A], tTpe: Type[Eq]): Expr[Eq[A]] =
     g.builders.instanceFromLazyTypeClasses[Eq] {
       [i <: A] =>
         (pg: k0.ProductGeneric[i]) =>
@@ -82,7 +82,7 @@ object Eq extends K0.Derivable[Eq], K0.DerivableUnion.Fold[Eq], K0.DerivableInte
               (kase: g.Case[i], tup: (Expr[i], Expr[i])) =>
                 import kase.given
 
-                val tc: Expr[Eq[i]] = kase.typeClassInstance(tcs)
+                val tc: Expr[Eq[i]] = kase.getExpr(tcs)
                 val a: Expr[i] = tup._1
                 val b: Expr[i] = tup._2
 

@@ -10,6 +10,7 @@ import scala.annotation.tailrec
 import scala.reflect.ClassTag
 
 // TODO (KR) : extend AnyKind?
+//           : Support more types of types
 trait TypeTag[A] extends TypeTag.Showable {
 
   type RefT <: TypeTag.TypeRef

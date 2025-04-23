@@ -1,5 +1,6 @@
 package oxygen.zio
 
+import oxygen.core.collection.Contiguous
 import oxygen.zio.logger.*
 import oxygen.zio.telemetry.*
 import zio.{LogLevel as _, *}
@@ -11,16 +12,16 @@ object OxygenEnv {
   //////////////////////////////////////////////////////////////////////////////////////////////////////
 
   final case class LoggerEnv(
-      targets: Chunk[LogTarget],
+      targets: Contiguous[LogTarget],
       context: Logger.LogContext,
       spans: List[Logger.Span],
       level: LogLevel,
       logToZio: Boolean,
   )
 
-  val logTargets: FiberRef[Chunk[LogTarget]] =
+  val logTargets: FiberRef[Contiguous[LogTarget]] =
     Unsafe.unsafely {
-      FiberRef.unsafe.make(Chunk.empty[LogTarget])
+      FiberRef.unsafe.make(Contiguous.empty[LogTarget])
     }
 
   val minLogLevel: FiberRef[LogLevel] =
@@ -38,12 +39,12 @@ object OxygenEnv {
   //////////////////////////////////////////////////////////////////////////////////////////////////////
 
   final case class TelemetryEnv(
-      targets: Chunk[TelemetryTarget],
+      targets: Contiguous[TelemetryTarget],
   )
 
-  val telemetryTargets: FiberRef[Chunk[TelemetryTarget]] =
+  val telemetryTargets: FiberRef[Contiguous[TelemetryTarget]] =
     Unsafe.unsafely {
-      FiberRef.unsafe.make(Chunk.empty[TelemetryTarget])
+      FiberRef.unsafe.make(Contiguous.empty[TelemetryTarget])
     }
 
 }

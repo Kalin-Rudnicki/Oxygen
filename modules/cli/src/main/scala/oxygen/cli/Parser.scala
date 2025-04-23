@@ -742,15 +742,15 @@ object Params {
       aliases: List[SimpleName] = Nil,
       hints: List[HelpHint.Make] = Nil,
   )(implicit
-      ehc: Enum.HasCompanion[A],
+      ec: Enum.Companion[A],
   ): Params[A] = {
-    implicit val aDec: StringDecoder[A] = ehc.companion.stringCodec.decoder
+    implicit val aDec: StringDecoder[A] = ec.companion.stringCodec.decoder
 
     Params.ParamWithValues(
       longName = longName,
       shortName = shortName,
       aliases = aliases,
-      hints = hints.map(HelpHint(_)) :+ HelpHint.EnumValues(ehc.companion.ToString.encodedValues),
+      hints = hints.map(HelpHint(_)) :+ HelpHint.EnumValues(ec.companion.ToString.encodedValues),
       valueParser = Values.value[A](longName),
     )
   }

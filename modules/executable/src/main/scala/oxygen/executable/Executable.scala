@@ -1,17 +1,15 @@
 package oxygen.executable
 
 import oxygen.cli.*
-import oxygen.cli.given
 import oxygen.core.ColorMode
 import oxygen.executable.error.ExecuteError
 import oxygen.json.KeyedMapDecoder
 import oxygen.predef.core.*
+import oxygen.predef.json.*
 import oxygen.predef.zio.*
 import oxygen.zio.logger.LogTarget
 import oxygen.zio.telemetry.TelemetryTarget
 import oxygen.zio.typeclass.ErrorLogger
-import zio.json.*
-import zio.json.ast.Json
 
 sealed trait Executable {
 
@@ -51,7 +49,7 @@ object Executable extends SingleBuilders.Builder0 {
     ): ZIO[Scope, ExecuteError, Unit] = {
       given EnvironmentTag[Env] = envTag
       for {
-        decodedConfig <- ZIO.fromEither(jsonDecoder.decodeJson(jsonConfig.toString)).mapError(ExecuteError.InvalidConfig(_))
+        decodedConfig <- ZIO.fromEither(jsonDecoder.decodeJsonAST(jsonConfig)).mapError(e => ExecuteError.InvalidConfig(e.toString))
         parsedCLI <- Parsing.parse(cliParser(context), args)
         _ <- logger(decodedConfig, parsedCLI, context).flatMap(Logger.env(_).set)
         _ <- telemetry(decodedConfig, parsedCLI, context).flatMap(Telemetry.env(_).set)
@@ -84,7 +82,12 @@ object Executable extends SingleBuilders.Builder0 {
 
 object SingleBuilders {
 
-  class Builder0 extends Builder1[Unit]((_, _) => ()) {
+  private val unitDecoder: JsonDecoder[Unit] =
+    new JsonDecoder[Unit] {
+      override def decodeJsonAST(ast: Json): Either[JsonError, Unit] = ().asRight
+    }
+
+  class Builder0 extends Builder1[Unit](unitDecoder) {
 
     final def withJsonConfig[_JsonConfig](using jsonDecoder: JsonDecoder[_JsonConfig]): Builder1[_JsonConfig] =
       Builder1(
@@ -119,7 +122,7 @@ object SingleBuilders {
         (_, _, _) =>
           ZIO.succeed(
             OxygenEnv.LoggerEnv(
-              targets = Chunk.single(LogTarget.StdOut.defaultWithAdditionalContext),
+              targets = Contiguous.single(LogTarget.StdOut.defaultWithAdditionalContext),
               context = Map.empty,
               spans = Nil,
               level = LogLevel.Info,
@@ -160,7 +163,7 @@ object SingleBuilders {
         _cliParser,
         _mapCLIConfig,
         _logger,
-        (_, _, _) => ZIO.succeed(OxygenEnv.TelemetryEnv(targets = Chunk.empty)),
+        (_, _, _) => ZIO.succeed(OxygenEnv.TelemetryEnv(targets = Contiguous.empty)),
       ) {
 
     final def withTelemetryFromJson(toTelemetryConfig: _JsonConfig => Telemetry.Config): Builder4[_JsonConfig, _FullCLIConfig, _CLIConfig] =
@@ -288,8 +291,7 @@ object SingleBuilders {
   private def makeLoggerEnv(config: Logger.Config, decoder: KeyedMapDecoder[LogTarget.ConfigBuilder]): ZIO[Scope, ExecuteError, OxygenEnv.LoggerEnv] =
     for {
       targets <- config.decodeTargets(decoder).mapError {
-        case string: String       => ExecuteError.InvalidConfig(string)
-        case throwable: Throwable => ExecuteError.Generic("building log targets", throwable)
+        ExecuteError.Generic("building log targets", _)
       }
     } yield OxygenEnv.LoggerEnv(
       targets = targets,
@@ -302,8 +304,7 @@ object SingleBuilders {
   private def makeTelemetryEnv(config: Telemetry.Config, decoder: KeyedMapDecoder[TelemetryTarget.ConfigBuilder]): ZIO[Scope, ExecuteError, OxygenEnv.TelemetryEnv] =
     for {
       targets <- config.decodeTargets(decoder).mapError {
-        case string: String       => ExecuteError.InvalidConfig(string)
-        case throwable: Throwable => ExecuteError.Generic("building telemetry targets", throwable)
+        ExecuteError.Generic("building telemetry targets", _)
       }
     } yield OxygenEnv.TelemetryEnv(
       targets = targets,
@@ -357,7 +358,7 @@ object SingleBuilders {
 
     val defaultOxygenLogParser: Params[OxygenEnv.LoggerEnv] =
       (
-        logTargetParser.repeatedNel.withDefault(NonEmptyList.one(LogTarget.StdOut.defaultWithAdditionalContext)).map(ts => Chunk.fromIterable(ts.toList)) &&
+        logTargetParser.repeatedNel.withDefault(NonEmptyList.one(LogTarget.StdOut.defaultWithAdditionalContext)).map(ts => Contiguous.from(ts.toList)) &&
           logContextParser &&
           logSpanParser.repeated &&
           Params.`enum`[LogLevel]("log-level", hints = List("default log level")).withDefault(LogLevel.Info) &&
@@ -366,7 +367,7 @@ object SingleBuilders {
 
     val defaultZioLogParser: Params[OxygenEnv.LoggerEnv] =
       (
-        logTargetParser.repeated.map(Chunk.fromIterable) &&
+        logTargetParser.repeated.map(Contiguous.from) &&
           logContextParser &&
           logSpanParser.repeated &&
           Params.`enum`[LogLevel]("log-level", hints = List("default log level")).withDefault(LogLevel.Info) &&

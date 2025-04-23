@@ -1,11 +1,10 @@
 package oxygen.zio.telemetry
 
-import oxygen.json.KeyedMapDecoder
 import oxygen.predef.color.{*, given}
 import oxygen.predef.core.*
+import oxygen.predef.json.*
 import oxygen.zio.logger.*
 import zio.{LogLevel as _, *}
-import zio.json.JsonDecoder
 
 trait TelemetryTarget {
 
@@ -138,12 +137,12 @@ object TelemetryTarget {
 
   }
 
-  final case class ConfigBuilder(telemetryTarget: RIO[Scope, Chunk[TelemetryTarget]])
+  final case class ConfigBuilder(telemetryTarget: RIO[Scope, Contiguous[TelemetryTarget]])
   object ConfigBuilder {
 
     val inMemory: KeyedMapDecoder.Decoder[ConfigBuilder] =
-      KeyedMapDecoder.Decoder.make[NonEmptyChunk[InMemory.TraceAggregator]]("inMemory").map { aggs =>
-        ConfigBuilder(InMemory.make(aggs.head, aggs.tail*).map(Chunk.single))
+      KeyedMapDecoder.Decoder.make[NonEmptyList[InMemory.TraceAggregator]]("inMemory").map { aggs =>
+        ConfigBuilder(InMemory.make(aggs.head, aggs.tail*).map(Contiguous.single))
       }
 
     // =====|  |=====

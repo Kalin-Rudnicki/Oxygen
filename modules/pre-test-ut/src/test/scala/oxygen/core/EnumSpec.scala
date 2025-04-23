@@ -24,9 +24,9 @@ object EnumSpec extends OxygenSpecDefault {
 
   }
 
-  private def decodeSpec[E <: Enum[E]](string: String, value: E)(implicit hec: Enum.HasCompanion[E], tt: TypeTag[E]): TestSpec =
+  private def decodeSpec[E <: Enum[E]](string: String, value: E)(implicit ec: Enum.Companion[E], tt: TypeTag[E]): TestSpec =
     test(s"${tt.prefixObject} / ${string.unesc} / $value") {
-      assert(hec.companion.stringCodec.decoder.decodeError(string))(isRight(equalTo(value)))
+      assert(ec.companion.stringCodec.decoder.decodeError(string))(isRight(equalTo(value)))
     }
 
   override def testSpec: TestSpec =

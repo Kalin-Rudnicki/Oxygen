@@ -68,6 +68,11 @@ object OAssertions {
   //      Equals+Diff
   //////////////////////////////////////////////////////////////////////////////////////////////////////
 
+  private val defaultShow: PartialFunction[Matchable, String] = {
+    case string: String  => string.unesc
+    case array: Array[?] => array.mkString("Array(", ", ", ")")
+  }
+
   private sealed trait Value {
 
     final def showPretty(color: String, show: Any => Option[String]): String = this match
@@ -118,15 +123,21 @@ object OAssertions {
   def showGeneric(any: Any, color: String)(show: PartialFunction[Matchable, String]): String =
     showGeneric(any, color, any => show.lift(any.asInstanceOf[Matchable]))
   def showGeneric(any: Any, color: String): String =
-    showGeneric(any, color) { case string: String => string.unesc }
+    showGeneric(any, color) { defaultShow }
+
+  private object seqNotOption {
+    def unapply(any: Matchable): Option[Seq[?]] = any match
+      case _: Option[?]         => None
+      case seq: IterableOnce[?] => Seq.from(seq).some
+      case seq: Array[?]        => seq.toSeq.some
+      case _                    => None
+  }
 
   private def diffAnyFiltered(expected: Any, actual: Any, show: Any => Option[String]): Option[String] =
     if (expected == actual) None
     else
       (expected.asInstanceOf[Matchable], actual.asInstanceOf[Matchable]) match {
-        case (_expected: IterableOnce[?], _actual: IterableOnce[?]) if !_expected.isInstanceOf[Option[?]] && !_actual.isInstanceOf[Option[?]] =>
-          val expected = Seq.from(_expected)
-          val actual = Seq.from(_actual)
+        case (seqNotOption(expected), seqNotOption(actual)) =>
           val diffs =
             0.until(expected.length max actual.length)
               .map { i =>
@@ -181,7 +192,7 @@ object OAssertions {
       },
     )
   def equalTo_filteredDiff[A](expected: A): Assertion[A] =
-    equalTo_filteredDiff(expected) { case string: String => string.unesc }
+    equalTo_filteredDiff(expected) { defaultShow }
 
   private def diffAnyUnfiltered(expected: Any, actual: Any, show: Any => Option[String]): String =
     (expected.asInstanceOf[Matchable], actual.asInstanceOf[Matchable]) match {
@@ -237,6 +248,6 @@ object OAssertions {
       },
     )
   def equalTo_unfilteredDiff[A](expected: A): Assertion[A] =
-    equalTo_unfilteredDiff(expected) { case string: String => string.unesc }
+    equalTo_unfilteredDiff(expected) { defaultShow }
 
 }

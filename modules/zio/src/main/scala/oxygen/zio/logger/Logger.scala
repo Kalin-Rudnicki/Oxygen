@@ -1,13 +1,12 @@
 package oxygen.zio.logger
 
 import java.time.Instant
-import oxygen.json.KeyedMapDecoder
 import oxygen.predef.core.*
+import oxygen.predef.json.*
 import oxygen.zio.*
+import oxygen.zio.syntax.seq.*
 import oxygen.zio.typeclass.ErrorLogger
 import zio.{LogLevel as _, *}
-import zio.json.JsonDecoder
-import zio.json.ast.Json
 
 object Logger {
 
@@ -166,11 +165,11 @@ object Logger {
 
   // --- Target ---
 
-  def withTargets(targets: Chunk[LogTarget]): FiberRefModification = OxygenEnv.logTargets.modification.set(targets)
-  def withTargets(targets: LogTarget*): FiberRefModification = OxygenEnv.logTargets.modification.set(Chunk.fromIterable(targets))
+  def withTargets(targets: Contiguous[LogTarget]): FiberRefModification = OxygenEnv.logTargets.modification.set(targets)
+  def withTargets(targets: LogTarget*): FiberRefModification = OxygenEnv.logTargets.modification.set(Contiguous.from(targets))
 
-  def addTargets(targets: Chunk[LogTarget]): FiberRefModification = OxygenEnv.logTargets.modification.update(_ ++ targets)
-  def addTargets(targets: LogTarget*): FiberRefModification = OxygenEnv.logTargets.modification.update(_ ++ Chunk.fromIterable(targets))
+  def addTargets(targets: Contiguous[LogTarget]): FiberRefModification = OxygenEnv.logTargets.modification.update(_ ++ targets)
+  def addTargets(targets: LogTarget*): FiberRefModification = OxygenEnv.logTargets.modification.update(_ ++ Contiguous.from(targets))
 
   // --- Context ---
 
@@ -245,7 +244,7 @@ object Logger {
           logSpans <- ZIO.logSpans
           // TODO (KR) : trace ids
 
-          _ <- ZIO.foreachDiscard(oxygenTargets) { target =>
+          _ <- oxygenTargets.foreachZIO { target =>
             handle(
               e,
               target.minLogLevel.getOrElse(oxygenMinLogLevel),
@@ -286,7 +285,7 @@ object Logger {
 
             ZIO.unit
           }
-          _ <- ZIO.foreachDiscard(oxygenTargets) { target =>
+          _ <- oxygenTargets.foreachZIO { target =>
             handle(
               e,
               target.minLogLevel.getOrElse(oxygenMinLogLevel),
@@ -309,8 +308,8 @@ object Logger {
       logToZio: Option[Boolean],
   ) derives JsonDecoder {
 
-    def decodeTargets(decoder: KeyedMapDecoder[LogTarget.ConfigBuilder]): ZIO[Scope, String | Throwable, Chunk[LogTarget]] =
-      ZIO.fromEither(decoder.decoder.decodeJson(targets.toString)).flatMap(ZIO.foreach(_)(_.logTarget)).map(_.flatten)
+    def decodeTargets(decoder: KeyedMapDecoder[LogTarget.ConfigBuilder]): ZIO[Scope, Throwable, Contiguous[LogTarget]] =
+      ZIO.fromEither(decoder.decoder.decodeJsonAST(targets)).flatMap(_.flatMapZIO(_.logTarget))
 
   }
 

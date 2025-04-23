@@ -6,8 +6,8 @@ import oxygen.core.collection.NonEmptyList
 import oxygen.core.syntax.throwable.*
 import oxygen.executable.{Executable, ExecutableApp}
 import oxygen.executable.error.ExecuteError.SubCommandError
+import oxygen.json.Json
 import oxygen.zio.logger.LogLevel
-import zio.json.ast.Json
 
 sealed trait ExecuteError extends Throwable {
 

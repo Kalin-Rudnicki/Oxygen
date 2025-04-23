@@ -1,14 +1,10 @@
-package oxygen.json
+package oxygen.core
 
-import oxygen.json.instances.*
-import oxygen.predef.core.*
-import zio.json.JsonCodec
-
-final case class EncodedThrowable(
+final case class ThrowableRepr(
     typeTag: TypeTag[?],
     message: Option[String],
-    cause: Option[EncodedThrowable],
-) extends Throwable derives JsonCodec {
+    cause: Option[ThrowableRepr],
+) extends Throwable {
 
   def toThrowable: Throwable = this
 
@@ -27,13 +23,13 @@ final case class EncodedThrowable(
     case None          => typeTag.prefixAll
 
 }
-object EncodedThrowable {
+object ThrowableRepr {
 
-  def fromThrowable(throwable: Throwable): EncodedThrowable =
+  def fromThrowable(throwable: Throwable): ThrowableRepr =
     throwable match {
-      case throwable: EncodedThrowable => throwable
+      case throwable: ThrowableRepr => throwable
       case _ =>
-        EncodedThrowable(
+        ThrowableRepr(
           TypeTag.fromClass(throwable.getClass),
           Option(throwable.getMessage),
           Option(throwable.getCause).map(fromThrowable),

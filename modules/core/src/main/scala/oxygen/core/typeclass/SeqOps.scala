@@ -12,10 +12,51 @@ trait SeqOps[F[_]] {
 
   def knownSize[A](self: F[A]): Int
 
+  def nestedKnownSize[A](self: F[F[A]]): Int = {
+    var total: Int = 0
+    var known: Boolean = true
+    val iterator = newIterator(self)
+
+    while (iterator.hasNext && known)
+      knownSize(iterator.next()) match {
+        case -1 => known = false
+        case sz => total += sz
+      }
+
+    if (known) total else -1
+  }
+
   final def fromIterableOnce[A](i: IterableOnce[A]): F[A] = {
     val builder = newBuilder[A]
     builder.sizeHint(i.knownSize)
     builder.addAll(i)
+    builder.result()
+  }
+
+  /**
+    * Will attempt to calculate the known size of all children, and pass it to the created builder.
+    * If the size of any child is not known, do a repetitive add all, without a hint.
+    * This trades off an extra traversal for potentially making a builder re-size multiple times.
+    */
+  final def flattenAttemptKnownSize[A](self: F[F[A]]): F[A] =
+    flattenWithSizeHint(self, nestedKnownSize(self))
+
+  /**
+    * Adds all children to a builder, with no attempt at a size hint.
+    */
+  final def flattenSimple[A](self: F[F[A]]): F[A] =
+    flattenWithSizeHint(self, -1)
+
+  final def flattenWithSizeHint[A](self: F[F[A]], sizeHint: Int): F[A] = {
+    val iterator = newIterator(self)
+    val builder = newBuilder[A]
+
+    if (sizeHint != -1)
+      builder.sizeHint(sizeHint)
+
+    while (iterator.hasNext)
+      builder.addAll(newIterator(iterator.next()))
+
     builder.result()
   }
 
@@ -92,6 +133,13 @@ object SeqOps {
       override def newIterator[A](self: Vector[A]): Iterator[A] = self.iterator
       override def newBuilder[A]: mutable.Builder[A, Vector[A]] = Vector.newBuilder
       override def knownSize[A](self: Vector[A]): Int = self.length
+    }
+
+  given set: SeqOps[Set] =
+    new SeqOps[Set] {
+      override def newIterator[A](self: Set[A]): Iterator[A] = self.iterator
+      override def newBuilder[A]: mutable.Builder[A, Set[A]] = Set.newBuilder
+      override def knownSize[A](self: Set[A]): Int = self.knownSize
     }
 
 }

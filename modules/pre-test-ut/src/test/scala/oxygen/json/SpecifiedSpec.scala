@@ -1,7 +1,7 @@
 package oxygen.json
 
-import oxygen.predef.test.*
-import zio.json.*
+import oxygen.predef.json.*
+import oxygen.predef.test.{given, *}
 
 object SpecifiedSpec extends OxygenSpecDefault {
 
@@ -27,12 +27,12 @@ object SpecifiedSpec extends OxygenSpecDefault {
 
   private def makeDecodeTest(input: String)(exp: MyClass)(using SourceLocation): TestSpec =
     test(input) {
-      assertTrue(input.fromJson[MyClass] == exp.asRight)
+      assertTrue(input.fromJsonString[MyClass] == exp.asRight)
     }
 
   private def roundTripTest(exp: MyClass)(using SourceLocation): TestSpec =
     test(exp.toString) {
-      assertTrue(exp.toJson.fromJson[MyClass] == exp.asRight)
+      assertTrue(exp.toJsonStringCompact.fromJsonString[MyClass] == exp.asRight)
     }
 
   override def testSpec: TestSpec =

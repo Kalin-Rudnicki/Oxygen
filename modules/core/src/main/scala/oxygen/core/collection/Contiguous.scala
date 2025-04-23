@@ -112,6 +112,8 @@ final class Contiguous[+A] private[collection] (private val array: Array[A @unch
   def filterNot(f: A => Boolean): Contiguous[A] = new Contiguous[A](array.filterNot(f))
   def collect[B](f: PartialFunction[A, B]): Contiguous[B] = new Contiguous[B](array.collect(f))
   def collectFirst[B](f: PartialFunction[A, B]): Option[B] = array.collectFirst(f)
+  def distinct: Contiguous[A] = new Contiguous[A](array.distinct)
+  def distinctBy[B](f: A => B): Contiguous[A] = new Contiguous[A](array.distinctBy(f))
 
   inline def foldLeft[B](z: B)(op: (B, A) => B): B = array.foldLeft(z)(op)
   inline def foldRight[B](z: B)(op: (A, B) => B): B = array.foldRight(z)(op)
@@ -130,6 +132,29 @@ final class Contiguous[+A] private[collection] (private val array: Array[A @unch
   inline def toVector: Vector[A] = array.toVector
   inline def toArray: Array[A @uncheckedVariance] = array.clone()
   inline def toIArray: IArray[A] = IArray.unsafeFromArray(array)
+  inline def toMap[K, V](implicit ev: A <:< (K, V)): Map[K, V] = array.toMap
+
+  def zipUsing[B, C](that: Contiguous[B])(leftOnly: A => C, rightOnly: B => C, both: (A, B) => C): Contiguous[C] = {
+    var idx: Int = 0
+
+    val minLength = this.length min that.length
+    val newArray: Array[C] = new Array[C](this.length max that.length)
+
+    while (idx < minLength) {
+      newArray(idx) = both(this(idx), that(idx))
+      idx = idx + 1
+    }
+    while (idx < this.length) {
+      newArray(idx) = leftOnly(this(idx))
+      idx = idx + 1
+    }
+    while (idx < that.length) {
+      newArray(idx) = rightOnly(that(idx))
+      idx = idx + 1
+    }
+
+    new Contiguous[C](newArray)
+  }
 
   /**
     * Gets an [[Array]] out of this [[Contiguous]], ensuring that the resulting array has correctly sized elements, instead of using [[Any]] for all types.
@@ -195,8 +220,16 @@ object Contiguous {
     new Contiguous[A](newArray)
   }
 
+  def fromIArray[A](array: IArray[A]): Contiguous[A] =
+    fromArray(array.asInstanceOf[Array[A]])
+
   def from[A](it: IterableOnce[A]): Contiguous[A] =
     new Contiguous[A](Array.from[A](it))
+
+  def unsafeMakeExposingArray[A](length: Int): (Contiguous[A], Array[A]) = {
+    val array: Array[A] = new Array[A](length)
+    (new Contiguous[A](array), array)
+  }
 
   type Builder[A] = mutable.Builder[A, Contiguous[A]]
 
