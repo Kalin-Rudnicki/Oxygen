@@ -123,6 +123,7 @@ final class Contiguous[+A] private[collection] (private val array: Array[A @unch
   inline def mkString(sep: String): String = array.mkString(sep)
   inline def mkString(start: String, sep: String, end: String): String = array.mkString(start, sep, end)
 
+  inline def iterator: Iterator[A] = array.iterator
   inline def toSeq: Seq[A] = array.toSeq
   inline def toIndexedSeq: IndexedSeq[A] = array.toIndexedSeq
   inline def toList: List[A] = array.toList

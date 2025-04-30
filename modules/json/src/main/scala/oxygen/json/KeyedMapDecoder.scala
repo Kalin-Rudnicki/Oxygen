@@ -1,6 +1,8 @@
 package oxygen.json
 
+import oxygen.core.typeclass.SeqOps
 import oxygen.predef.core.*
+import scala.collection.mutable
 import zio.*
 import zio.json.JsonDecoder
 import zio.json.ast.Json
@@ -18,6 +20,14 @@ object KeyedMapDecoder {
   object Decoder {
     def make[A](key: String)(using decoder: JsonDecoder[A]): Decoder[A] = Decoder(key, decoder)
   }
+
+  // TODO (KR) : Remove this
+  private given chunkSeqOps: SeqOps[Chunk] =
+    new SeqOps[Chunk] {
+      override def newIterator[A](self: Chunk[A]): Iterator[A] = self.iterator
+      override def newBuilder[A]: mutable.Builder[A, Chunk[A]] = Chunk.newBuilder
+      override def knownSize[A](self: Chunk[A]): Int = self.knownSize
+    }
 
   def make[A](options: Seq[Decoder[A]]): JsonDecoder[Chunk[A]] = {
     val map: Map[String, JsonDecoder[A]] = options.map(a => (a.key, a.decoder)).toMap

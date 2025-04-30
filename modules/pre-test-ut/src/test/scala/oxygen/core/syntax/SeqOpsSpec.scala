@@ -1,6 +1,6 @@
 package oxygen.core.syntax
 
-import oxygen.predef.test.*
+import oxygen.predef.test.{*, given}
 
 object SeqOpsSpec extends OxygenSpecDefault {
 

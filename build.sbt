@@ -270,4 +270,5 @@ lazy val `oxygen-pre-test-ut`: CrossProject =
       `oxygen-test` % Test,
     )
 
+addCommandAlias("jvm-compile", "oxygen-modules-jvm/test:compile")
 addCommandAlias("jvm-test", "oxygen-modules-jvm/test")
