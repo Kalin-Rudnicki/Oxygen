@@ -15,7 +15,7 @@ object ApplicativeLowPriority {
 
   trait LowPriority1 {
 
-    implicit def fromMonad[F[_]](implicit monad: Monad[F]): Applicative[F] = monad
+    given fromMonad: [F[_]] => (monad: Monad[F]) => Applicative[F] = monad
 
   }
 
