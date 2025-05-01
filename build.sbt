@@ -136,9 +136,6 @@ lazy val `oxygen-core`: CrossProject =
       publishedProjectSettings,
       name := "oxygen-core",
       description := "Basic utilities beneficial for any scala user.",
-      libraryDependencies ++= Seq(
-        zio.organization %%% zio.izumiReflect % zio.izumiVersion,
-      ),
     )
 
 lazy val `oxygen-cli`: CrossProject =
