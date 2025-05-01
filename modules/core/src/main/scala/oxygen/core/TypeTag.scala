@@ -1,12 +1,11 @@
 package oxygen.core
 
-import izumi.reflect.Tag
-import izumi.reflect.macrortti.*
 import oxygen.core.TypeTag.TypeRef
 import oxygen.core.collection.NonEmptyList
 import oxygen.core.syntax.either.*
 import oxygen.core.syntax.option.*
 import scala.annotation.tailrec
+import scala.quoted.*
 import scala.reflect.ClassTag
 
 // TODO (KR) : extend AnyKind?
@@ -239,67 +238,9 @@ object TypeTag {
   def usingClassTag[A](implicit ct: ClassTag[A]): TypeTag.Single[A] =
     fromClass(ct.runtimeClass)
 
-  def fromLightTypeTag[A](tag: LightTypeTag): TypeTag[A] = {
-    extension (sym: LightTypeTagRef.SymName) def getName: String = sym.maybeName.getOrElse(sym.toString)
+  private def derive2impl[A: Type](using quotes: Quotes): Expr[TypeTag[A]] =
+    oxygen.core.generic.DeriveTypeTag(quotes).summonOrDerive[A]
 
-    def fromNamedTagRef(self: LightTypeTagRef.AppliedNamedReference): TypeRef.Single = {
-      val parameters = self match
-        case LightTypeTagRef.FullReference(_, parameters, _) => parameters
-        case LightTypeTagRef.NameReference(_, _, _)          => Nil
-
-      self match {
-        case LightTypeTagRef.NameReference(ref, _, Some(prefix: LightTypeTagRef.AppliedNamedReference)) =>
-          TypeRef.Single(
-            ref.getName.substring(prefix.symName.getName.length),
-            Nil,
-            fromNamedTagRef(prefix).asLeft,
-          )
-        case LightTypeTagRef.FullReference(ref, parameters, Some(prefix: LightTypeTagRef.AppliedNamedReference)) =>
-          TypeRef.Single(
-            ref.getName.substring(prefix.symName.getName.length),
-            parameters.map(p => fromTagRef(p.ref)),
-            fromNamedTagRef(prefix).asLeft,
-          )
-
-        case LightTypeTagRef.NameReference(ref, _, _) =>
-          TypeRef.Single.parse(ref.getName)
-        case LightTypeTagRef.FullReference(ref, parameters, _) =>
-          TypeRef.Single.parse(ref.getName).withTypeArgs(parameters.map(p => fromTagRef(p.ref)))
-      }
-
-      self.prefix match {
-        case Some(prefix: LightTypeTagRef.AppliedNamedReference) =>
-          TypeRef.Single(
-            self.symName.getName.substring(prefix.symName.getName.length).dropWhile(c => c == '$' || c == '.'),
-            parameters.map(p => fromTagRef(p.ref)),
-            fromNamedTagRef(prefix).asLeft,
-          )
-        case _ =>
-          TypeRef.Single.parse(self.symName.getName).withTypeArgs(parameters.map(p => fromTagRef(p.ref)))
-      }
-    }
-
-    def fromTagRef(self: LightTypeTagRef): TypeRef =
-      self match {
-        case self: LightTypeTagRef.AppliedNamedReference =>
-          fromNamedTagRef(self)
-
-        case LightTypeTagRef.UnionReference(refs) =>
-          TypeRef.Union(refs.map(fromTagRef))
-        case LightTypeTagRef.IntersectionReference(refs) =>
-          TypeRef.Intersection(refs.map(fromTagRef))
-        case LightTypeTagRef.Refinement(reference, _) =>
-          fromTagRef(reference)
-        case LightTypeTagRef.WildcardReference(_) =>
-          TypeRef.Wildcard
-
-        case LightTypeTagRef.Lambda(_, _) => throw new RuntimeException(s"Can not parse TypeTag from lambda: ${self.repr}")
-      }
-
-    TypeTag(fromTagRef(tag.ref), classOf[Any])
-  }
-
-  inline def fromTag[A](tag: Tag[A]): TypeTag[A] = fromLightTypeTag[A](tag.tag).withClosestClass(tag.closestClass)
-  inline given usingTag: [A: {Tag as tag}] => TypeTag[A] = fromTag(tag)
+  inline given derived: [A] => TypeTag[A] = ${ derive2impl[A] }
 
 }

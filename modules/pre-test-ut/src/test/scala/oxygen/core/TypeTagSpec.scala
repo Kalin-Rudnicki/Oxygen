@@ -1,6 +1,5 @@
 package oxygen.core
 
-import izumi.reflect.Tag
 import oxygen.predef.core.*
 import oxygen.test.*
 import oxygen.test.OAssertions.*
@@ -30,9 +29,9 @@ object TypeTagSpec extends OxygenSpecDefault {
       assert(TypeTag.usingClassTag[A].tag)(equalTo(exp))
     }
 
-  private def izumiTagTest[A: Tag](exp: TypeTag.TypeRef): TestSpec =
+  private inline def deriveTagTest[A](exp: TypeTag.TypeRef): TestSpec =
     test(exp.polyShow(_.prefixAll)) {
-      assert(TypeTag.usingTag[A].tag)(equalTo_filteredDiff(exp))
+      assert(TypeTag.derived[A].tag)(equalTo_filteredDiff(exp))
     }
 
   private val typeTagSpecRef: TypeTag.TypeRef.Single = TypeTag.TypeRef.Single.make("oxygen", "core")()("TypeTagSpec")
@@ -44,6 +43,9 @@ object TypeTagSpec extends OxygenSpecDefault {
     TypeTag.TypeRef.Single("Stage2", b :: Nil, stage1Ref(a).asLeft)
   private def stage3Ref(a: TypeTag.TypeRef, b: TypeTag.TypeRef, c: TypeTag.TypeRef): TypeTag.TypeRef.Single =
     TypeTag.TypeRef.Single("Stage3", c :: Nil, stage2Ref(a, b).asLeft)
+
+  private def optionTag[A: TypeTag]: TypeTag[Option[A]] =
+    TypeTag.derived
 
   override def testSpec: TestSpec =
     suite("TypeTagSpec")(
@@ -114,13 +116,13 @@ object TypeTagSpec extends OxygenSpecDefault {
               ),
           ),
         ),
-        suite("izumiTag")(
-          izumiTagTest[Int](TypeTag.TypeRef.Single.make("scala")()("Int")),
-          izumiTagTest[Boolean](TypeTag.TypeRef.Single.make("scala")()("Boolean")),
-          izumiTagTest[String](TypeTag.TypeRef.Single.make("java", "lang")()("String")),
-          izumiTagTest[types.Companion.type](TypeTag.TypeRef.Single.make("oxygen", "core")("TypeTagSpec", "types")("Companion")),
-          izumiTagTest[types.NonGeneric](TypeTag.TypeRef.Single.make("oxygen", "core")("TypeTagSpec", "types")("NonGeneric")),
-          izumiTagTest[types.Generic[Int, Boolean, String]](
+        suite("derived")(
+          deriveTagTest[Int](TypeTag.TypeRef.Single.make("scala")()("Int")),
+          deriveTagTest[Boolean](TypeTag.TypeRef.Single.make("scala")()("Boolean")),
+          deriveTagTest[String](TypeTag.TypeRef.Single.make("java", "lang")()("String")),
+          deriveTagTest[types.Companion.type](TypeTag.TypeRef.Single.make("oxygen", "core")("TypeTagSpec", "types")("Companion")),
+          deriveTagTest[types.NonGeneric](TypeTag.TypeRef.Single.make("oxygen", "core")("TypeTagSpec", "types")("NonGeneric")),
+          deriveTagTest[types.Generic[Int, Boolean, String]](
             TypeTag.TypeRef.Single
               .make("oxygen", "core")("TypeTagSpec", "types")("Generic")
               .withTypeArgs(
@@ -129,24 +131,35 @@ object TypeTagSpec extends OxygenSpecDefault {
                 TypeTag.TypeRef.Single.make("java", "lang")()("String"),
               ),
           ),
-          izumiTagTest[types.Stage1[Int]](
+          deriveTagTest[types.Stage1[Int]](
             stage1Ref(
               TypeTag.TypeRef.Single.make("scala")()("Int"),
             ),
           ),
-          izumiTagTest[types.Stage1[Int]#Stage2[String]](
+          deriveTagTest[types.Stage1[Int]#Stage2[String]](
             stage2Ref(
               TypeTag.TypeRef.Single.make("scala")()("Int"),
               TypeTag.TypeRef.Single.make("java", "lang")()("String"),
             ),
           ),
-          izumiTagTest[types.Stage1[Int]#Stage2[String]#Stage3[Boolean]](
+          deriveTagTest[types.Stage1[Int]#Stage2[String]#Stage3[Boolean]](
             stage3Ref(
               TypeTag.TypeRef.Single.make("scala")()("Int"),
               TypeTag.TypeRef.Single.make("java", "lang")()("String"),
               TypeTag.TypeRef.Single.make("scala")()("Boolean"),
             ),
           ),
+          test("derives param correctly") {
+            assert(optionTag[Int].tag)(
+              equalTo_filteredDiff(
+                TypeTag.TypeRef.Single
+                  .make("scala")()("Option")
+                  .withTypeArgs(
+                    TypeTag.TypeRef.Single.make("scala")()("Int"),
+                  ),
+              ),
+            )
+          },
         ),
       ),
     )
