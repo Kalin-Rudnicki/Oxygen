@@ -27,6 +27,7 @@ final class Contiguous[+A] private[collection] (private val array: Array[A @unch
   }
 
   inline def apply(index: Int): A = array(index)
+  def at(index: Int): A = array(index)
   inline def get(index: Int): Option[A] = lift(index)
 
   def map[B](f: A => B): Contiguous[B] =

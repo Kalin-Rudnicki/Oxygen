@@ -1,6 +1,7 @@
 package oxygen.meta
 
 import Tuple.++
+import oxygen.core.collection.Growable
 import oxygen.meta.annotation.*
 import oxygen.predef.core.*
 import scala.quoted.*
@@ -10,21 +11,44 @@ final class K0[Q <: Quotes](val meta: Meta[Q]) {
   given Quotes = meta.quotes
   import meta.*
 
-  final class ValExpressions[F[_]] private[K0] (private val expressionPairs: IArray[(Type[?], Expr[F[Any]])]) {
+  final class ValExpressions[F[_]] private[K0] (private val expressionPairs: Contiguous[ValExpressions.Elem[F, ?]]) {
 
-    private[K0] val expressions: IArray[Expr[F[Any]]] = expressionPairs.map(_._2)
+    private[K0] def at[A](idx: Int): Expr[F[A]] =
+      expressionPairs.at(idx).expr.asInstanceOf[Expr[F[A]]]
+
     ////////////////////////////////////////////
 
-    @scala.annotation.nowarn("msg=unused local definition")
-    def mapK[G[_]: Type](transform: [i] => Expr[F[i]] => Expr[G[i]]): ValExpressions[G] =
+    def mapK[G[_]](transform: [i] => ValExpressions.Elem[F, i] => Expr[G[i]])(using gType: Type[G]): ValExpressions[G] =
       ValExpressions[G] {
-        expressionPairs.map { case (_tpe, _expr) =>
+        expressionPairs.map { _elem =>
           type _T
-          given Type[_T] = _tpe.asInstanceOf[Type[_T]]
-          val expr: Expr[F[_T]] = _expr.asInstanceOf[Expr[F[_T]]]
-          (_tpe, transform(expr).asInstanceOf[Expr[G[Any]]])
+          val elem: ValExpressions.Elem[F, _T] = _elem.asInstanceOf[ValExpressions.Elem[F, _T]]
+
+          ValExpressions.Elem[G, _T](
+            transform(elem),
+            elem.aTpe,
+            gType,
+          )
         }
       }
+
+  }
+  object ValExpressions {
+
+    final case class Elem[F[_], A](
+        expr: Expr[F[A]],
+        aTpe: Type[A],
+        fTpe: Type[F],
+    ) {
+      given Type[A] = aTpe
+      given Type[F] = fTpe
+    }
+    object Elem {
+
+      def make[F[_], A](expr: Expr[F[A]])(using aTpe: Type[A], fTpe: Type[F]): Elem[F, A] =
+        Elem(expr, aTpe, fTpe)
+
+    }
 
   }
 
@@ -122,7 +146,7 @@ final class K0[Q <: Quotes](val meta: Meta[Q]) {
           .getOrElse(report.errorAndAbort(s"Unable to find instance `${TypeRepr.of[TC[I]].show}` for field `$name` in type `${productGeneric.typeRepr.show}`"))
 
       def getExpr[F[_]](expressions: ValExpressions[F]): Expr[F[I]] =
-        expressions.expressions(idx).asInstanceOf[Expr[F[I]]]
+        expressions.at(idx)
 
       def optionalAnnotation[Annot: Type]: Option[Expr[Annot]] =
         constructorSymRepr.optionalAnnotation[Annot]
@@ -161,7 +185,7 @@ final class K0[Q <: Quotes](val meta: Meta[Q]) {
       ): Expr[O] = {
         def loop(
             queue: List[Field[?]],
-            acc: IArray[(Type[?], Expr[F[Any]])],
+            acc: Growable[ValExpressions.Elem[F, ?]],
         ): Expr[O] =
           queue match {
             case _field :: tail =>
@@ -171,13 +195,13 @@ final class K0[Q <: Quotes](val meta: Meta[Q]) {
 
               '{
                 val value: F[_T] = ${ make(field) }
-                ${ loop(tail, acc :+ (field.tpe, 'value.asInstanceOf[Expr[F[Any]]])) }
+                ${ loop(tail, acc :+ ValExpressions.Elem.make('value)) }
               }
             case Nil =>
-              use(new ValExpressions[F](acc))
+              use(new ValExpressions[F](acc.toContiguous))
           }
 
-        loop(fields.toList, IArray.empty)
+        loop(fields.toList, Growable.empty)
       }
 
       def withLazyValExpressions[F[_]: Type, O: Type](
@@ -187,7 +211,7 @@ final class K0[Q <: Quotes](val meta: Meta[Q]) {
       ): Expr[O] = {
         def loop(
             queue: List[Field[?]],
-            acc: IArray[(Type[?], Expr[F[Any]])],
+            acc: Growable[ValExpressions.Elem[F, ?]],
         ): Expr[O] =
           queue match {
             case _field :: tail =>
@@ -197,13 +221,13 @@ final class K0[Q <: Quotes](val meta: Meta[Q]) {
 
               '{
                 lazy val value: F[_T] = ${ make(field) }
-                ${ loop(tail, acc :+ (field.tpe, 'value.asInstanceOf[Expr[F[Any]]])) }
+                ${ loop(tail, acc :+ ValExpressions.Elem.make('value)) }
               }
             case Nil =>
-              use(new ValExpressions[F](acc))
+              use(new ValExpressions[F](acc.toContiguous))
           }
 
-        loop(fields.toList, IArray.empty)
+        loop(fields.toList, Growable.empty)
       }
 
       /**
@@ -453,7 +477,7 @@ final class K0[Q <: Quotes](val meta: Meta[Q]) {
           .getOrElse(autoDerive(productGeneric))
 
       def getExpr[F[_]](expressions: ValExpressions[F]): Expr[F[I]] =
-        expressions.expressions(idx).asInstanceOf[Expr[F[I]]]
+        expressions.at(idx)
 
       def optionalAnnotation[Annot: Type]: Option[Expr[Annot]] =
         productGeneric.optionalAnnotation[Annot]
@@ -735,7 +759,7 @@ final class K0[Q <: Quotes](val meta: Meta[Q]) {
       ): Expr[O] = {
         def loop(
             queue: List[Case[? <: A]],
-            acc: IArray[(Type[?], Expr[F[Any]])],
+            acc: Growable[ValExpressions.Elem[F, ?]],
         ): Expr[O] =
           queue match {
             case _case :: tail =>
@@ -745,13 +769,13 @@ final class K0[Q <: Quotes](val meta: Meta[Q]) {
 
               '{
                 val value: F[_T] = ${ make(kase) }
-                ${ loop(tail, acc :+ (kase.tpe, 'value.asInstanceOf[Expr[F[Any]]])) }
+                ${ loop(tail, acc :+ ValExpressions.Elem.make('value)) }
               }
             case Nil =>
-              use(new ValExpressions[F](acc))
+              use(new ValExpressions[F](acc.toContiguous))
           }
 
-        loop(cases.toList, IArray.empty)
+        loop(cases.toList, Growable.empty)
       }
 
       def withLazyValExpressions[F[_]: Type, O: Type](
@@ -761,7 +785,7 @@ final class K0[Q <: Quotes](val meta: Meta[Q]) {
       ): Expr[O] = {
         def loop(
             queue: List[Case[? <: A]],
-            acc: IArray[(Type[?], Expr[F[Any]])],
+            acc: Growable[ValExpressions.Elem[F, ?]],
         ): Expr[O] =
           queue match {
             case _case :: tail =>
@@ -771,13 +795,13 @@ final class K0[Q <: Quotes](val meta: Meta[Q]) {
 
               '{
                 lazy val value: F[_T] = ${ make(kase) }
-                ${ loop(tail, acc :+ (kase.tpe, 'value.asInstanceOf[Expr[F[Any]]])) }
+                ${ loop(tail, acc :+ ValExpressions.Elem.make('value)) }
               }
             case Nil =>
-              use(new ValExpressions[F](acc))
+              use(new ValExpressions[F](acc.toContiguous))
           }
 
-        loop(cases.toList, IArray.empty)
+        loop(cases.toList, Growable.empty)
       }
 
       /**
@@ -1030,7 +1054,6 @@ final class K0[Q <: Quotes](val meta: Meta[Q]) {
   //      UnionGeneric
   //////////////////////////////////////////////////////////////////////////////////////////////////////
 
-  @scala.annotation.nowarn("msg=unused import")
   trait UnionGeneric[A] { unionGeneric =>
 
     final case class Case[I <: A](
@@ -1046,7 +1069,7 @@ final class K0[Q <: Quotes](val meta: Meta[Q]) {
           .getOrElse(report.errorAndAbort(s"Unable to find instance `${TypeRepr.of[TC[I]].show}` for union case `${typeRepr.show}` in type `${unionGeneric.typeRepr.show}`"))
 
       def getExpr[F[_]](expressions: ValExpressions[F]): Expr[F[I]] =
-        expressions.expressions(idx).asInstanceOf[Expr[F[I]]]
+        expressions.at(idx)
 
     }
 
@@ -1065,7 +1088,7 @@ final class K0[Q <: Quotes](val meta: Meta[Q]) {
       ): Expr[O] = {
         def loop(
             queue: List[Case[? <: A]],
-            acc: IArray[(Type[?], Expr[F[Any]])],
+            acc: Growable[ValExpressions.Elem[F, ?]],
         ): Expr[O] =
           queue match {
             case _case :: tail =>
@@ -1075,13 +1098,13 @@ final class K0[Q <: Quotes](val meta: Meta[Q]) {
 
               '{
                 val value: F[_T] = ${ make(kase) }
-                ${ loop(tail, acc :+ (kase.tpe, 'value.asInstanceOf[Expr[F[Any]]])) }
+                ${ loop(tail, acc :+ ValExpressions.Elem.make('value)) }
               }
             case Nil =>
-              use(new ValExpressions[F](acc))
+              use(new ValExpressions[F](acc.toContiguous))
           }
 
-        loop(cases.toList, IArray.empty)
+        loop(cases.toList, Growable.empty)
       }
 
       def withLazyValExpressions[F[_]: Type, O: Type](
@@ -1091,7 +1114,7 @@ final class K0[Q <: Quotes](val meta: Meta[Q]) {
       ): Expr[O] = {
         def loop(
             queue: List[Case[? <: A]],
-            acc: IArray[(Type[?], Expr[F[Any]])],
+            acc: Growable[ValExpressions.Elem[F, ?]],
         ): Expr[O] =
           queue match {
             case _case :: tail =>
@@ -1101,13 +1124,13 @@ final class K0[Q <: Quotes](val meta: Meta[Q]) {
 
               '{
                 lazy val value: F[_T] = ${ make(kase) }
-                ${ loop(tail, acc :+ (kase.tpe, 'value.asInstanceOf[Expr[F[Any]]])) }
+                ${ loop(tail, acc :+ ValExpressions.Elem.make('value)) }
               }
             case Nil =>
-              use(new ValExpressions[F](acc))
+              use(new ValExpressions[F](acc.toContiguous))
           }
 
-        loop(cases.toList, IArray.empty)
+        loop(cases.toList, Growable.empty)
       }
 
       def withLazyTypeClasses[TC[_]: Type, O: Type](
@@ -1156,7 +1179,6 @@ final class K0[Q <: Quotes](val meta: Meta[Q]) {
   //      IntersectionGeneric
   //////////////////////////////////////////////////////////////////////////////////////////////////////
 
-  @scala.annotation.nowarn("msg=unused import")
   trait IntersectionGeneric[A] { intersectionGeneric =>
 
     final case class Case[I >: A](
@@ -1172,7 +1194,7 @@ final class K0[Q <: Quotes](val meta: Meta[Q]) {
           .getOrElse(report.errorAndAbort(s"Unable to find instance `${TypeRepr.of[TC[I]].show}` for intersection case `${typeRepr.show}` in type `${intersectionGeneric.typeRepr.show}`"))
 
       def getExpr[TC[_]](expressions: ValExpressions[TC]): Expr[TC[I]] =
-        expressions.expressions(idx).asInstanceOf[Expr[TC[I]]]
+        expressions.at(idx)
 
     }
 
@@ -1191,7 +1213,7 @@ final class K0[Q <: Quotes](val meta: Meta[Q]) {
       ): Expr[O] = {
         def loop(
             queue: List[Case[? >: A]],
-            acc: IArray[(Type[?], Expr[F[Any]])],
+            acc: Growable[ValExpressions.Elem[F, ?]],
         ): Expr[O] =
           queue match {
             case _case :: tail =>
@@ -1201,13 +1223,13 @@ final class K0[Q <: Quotes](val meta: Meta[Q]) {
 
               '{
                 val value: F[_T] = ${ make(kase) }
-                ${ loop(tail, acc :+ (kase.tpe, 'value.asInstanceOf[Expr[F[Any]]])) }
+                ${ loop(tail, acc :+ ValExpressions.Elem.make('value)) }
               }
             case Nil =>
-              use(new ValExpressions[F](acc))
+              use(new ValExpressions[F](acc.toContiguous))
           }
 
-        loop(cases.toList, IArray.empty)
+        loop(cases.toList, Growable.empty)
       }
 
       def withLazyValExpressions[F[_]: Type, O: Type](
@@ -1217,7 +1239,7 @@ final class K0[Q <: Quotes](val meta: Meta[Q]) {
       ): Expr[O] = {
         def loop(
             queue: List[Case[? >: A]],
-            acc: IArray[(Type[?], Expr[F[Any]])],
+            acc: Growable[ValExpressions.Elem[F, ?]],
         ): Expr[O] =
           queue match {
             case _case :: tail =>
@@ -1227,13 +1249,13 @@ final class K0[Q <: Quotes](val meta: Meta[Q]) {
 
               '{
                 lazy val value: F[_T] = ${ make(kase) }
-                ${ loop(tail, acc :+ (kase.tpe, 'value.asInstanceOf[Expr[F[Any]]])) }
+                ${ loop(tail, acc :+ ValExpressions.Elem.make('value)) }
               }
             case Nil =>
-              use(new ValExpressions[F](acc))
+              use(new ValExpressions[F](acc.toContiguous))
           }
 
-        loop(cases.toList, IArray.empty)
+        loop(cases.toList, Growable.empty)
       }
 
       def withLazyTypeClasses[TC[_]: Type, O: Type](
