@@ -10,7 +10,23 @@ final class K0[Q <: Quotes](val meta: Meta[Q]) {
   given Quotes = meta.quotes
   import meta.*
 
-  final class ValExpressions[F[_]] private[K0] (private[K0] val expressions: IArray[Expr[F[Any]]])
+  final class ValExpressions[F[_]] private[K0] (private val expressionPairs: IArray[(Type[?], Expr[F[Any]])]) {
+
+    private[K0] val expressions: IArray[Expr[F[Any]]] = expressionPairs.map(_._2)
+    ////////////////////////////////////////////
+
+    @scala.annotation.nowarn("msg=unused local definition")
+    def mapK[G[_]: Type](transform: [i] => Expr[F[i]] => Expr[G[i]]): ValExpressions[G] =
+      ValExpressions[G] {
+        expressionPairs.map { case (_tpe, _expr) =>
+          type _T
+          given Type[_T] = _tpe.asInstanceOf[Type[_T]]
+          val expr: Expr[F[_T]] = _expr.asInstanceOf[Expr[F[_T]]]
+          (_tpe, transform(expr).asInstanceOf[Expr[G[Any]]])
+        }
+      }
+
+  }
 
   //////////////////////////////////////////////////////////////////////////////////////////////////////
   //      Generic
@@ -145,7 +161,7 @@ final class K0[Q <: Quotes](val meta: Meta[Q]) {
       ): Expr[O] = {
         def loop(
             queue: List[Field[?]],
-            acc: IArray[Expr[F[Any]]],
+            acc: IArray[(Type[?], Expr[F[Any]])],
         ): Expr[O] =
           queue match {
             case _field :: tail =>
@@ -155,7 +171,7 @@ final class K0[Q <: Quotes](val meta: Meta[Q]) {
 
               '{
                 val value: F[_T] = ${ make(field) }
-                ${ loop(tail, acc :+ 'value.asInstanceOf[Expr[F[Any]]]) }
+                ${ loop(tail, acc :+ (field.tpe, 'value.asInstanceOf[Expr[F[Any]]])) }
               }
             case Nil =>
               use(new ValExpressions[F](acc))
@@ -171,7 +187,7 @@ final class K0[Q <: Quotes](val meta: Meta[Q]) {
       ): Expr[O] = {
         def loop(
             queue: List[Field[?]],
-            acc: IArray[Expr[F[Any]]],
+            acc: IArray[(Type[?], Expr[F[Any]])],
         ): Expr[O] =
           queue match {
             case _field :: tail =>
@@ -181,7 +197,7 @@ final class K0[Q <: Quotes](val meta: Meta[Q]) {
 
               '{
                 lazy val value: F[_T] = ${ make(field) }
-                ${ loop(tail, acc :+ 'value.asInstanceOf[Expr[F[Any]]]) }
+                ${ loop(tail, acc :+ (field.tpe, 'value.asInstanceOf[Expr[F[Any]]])) }
               }
             case Nil =>
               use(new ValExpressions[F](acc))
@@ -207,16 +223,6 @@ final class K0[Q <: Quotes](val meta: Meta[Q]) {
           use: ValExpressions[TC] => Expr[TC[A]],
       ): Expr[TC[A]] =
         withLazyTypeClasses[TC, TC[A]](use)
-
-      def mapExprs[F[_]: Type, G[_]: Type](vals: ValExpressions[F])(f: [i] => (Field[i], Expr[F[i]]) => Expr[G[i]]): ValExpressions[G] =
-        ValExpressions(
-          fields.zip(vals.expressions).map { case (_field, _expr) =>
-            type _T
-            val field: Field[_T] = _field.asInstanceOf[Field[_T]]
-            val expr: Expr[F[_T]] = _expr.asInstanceOf[Expr[F[_T]]]
-            f(field, expr).asInstanceOf[Expr[G[Any]]]
-          },
-        )
 
       /**
         * This is useful for when you want to produce an `A` as an output.
@@ -729,7 +735,7 @@ final class K0[Q <: Quotes](val meta: Meta[Q]) {
       ): Expr[O] = {
         def loop(
             queue: List[Case[? <: A]],
-            acc: IArray[Expr[F[Any]]],
+            acc: IArray[(Type[?], Expr[F[Any]])],
         ): Expr[O] =
           queue match {
             case _case :: tail =>
@@ -739,7 +745,7 @@ final class K0[Q <: Quotes](val meta: Meta[Q]) {
 
               '{
                 val value: F[_T] = ${ make(kase) }
-                ${ loop(tail, acc :+ 'value.asInstanceOf[Expr[F[Any]]]) }
+                ${ loop(tail, acc :+ (kase.tpe, 'value.asInstanceOf[Expr[F[Any]]])) }
               }
             case Nil =>
               use(new ValExpressions[F](acc))
@@ -755,7 +761,7 @@ final class K0[Q <: Quotes](val meta: Meta[Q]) {
       ): Expr[O] = {
         def loop(
             queue: List[Case[? <: A]],
-            acc: IArray[Expr[F[Any]]],
+            acc: IArray[(Type[?], Expr[F[Any]])],
         ): Expr[O] =
           queue match {
             case _case :: tail =>
@@ -765,7 +771,7 @@ final class K0[Q <: Quotes](val meta: Meta[Q]) {
 
               '{
                 lazy val value: F[_T] = ${ make(kase) }
-                ${ loop(tail, acc :+ 'value.asInstanceOf[Expr[F[Any]]]) }
+                ${ loop(tail, acc :+ (kase.tpe, 'value.asInstanceOf[Expr[F[Any]]])) }
               }
             case Nil =>
               use(new ValExpressions[F](acc))
@@ -809,16 +815,6 @@ final class K0[Q <: Quotes](val meta: Meta[Q]) {
           use: ValExpressions[TC] => Expr[O],
       ): Expr[O] =
         withLazyValExpressions[TC, O] { [i <: A] => (kase: Case[i]) => kase.summonTypeClass[TC] }(use)
-
-      def mapExprs[F[_]: Type, G[_]: Type](vals: ValExpressions[F])(f: [i <: A] => (Case[i], Expr[F[i]]) => Expr[G[i]]): ValExpressions[G] =
-        ValExpressions(
-          cases.zip(vals.expressions).map { case (_kase, _expr) =>
-            type _T <: A
-            val kase: Case[_T] = _kase.asInstanceOf[Case[_T]]
-            val expr: Expr[F[_T]] = _expr.asInstanceOf[Expr[F[_T]]]
-            f(kase, expr).asInstanceOf[Expr[G[Any]]]
-          },
-        )
 
       /**
         * This is useful when you have an instance of `A`, and want to do things differently depending on which sub-type of `A` you have.
@@ -1069,7 +1065,7 @@ final class K0[Q <: Quotes](val meta: Meta[Q]) {
       ): Expr[O] = {
         def loop(
             queue: List[Case[? <: A]],
-            acc: IArray[Expr[F[Any]]],
+            acc: IArray[(Type[?], Expr[F[Any]])],
         ): Expr[O] =
           queue match {
             case _case :: tail =>
@@ -1079,7 +1075,7 @@ final class K0[Q <: Quotes](val meta: Meta[Q]) {
 
               '{
                 val value: F[_T] = ${ make(kase) }
-                ${ loop(tail, acc :+ 'value.asInstanceOf[Expr[F[Any]]]) }
+                ${ loop(tail, acc :+ (kase.tpe, 'value.asInstanceOf[Expr[F[Any]]])) }
               }
             case Nil =>
               use(new ValExpressions[F](acc))
@@ -1095,7 +1091,7 @@ final class K0[Q <: Quotes](val meta: Meta[Q]) {
       ): Expr[O] = {
         def loop(
             queue: List[Case[? <: A]],
-            acc: IArray[Expr[F[Any]]],
+            acc: IArray[(Type[?], Expr[F[Any]])],
         ): Expr[O] =
           queue match {
             case _case :: tail =>
@@ -1105,7 +1101,7 @@ final class K0[Q <: Quotes](val meta: Meta[Q]) {
 
               '{
                 lazy val value: F[_T] = ${ make(kase) }
-                ${ loop(tail, acc :+ 'value.asInstanceOf[Expr[F[Any]]]) }
+                ${ loop(tail, acc :+ (kase.tpe, 'value.asInstanceOf[Expr[F[Any]]])) }
               }
             case Nil =>
               use(new ValExpressions[F](acc))
@@ -1195,7 +1191,7 @@ final class K0[Q <: Quotes](val meta: Meta[Q]) {
       ): Expr[O] = {
         def loop(
             queue: List[Case[? >: A]],
-            acc: IArray[Expr[F[Any]]],
+            acc: IArray[(Type[?], Expr[F[Any]])],
         ): Expr[O] =
           queue match {
             case _case :: tail =>
@@ -1205,7 +1201,7 @@ final class K0[Q <: Quotes](val meta: Meta[Q]) {
 
               '{
                 val value: F[_T] = ${ make(kase) }
-                ${ loop(tail, acc :+ 'value.asInstanceOf[Expr[F[Any]]]) }
+                ${ loop(tail, acc :+ (kase.tpe, 'value.asInstanceOf[Expr[F[Any]]])) }
               }
             case Nil =>
               use(new ValExpressions[F](acc))
@@ -1221,7 +1217,7 @@ final class K0[Q <: Quotes](val meta: Meta[Q]) {
       ): Expr[O] = {
         def loop(
             queue: List[Case[? >: A]],
-            acc: IArray[Expr[F[Any]]],
+            acc: IArray[(Type[?], Expr[F[Any]])],
         ): Expr[O] =
           queue match {
             case _case :: tail =>
@@ -1231,7 +1227,7 @@ final class K0[Q <: Quotes](val meta: Meta[Q]) {
 
               '{
                 lazy val value: F[_T] = ${ make(kase) }
-                ${ loop(tail, acc :+ 'value.asInstanceOf[Expr[F[Any]]]) }
+                ${ loop(tail, acc :+ (kase.tpe, 'value.asInstanceOf[Expr[F[Any]]])) }
               }
             case Nil =>
               use(new ValExpressions[F](acc))
