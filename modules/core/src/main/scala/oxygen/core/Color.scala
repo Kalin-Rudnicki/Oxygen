@@ -29,10 +29,10 @@ object Color {
     StringCodec.string.transformOption(Color.parse(_), _.toString)
 
   sealed trait Concrete extends Color {
-    def fgMod: String
-    def bgMod: String
-    final def fgANSI: String = s"$ANSIEscapeString${fgMod}m"
-    final def bgANSI: String = s"$ANSIEscapeString${bgMod}m"
+    val fgMod: String
+    val bgMod: String
+    final lazy val fgANSI: String = s"$ANSIEscapeString${fgMod}m"
+    final lazy val bgANSI: String = s"$ANSIEscapeString${bgMod}m"
   }
 
   sealed trait Simple extends Color.Concrete
@@ -41,8 +41,8 @@ object Color {
 
     final val lowerName: String = toString.toLowerCase
 
-    override final def fgMod: String = s"3$n"
-    override final def bgMod: String = s"4$n"
+    override final val fgMod: String = s"3$n"
+    override final val bgMod: String = s"4$n"
 
   }
   object Named extends Enum.Companion[Named] {
@@ -65,8 +65,8 @@ object Color {
     def toRGBString: String = List(r, g, b).mkString("rgb(", ", ", ")")
     def toHexString: String = List(r, g, b).map(Integer.toString(_, 16).alignRight(2, '0')).mkString("#", "", "")
 
-    override def fgMod: String = s"38;2;$r;$g;$b"
-    override def bgMod: String = s"48;2;$r;$g;$b"
+    override val fgMod: String = s"38;2;$r;$g;$b"
+    override val bgMod: String = s"48;2;$r;$g;$b"
 
     override def toString: String = toHexString
 
@@ -191,8 +191,8 @@ object Color {
   }
 
   case object Default extends Color.Simple {
-    override def fgMod: String = "39"
-    override def bgMod: String = "49"
+    override val fgMod: String = "39"
+    override val bgMod: String = "49"
   }
 
   final case class Cased(extended: Color.RGB, simple: Color.Simple) extends Color

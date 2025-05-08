@@ -2,6 +2,8 @@ package oxygen.core.collection
 
 import oxygen.core.syntax.groupBy.*
 import oxygen.core.syntax.option.*
+import oxygen.core.typeclass.SeqOps
+import scala.collection.mutable
 import scala.quoted.*
 import scala.reflect.ClassTag
 
@@ -11,16 +13,23 @@ final case class NonEmptyList[+A](head: A, tail: List[A]) extends PartialFunctio
 
   private inline def unsafeTransformList[B](inline f: List[A] => List[B]): NonEmptyList[B] = NonEmptyList.unsafeFromList(f(toList))
 
+  // single builders
   def ::[A2 >: A](value: A2): NonEmptyList[A2] = NonEmptyList(value, toList)
   def +:[A2 >: A](value: A2): NonEmptyList[A2] = NonEmptyList(value, toList)
   def :+[A2 >: A](value: A2): NonEmptyList[A2] = NonEmptyList(head, tail :+ value)
-  def :::[A2 >: A](that: NonEmptyList[A2]): NonEmptyList[A2] = NonEmptyList(head, tail ::: that.toList)
-  def ++[A2 >: A](that: NonEmptyList[A2]): NonEmptyList[A2] = NonEmptyList(head, tail ::: that.toList)
-  def ++[A2 >: A](that: IterableOnce[A2]): NonEmptyList[A2] = NonEmptyList(head, tail ++ that)
   def prepended[B >: A](value: B): NonEmptyList[B] = NonEmptyList(value, toList)
   def appended[B >: A](value: B): NonEmptyList[B] = NonEmptyList(head, tail :+ value)
-  def appendedAll[B >: A](suffix: IterableOnce[B]): NonEmptyList[B] = NonEmptyList(head, tail.appendedAll(suffix))
-  def prependedAll[B >: A](prefix: IterableOnce[B]): NonEmptyList[B] = unsafeTransformList(_.prependedAll(prefix))
+
+  // multi builders
+  def :::[A2 >: A](that: NonEmptyList[A2]): NonEmptyList[A2] = NonEmptyList(that.head, that.tail ::: this.toList)
+  def ++[A2 >: A](that: NonEmptyList[A2]): NonEmptyList[A2] = NonEmptyList(this.head, this.tail ::: that.toList)
+  def ++[F[_], A2 >: A](that: F[A2])(using seqOps: SeqOps[F]): NonEmptyList[A2] = NonEmptyList.unsafeConcat(this.iterator, seqOps.newIterator(that))
+  def :++[A2 >: A](that: NonEmptyList[A2]): NonEmptyList[A2] = NonEmptyList(this.head, this.tail ::: that.toList)
+  def :++[F[_], A2 >: A](that: F[A2])(using seqOps: SeqOps[F]): NonEmptyList[A2] = NonEmptyList.unsafeConcat(this.iterator, seqOps.newIterator(that))
+  def ++:[A2 >: A](that: NonEmptyList[A2]): NonEmptyList[A2] = NonEmptyList(that.head, that.tail ::: this.toList)
+  def ++:[F[_], A2 >: A](that: F[A2])(using seqOps: SeqOps[F]): NonEmptyList[A2] = NonEmptyList.unsafeConcat(seqOps.newIterator(that), this.iterator)
+  def prependedAll[F[_], B >: A](prefix: F[B])(using seqOps: SeqOps[F]): NonEmptyList[B] = NonEmptyList.unsafeConcat(seqOps.newIterator(prefix), this.iterator)
+  def appendedAll[F[_], B >: A](suffix: F[B])(using seqOps: SeqOps[F]): NonEmptyList[B] = NonEmptyList.unsafeConcat(this.iterator, seqOps.newIterator(suffix))
 
   def iterator: Iterator[A] = toList.iterator
 
@@ -129,6 +138,21 @@ object NonEmptyList {
   inline def unsafeFromList[A](list: List[A]): NonEmptyList[A] = list match
     case head :: tail => NonEmptyList(head, tail)
     case Nil          => throw new NoSuchElementException("Can not create an empty NonEmptyList")
+
+  def unsafeNewBuilder[A]: mutable.Builder[A, NonEmptyList[A]] =
+    List.newBuilder[A].mapResult(NonEmptyList.unsafeFromList)
+
+  private def unsafeConcat[A](a: Iterator[A], b: Iterator[A]): NonEmptyList[A] = {
+    val builder = unsafeNewBuilder[A]
+    (a.knownSize, b.knownSize) match {
+      case (-1, _)        => ()
+      case (_, -1)        => ()
+      case (aSize, bSize) => builder.sizeHint(aSize + bSize)
+    }
+    builder.addAll(a)
+    builder.addAll(b)
+    builder.result()
+  }
 
   def unapply[A](list: List[A]): Option[NonEmptyList[A]] = NonEmptyList.fromList(list)
   def unapply[A](list: NonEmptyList[A]): Some[NonEmptyList[A]] = Some(list)

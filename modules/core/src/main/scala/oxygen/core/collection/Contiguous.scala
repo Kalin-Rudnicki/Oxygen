@@ -133,6 +133,7 @@ final class Contiguous[+A] private[collection] (private val array: Array[A @unch
   inline def toVector: Vector[A] = array.toVector
   inline def toArray: Array[A @uncheckedVariance] = array.clone()
   inline def toIArray: IArray[A] = IArray.unsafeFromArray(array)
+  inline def toSet[B >: A]: Set[B] = array.toSet
   inline def toMap[K, V](implicit ev: A <:< (K, V)): Map[K, V] = array.toMap
 
   def zipUsing[B, C](that: Contiguous[B])(leftOnly: A => C, rightOnly: B => C, both: (A, B) => C): Contiguous[C] = {

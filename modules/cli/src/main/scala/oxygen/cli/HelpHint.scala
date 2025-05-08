@@ -7,7 +7,7 @@ object HelpHint {
   final case class HelpExtra(message: String) extends HelpHint
 
   final case class EnumValues(values: Seq[Any]) extends HelpHint
-  final case class Default(value: Any) extends HelpHint
+  final case class Default(value: String) extends HelpHint
   case object Optional extends HelpHint
   case object Repeated extends HelpHint
   case object RepeatedNel extends HelpHint

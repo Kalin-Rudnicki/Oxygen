@@ -58,6 +58,25 @@ object NonEmptyListSpec extends OxygenSpecDefault {
           assertTrue(NonEmptyList.fill(5)(()) == NonEmptyList.of((), (), (), (), ()))
         },
       ),
+      suite("growing")(
+        test("concat ops work") {
+          assertTrue(
+            NonEmptyList.of(1, 2, 3) ::: NonEmptyList.of(4, 5, 6) == NonEmptyList.of(1, 2, 3, 4, 5, 6),
+            NonEmptyList.of(1, 2, 3) :++ NonEmptyList.of(4, 5, 6) == NonEmptyList.of(1, 2, 3, 4, 5, 6),
+            NonEmptyList.of(1, 2, 3) ++: NonEmptyList.of(4, 5, 6) == NonEmptyList.of(1, 2, 3, 4, 5, 6),
+            NonEmptyList.of(1, 2, 3) ++ NonEmptyList.of(4, 5, 6) == NonEmptyList.of(1, 2, 3, 4, 5, 6),
+          )
+        },
+        test("concat ops via SeqLike works") {
+          assertTrue(
+            NonEmptyList.of(1, 2, 3) :++ Contiguous(4, 5, 6) == NonEmptyList.of(1, 2, 3, 4, 5, 6),
+            Contiguous(1, 2, 3) ++: NonEmptyList.of(4, 5, 6) == NonEmptyList.of(1, 2, 3, 4, 5, 6),
+            NonEmptyList.of(1, 2, 3) ++ Contiguous(4, 5, 6) == NonEmptyList.of(1, 2, 3, 4, 5, 6),
+            NonEmptyList.of(1, 2, 3).appendedAll(Contiguous(4, 5, 6)) == NonEmptyList.of(1, 2, 3, 4, 5, 6),
+            NonEmptyList.of(4, 5, 6).prependedAll(Vector(1, 2, 3)) == NonEmptyList.of(1, 2, 3, 4, 5, 6),
+          )
+        },
+      ),
     )
 
 }

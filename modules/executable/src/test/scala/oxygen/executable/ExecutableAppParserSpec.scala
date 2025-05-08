@@ -24,18 +24,19 @@ object ExecutableAppParserSpec extends OxygenSpecDefault {
   override def testSpec: TestSpec =
     suite("ExecutableAppParserSpec")(
       suite("passing")(
-        makePassingTest("empty")()(ExecutableApp.Config(ExecutableApp.Config.InitialLoggerDefault.Oxygen, List())),
-        makePassingTest("file")("-f=file.json")(ExecutableApp.Config(ExecutableApp.Config.InitialLoggerDefault.Oxygen, List(File("file.json")))),
-        makePassingTest("jar resource")("-j=jar.json")(ExecutableApp.Config(ExecutableApp.Config.InitialLoggerDefault.Oxygen, List(JarResource("jar.json")))),
-        makePassingTest("env var")("-e=ENV_VAR")(ExecutableApp.Config(ExecutableApp.Config.InitialLoggerDefault.Oxygen, List(EnvVar(Nil, "ENV_VAR")))),
-        makePassingTest("env var (with nesting)")("-e=a.b.c:ENV_VAR")(ExecutableApp.Config(ExecutableApp.Config.InitialLoggerDefault.Oxygen, List(EnvVar(List("a", "b", "c"), "ENV_VAR")))),
-        makePassingTest("raw (valid json)")("-r={}")(ExecutableApp.Config(ExecutableApp.Config.InitialLoggerDefault.Oxygen, List(Raw(Nil, Json.obj())))),
-        makePassingTest("raw (invalid json)")("-r=raw")(ExecutableApp.Config(ExecutableApp.Config.InitialLoggerDefault.Oxygen, List(Raw(Nil, Json.Str("raw"))))),
+        makePassingTest("empty")()(ExecutableApp.Config(List(), false)),
+        makePassingTest("file")("-f=file.json")(ExecutableApp.Config(List(File("file.json")), false)),
+        makePassingTest("jar resource")("-j=jar.json")(ExecutableApp.Config(List(JarResource("jar.json")), false)),
+        makePassingTest("env var")("-e=ENV_VAR")(ExecutableApp.Config(List(EnvVar(Nil, "ENV_VAR")), false)),
+        makePassingTest("env var (with nesting)")("-e=a.b.c:ENV_VAR")(ExecutableApp.Config(List(EnvVar(List("a", "b", "c"), "ENV_VAR")), false)),
+        makePassingTest("raw (valid json)")("-r={}")(ExecutableApp.Config(List(Raw(Nil, Json.obj())), false)),
+        makePassingTest("raw (invalid json)")("-r=raw")(ExecutableApp.Config(List(Raw(Nil, Json.Str("raw"))), false)),
         makePassingTest("raw (valid json + with nesting)")("-r=a.b.c:[1]")(
-          ExecutableApp.Config(ExecutableApp.Config.InitialLoggerDefault.Oxygen, List(Raw(List("a", "b", "c"), Json.arr(Json.number(1))))),
+          ExecutableApp.Config(List(Raw(List("a", "b", "c"), Json.arr(Json.number(1)))), false),
         ),
-        makePassingTest("raw (invalid json + with nesting)")("-r=a.b.c:raw")(ExecutableApp.Config(ExecutableApp.Config.InitialLoggerDefault.Oxygen, List(Raw(List("a", "b", "c"), Json.Str("raw"))))),
-        makePassingTest("zio default")("--default-logger=zio")(ExecutableApp.Config(ExecutableApp.Config.InitialLoggerDefault.ZIO, List())),
+        makePassingTest("raw (invalid json + with nesting)")("-r=a.b.c:raw")(ExecutableApp.Config(List(Raw(List("a", "b", "c"), Json.Str("raw"))), false)),
+        makePassingTest("zio default")("--keep-zio-logger")(ExecutableApp.Config(List(), true)),
+        makePassingTest("zio default (short)")("-Z")(ExecutableApp.Config(List(), true)),
       ),
     )
 

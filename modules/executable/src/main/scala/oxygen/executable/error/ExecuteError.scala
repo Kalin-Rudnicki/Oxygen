@@ -5,9 +5,6 @@ import oxygen.cli.error.*
 import oxygen.core.collection.NonEmptyList
 import oxygen.core.syntax.throwable.*
 import oxygen.executable.{Executable, ExecutableApp}
-import oxygen.executable.error.ExecuteError.SubCommandError
-import oxygen.json.Json
-import oxygen.zio.logger.LogLevel
 
 sealed trait ExecuteError extends Throwable {
 
@@ -19,7 +16,7 @@ sealed trait ExecuteError extends Throwable {
     case ExecuteError.SubCommandError.MissingSubCommand(options)          => s"Missing sub-command, options: ${options.map(_._1).mkString(", ")}"
     case ExecuteError.SubCommandError.InvalidSubCommand(command, options) => s"Invalid sub-command '$command', options: ${options.map(_._1).mkString(", ")}"
     case ExecuteError.InvalidConfig(message)                              => s"Invalid config: $message"
-    case ExecuteError.ProgramError(message, _)                            => message.toString
+    case ExecuteError.ProgramError(error)                                 => String.valueOf(error)
     case ExecuteError.Generic(operation, cause)                           => s"failed $operation: ${cause.safeGetMessage}"
 
 }
@@ -58,7 +55,7 @@ object ExecuteError {
 
   final case class InvalidConfig(message: String) extends ExecuteError
 
-  final case class ProgramError(message: Json, logLevel: LogLevel) extends ExecuteError
+  final case class ProgramError(error: Any) extends ExecuteError
 
   final case class Generic(operation: String, cause: Throwable) extends ExecuteError
 
