@@ -323,11 +323,15 @@ sealed trait Values[+A] extends Parser[A] {
   final def repeatedNel: Values[NonEmptyList[A]] = Values.RepeatedNel(this, true)
   final def repeatedNel(breakOnAnyError: Boolean): Values[NonEmptyList[A]] = Values.RepeatedNel(this, breakOnAnyError)
 
-  final def withDefault[A2 >: A](default: A2): Values[A2] = Values.WithDefault(this, default, false)
-  final def withDefault[A2 >: A](default: A2, breakOnAnyError: Boolean): Values[A2] = Values.WithDefault(this, default, breakOnAnyError)
+  final def withDefault[A2 >: A](default: A2): Values[A2] = withDefault(default, false, _.toString)
+  final def withDefault[A2 >: A](default: A2, showDefault: A2 => String): Values[A2] = withDefault(default, false, showDefault)
+  final def withDefault[A2 >: A](default: A2, breakOnAnyError: Boolean): Values[A2] = withDefault(default, breakOnAnyError, _.toString)
+  final def withDefault[A2 >: A](default: A2, breakOnAnyError: Boolean, showDefault: A2 => String): Values[A2] = Values.WithDefault(this, default, showDefault(default), breakOnAnyError)
 
   final def withOptionalDefault[A2 >: A](default: Option[A2]): Values[A2] = default.fold(this)(this.withDefault(_))
+  final def withOptionalDefault[A2 >: A](default: Option[A2], showDefault: A2 => String): Values[A2] = default.fold(this)(this.withDefault(_, showDefault))
   final def withOptionalDefault[A2 >: A](default: Option[A2], breakOnAnyError: Boolean): Values[A2] = default.fold(this)(this.withDefault(_, breakOnAnyError))
+  final def withOptionalDefault[A2 >: A](default: Option[A2], breakOnAnyError: Boolean, showDefault: A2 => String): Values[A2] = default.fold(this)(this.withDefault(_, breakOnAnyError, showDefault))
 
 }
 object Values {
@@ -517,12 +521,13 @@ object Values {
   final case class WithDefault[A](
       parser: Values[A],
       default: A,
+      shownDefault: String,
       breakOnAnyError: Boolean,
   ) extends Values[A] {
 
     override def optionalName: Option[Name] = parser.optionalName
 
-    override def helpMessage: HelpMessage.ValueMessage = parser.helpMessage.addHints(HelpHint.Default(default) :: Nil)
+    override def helpMessage: HelpMessage.ValueMessage = parser.helpMessage.addHints(HelpHint.Default(shownDefault) :: Nil)
 
     override def parseValues(values: List[Arg.ValueLike]): Values.ParseResult[A] =
       parser.parseValues(values) match
@@ -531,7 +536,7 @@ object Values {
         case fail @ Values.ParseResult.Fail(_, _)                                                           => fail
 
     override def buildInternal(usedParams: Set[SimpleName]): Either[BuildError, (Set[SimpleName], Values[A])] =
-      parser.buildInternal(usedParams).map { case (up2, p) => (up2, WithDefault(p, default, breakOnAnyError)) }
+      parser.buildInternal(usedParams).map { case (up2, p) => (up2, WithDefault(p, default, shownDefault, breakOnAnyError)) }
 
   }
 
@@ -690,8 +695,8 @@ sealed trait Params[+A] extends Parser[A] {
   final def repeated: Params[List[A]] = Params.Repeated(this)
   final def repeatedNel: Params[NonEmptyList[A]] = Params.RepeatedNel(this)
 
-  final def withDefault[A2 >: A](default: A2): Params[A2] = Params.WithDefault(this, default)
-  final def withOptionalDefault[A2 >: A](default: Option[A2]): Params[A2] = default.fold(this)(this.withDefault(_))
+  final def withDefault[A2 >: A](default: A2, showDefault: A2 => String = (_: A2).toString): Params[A2] = Params.WithDefault(this, default, showDefault(default))
+  final def withOptionalDefault[A2 >: A](default: Option[A2], showDefault: A2 => String = (_: A2).toString): Params[A2] = default.fold(this)(this.withDefault(_, showDefault))
 
   /**
     * @see [[Params.And]].
@@ -714,7 +719,7 @@ sealed trait Params[+A] extends Parser[A] {
   final def ||[A2 >: A](that: Params[A2]): Params[A2] = (this, that) match
     case (Params.FirstOfByArgIndex(options1), Params.FirstOfByArgIndex(options2)) => Params.FirstOfByArgIndex(options1 ::: options2)
     case (Params.FirstOfByArgIndex(options1), _)                                  => Params.FirstOfByArgIndex(options1 :+ that)
-    case (_, Params.FirstOfByArgIndex(options2))                                  => Params.FirstOfByArgIndex(this :: options2)
+    case (_, Params.FirstOfByArgIndex(options2))                                  => Params.FirstOfByArgIndex(this +: options2)
     case (_, _)                                                                   => Params.FirstOfByArgIndex(NonEmptyList.of(this, that))
 
 }
@@ -736,7 +741,7 @@ object Params {
       valueParser = Values.value[A](longName),
     )
 
-  def `enum`[A <: Enum[A]](
+  def `enum`[A](
       longName: LongName,
       shortName: Defaultable.Optional[ShortName] = Defaultable.Auto,
       aliases: List[SimpleName] = Nil,
@@ -1147,11 +1152,12 @@ object Params {
   final case class WithDefault[A](
       parser: Params[A],
       default: A,
+      shownDefault: String,
   ) extends Params[A] {
 
     override def optionalName: Option[Name] = parser.optionalName
 
-    override def helpMessage: HelpMessage.ParamMessage = parser.helpMessage.addHints(HelpHint.Default(default) :: Nil)
+    override def helpMessage: HelpMessage.ParamMessage = parser.helpMessage.addHints(HelpHint.Default(shownDefault) :: Nil)
 
     override def parseParams(params: List[Arg.ParamLike]): Params.ParseResult[A] =
       parser.parseParams(params) match
@@ -1160,9 +1166,9 @@ object Params {
         case fail @ Params.ParseResult.Fail(_, _)                                        => fail
 
     override def buildInternal(usedParams: Set[SimpleName]): Either[BuildError, (Set[SimpleName], Params[A])] =
-      parser.buildInternal(usedParams).map { case (up2, p) => (up2, WithDefault(p, default)) }
+      parser.buildInternal(usedParams).map { case (up2, p) => (up2, WithDefault(p, default, shownDefault)) }
 
-    override def map[B](f: A => B): Params[B] = Params.WithDefault(parser.map(f), f(default))
+    override def map[B](f: A => B): Params[B] = Params.WithDefault(parser.map(f), f(default), shownDefault)
 
   }
 

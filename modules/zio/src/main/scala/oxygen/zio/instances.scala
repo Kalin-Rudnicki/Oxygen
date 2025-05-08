@@ -2,8 +2,9 @@ package oxygen.zio
 
 import oxygen.core.typeclass.SeqOps
 import oxygen.json.JsonCodec
+import oxygen.zio.logging.RichLogLevel
 import scala.collection.mutable
-import zio.{Chunk, FiberId, LogSpan, StackTrace, Trace}
+import zio.{Chunk, FiberId, LogLevel, LogSpan, StackTrace, Trace}
 
 object instances {
 
@@ -11,6 +12,7 @@ object instances {
   given logSpanJsonCodec: JsonCodec[LogSpan] = JsonCodec.derived
   given fiberIdJsonCodec: JsonCodec[FiberId] = JsonCodec.derived
   given stackTraceJsonCodec: JsonCodec[StackTrace] = JsonCodec.derived
+  given logLevelJsonCodec: JsonCodec[LogLevel] = JsonCodec[RichLogLevel].transform(_.level, RichLogLevel.fromLogLevel)
 
   given chunkSeqOps: SeqOps[Chunk] =
     new SeqOps[Chunk] {

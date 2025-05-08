@@ -1,11 +1,12 @@
 package oxygen.executable
 
+import oxygen.cli.Params
+import oxygen.core.collection.Contiguous
 import oxygen.json.KeyedMapDecoder
-import oxygen.zio.logger.LogTarget
-import oxygen.zio.telemetry.TelemetryTarget
+import oxygen.zio.logging.{LogConfig, Logger}
 
 private[executable] final case class ExecutableContext(
-    logTargetDecoder: KeyedMapDecoder[LogTarget.ConfigBuilder],
-    telemetryTargetDecoder: KeyedMapDecoder[TelemetryTarget.ConfigBuilder],
-    cfg: ExecutableApp.Config,
+    logTargetDecoder: KeyedMapDecoder[LogConfig.LoggerElem],
+    additionalLoggerParsers: Contiguous[Params[Logger]],
+    executableConfig: ExecutableApp.Config,
 )

@@ -7,80 +7,38 @@ import oxygen.json.syntax.interop.*
 import oxygen.predef.core.*
 import oxygen.predef.json.*
 import oxygen.predef.zio.*
-import oxygen.zio.logger.{LogCause, LogEvent, LogTarget}
-import oxygen.zio.telemetry.TelemetryTarget
-import zio.{Cause, ExitCode, LogSpan, StackTrace, ZIOAppArgs, ZIOAppDefault}
+import oxygen.zio.JarUtils
+import oxygen.zio.logging.*
+import zio.{ExitCode, ZIOAppArgs, ZIOAppDefault}
 
 trait ExecutableApp extends ZIOAppDefault {
 
   val executable: Executable
 
-  val additionalLoggerParsers: Chunk[KeyedMapDecoder.Decoder[LogTarget.ConfigBuilder]] = Chunk.empty
-
-  val additionalTelemetryParsers: Chunk[KeyedMapDecoder.Decoder[TelemetryTarget.ConfigBuilder]] = Chunk.empty
+  val additionalLoggerDecoders: Contiguous[KeyedMapDecoder.Decoder[LogConfig.LoggerElem]] = Contiguous.empty
+  val additionalLoggerParsers: Contiguous[Params[Logger]] = Contiguous.empty
 
   private def parseAndExecute(args: List[String]): ZIO[Scope, ExecuteError, Unit] =
     for {
       (internalArgs, executableArgs) <- ZIO.succeed(Arg.splitOn_--(args))
-      config <- Parsing.parse(ExecutableApp.Config.parser, internalArgs)
-      _ <- config.initialLoggerDefault match
-        case ExecutableApp.Config.InitialLoggerDefault.Oxygen => Logger.defaultToOxygen.set
-        case ExecutableApp.Config.InitialLoggerDefault.ZIO    => Logger.defaultToZio.set
-      parsedJsons <- ZIO.foreach(config.sources)(ExecutableApp.Config.Source.eval)
+      executableConfig <- Parsing.parse(ExecutableApp.Config.parser, internalArgs)
+      _ <- LogConfig.usingConfig(LogConfig.oxygenDefault).set.unlessDiscard(executableConfig.keepZioLogger)
+      parsedJsons <- ZIO.foreach(executableConfig.sources)(ExecutableApp.Config.Source.eval)
       jsonConfig = parsedJsons.foldLeft[Json](Json.obj())(_ merge _)
       context = ExecutableContext(
-        KeyedMapDecoder(LogTarget.ConfigBuilder.default ++ additionalLoggerParsers),
-        KeyedMapDecoder(TelemetryTarget.ConfigBuilder.default ++ additionalTelemetryParsers),
-        config,
+        logTargetDecoder = KeyedMapDecoder(LogConfig.elemDecoders.default ++ additionalLoggerDecoders),
+        additionalLoggerParsers = additionalLoggerParsers,
+        executableConfig = executableConfig,
       )
       _ <- executable(jsonConfig, executableArgs, context)
     } yield ()
 
-  private final case class CapturedError(level: LogLevel, message: String, cause: LogCause, spans: List[LogSpan], context: Logger.LogContext, stackTrace: Option[StackTrace], code: ExitCode) {
-
-    def removeStackTrace: CapturedError = copy(stackTrace = None)
-
-    private def toLogEvent: LogEvent =
-      LogEvent(level, message, context, cause, zio.Trace.empty, stackTrace)
-
-    def log: UIO[Unit] =
-      Logger.handleEvent(toLogEvent) @@ Logger.addSpan(spans.map(s => Logger.Span(s.label, s.startTime.some)))
-
-  }
-  private object CapturedError {
-
-    def fromFail(error: Cause.Fail[ExecuteError]): CapturedError =
-      error.value match { // TODO (KR) : use `helpType`
-        case ExecuteError.Parsing.Help(help, _)           => CapturedError(LogLevel.Info, help.toString, LogCause.Empty, error.spans, error.annotations, None, ExitCode.success)
-        case ExecuteError.ProgramError(message, logLevel) => CapturedError(logLevel, "", LogCause.Fail(message, error.trace.some), error.spans, error.annotations, None, ExitCode.failure)
-        case e => CapturedError(LogLevel.Fatal, "", LogCause.Fail(Json.Str(e.getMessage), error.trace.some), error.spans, error.annotations, None, ExitCode.failure)
-      }
-
-    // TODO (KR) : add configurability for how these log events are displayed
-    def fromCause(cause: Cause[ExecuteError]): Chunk[CapturedError] =
-      cause.foldLog[Chunk[CapturedError]](
-        empty0 = Chunk.empty,
-        failCase0 = (e, stackTrace, spans, context) => Chunk.single(CapturedError.fromFail(Cause.Fail(e, stackTrace, spans, context))),
-        dieCase0 = (e, stackTrace, spans, context) =>
-          Chunk.single(CapturedError(LogLevel.Fatal, "Fiber Death", LogCause.Die(ThrowableRepr.fromThrowable(e), stackTrace.some), spans, context, None, ExitCode.failure)),
-        interruptCase0 =
-          (id, stackTrace, spans, context) => Chunk.single(CapturedError(LogLevel.Fatal, "Fiber Interruption", LogCause.Interrupt(id, stackTrace.some), spans, context, None, ExitCode.failure)),
-      )(
-        thenCase0 = _ ++ _,
-        bothCase0 = _ ++ _,
-        stacklessCase0 = {
-          case (events, true)  => events.map(_.removeStackTrace)
-          case (events, false) => events
-        },
-      )
-
-  }
-
   private def parseExecuteAndRecover(args: List[String]): URIO[Scope, ExitCode] =
-    parseAndExecute(args).exit.flatMap {
-      case zio.Exit.Success(_)     => ZIO.succeed(ExitCode.success)
-      case zio.Exit.Failure(cause) => ZIO.foreach(CapturedError.fromCause(cause))(e => e.log.as(e.code)).map { _.maxByOption(_.code).getOrElse(ExitCode.failure) }
-    }
+    parseAndExecute(args)
+      .as(ExitCode.success)
+      .catchSome { case ExecuteError.Parsing.Help(help, _) => Console.printLine(help.toString).orDie.as(ExitCode.success) }
+      .catchSome { case ExecuteError.Parsing.FailedToParse(error, help) => Console.printLine(s"$error\n$help").orDie.as(ExitCode.failure) }
+      .catchAllCause { ZIO.logFatalCause(_).as(ExitCode.failure) }
 
   override final def run: URIO[ZIOAppArgs, Unit] =
     ZIO
@@ -91,27 +49,10 @@ trait ExecutableApp extends ZIOAppDefault {
 object ExecutableApp {
 
   final case class Config(
-      initialLoggerDefault: Config.InitialLoggerDefault,
       sources: List[Config.Source],
+      keepZioLogger: Boolean,
   )
   object Config {
-
-    enum InitialLoggerDefault extends Enum[InitialLoggerDefault] { case ZIO, Oxygen }
-    object InitialLoggerDefault extends Enum.Companion[InitialLoggerDefault] {
-
-      val parser: Params[InitialLoggerDefault] =
-        Params
-          .`enum`(
-            "default-logger",
-            Defaultable.None,
-            hints = List(
-              "Whether to default oxygen logger to use default oxygen sources or default zio sources.",
-              "Note that this will be overridden by the executables logger parser.",
-            ),
-          )
-          .withDefault(InitialLoggerDefault.Oxygen)
-
-    }
 
     enum Source {
 
@@ -210,8 +151,8 @@ object ExecutableApp {
 
     val parser: Params[Config] =
       (
-        Config.InitialLoggerDefault.parser &&
-          Config.Source.parser.repeated
+        Config.Source.parser.repeated &&
+          Params.flag("keep-zio-logger", shortName = 'Z', hints = List("Specifying this flag stops oxygen from setting the default logger"))
       ).map { Config.apply }
 
   }

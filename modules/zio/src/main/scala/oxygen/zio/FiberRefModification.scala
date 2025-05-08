@@ -2,7 +2,6 @@ package oxygen.zio
 
 import zio.*
 
-// TODO (KR) : extend ZIOAspectAtLeastR
 trait FiberRefModificationR[-_R] extends ZIOAspectAtLeastR[_R] {
 
   /**

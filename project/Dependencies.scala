@@ -14,7 +14,7 @@ object Dependencies {
 
     // =====| Core |=====
 
-    val coreVersion = "2.1.9"
+    val coreVersion = "2.1.15"
 
     val zio = "zio"
     val test = "zio-test"

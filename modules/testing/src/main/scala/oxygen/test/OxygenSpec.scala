@@ -1,5 +1,6 @@
 package oxygen.test
 
+import oxygen.zio.logging.{LogConfig, LogLevels}
 import zio.*
 import zio.test.*
 
@@ -32,7 +33,6 @@ abstract class OxygenSpec[_R: EnvironmentTag] extends ZIOSpecDefault {
 
   // =====| Concrete |=====
 
-  // TODO (KR) : The logger
   override final def spec: Spec[TestEnvironment & Scope, Any] = {
     val spec2: TestSpec =
       testAspects.foldRight(testSpec) { case (a, s) => s @@ a }
@@ -40,25 +40,21 @@ abstract class OxygenSpec[_R: EnvironmentTag] extends ZIOSpecDefault {
       layerProvider.build(spec2)
     val spec4: Spec[DefaultEnv, Any] =
       if (withDefaultAspects) OxygenSpec.defaultTestAspects.foldRight(spec3) { case (a, s) => s @@ a } else spec3
-    val spec5: Spec[TestEnvironment & Scope, Any] =
-      spec4.provideSomeLayer(OxygenTestEnv.layer)
 
-    spec5
+    spec4
   }
 
 }
 object OxygenSpec {
 
-  type DefaultEnv = OxygenTestEnv & TestEnvironment & Scope
+  type DefaultEnv = TestEnvironment & Scope
 
   private val defaultTestAspects: Chunk[TestAspectAtLeastR[DefaultEnv]] =
     Chunk(
       TestAspect.samples(15),
       TestAspect.shrinks(0),
-      // TODO (KR) :
-      // Logger.withLevel.important.testAspect,
-      // OAspects.setLoggerSources,
-      // OAspects.logTestPathAndDuration,
+      OAspect.usingConfig(LogConfig.oxygenDefault(LogLevels.Important)),
+      OAspect.withTestAsLogSpan,
     )
 
 }
