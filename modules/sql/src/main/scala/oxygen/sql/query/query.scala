@@ -1,0 +1,219 @@
+package oxygen.sql.query
+
+import oxygen.predef.core.*
+import oxygen.sql.error.*
+import oxygen.sql.schema.*
+import zio.ZIO
+import zio.stream.ZStream
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////
+//      Query
+//////////////////////////////////////////////////////////////////////////////////////////////////////
+
+sealed trait QueryLike {
+
+  val ctx: QueryContext
+
+  final def showQuery: IndentedString =
+    IndentedString.section(s"Query[${ctx.queryType}](${ctx.queryName})")(
+      IndentedString.section("sql")(ctx.sql),
+    )
+
+}
+
+final class Query(
+    val ctx: QueryContext,
+) extends QueryLike { self =>
+
+  def apply(): QueryResult.Update[QueryError] = execute()
+  def execute(): QueryResult.Update[QueryError] =
+    QueryResult.Update[QueryError](
+      ctx,
+      ZIO.scoped {
+        for {
+          ps <- PreparedStatement.prepare(ctx)
+          updated <- ps.executeUpdate
+        } yield updated
+      },
+    )
+
+}
+object Query {
+
+  def simple(queryName: String, queryType: QueryContext.QueryType)(sql: String): Query =
+    Query(QueryContext(queryName, sql, queryType))
+
+}
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////
+//      QueryI
+//////////////////////////////////////////////////////////////////////////////////////////////////////
+
+final class QueryI[I](
+    val ctx: QueryContext,
+    encoder: InputEncoder[I],
+) extends QueryLike { self =>
+
+  def apply(input: I): QueryResult.Update[QueryError] = execute(input)
+  def execute(input: I): QueryResult.Update[QueryError] =
+    QueryResult.Update[QueryError](
+      ctx,
+      ZIO.scoped {
+        for {
+          ps <- PreparedStatement.prepare(ctx)
+          updated <- ps.executeUpdate(encoder, input)
+        } yield updated
+      },
+    )
+
+  def batched[S[_]: SeqOps](inputs: S[I]): QueryResult.BatchUpdate[QueryError] =
+    QueryResult.BatchUpdate[QueryError](
+      ctx,
+      ZIO.scoped {
+        for {
+          ps <- PreparedStatement.prepare(ctx)
+          updated <- ps.executeBatchUpdate(encoder, inputs)
+        } yield updated
+      },
+    )
+  def all(inputs: I*): QueryResult.BatchUpdate[QueryError] =
+    batched(inputs)
+
+  def apply[I1, I2](i1: I1, i2: I2)(using ev: (I1, I2) <:< I): QueryResult.Update[QueryError] =
+    self(ev((i1, i2)))
+  def apply[I1, I2, I3](i1: I1, i2: I2, i3: I3)(using ev: (I1, I2, I3) <:< I): QueryResult.Update[QueryError] =
+    self(ev((i1, i2, i3)))
+  def apply[I1, I2, I3, I4](i1: I1, i2: I2, i3: I3, i4: I4)(using ev: (I1, I2, I3, I4) <:< I): QueryResult.Update[QueryError] =
+    self(ev((i1, i2, i3, i4)))
+  def apply[I1, I2, I3, I4, I5](i1: I1, i2: I2, i3: I3, i4: I4, i5: I5)(using ev: (I1, I2, I3, I4, I5) <:< I): QueryResult.Update[QueryError] =
+    self(ev((i1, i2, i3, i4, i5)))
+  def apply[I1, I2, I3, I4, I5, I6](i1: I1, i2: I2, i3: I3, i4: I4, i5: I5, i6: I6)(using ev: (I1, I2, I3, I4, I5, I6) <:< I): QueryResult.Update[QueryError] =
+    self(ev((i1, i2, i3, i4, i5, i6)))
+  def apply[I1, I2, I3, I4, I5, I6, I7](i1: I1, i2: I2, i3: I3, i4: I4, i5: I5, i6: I6, i7: I7)(using ev: (I1, I2, I3, I4, I5, I6, I7) <:< I): QueryResult.Update[QueryError] =
+    self(ev((i1, i2, i3, i4, i5, i6, i7)))
+  def apply[I1, I2, I3, I4, I5, I6, I7, I8](i1: I1, i2: I2, i3: I3, i4: I4, i5: I5, i6: I6, i7: I7, i8: I8)(using ev: (I1, I2, I3, I4, I5, I6, I7, I8) <:< I): QueryResult.Update[QueryError] =
+    self(ev((i1, i2, i3, i4, i5, i6, i7, i8)))
+
+  def execute[I1, I2](i1: I1, i2: I2)(using ev: (I1, I2) <:< I): QueryResult.Update[QueryError] =
+    self(ev((i1, i2)))
+  def execute[I1, I2, I3](i1: I1, i2: I2, i3: I3)(using ev: (I1, I2, I3) <:< I): QueryResult.Update[QueryError] =
+    self(ev((i1, i2, i3)))
+  def execute[I1, I2, I3, I4](i1: I1, i2: I2, i3: I3, i4: I4)(using ev: (I1, I2, I3, I4) <:< I): QueryResult.Update[QueryError] =
+    self(ev((i1, i2, i3, i4)))
+  def execute[I1, I2, I3, I4, I5](i1: I1, i2: I2, i3: I3, i4: I4, i5: I5)(using ev: (I1, I2, I3, I4, I5) <:< I): QueryResult.Update[QueryError] =
+    self(ev((i1, i2, i3, i4, i5)))
+  def execute[I1, I2, I3, I4, I5, I6](i1: I1, i2: I2, i3: I3, i4: I4, i5: I5, i6: I6)(using ev: (I1, I2, I3, I4, I5, I6) <:< I): QueryResult.Update[QueryError] =
+    self(ev((i1, i2, i3, i4, i5, i6)))
+  def execute[I1, I2, I3, I4, I5, I6, I7](i1: I1, i2: I2, i3: I3, i4: I4, i5: I5, i6: I6, i7: I7)(using ev: (I1, I2, I3, I4, I5, I6, I7) <:< I): QueryResult.Update[QueryError] =
+    self(ev((i1, i2, i3, i4, i5, i6, i7)))
+  def execute[I1, I2, I3, I4, I5, I6, I7, I8](i1: I1, i2: I2, i3: I3, i4: I4, i5: I5, i6: I6, i7: I7, i8: I8)(using ev: (I1, I2, I3, I4, I5, I6, I7, I8) <:< I): QueryResult.Update[QueryError] =
+    self(ev((i1, i2, i3, i4, i5, i6, i7, i8)))
+
+  def contramap[I2](f: I2 => I): QueryI[I2] = QueryI[I2](self.ctx, self.encoder.contramap(f))
+
+}
+object QueryI {
+
+  def simple[I](queryName: String, queryType: QueryContext.QueryType)(
+      encoder: InputEncoder[I],
+  )(sql: String): QueryI[I] =
+    QueryI(QueryContext(queryName, sql, queryType), encoder)
+
+}
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////
+//      QueryO
+//////////////////////////////////////////////////////////////////////////////////////////////////////
+
+final class QueryO[O](
+    val ctx: QueryContext,
+    decoder: ResultDecoder[O],
+) extends QueryLike { self =>
+
+  def apply(): QueryResult.Returning[QueryError, O] = execute()
+  def execute(): QueryResult.Returning[QueryError, O] =
+    QueryResult.Returning[QueryError, O](
+      ctx,
+      for {
+        ps <- ZStream.fromZIO { PreparedStatement.prepare(ctx) }
+        o <- ps.executeQuery(decoder)
+      } yield o,
+    )
+
+  def map[O2](f: O => O2): QueryO[O2] = QueryO[O2](self.ctx, self.decoder.map(f))
+  def mapOrFail[O2](f: O => Either[String, O2]): QueryO[O2] = QueryO[O2](self.ctx, self.decoder.mapOrFail(f))
+
+}
+object QueryO {
+
+  def simple[O](queryName: String, queryType: QueryContext.QueryType)(
+      decoder: ResultDecoder[O],
+  )(sql: String): QueryO[O] =
+    QueryO(QueryContext(queryName, sql, queryType), decoder)
+
+}
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////
+//      QueryIO
+//////////////////////////////////////////////////////////////////////////////////////////////////////
+
+final class QueryIO[I, O](
+    val ctx: QueryContext,
+    encoder: InputEncoder[I],
+    decoder: ResultDecoder[O],
+) extends QueryLike { self =>
+
+  def apply(input: I): QueryResult.Returning[QueryError, O] = execute(input)
+  def execute(input: I): QueryResult.Returning[QueryError, O] =
+    QueryResult.Returning[QueryError, O](
+      ctx,
+      for {
+        ps <- ZStream.fromZIO { PreparedStatement.prepare(ctx) }
+        o <- ps.executeQuery(encoder, input, decoder)
+      } yield o,
+    )
+
+  def apply[I1, I2](i1: I1, i2: I2)(using ev: (I1, I2) <:< I): QueryResult.Returning[QueryError, O] =
+    self(ev((i1, i2)))
+  def apply[I1, I2, I3](i1: I1, i2: I2, i3: I3)(using ev: (I1, I2, I3) <:< I): QueryResult.Returning[QueryError, O] =
+    self(ev((i1, i2, i3)))
+  def apply[I1, I2, I3, I4](i1: I1, i2: I2, i3: I3, i4: I4)(using ev: (I1, I2, I3, I4) <:< I): QueryResult.Returning[QueryError, O] =
+    self(ev((i1, i2, i3, i4)))
+  def apply[I1, I2, I3, I4, I5](i1: I1, i2: I2, i3: I3, i4: I4, i5: I5)(using ev: (I1, I2, I3, I4, I5) <:< I): QueryResult.Returning[QueryError, O] =
+    self(ev((i1, i2, i3, i4, i5)))
+  def apply[I1, I2, I3, I4, I5, I6](i1: I1, i2: I2, i3: I3, i4: I4, i5: I5, i6: I6)(using ev: (I1, I2, I3, I4, I5, I6) <:< I): QueryResult.Returning[QueryError, O] =
+    self(ev((i1, i2, i3, i4, i5, i6)))
+  def apply[I1, I2, I3, I4, I5, I6, I7](i1: I1, i2: I2, i3: I3, i4: I4, i5: I5, i6: I6, i7: I7)(using ev: (I1, I2, I3, I4, I5, I6, I7) <:< I): QueryResult.Returning[QueryError, O] =
+    self(ev((i1, i2, i3, i4, i5, i6, i7)))
+  def apply[I1, I2, I3, I4, I5, I6, I7, I8](i1: I1, i2: I2, i3: I3, i4: I4, i5: I5, i6: I6, i7: I7, i8: I8)(using ev: (I1, I2, I3, I4, I5, I6, I7, I8) <:< I): QueryResult.Returning[QueryError, O] =
+    self(ev((i1, i2, i3, i4, i5, i6, i7, i8)))
+
+  def execute[I1, I2](i1: I1, i2: I2)(using ev: (I1, I2) <:< I): QueryResult.Returning[QueryError, O] =
+    self(ev((i1, i2)))
+  def execute[I1, I2, I3](i1: I1, i2: I2, i3: I3)(using ev: (I1, I2, I3) <:< I): QueryResult.Returning[QueryError, O] =
+    self(ev((i1, i2, i3)))
+  def execute[I1, I2, I3, I4](i1: I1, i2: I2, i3: I3, i4: I4)(using ev: (I1, I2, I3, I4) <:< I): QueryResult.Returning[QueryError, O] =
+    self(ev((i1, i2, i3, i4)))
+  def execute[I1, I2, I3, I4, I5](i1: I1, i2: I2, i3: I3, i4: I4, i5: I5)(using ev: (I1, I2, I3, I4, I5) <:< I): QueryResult.Returning[QueryError, O] =
+    self(ev((i1, i2, i3, i4, i5)))
+  def execute[I1, I2, I3, I4, I5, I6](i1: I1, i2: I2, i3: I3, i4: I4, i5: I5, i6: I6)(using ev: (I1, I2, I3, I4, I5, I6) <:< I): QueryResult.Returning[QueryError, O] =
+    self(ev((i1, i2, i3, i4, i5, i6)))
+  def execute[I1, I2, I3, I4, I5, I6, I7](i1: I1, i2: I2, i3: I3, i4: I4, i5: I5, i6: I6, i7: I7)(using ev: (I1, I2, I3, I4, I5, I6, I7) <:< I): QueryResult.Returning[QueryError, O] =
+    self(ev((i1, i2, i3, i4, i5, i6, i7)))
+  def execute[I1, I2, I3, I4, I5, I6, I7, I8](i1: I1, i2: I2, i3: I3, i4: I4, i5: I5, i6: I6, i7: I7, i8: I8)(using ev: (I1, I2, I3, I4, I5, I6, I7, I8) <:< I): QueryResult.Returning[QueryError, O] =
+    self(ev((i1, i2, i3, i4, i5, i6, i7, i8)))
+
+  def contramap[I2](f: I2 => I): QueryIO[I2, O] = QueryIO[I2, O](self.ctx, self.encoder.contramap(f), self.decoder)
+  def map[O2](f: O => O2): QueryIO[I, O2] = QueryIO[I, O2](self.ctx, self.encoder, self.decoder.map(f))
+  def mapOrFail[O2](f: O => Either[String, O2]): QueryIO[I, O2] = QueryIO[I, O2](self.ctx, self.encoder, self.decoder.mapOrFail(f))
+
+}
+object QueryIO {
+
+  def simple[I, O](queryName: String, queryType: QueryContext.QueryType)(
+      encoder: InputEncoder[I],
+      decoder: ResultDecoder[O],
+  )(sql: String): QueryIO[I, O] =
+    QueryIO(QueryContext(queryName, sql, queryType), encoder, decoder)
+
+}

@@ -1,8 +1,6 @@
 package oxygen.meta
 
-import oxygen.core.collection.NonEmptyList
-import oxygen.core.syntax.either.*
-import oxygen.core.syntax.option.*
+import oxygen.predef.core.*
 import scala.annotation.{compileTimeOnly, experimental}
 import scala.quoted.*
 
@@ -11,13 +9,94 @@ final class Meta[Q <: Quotes](val quotes: Q) {
   given Quotes = quotes
   import quotes.reflect as Raw
 
-  extension (self: Expr[?])
+  private def headerHuge(label: String): String =
+    s"""//////////////////////////////////////////////////////////////////////////////////////////////////////
+       |//      $label
+       |//////////////////////////////////////////////////////////////////////////////////////////////////////""".stripMargin
+
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
+  //      Helpers
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
+
+  // TODO (KR) : Raw.defn
+
+  object defn {
+
+    lazy val emptyTuple: TypeRepr = TypeRepr.ofType[EmptyTuple]
+    lazy val tupleAppend: TypeRepr = TypeRepr.ofType[? *: ?].asInstanceOf[TypeRepr.AppliedType].tycon
+
+    def TupleClass(arity: Int): Symbol = Symbol(Raw.defn.TupleClass(arity))
+
+    def isTupleClass(sym: Symbol): Boolean = Raw.defn.isTupleClass(sym.raw)
+
+  }
+
+  object unapplies {
+
+    // Note: This will not look for `(A, B)`, only `A *: B *: EmptyTuple
+    object tuple {
+
+      /**
+        * If `tpe` is a tuple, returns the list of types of the tuple elements.
+        */
+      def unapply(tpe: TypeRepr): Option[List[TypeRepr]] = tpe match
+        case _ if tpe.classSymbol == defn.emptyTuple.classSymbol                                              => Nil.some
+        case TypeRepr.AppliedType(root, List(head, tail)) if root.classSymbol == defn.tupleAppend.classSymbol => unapply(tail).map(head :: _)
+        case TypeRepr.AppliedType(root, args) if defn.isTupleClass(root.typeSymbol)                           => args.some
+        case _                                                                                                => None
+
+    }
+
+    // Note: This will not look for `(A, B)`, only `A *: B *: EmptyTuple
+    object nonEmptyTuple {
+
+      def unapply(tpe: TypeRepr): Option[NonEmptyList[TypeRepr]] =
+        tuple.unapply(tpe).flatMap(NonEmptyList.fromList(_))
+
+    }
+
+    // TODO (KR) : or
+
+    // TODO (KR) : and
+
+  }
+
+  extension (self: Expr[?]) {
+
     def toTerm: Tree.Statement.Term =
       Tree.Statement.Term(self)
+
+    def showAnsi: String =
+      self.toTerm.showAnsi
+
+    def showSimple: String =
+      self.toTerm.showSimple
+
+    def showDetailed(prefix: String): String =
+      self.toTerm.showDetailed(prefix)
+
+  }
+
+  extension (self: Tree) {
+
+    def showAnsi: String =
+      self.show(using Raw.Printer.TreeAnsiCode)
+
+    def showSimple: String =
+      self.show(using Raw.Printer.TreeShortCode)
+
+    def showDetailed(prefix: String): String =
+      s"${headerHuge(s"$prefix (expr)")}\n\n${self.showAnsi}\n\n${headerHuge(s"$prefix (tree)")}\n\n${IndentedString.fromAny(self.raw).toString("|   ")}"
+
+  }
 
   extension (self: Type[?])
     def typeRepr: TypeRepr =
       TypeRepr.fromType(self)
+
+  extension (self: Type.type)
+    def inst[A <: AnyKind](using ev: Type[A]): Type[A] =
+      ev
 
   extension (self: Expr.type) {
 
@@ -30,6 +109,18 @@ final class Meta[Q <: Quotes](val quotes: Q) {
         .asExprTyped
 
   }
+
+  object flatTerms {
+    export Tree.{Bind, CaseDef, Statement, Unapply}
+    export Tree.Statement.{Definition, Term}
+    export Tree.Statement.Definition.{DefDef, ValDef}
+    export Tree.Statement.Term.{Apply, Block, Closure, Match, Ref, TypeApply}
+    export Tree.Statement.Term.Ref.{Ident, Select}
+  }
+
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
+  //      Tree
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
 
   sealed trait Tree {
 
@@ -275,7 +366,8 @@ final class Meta[Q <: Quotes](val quotes: Q) {
           def copy(original: Tree)(name: String, paramss: List[ParamClause], tpt: TypeTree, rhs: Option[Term]): DefDef =
             DefDef(Raw.DefDef.copy(original.raw)(name, paramss.map(_.raw), tpt.raw, rhs.map(_.raw)))
 
-          // def unapply(ddef: DefDef): (String, List[ParamClause], TypeTree, Option[Term])
+          def unapply(ddef: DefDef): Some[(String, List[ParamClause], TypeTree, Option[Term])] =
+            Some((ddef.name, ddef.paramss, ddef.tpt, ddef.rhs))
 
         }
 
@@ -563,7 +655,8 @@ final class Meta[Q <: Quotes](val quotes: Q) {
             Apply(Raw.Apply.copy(original.raw)(fun.raw, args.map(_.raw)))
 
           /** Matches a function application `<fun: Term>(<args: List[Term]>)` */
-          // def unapply(x: Apply): (Term, List[Term])
+          def unapply(x: Apply): Some[(Term, List[Term])] =
+            Some((x.fun, x.args))
 
         }
 
@@ -620,7 +713,8 @@ final class Meta[Q <: Quotes](val quotes: Q) {
             TypeApply(Raw.TypeApply.copy(original.raw)(fun.raw, args.map(_.raw)))
 
           /** Matches a function type application `<fun: Term>[<args: List[TypeTree]>]` */
-          // def unapply(x: TypeApply): (Term, List[TypeTree])
+          def unapply(x: TypeApply): Some[(Term, List[TypeTree])] =
+            Some((x.fun, x.args))
 
         }
 
@@ -685,7 +779,8 @@ final class Meta[Q <: Quotes](val quotes: Q) {
             Block(Raw.Block.copy(original.raw)(stats.map(_.raw), expr.raw))
 
           /** Matches a block `{ <statements: List[Statement]>; <expr: Term> }` */
-          // def unapply(x: Block): (List[Statement], Term)
+          def unapply(x: Block): Some[(List[Statement], Term)] =
+            Some((x.statements, x.expr))
 
         }
 
@@ -704,7 +799,8 @@ final class Meta[Q <: Quotes](val quotes: Q) {
           def copy(original: Tree)(meth: Tree, tpe: Option[TypeRepr]): Closure =
             Closure(Raw.Closure.copy(original.raw)(meth.raw, tpe.map(_.raw)))
 
-          // def unapply(x: Closure): (Term, Option[TypeRepr])
+          def unapply(x: Closure): Some[(Term, Option[TypeRepr])] =
+            Some((x.meth, x.tpeOpt))
 
         }
 
@@ -752,7 +848,8 @@ final class Meta[Q <: Quotes](val quotes: Q) {
             Match(Raw.Match.copy(original.raw)(selector.raw, cases.map(_.raw)))
 
           /** Matches a pattern match `<scrutinee: Term> match { <cases: List[CaseDef]> }` */
-          // def unapply(x: Match): (Term, List[CaseDef])
+          def unapply(x: Match): Some[(Term, List[CaseDef])] =
+            Some((x.scrutinee, x.cases))
 
         }
 
@@ -854,7 +951,8 @@ final class Meta[Q <: Quotes](val quotes: Q) {
           def copy(original: Tree)(call: Option[TermOrTypeTree], bindings: List[Definition], expansion: Term): Inlined =
             Inlined(Raw.Inlined.copy(original.raw)(call.map(_.raw), bindings.map(_.raw), expansion.raw))
 
-          // def unapply(x: Inlined): (Option[TermOrTypeTree ], List[Definition], Term)
+          def unapply(x: Inlined): Some[(Option[TermOrTypeTree], List[Definition], Term)] =
+            Some((x.call, x.bindings, x.body))
 
         }
 
@@ -960,7 +1058,8 @@ final class Meta[Q <: Quotes](val quotes: Q) {
               Ident(Raw.Ident.copy(original.raw)(name))
 
             /** Matches a term identifier and returns its name */
-            // def unapply(tree: Ident): Some[String]
+            def unapply(tree: Ident): Some[String] =
+              Some(tree.name)
 
             // ---  ---
 
@@ -1020,7 +1119,8 @@ final class Meta[Q <: Quotes](val quotes: Q) {
               Select(Raw.Select.copy(original.raw)(qualifier.raw, name))
 
             /** Matches `<qualifier: Term>.<name: String>` */
-            // def unapply(x: Select): (Term, String)
+            def unapply(x: Select): Some[(Term, String)] =
+              Some((x.qualifier, x.name))
 
           }
 
@@ -1374,7 +1474,8 @@ final class Meta[Q <: Quotes](val quotes: Q) {
       def copy(original: Tree)(name: String, pattern: Tree): Bind =
         Bind(Raw.Bind.copy(original.raw)(name, pattern.raw))
 
-      // def unapply(pattern: Bind): (String, Tree)
+      def unapply(pattern: Bind): Some[(String, Tree)] =
+        Some((pattern.name, pattern.pattern))
 
     }
 
@@ -1406,7 +1507,8 @@ final class Meta[Q <: Quotes](val quotes: Q) {
         Unapply(Raw.Unapply.copy(original.raw)(fun.raw, implicits.map(_.raw), patterns.map(_.raw)))
 
       /** Matches an `Unapply(fun, implicits, patterns)` tree representing a pattern `<fun>(<patterns*>)(using <implicits*>)` */
-      // def unapply(x: Unapply): (Term, List[Term], List[Tree])
+      def unapply(x: Unapply): Some[(Tree.Statement.Term, List[Tree.Statement.Term], List[Tree])] =
+        Some((x.fun, x.implicits, x.patterns))
 
     }
 
@@ -1444,7 +1546,8 @@ final class Meta[Q <: Quotes](val quotes: Q) {
       def copy(original: Tree)(pattern: Tree, guard: Option[Tree.Statement.Term], rhs: Tree.Statement.Term): CaseDef =
         CaseDef(Raw.CaseDef.copy(original.raw)(pattern.raw, guard.map(_.raw), rhs.raw))
 
-      // def unapply(x: CaseDef): (Tree, Option[Term], Term)
+      def unapply(x: CaseDef): Some[(Tree, Option[Tree.Statement.Term], Tree.Statement.Term)] =
+        Some((x.pattern, x.guard, x.rhs))
 
     }
 
@@ -3390,56 +3493,12 @@ final class Meta[Q <: Quotes](val quotes: Q) {
         Typed(Raw.Typed.copy(original.raw)(expr.raw, tpt.raw))
 
       /** Matches `<expr: Term>: <tpt: TypeTree>` */
-      // def unapply(x: Typed): (Term, TypeTree)
+      def unapply(x: Typed): Some[(Tree.Statement.Term, Tree.TypeTree)] = {
+        val (a, b) = Raw.Typed.unapply(x.raw)
+        Some((Tree.Statement.Term(a), Tree.TypeTree(b)))
+      }
 
     }
-
-  }
-
-  //////////////////////////////////////////////////////////////////////////////////////////////////////
-  //      Helpers
-  //////////////////////////////////////////////////////////////////////////////////////////////////////
-
-  // TODO (KR) : Raw.defn
-
-  object defn {
-
-    lazy val emptyTuple: TypeRepr = TypeRepr.ofType[EmptyTuple]
-    lazy val tupleAppend: TypeRepr = TypeRepr.ofType[? *: ?].asInstanceOf[TypeRepr.AppliedType].tycon
-
-    def TupleClass(arity: Int): Symbol = Symbol(Raw.defn.TupleClass(arity))
-
-    def isTupleClass(sym: Symbol): Boolean = Raw.defn.isTupleClass(sym.raw)
-
-  }
-
-  object unapplies {
-
-    // Note: This will not look for `(A, B)`, only `A *: B *: EmptyTuple
-    object tuple {
-
-      /**
-        * If `tpe` is a tuple, returns the list of types of the tuple elements.
-        */
-      def unapply(tpe: TypeRepr): Option[List[TypeRepr]] = tpe match
-        case _ if tpe.classSymbol == defn.emptyTuple.classSymbol                                              => Nil.some
-        case TypeRepr.AppliedType(root, List(head, tail)) if root.classSymbol == defn.tupleAppend.classSymbol => unapply(tail).map(head :: _)
-        case TypeRepr.AppliedType(root, args) if defn.isTupleClass(root.typeSymbol)                           => args.some
-        case _                                                                                                => None
-
-    }
-
-    // Note: This will not look for `(A, B)`, only `A *: B *: EmptyTuple
-    object nonEmptyTuple {
-
-      def unapply(tpe: TypeRepr): Option[NonEmptyList[TypeRepr]] =
-        tuple.unapply(tpe).flatMap(NonEmptyList.fromList(_))
-
-    }
-
-    // TODO (KR) : or
-
-    // TODO (KR) : and
 
   }
 

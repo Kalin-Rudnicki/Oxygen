@@ -27,6 +27,8 @@ object Enum {
       protected lazy val map: Map[Enc, E] = values.flatMap { e => enc(e).toList.map((_, e)) }.toMap
       def encode(e: E): Enc = enc(e).head
       def decode(enc: Enc): Option[E] = map.get(enc)
+
+      final def unapply(enc: Enc): Option[E] = decode(enc)
     }
 
     abstract class CaseInsensitiveStringMap(enc: E => NonEmptyList[String]) extends EnumMap[String](enc) {

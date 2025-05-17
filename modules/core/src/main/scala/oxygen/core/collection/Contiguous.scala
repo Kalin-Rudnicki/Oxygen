@@ -26,9 +26,17 @@ final class Contiguous[+A] private[collection] (private val array: Array[A @unch
     new Contiguous[A2](newArray)
   }
 
+  def :+[A2 >: A](that: A2): Contiguous[A2] = new Contiguous[A2](array :+ that)
+  def +:[A2 >: A](that: A2): Contiguous[A2] = new Contiguous[A2](that +: array)
+
   inline def apply(index: Int): A = array(index)
   def at(index: Int): A = array(index)
   inline def get(index: Int): Option[A] = lift(index)
+
+  inline def head: A = array.head
+  inline def headOption: Option[A] = array.headOption
+  inline def last: A = array.last
+  inline def lastOption: Option[A] = array.lastOption
 
   def map[B](f: A => B): Contiguous[B] =
     new Contiguous[B](array.map(f))
@@ -96,6 +104,25 @@ final class Contiguous[+A] private[collection] (private val array: Array[A @unch
     (isLeft.result(), isRight.result())
   }
 
+  def groupBy[B](key: A => B): Map[B, Contiguous[A]] =
+    groupMap(key)(identity)
+
+  def groupMap[B, C](key: A => B)(value: A => C): Map[B, Contiguous[C]] = {
+    val map: mutable.Map[B, Contiguous.Builder[C]] = mutable.Map.empty
+
+    this.foreach { a =>
+      val k = key(a)
+      val b =
+        map.get(k) match {
+          case Some(builder) => builder
+          case None          => val builder = Contiguous.newBuilder[C]; map.update(k, builder); builder
+        }
+      b.addOne(value(a))
+    }
+
+    map.iterator.map { case (k, vs) => (k, vs.result()) }.toMap
+  }
+
   def sorted[B >: A: Ordering]: Contiguous[A] = new Contiguous[A](array.sorted)
   def sortBy[B: Ordering](f: A => B): Contiguous[A] = new Contiguous[A](array.sortBy(f))
 
@@ -108,6 +135,8 @@ final class Contiguous[+A] private[collection] (private val array: Array[A @unch
   inline def maxBy[B: Ordering](f: A => B): A = array.maxBy(f)
   inline def maxOption[B >: A: Ordering]: Option[A] = array.maxOption
   inline def maxByOption[B: Ordering](f: A => B): Option[A] = array.maxByOption(f)
+
+  inline def sum[B >: A](using numeric: Numeric[B]): B = array.sum[B]
 
   def filter(f: A => Boolean): Contiguous[A] = new Contiguous[A](array.filter(f))
   def filterNot(f: A => Boolean): Contiguous[A] = new Contiguous[A](array.filterNot(f))
@@ -135,6 +164,18 @@ final class Contiguous[+A] private[collection] (private val array: Array[A @unch
   inline def toIArray: IArray[A] = IArray.unsafeFromArray(array)
   inline def toSet[B >: A]: Set[B] = array.toSet
   inline def toMap[K, V](implicit ev: A <:< (K, V)): Map[K, V] = array.toMap
+
+  def zipWithIndexFrom(startIdx: Int): Contiguous[(A, Int)] = {
+    val builder = Contiguous.newBuilder[(A, Int)]
+    val iter = this.iterator
+    var idx: Int = startIdx
+    while (iter.hasNext) {
+      builder.addOne((iter.next(), idx))
+      idx += 1
+    }
+    builder.result()
+  }
+  def zipWithIndex: Contiguous[(A, Int)] = zipWithIndexFrom(0)
 
   def zipUsing[B, C](that: Contiguous[B])(leftOnly: A => C, rightOnly: B => C, both: (A, B) => C): Contiguous[C] = {
     var idx: Int = 0
@@ -237,6 +278,9 @@ object Contiguous {
 
   def newBuilder[A]: Builder[A] =
     Array.newBuilder[A].mapResult(new Contiguous[A](_))
+
+  def unapplySeq[A](contiguous: Contiguous[A]): Option[Seq[A]] =
+    Some(contiguous.toSeq)
 
   //////////////////////////////////////////////////////////////////////////////////////////////////////
   //      Tag

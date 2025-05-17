@@ -3,7 +3,7 @@ package oxygen.zio.syntax
 import oxygen.zio.*
 import oxygen.zio.logging.*
 import zio.*
-import zio.oxygen.logOps
+import zio.compat.logOps
 
 object log {
 

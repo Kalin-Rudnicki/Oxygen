@@ -259,9 +259,10 @@ object SingleBuilders {
             Params.toggle.prefixFalse("no", "log-fiber", hints = List("Whether to log trace location")).withDefault(true) &&
             Params.toggle.prefixFalse("no", "log-annotations", hints = List("Whether to log trace location")).withDefault(true) &&
             Params.toggle.prefixFalse("no", "log-spans", hints = List("Whether to log trace location")).withDefault(true) &&
-            Params.toggle.prefixFalse("no", "log-timestamp", hints = List("Whether to log trace location")).withDefault(true)
+            Params.toggle.prefixFalse("no", "log-timestamp", hints = List("Whether to log trace location")).withDefault(true) &&
+            Params.toggle.prefixFalse("no", "ignore-stackless", hints = List("Ignore when a cause denotes itself as `stackless`")).withDefault(true)
         ).bracketed("oxygen-params")
-          .map { Logger.oxygen(_, _, _, _, _, _) }
+          .map { Logger.oxygen }
           .withDefault { Logger.oxygenDefault }
 
       }

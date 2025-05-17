@@ -7,19 +7,45 @@ import oxygen.predef.core.*
 import scala.quoted.*
 import scala.reflect.ClassTag
 
-final class K0[Q <: Quotes](val meta: Meta[Q]) {
+final class K0[Q <: Quotes](val meta: Meta[Q]) { k0 =>
   given Quotes = meta.quotes
   import meta.*
 
-  final class ValExpressions[F[_]] private[K0] (private val expressionPairs: Contiguous[ValExpressions.Elem[F, ?]]) {
+  final class ValExpressions[F[_]] private[K0] (
+      private val fTpe: Type[F],
+      private val expressionPairs: Contiguous[ValExpressions.Elem[F, ?]],
+  ) {
+
+    private[K0] def types: Contiguous[Type[?]] = expressionPairs.map(_.aTpe)
 
     private[K0] def at[A](idx: Int): Expr[F[A]] =
       expressionPairs.at(idx).expr.asInstanceOf[Expr[F[A]]]
 
     ////////////////////////////////////////////
 
+    def validate(types: Contiguous[Type[?]]): Unit = {
+      def fail(msg: String): Nothing =
+        report.errorAndAbort(
+          IndentedString
+            .section(s"Error validating ValExpressions[${fTpe.typeRepr.show}]: $msg")(
+              IndentedString.section("Expected")(expressionPairs.map(_.aTpe.typeRepr.show)),
+              IndentedString.section("Actual")(types.map(_.typeRepr.show)),
+            )
+            .toString,
+        )
+
+      if (types.length != expressionPairs.length)
+        fail("Invalid size")
+
+      expressionPairs.iterator.zip(types.iterator).zipWithIndex.foreach { case ((exp, act), i) =>
+        if (!(exp.aTpe.typeRepr =:= act.typeRepr))
+          report.errorAndAbort(s"Type difference at index $i")
+      }
+    }
+
     def mapK[G[_]](transform: [i] => ValExpressions.Elem[F, i] => Expr[G[i]])(using gType: Type[G]): ValExpressions[G] =
-      ValExpressions[G] {
+      ValExpressions[G](
+        gType,
         expressionPairs.map { _elem =>
           type _T
           val elem: ValExpressions.Elem[F, _T] = _elem.asInstanceOf[ValExpressions.Elem[F, _T]]
@@ -29,8 +55,8 @@ final class K0[Q <: Quotes](val meta: Meta[Q]) {
             elem.aTpe,
             gType,
           )
-        }
-      }
+        },
+      )
 
   }
   object ValExpressions {
@@ -48,7 +74,14 @@ final class K0[Q <: Quotes](val meta: Meta[Q]) {
       def make[F[_], A](expr: Expr[F[A]])(using aTpe: Type[A], fTpe: Type[F]): Elem[F, A] =
         Elem(expr, aTpe, fTpe)
 
+      def unsafeMake[F[_], A](expr: Expr[F[A]], aTpe: Type[?])(using fTpe: Type[F]): Elem[F, ?] =
+        Elem[F, Any](expr.asInstanceOf[Expr[F[Any]]], aTpe.asInstanceOf[Type[Any]], fTpe)
+
     }
+
+    def unsafeMake[F[_]: Type](pairs: Contiguous[Elem[F, ?]]): ValExpressions[F] = new ValExpressions[F](Type.inst, pairs)
+    def unsafeMakeTup[F[_]: Type](pairs: Contiguous[(Type[?], Expr[F[Any]])]): ValExpressions[F] =
+      unsafeMake { pairs.map { case (tpe, expr) => Elem.unsafeMake(expr, tpe) } }
 
   }
 
@@ -83,6 +116,11 @@ final class K0[Q <: Quotes](val meta: Meta[Q]) {
 
     final def requiredAnnotationValue[Annot: {Type, FromExpr}]: Annot =
       typeRepr.requiredAnnotationValue[Annot]
+
+    def toIndentedString: IndentedString
+
+    override final def toString: String =
+      toIndentedString.toString("|   ")
 
   }
   object Generic {
@@ -172,9 +210,24 @@ final class K0[Q <: Quotes](val meta: Meta[Q]) {
       def requiredAnnotationTValue[Annot[_]: Type](using FromExpr[Annot[I]]): Annot[I] =
         constructorSymRepr.requiredAnnotationValue[Annot[I]]
 
+      def toIndentedString: IndentedString =
+        IndentedString.section(s"$name:")(
+          s"type: ${typeRepr.show}",
+        )
+
     }
 
+    override def toIndentedString: IndentedString =
+      IndentedString.section(s"[${typeRepr.show}]")(
+        IndentedString.section("fields:")(
+          fields.toSeq.map(_.toIndentedString)*,
+        ),
+      )
+
     // =====| Functions |=====
+
+    def validate[F[_]](exprs: ValExpressions[F]): Unit =
+      exprs.validate(Contiguous.fromIArray(fields).map(_.tpe))
 
     object builders {
 
@@ -198,7 +251,7 @@ final class K0[Q <: Quotes](val meta: Meta[Q]) {
                 ${ loop(tail, acc :+ ValExpressions.Elem.make('value)) }
               }
             case Nil =>
-              use(new ValExpressions[F](acc.toContiguous))
+              use(new ValExpressions[F](Type.inst, acc.toContiguous))
           }
 
         loop(fields.toList, Growable.empty)
@@ -224,7 +277,7 @@ final class K0[Q <: Quotes](val meta: Meta[Q]) {
                 ${ loop(tail, acc :+ ValExpressions.Elem.make('value)) }
               }
             case Nil =>
-              use(new ValExpressions[F](acc.toContiguous))
+              use(new ValExpressions[F](Type.inst, acc.toContiguous))
           }
 
         loop(fields.toList, Growable.empty)
@@ -247,6 +300,35 @@ final class K0[Q <: Quotes](val meta: Meta[Q]) {
           use: ValExpressions[TC] => Expr[TC[A]],
       ): Expr[TC[A]] =
         withLazyTypeClasses[TC, TC[A]](use)
+
+      def withValExpressionsFold[Acc: Type, O: Type](
+          zero: Expr[Acc],
+      )(
+          make: [i] => (Expr[Acc], Field[i]) => Expr[Acc],
+      )(
+          use: ValExpressions[[_] =>> Acc] => Expr[O],
+      ): Expr[O] = {
+        def loop(
+            queue: List[Field[?]],
+            acc: Growable[ValExpressions.Elem[[_] =>> Acc, ?]],
+            current: Expr[Acc],
+        ): Expr[O] =
+          queue match {
+            case _field :: tail =>
+              type _T
+              val field: Field[_T] = _field.asInstanceOf[Field[_T]]
+              import field.given
+
+              '{
+                val value: Acc = ${ make(current, field) }
+                ${ loop(tail, acc :+ ValExpressions.Elem.make('value), 'value) }
+              }
+            case Nil =>
+              use(new ValExpressions[[_] =>> Acc](Type.inst, acc.toContiguous))
+          }
+
+        loop(fields.toList, Growable.empty, zero)
+      }
 
       /**
         * This is useful for when you want to produce an `A` as an output.
@@ -319,6 +401,15 @@ final class K0[Q <: Quotes](val meta: Meta[Q]) {
       def eitherMapToInstance[E: Type](makeFieldValue: [i] => Field[i] => Expr[Either[E, i]]): Expr[Either[E, A]] =
         monadMapToInstance[[R] =>> Either[E, R]](makeFieldValue)
 
+      def foldLeft[B: Type](zero: Expr[B])(f: [i] => (Expr[B], Field[i]) => Expr[B]): Expr[B] =
+        fields.foldLeft(zero) { (acc, _field) =>
+          type _T
+          val field: Field[_T] = _field.asInstanceOf[Field[_T]]
+          import field.given
+
+          f(acc, field)
+        }
+
       /**
         * This is useful when you want to get some `Seq` of "something else" out of your `A`.
         *
@@ -326,6 +417,12 @@ final class K0[Q <: Quotes](val meta: Meta[Q]) {
         */
       def mapToSeq[B](mapField: [i] => Field[i] => B): Seq[B] =
         fields.toSeq.map(mapField(_))
+
+      def mapToContiguous[B](mapField: [i] => Field[i] => B): Contiguous[B] =
+        fields.toContiguous.map(mapField(_))
+
+      def mapToContiguousExpr[B: Type](mapField: [i] => Field[i] => Expr[B]): Expr[Contiguous[B]] =
+        '{ Contiguous(${ Expr.ofSeq(mapToSeq(mapField)) }*) }
 
     }
 
@@ -440,6 +537,18 @@ final class K0[Q <: Quotes](val meta: Meta[Q]) {
       }
     }
 
+    final def tupleInstance[F[_]](gen: K0.Derivable.WithInstances[F], insts: ValExpressions[F])(using fTpe: Type[F]): (Type[?], Expr[F[Any]]) = {
+      val repr: TypeRepr = TypeRepr.tuplePreferTupleN(insts.types.map(_.typeRepr).toSeq*)
+      type Tup
+      given tupTpe: Type[Tup] = repr.asTyped
+
+      val generic: ProductGeneric[Tup] = ProductGeneric.of[Tup]
+      generic.validate(insts)
+
+      repr.asType ->
+        gen.__internalDeriveProductI[Q, Tup](k0)(generic, insts)(using quotes, tupTpe, fTpe).asInstanceOf[Expr[F[Any]]]
+    }
+
   }
 
   //////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -504,6 +613,13 @@ final class K0[Q <: Quotes](val meta: Meta[Q]) {
         productGeneric.requiredAnnotationValue[Annot[I]]
 
     }
+
+    override def toIndentedString: IndentedString =
+      IndentedString.section(s"[${typeRepr.show}]")(
+        IndentedString.section("cases:")(
+          cases.map(_.productGeneric.toIndentedString),
+        ),
+      )
 
     trait MatchBuilder[CaseMatch[_ <: A] <: Tuple, RhsParams[_ <: A] <: Tuple] {
 
@@ -772,7 +888,7 @@ final class K0[Q <: Quotes](val meta: Meta[Q]) {
                 ${ loop(tail, acc :+ ValExpressions.Elem.make('value)) }
               }
             case Nil =>
-              use(new ValExpressions[F](acc.toContiguous))
+              use(new ValExpressions[F](Type.inst, acc.toContiguous))
           }
 
         loop(cases.toList, Growable.empty)
@@ -798,7 +914,7 @@ final class K0[Q <: Quotes](val meta: Meta[Q]) {
                 ${ loop(tail, acc :+ ValExpressions.Elem.make('value)) }
               }
             case Nil =>
-              use(new ValExpressions[F](acc.toContiguous))
+              use(new ValExpressions[F](Type.inst, acc.toContiguous))
           }
 
         loop(cases.toList, Growable.empty)
@@ -899,6 +1015,9 @@ final class K0[Q <: Quotes](val meta: Meta[Q]) {
         */
       def mapToSeq[B](mapCase: [i <: A] => Case[i] => B): Seq[B] =
         cases.toSeq.map(mapCase(_))
+
+      def mapToContiguousExpr[B: Type](mapCase: [i <: A] => Case[i] => Expr[B]): Expr[Contiguous[B]] =
+        '{ Contiguous(${ Expr.ofSeq(mapToSeq(mapCase)) }*) }
 
     }
 
@@ -1101,7 +1220,7 @@ final class K0[Q <: Quotes](val meta: Meta[Q]) {
                 ${ loop(tail, acc :+ ValExpressions.Elem.make('value)) }
               }
             case Nil =>
-              use(new ValExpressions[F](acc.toContiguous))
+              use(new ValExpressions[F](Type.inst, acc.toContiguous))
           }
 
         loop(cases.toList, Growable.empty)
@@ -1127,7 +1246,7 @@ final class K0[Q <: Quotes](val meta: Meta[Q]) {
                 ${ loop(tail, acc :+ ValExpressions.Elem.make('value)) }
               }
             case Nil =>
-              use(new ValExpressions[F](acc.toContiguous))
+              use(new ValExpressions[F](Type.inst, acc.toContiguous))
           }
 
         loop(cases.toList, Growable.empty)
@@ -1226,7 +1345,7 @@ final class K0[Q <: Quotes](val meta: Meta[Q]) {
                 ${ loop(tail, acc :+ ValExpressions.Elem.make('value)) }
               }
             case Nil =>
-              use(new ValExpressions[F](acc.toContiguous))
+              use(new ValExpressions[F](Type.inst, acc.toContiguous))
           }
 
         loop(cases.toList, Growable.empty)
@@ -1252,7 +1371,7 @@ final class K0[Q <: Quotes](val meta: Meta[Q]) {
                 ${ loop(tail, acc :+ ValExpressions.Elem.make('value)) }
               }
             case Nil =>
-              use(new ValExpressions[F](acc.toContiguous))
+              use(new ValExpressions[F](Type.inst, acc.toContiguous))
           }
 
         loop(cases.toList, Growable.empty)
@@ -1324,6 +1443,7 @@ object K0 {
     protected final def derivedImpl[A](using quotes: Quotes, aTpe: Type[A], tTpe: Type[T]): Expr[T[A]] = {
       val meta: Meta[quotes.type] = Meta(quotes)
       val k0: K0[quotes.type] = K0(meta)
+      import meta.toTerm
 
       val g: k0.Generic[A] = k0.Generic.of[A]
       val derivedExpr = g match
@@ -1331,7 +1451,7 @@ object K0 {
         case g: k0.SumGeneric[A]     => internalDeriveSum[quotes.type, A](k0)(g)(using quotes, aTpe, tTpe)
 
       if (g.optionalAnnotation[showDerivation].nonEmpty)
-        meta.report.info(derivedExpr.show)
+        meta.report.info(derivedExpr.toTerm.show(using quotes.reflect.Printer.TreeAnsiCode))
 
       derivedExpr
     }
@@ -1347,6 +1467,9 @@ object K0 {
 
       protected def internalDeriveProductI[Q <: Quotes, A](k0: K0[Q])(g: k0.ProductGeneric[A], i: k0.ValExpressions[T])(using quotes: Q, aTpe: Type[A], tTpe: Type[T]): Expr[T[A]]
       protected def internalDeriveSumI[Q <: Quotes, A](k0: K0[Q])(g: k0.SumGeneric[A], i: k0.ValExpressions[T])(using quotes: Q, aTpe: Type[A], tTpe: Type[T]): Expr[T[A]]
+
+      private[meta] final def __internalDeriveProductI[Q <: Quotes, A](k0: K0[Q])(g: k0.ProductGeneric[A], i: k0.ValExpressions[T])(using quotes: Q, aTpe: Type[A], tTpe: Type[T]): Expr[T[A]] =
+        internalDeriveProductI[Q, A](k0)(g, i)
 
       override protected final def internalDeriveProduct[Q <: Quotes, A](k0: K0[Q])(g: k0.ProductGeneric[A])(using quotes: Q, aTpe: Type[A], tTpe: Type[T]): Expr[T[A]] =
         g.builders.instanceFromLazyTypeClasses[T] { i => internalDeriveProductI[Q, A](k0)(g, i) }

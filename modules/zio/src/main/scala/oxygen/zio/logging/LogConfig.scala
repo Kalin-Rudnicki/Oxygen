@@ -8,7 +8,7 @@ import oxygen.zio.*
 import oxygen.zio.instances.given
 import oxygen.zio.syntax.log.*
 import zio.*
-import zio.oxygen.logOps
+import zio.compat.logOps
 
 final case class LogConfig(
     annotations: Map[String, String],
@@ -67,6 +67,7 @@ object LogConfig {
         logAnnotations: Option[Boolean],
         logSpans: Option[Boolean],
         logTimestamp: Option[Boolean],
+        ignoreStackless: Option[Boolean],
     ) derives JsonDecoder
 
     val zio: KeyedMapDecoder.Decoder[LoggerElem] =
@@ -91,6 +92,7 @@ object LogConfig {
               logAnnotations = c.logAnnotations.getOrElse(true),
               logSpans = c.logSpans.getOrElse(true),
               logTimestamp = c.logTimestamp.getOrElse(true),
+              ignoreStackless = c.ignoreStackless.getOrElse(true),
             )
           LoggerElem(logger, c.level)
         }

@@ -23,6 +23,11 @@ object either {
       case Right(value) => Right(value)
       case Left(value)  => Left(f(value))
 
+    def bimap[A2, B2](left: A => A2, right: B => B2): Either[A2, B2] = self match {
+      case Right(value) => Right(right(value))
+      case Left(value)  => Left(left(value))
+    }
+
   }
 
   extension [A](self: A) {

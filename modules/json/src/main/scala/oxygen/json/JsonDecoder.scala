@@ -1,7 +1,7 @@
 package oxygen.json
 
 import java.time.*
-import java.util.TimeZone
+import java.util.{TimeZone, UUID}
 import oxygen.core.javaEnums.given
 import oxygen.core.typeclass.{NonEmpty, SeqOps}
 import oxygen.json.generic.*
@@ -205,6 +205,7 @@ object JsonDecoder extends K0.Derivable.WithInstances[JsonDecoder], JsonDecoderL
 
   given string: JsonDecoder[String] = StringDecoder
   given boolean: JsonDecoder[Boolean] = BooleanDecoder
+  given uuid: JsonDecoder[UUID] = StringDecoder.mapAttempt(UUID.fromString)
 
   given bigDecimal: JsonDecoder[BigDecimal] = BigDecimalDecoder
   given double: JsonDecoder[Double] = BigDecimalDecoder.narrow(_.toDouble, BigDecimal.exact)

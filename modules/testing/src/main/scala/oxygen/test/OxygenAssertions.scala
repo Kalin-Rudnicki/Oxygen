@@ -1,6 +1,6 @@
 package oxygen.test
 
-import oxygen.core.collection.NonEmptyList
+import oxygen.core.collection.{Contiguous, NonEmptyList}
 import oxygen.core.syntax.common.*
 import scala.Console.*
 import zio.test.*
@@ -130,6 +130,7 @@ object OxygenAssertions {
       case _: Option[?]         => None
       case seq: IterableOnce[?] => Seq.from(seq).some
       case seq: Array[?]        => seq.toSeq.some
+      case seq: Contiguous[?]   => seq.toSeq.some
       case _                    => None
   }
 
@@ -196,9 +197,7 @@ object OxygenAssertions {
 
   private def diffAnyUnfiltered(expected: Any, actual: Any, show: Any => Option[String]): String =
     (expected.asInstanceOf[Matchable], actual.asInstanceOf[Matchable]) match {
-      case (_expected: IterableOnce[?], _actual: IterableOnce[?]) if !_expected.isInstanceOf[Option[?]] && !_actual.isInstanceOf[Option[?]] =>
-        val expected = Seq.from(_expected)
-        val actual = Seq.from(_actual)
+      case (seqNotOption(expected), seqNotOption(actual)) =>
         val diffs =
           0.until(expected.length max actual.length).map { i =>
             (

@@ -1,5 +1,7 @@
 package oxygen.core
 
+import oxygen.core.collection.NonEmptyList
+import oxygen.core.typeclass.SeqOps
 import scala.collection.mutable
 
 sealed trait IndentedString {
@@ -24,6 +26,41 @@ sealed trait IndentedString {
   //////////////////////////////////////////////////////////////////////////////////////////////////////
   //      Show
   //////////////////////////////////////////////////////////////////////////////////////////////////////
+
+  final def toString(idtStrs: NonEmptyList[String]): String = {
+    val builder = mutable.StringBuilder()
+    var first: Boolean = true
+
+    inline def makeIndent(indent: String): Unit =
+      if (first)
+        first = false
+      else {
+        builder.append('\n')
+        builder.append(indent)
+      }
+
+    def rec(indentedString: IndentedString, indent: String, nextIndents: NonEmptyList[String]): Unit =
+      indentedString match {
+        case IndentedString.Str(str) =>
+          makeIndent(indent)
+          builder.append(str)
+        case IndentedString.Inline(children) =>
+          children.foreach(rec(_, indent, nextIndents))
+        case IndentedString.Indented(children) =>
+          val newIndent = indent + nextIndents.head
+          val newNext = NonEmptyList.fromList(nextIndents.tail).getOrElse(idtStrs)
+          children.foreach(rec(_, newIndent, newNext))
+        case IndentedString.Break =>
+          makeIndent("")
+      }
+
+    rec(this, "", idtStrs)
+
+    builder.toString
+  }
+
+  final def toString(idtStr0: String, idtStr1: String, idtStrN: String*): String =
+    toString(NonEmptyList(idtStr0, idtStr1 :: idtStrN.toList))
 
   final def toString(idtStr: String): String = {
     val builder = mutable.StringBuilder()
@@ -51,6 +88,19 @@ sealed trait IndentedString {
 
     builder.toString
   }
+
+  final def toStringColorized(idt: String, color0: Color, colorN: Color*): String =
+    toString(NonEmptyList(color0, colorN.toList).map { c => idt.withFg(c).toString })
+
+  final def toStringColorized(idt: String): String =
+    toStringColorized(
+      idt,
+      Color.RGB.hex("#7D5BA6"),
+      Color.RGB.hex("#E54724"),
+      Color.RGB.hex("#55D6BE"),
+      Color.RGB.hex("#3E8914"),
+      Color.RGB.hex("#806FC3"),
+    )
 
   override final def toString: String =
     toString("    ")
@@ -85,6 +135,10 @@ object IndentedString {
   def section(header: String)(body: IndentedString*): IndentedString =
     IndentedString.inline(header, IndentedString.indented(body*))
 
+  def keyValue(key: String, value: String): IndentedString =
+    if (value.contains('\n')) IndentedString.section(key)(value)
+    else s"$key$value"
+
   def fromAny(any: Any)(show: PartialFunction[Matchable, IndentedString]): IndentedString = fromAny(any, show.lift)
   def fromAny(any: Any): IndentedString = fromAny(any, _ => None)
 
@@ -95,28 +149,28 @@ object IndentedString {
   trait ToIndentedString[-T] {
     def convert(t: T): IndentedString
   }
+  object ToIndentedString {
 
-  implicit def convert[T: ToIndentedString](t: T): IndentedString =
-    implicitly[ToIndentedString[T]].convert(t)
+    given id: ToIndentedString[IndentedString] =
+      identity(_)
 
-  implicit val indentedStringToIndentedString: ToIndentedString[IndentedString] = identity(_)
+    given string: ToIndentedString[String] =
+      str =>
+        if (str.contains('\n')) Inline(str.split('\n').map(Str(_)).toSeq)
+        else Str(str)
 
-  implicit val stringToIndentedString: ToIndentedString[String] = Str(_)
+    given option: [A] => (toIdtStr: ToIndentedString[A]) => ToIndentedString[Option[A]] = {
+      case Some(value) => toIdtStr.convert(value)
+      case None        => IndentedString.Inline(Nil)
+    }
 
-  implicit def optionToIndentedString[T: ToIndentedString]: ToIndentedString[Option[? <: T]] = { opt =>
-    val toIdtStr = implicitly[ToIndentedString[T]]
-    Inline(opt.map(toIdtStr.convert).toList.flatMap(_.nonInlines)).withoutInlineWrapper
+    given seq: [S[_], A] => (seqOps: SeqOps[S], a: ToIndentedString[A]) => ToIndentedString[S[A]] =
+      as => Inline(seqOps.newIterator(as).map(a.convert).toSeq.flatMap(_.nonInlines)).withoutInlineWrapper
+
   }
 
-  implicit def listToIndentedString[T: ToIndentedString]: ToIndentedString[List[? <: T]] = { list =>
-    val toIdtStr = implicitly[ToIndentedString[T]]
-    Inline(list.map(toIdtStr.convert).flatMap(_.nonInlines)).withoutInlineWrapper
-  }
-
-  implicit def seqToIndentedString[T: ToIndentedString]: ToIndentedString[Seq[? <: T]] = { seq =>
-    val toIdtStr = implicitly[ToIndentedString[T]]
-    Inline(seq.map(toIdtStr.convert).flatMap(_.nonInlines)).withoutInlineWrapper
-  }
+  given convertIdtStr: [A] => (toIdtStr: ToIndentedString[A]) => Conversion[A, IndentedString] =
+    toIdtStr.convert(_)
 
   //////////////////////////////////////////////////////////////////////////////////////////////////////
   //      Helpers

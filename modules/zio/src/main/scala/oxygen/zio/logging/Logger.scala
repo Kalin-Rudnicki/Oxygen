@@ -35,6 +35,7 @@ object Logger {
       logAnnotations: Boolean,
       logSpans: Boolean,
       logTimestamp: Boolean,
+      ignoreStackless: Boolean,
   ): Logger =
     Logger("oxygen-logger") {
       (
@@ -97,6 +98,14 @@ object Logger {
           colorize(value, valueColor)
         }
 
+        inline def writeSafe(str: String): Unit =
+          str.foreach {
+            case '\n' => sb.append("\n[     ]: ")
+            case c    => sb.append(c)
+          }
+
+        // =====| Start |=====
+
         sb.append('[')
         colorize(richLevel.formattedShortName, richLevel.color)
         sb.append("]: ")
@@ -149,51 +158,68 @@ object Logger {
             writeNewLine()
           needsNewLine = true
 
-          message.foreach {
-            case '\n' => writeNewLine()
-            case c    => sb.append(c)
-          }
-
+          writeSafe(message)
         }
 
         // =====| Cause |=====
 
-        EncodedLogCause.fromAnyCause(cause).foreach {
-          _.toSimple.foreach { cause =>
+        def printCauseChain(cause: Throwable): Unit = {
+          var c: Throwable = cause
 
+          while (c != null) {
             sb.append("\n[cause]: ")
-
-            cause match {
-              case EncodedLogCause.Fail(message, _) =>
-                sb.append("<Fail> : ")
-                message.foreach {
-                  case '\n' => writeNewLine()
-                  case c    => sb.append(c)
-                }
-              case EncodedLogCause.Die(error, _) =>
-                sb.append("<Die> : ")
-                error.safeGetMessage.foreach {
-                  case '\n' => writeNewLine()
-                  case c    => sb.append(c)
-                }
-              case EncodedLogCause.Interrupt(fiberId, _) =>
-                sb.append("<Interrupt> : ")
-                sb.append(fiberId.threadName)
-            }
-
-            cause.trace.stackTrace.foreach { trace =>
-              startNewLine()
-              sb.append(trace)
-            }
-
+            writeSafe(c.safeGetMessage)
+            c = c.getCause
           }
         }
+
+        def writeTrace(trace: StackTrace): Unit =
+          trace.stackTrace.foreach { t =>
+            sb.append("\n[     ]:     ")
+            sb.append(t)
+          }
+
+        def writeCause(cause: Cause[Any], stackless: Boolean): Unit =
+          cause match {
+            case Cause.Empty =>
+              ()
+            case Cause.Fail(value, trace) =>
+              sb.append("\n[CAUSE]: <Fail> : ")
+              writeSafe(String.valueOf(value))
+              if (ignoreStackless || !stackless)
+                writeTrace(trace)
+              value.asInstanceOf[Matchable] match {
+                case throwable: Throwable => printCauseChain(throwable.getCause)
+                case _                    => ()
+              }
+            case Cause.Die(value, trace) =>
+              sb.append("\n[CAUSE]: <Die> : ")
+              writeSafe(value.safeGetMessage)
+              if (ignoreStackless || !stackless)
+                writeTrace(trace)
+              printCauseChain(value.getCause)
+            case Cause.Interrupt(fiberId, trace) =>
+              sb.append("\n[CAUSE]: <Interrupt> : ")
+              sb.append(fiberId.threadName)
+              if (ignoreStackless || !stackless)
+                writeTrace(trace)
+            case Cause.Stackless(cause, _stackless) =>
+              writeCause(cause, stackless || _stackless)
+            case Cause.Then(left, right) =>
+              writeCause(left, stackless)
+              writeCause(right, stackless)
+            case Cause.Both(left, right) =>
+              writeCause(left, stackless)
+              writeCause(right, stackless)
+          }
+
+        writeCause(cause, false)
 
         sb.result()
     }
 
   val oxygenDefault: Logger =
-    oxygen(ColorMode.Extended, true, true, true, true, true)
+    oxygen(ColorMode.Extended, true, true, true, true, true, true)
 
   val json: Logger =
     Logger("json-logger") {
@@ -214,7 +240,7 @@ object Logger {
           fiberId = fiberId,
           annotations = annotations,
           spans = spans0.map { s => (s.label, s.startTime) }.toMap,
-          EncodedLogCause.fromAnyCause(cause),
+          EncodedLogCause.fromAnyCause(cause, true), // TODO (KR) : configurable
         ).toJsonStringCompact
     }
 
