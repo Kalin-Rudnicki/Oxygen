@@ -64,6 +64,8 @@ lazy val `oxygen-modules-jvm`: Project =
       `oxygen-executable`.jvm,
       `oxygen-json`.jvm,
       `oxygen-meta`.jvm,
+      `oxygen-sql`,
+      `oxygen-sql-migration`,
       `oxygen-web-model`.jvm,
       `oxygen-zio`.jvm,
 
@@ -194,6 +196,35 @@ lazy val `oxygen-meta`: CrossProject =
       `oxygen-core` % testAndCompile,
     )
 
+lazy val `oxygen-sql`: Project =
+  project
+    .in(file("modules/sql"))
+    .settings(
+      publishedProjectSettings,
+      name := "oxygen-sql",
+      description := "SQL library for scala.",
+      libraryDependencies ++= Seq(
+        zio.organization %% zio.streams % zio.coreVersion,
+        postgres.organization % postgres.postgres % postgres.version,
+      ),
+    )
+    .dependsOn(
+      `oxygen-zio`.jvm % testAndCompile,
+      `oxygen-test`.jvm % Test,
+    )
+
+lazy val `oxygen-sql-migration`: Project =
+  project
+    .in(file("modules/sql-migration"))
+    .settings(
+      publishedProjectSettings,
+      name := "oxygen-sql-migration",
+      description := "Automatically handle your SQL migrations from within scala!",
+    )
+    .dependsOn(
+      `oxygen-sql` % testAndCompile,
+    )
+
 lazy val `oxygen-web-model`: CrossProject =
   crossProject(JSPlatform, JVMPlatform, NativePlatform)
     .crossType(CrossType.Pure)
@@ -258,6 +289,19 @@ lazy val `oxygen-test-container`: Project =
       `oxygen-test`.jvm % Test,
     )
 
+lazy val `oxygen-test-container-sql`: Project =
+  project
+    .in(file("modules/test-container-sql"))
+    .settings(
+      publishedProjectSettings,
+      name := "oxygen-test-container",
+      description := "Test containers for ZIO.",
+    )
+    .dependsOn(
+      `oxygen-test-container` % testAndCompile,
+      `oxygen-sql` % testAndCompile,
+    )
+
 //////////////////////////////////////////////////////////////////////////////////////////////////////
 //      Internal
 //////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -271,19 +315,20 @@ lazy val `it`: Project =
       description := "oxygen-it",
     )
     .aggregate(
-      `test-container-it`,
+      `sql-it`,
     )
 
-lazy val `test-container-it`: Project =
+lazy val `sql-it`: Project =
   project
-    .in(file("testing/integration-tests/test-container"))
+    .in(file("testing/integration-tests/sql-it"))
     .settings(
-      publishedProjectSettings,
-      name := "oxygen-test-container-tests",
-      description := "Tests for test containers.",
+      nonPublishedProjectSettings,
+      name := "sql-it",
+      description := "sql-it",
     )
     .dependsOn(
-      `oxygen-test-container` % testAndCompile,
+      `oxygen-sql-migration` % testAndCompile,
+      `oxygen-test-container-sql` % testAndCompile,
     )
 
 lazy val `ut`: CrossProject =

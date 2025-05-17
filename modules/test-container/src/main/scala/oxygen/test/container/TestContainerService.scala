@@ -100,4 +100,7 @@ object TestContainerService {
       } yield a
     }
 
+  def randomAlphaString(length: Int): UIO[String] =
+    Random.nextIntBetween('a', 'z').map(_.toChar).replicateZIO(length).map(_.mkString)
+
 }

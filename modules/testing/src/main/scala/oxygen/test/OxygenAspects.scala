@@ -5,7 +5,7 @@ import oxygen.zio.*
 import oxygen.zio.logging.LogConfig
 import oxygen.zio.syntax.log.*
 import zio.*
-import zio.oxygen.logOps
+import zio.compat.logOps
 import zio.test.*
 
 object OxygenAspects {

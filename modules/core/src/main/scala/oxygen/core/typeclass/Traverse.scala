@@ -35,7 +35,7 @@ object TraverseLowPriority {
 
   trait LowPriority1 {
 
-    implicit def functorOption[F[_]](implicit functor: Functor[F]): Traverse[F, Option] =
+    given functorOption: [F[_]] => (functor: Functor[F]) => Traverse[F, Option] =
       new Traverse[F, Option] {
 
         // Note: This could also be done by adding a `var allSuccess: Boolean`, mapping `None => null`, and checking `allSuccess` at the end.
@@ -56,7 +56,7 @@ object TraverseLowPriority {
 
     // Note: This could also be done by adding a `var left: Option[Left]`, mapping `None => null`, and checking `left` at the end.
     //     : The current implementation was chosen for sake of efficiency.
-    implicit def functorEither[F[_], Left](implicit functor: Functor[F]): Traverse[F, RightProjection[Left]] =
+    given functorEither: [F[_], Left] => (functor: Functor[F]) => Traverse[F, RightProjection[Left]] =
       new Traverse[F, RightProjection[Left]] {
 
         override def traverse[A, B](self: F[A])(f: A => Either[Left, B]): Either[Left, F[B]] =

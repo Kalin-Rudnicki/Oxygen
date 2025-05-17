@@ -2,6 +2,7 @@ package oxygen.core.typeclass
 
 import oxygen.core.collection.*
 import oxygen.core.collection.Contiguous.typedAnyTag
+import scala.collection.immutable.ArraySeq
 import scala.collection.mutable
 
 trait SeqOps[F[_]] {
@@ -101,6 +102,13 @@ object SeqOps extends SeqOpsLowPriority.LowPriority1 {
       override def newIterator[A](self: IndexedSeq[A]): Iterator[A] = self.iterator
       override def newBuilder[A]: mutable.Builder[A, IndexedSeq[A]] = IndexedSeq.newBuilder[A]
       override def knownSize[A](self: IndexedSeq[A]): Int = self.knownSize
+    }
+
+  given arraySeq: SeqOps[ArraySeq] =
+    new SeqOps[ArraySeq] {
+      override def newIterator[A](self: ArraySeq[A]): Iterator[A] = self.iterator
+      override def newBuilder[A]: mutable.Builder[A, ArraySeq[A]] = ArraySeq.newBuilder[A]
+      override def knownSize[A](self: ArraySeq[A]): Int = self.knownSize
     }
 
   given array: SeqOps[Array] =

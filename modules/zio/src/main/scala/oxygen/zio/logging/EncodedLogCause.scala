@@ -33,22 +33,22 @@ object EncodedLogCause {
   final case class Then(left: EncodedLogCause, right: EncodedLogCause) extends EncodedLogCause.Combinator
   final case class Both(left: EncodedLogCause, right: EncodedLogCause) extends EncodedLogCause.Combinator
 
-  private def rec[A](cause: Cause[A], show: A => String, stack: Boolean): Option[EncodedLogCause] =
+  private def rec[A](cause: Cause[A], show: A => String, ignoreStackless: Boolean, stack: Boolean): Option[EncodedLogCause] =
     cause match {
       case Cause.Empty                       => None
-      case Cause.Fail(value, trace)          => EncodedLogCause.Fail(show(value), if (stack) trace else StackTrace.none).some
-      case Cause.Die(value, trace)           => EncodedLogCause.Die(value, if (stack) trace else StackTrace.none).some
-      case Cause.Interrupt(fiberId, trace)   => EncodedLogCause.Interrupt(fiberId, if (stack) trace else StackTrace.none).some
-      case Cause.Stackless(cause, stackless) => rec(cause, show, stack && !stackless)
+      case Cause.Fail(value, trace)          => EncodedLogCause.Fail(show(value), if (ignoreStackless || stack) trace else StackTrace.none).some
+      case Cause.Die(value, trace)           => EncodedLogCause.Die(value, if (ignoreStackless || stack) trace else StackTrace.none).some
+      case Cause.Interrupt(fiberId, trace)   => EncodedLogCause.Interrupt(fiberId, if (ignoreStackless || stack) trace else StackTrace.none).some
+      case Cause.Stackless(cause, stackless) => rec(cause, show, ignoreStackless, stack && !stackless)
       case Cause.Then(left, right) =>
-        (rec(left, show, stack), rec(right, show, stack)) match {
+        (rec(left, show, ignoreStackless, stack), rec(right, show, ignoreStackless, stack)) match {
           case (Some(left), Some(right)) => EncodedLogCause.Then(left, right).some
           case (Some(left), None)        => left.some
           case (None, Some(right))       => right.some
           case (None, None)              => None
         }
       case Cause.Both(left, right) =>
-        (rec(left, show, stack), rec(right, show, stack)) match {
+        (rec(left, show, ignoreStackless, stack), rec(right, show, ignoreStackless, stack)) match {
           case (Some(left), Some(right)) => EncodedLogCause.Both(left, right).some
           case (Some(left), None)        => left.some
           case (None, Some(right))       => right.some
@@ -56,10 +56,10 @@ object EncodedLogCause {
         }
     }
 
-  def fromCause[A](cause: Cause[A], show: A => String): Option[EncodedLogCause] =
-    rec(cause, show, true)
+  def fromCause[A](cause: Cause[A], ignoreStackless: Boolean, show: A => String): Option[EncodedLogCause] =
+    rec(cause, show, ignoreStackless, true)
 
-  def fromAnyCause(cause: Cause[Any]): Option[EncodedLogCause] =
-    fromCause(cause, String.valueOf(_))
+  def fromAnyCause(cause: Cause[Any], ignoreStackless: Boolean): Option[EncodedLogCause] =
+    fromCause(cause, ignoreStackless, String.valueOf(_))
 
 }
