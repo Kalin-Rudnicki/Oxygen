@@ -69,6 +69,7 @@ lazy val `oxygen-modules-jvm`: Project =
 
       // Testing
       `oxygen-test`.jvm,
+      `oxygen-test-container`,
 
       // Internal
       `ut`.jvm,
@@ -244,6 +245,19 @@ lazy val `oxygen-test`: CrossProject =
       `oxygen-zio` % testAndCompile,
     )
 
+lazy val `oxygen-test-container`: Project =
+  project
+    .in(file("modules/test-container"))
+    .settings(
+      publishedProjectSettings,
+      name := "oxygen-test-container",
+      description := "Test containers for ZIO.",
+    )
+    .dependsOn(
+      `oxygen-zio`.jvm % testAndCompile,
+      `oxygen-test`.jvm % Test,
+    )
+
 //////////////////////////////////////////////////////////////////////////////////////////////////////
 //      Internal
 //////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -257,6 +271,19 @@ lazy val `it`: Project =
       description := "oxygen-it",
     )
     .aggregate(
+      `test-container-it`,
+    )
+
+lazy val `test-container-it`: Project =
+  project
+    .in(file("testing/integration-tests/test-container"))
+    .settings(
+      publishedProjectSettings,
+      name := "oxygen-test-container-tests",
+      description := "Tests for test containers.",
+    )
+    .dependsOn(
+      `oxygen-test-container` % testAndCompile,
     )
 
 lazy val `ut`: CrossProject =

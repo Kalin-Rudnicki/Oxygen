@@ -60,7 +60,7 @@ trait SeqOps[F[_]] {
   }
 
 }
-object SeqOps {
+object SeqOps extends SeqOpsLowPriority.LowPriority1 {
 
   def transform[F[_], G[_], A](self: F[A])(using f: SeqOps[F], g: SeqOps[G]): G[A] = {
     val iter = f.newIterator(self)
@@ -103,20 +103,6 @@ object SeqOps {
       override def knownSize[A](self: IndexedSeq[A]): Int = self.knownSize
     }
 
-  given iterableOnce: SeqOps[IterableOnce] =
-    new SeqOps[IterableOnce] {
-      override def newIterator[A](self: IterableOnce[A]): Iterator[A] = self.iterator
-      override def newBuilder[A]: mutable.Builder[A, IterableOnce[A]] = Vector.newBuilder[A]
-      override def knownSize[A](self: IterableOnce[A]): Int = self.knownSize
-    }
-
-  given iterable: SeqOps[Iterable] =
-    new SeqOps[Iterable] {
-      override def newIterator[A](self: Iterable[A]): Iterator[A] = self.iterator
-      override def newBuilder[A]: mutable.Builder[A, Iterable[A]] = Iterable.newBuilder[A]
-      override def knownSize[A](self: Iterable[A]): Int = self.knownSize
-    }
-
   given array: SeqOps[Array] =
     new SeqOps[Array] {
       override def newIterator[A](self: Array[A]): Iterator[A] = self.iterator
@@ -151,5 +137,31 @@ object SeqOps {
       override def newBuilder[A]: mutable.Builder[A, Set[A]] = Set.newBuilder
       override def knownSize[A](self: Set[A]): Int = self.knownSize
     }
+
+}
+
+object SeqOpsLowPriority {
+
+  trait LowPriority1 extends LowPriority2 {
+
+    given iterableOnce: SeqOps[IterableOnce] =
+      new SeqOps[IterableOnce] {
+        override def newIterator[A](self: IterableOnce[A]): Iterator[A] = self.iterator
+        override def newBuilder[A]: mutable.Builder[A, IterableOnce[A]] = Vector.newBuilder[A]
+        override def knownSize[A](self: IterableOnce[A]): Int = self.knownSize
+      }
+
+  }
+
+  trait LowPriority2 {
+
+    given iterable: SeqOps[Iterable] =
+      new SeqOps[Iterable] {
+        override def newIterator[A](self: Iterable[A]): Iterator[A] = self.iterator
+        override def newBuilder[A]: mutable.Builder[A, Iterable[A]] = Iterable.newBuilder[A]
+        override def knownSize[A](self: Iterable[A]): Int = self.knownSize
+      }
+
+  }
 
 }

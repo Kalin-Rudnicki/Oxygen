@@ -5,5 +5,5 @@ object core {
   export oxygen.core.collection.{Contiguous, Growable, NonEmptyList}
   export oxygen.core.idToSpecified
   export oxygen.core.syntax.common.*
-  export oxygen.core.typeclass.{StringCodec, StringDecoder, StringEncoder, Zip}
+  export oxygen.core.typeclass.{SeqOps, StringCodec, StringDecoder, StringEncoder, Zip}
 }

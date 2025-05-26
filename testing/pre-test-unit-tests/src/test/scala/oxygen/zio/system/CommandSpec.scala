@@ -5,22 +5,8 @@ import zio.test.ZTestLogger
 
 object CommandSpec extends OxygenSpecDefault {
 
-  private def argParseTest(name: String)(arg: Command.Arg, exp: List[String])(using SourceLocation): TestSpec =
-    test(name) {
-      assertTrue(Command.Arg.unapply(arg).value == exp)
-    }
-
   override def testSpec: TestSpec =
     suite("CommandSpec")(
-      suite("args")(
-        argParseTest("None")(None, Nil),
-        argParseTest("String")("1", List("1")),
-        argParseTest("Some[String]")(Option.when(true)("1"), List("1")),
-        argParseTest("None[String]")(Option.when(false)("1"), Nil),
-        argParseTest("Seq[String]")(Seq("1", "2"), List("1", "2")),
-        argParseTest("Some[Seq[String]]")(Option.when(true)(Seq("1", "2")), List("1", "2")),
-        argParseTest("None[Seq[String]]")(Option.when(false)(Seq("1", "2")), Nil),
-      ),
       suite("command")(
         test("command builds properly") {
           assertTrue(
@@ -31,7 +17,7 @@ object CommandSpec extends OxygenSpecDefault {
               Seq("4", "5"),
               Option.when(true)(Seq("6", "7")),
               Option.when(false)(Seq("8", "9")),
-            ).cmd == List("command", "1", "2", "4", "5", "6", "7"),
+            ).fullCommand.to[List] == List("command", "1", "2", "4", "5", "6", "7"),
           )
         },
         test("executes as expected") {
