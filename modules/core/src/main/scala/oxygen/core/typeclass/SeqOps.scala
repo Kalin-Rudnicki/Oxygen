@@ -14,16 +14,15 @@ trait SeqOps[F[_]] {
 
   def nestedKnownSize[A](self: F[F[A]]): Int = {
     var total: Int = 0
-    var known: Boolean = true
     val iterator = newIterator(self)
 
-    while (iterator.hasNext && known)
+    while (iterator.hasNext)
       knownSize(iterator.next()) match {
-        case -1 => known = false
+        case -1 => return -1
         case sz => total += sz
       }
 
-    if (known) total else -1
+    total
   }
 
   final def fromIterableOnce[A](i: IterableOnce[A]): F[A] = {
@@ -77,6 +76,17 @@ object SeqOps {
       override def newIterator[A](self: Contiguous[A]): Iterator[A] = self.iterator
       override def newBuilder[A]: mutable.Builder[A, Contiguous[A]] = Contiguous.newBuilder
       override def knownSize[A](self: Contiguous[A]): Int = self.length
+    }
+
+  given growable: SeqOps[Growable] =
+    new SeqOps[Growable] {
+      override def newIterator[A](self: Growable[A]): Iterator[A] = {
+        val builder = Iterator.newBuilder[A]
+        self.foreach(builder.addOne)
+        builder.result()
+      }
+      override def newBuilder[A]: mutable.Builder[A, Growable[A]] = Contiguous.newBuilder[A].mapResult(Growable.many)
+      override def knownSize[A](self: Growable[A]): Int = -1
     }
 
   given seq: SeqOps[Seq] =
