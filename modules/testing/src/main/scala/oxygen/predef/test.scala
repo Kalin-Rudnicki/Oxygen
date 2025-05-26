@@ -6,6 +6,6 @@ object test {
   export _root_.zio.test.Assertion.*
   export oxygen.predef.core.{given, *}
   export oxygen.predef.zio.{given, *}
-  export oxygen.test.{OAspect, OxygenSpec, OxygenSpecDefault}
-  export oxygen.test.OAssertions.*
+  export oxygen.test.{Contract, LayerProvider, OxygenAspects, OxygenContractSpec, OxygenSpec, OxygenSpecDefault}
+  export oxygen.test.OxygenAssertions.*
 }

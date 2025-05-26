@@ -1,7 +1,7 @@
 package oxygen.zio.logging
 
-import oxygen.core.{Color, Enum}
-import oxygen.core.collection.NonEmptyList
+import oxygen.predef.color.*
+import oxygen.predef.core.*
 import zio.LogLevel
 
 final case class RichLogLevel(
@@ -13,7 +13,7 @@ final case class RichLogLevel(
 
   val formattedShortName: String =
     if (shortName.length == 5) shortName
-    else if (shortName.length < 5) (" " * (5 - shortName.length)) + shortName
+    else if (shortName.length < 5) shortName.alignCenter(5)
     else shortName.substring(0, 5)
 
 }
