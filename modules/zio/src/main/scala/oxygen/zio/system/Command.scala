@@ -1,30 +1,34 @@
 package oxygen.zio.system
 
-import scala.annotation.nowarn
+import oxygen.predef.core.*
 import scala.sys.process.*
 import zio.*
 
-final class Command private (isSudo: Boolean, command: String, args: List[String]) {
+final class Command private (isSudo: Boolean, command: String, args: Growable[String], env: Growable[(String, String)]) {
 
-  val cmd: List[String] =
-    if (isSudo) "sudo" :: command :: args
-    else command :: args
+  lazy val fullCommand: Growable[String] =
+    if (isSudo) "sudo" +: command +: args
+    else command +: args
 
   //////////////////////////////////////////////////////////////////////////////////////////////////////
   //      Builders
   //////////////////////////////////////////////////////////////////////////////////////////////////////
 
   def sudo: Command = sudoIf(true)
-  def sudoIf(cond: Boolean): Command = new Command(cond, command, args)
+  def sudoIf(cond: Boolean): Command = new Command(cond, command, args, env)
 
-  def ++(args: Seq[String]): Command = new Command(isSudo, command, this.args ++ args)
+  def apply(args: Command.Args*): Command =
+    new Command(isSudo, command, this.args ++ Growable.many(args).flatMap(_.args), env)
 
-  def apply(args: Command.Arg*): Command =
-    this ++ args.flatMap { case Command.Arg(args) => args }
+  def addEnv(env: Growable[(String, String)]): Command = new Command(isSudo, command, args, this.env ++ env)
+  def envVar(key: String, value: String): Command = new Command(isSudo, command, args, this.env :+ (key, value))
+  def envVar(key: String, value: Option[String]): Command = value.fold(this)(this.envVar(key, _))
 
   //////////////////////////////////////////////////////////////////////////////////////////////////////
   //      Execute
   //////////////////////////////////////////////////////////////////////////////////////////////////////
+
+  private def toProcess: ProcessBuilder = Process(fullCommand.to[Seq], None, env.to[Seq]*)
 
   def execute(
       outLevel: LogLevel = LogLevel.Info,
@@ -32,7 +36,7 @@ final class Command private (isSudo: Boolean, command: String, args: List[String
   )(using trace: Trace): Task[Int] =
     (for {
       logger <- ZProcessLogger.make(outLevel = outLevel, errorLevel = errorLevel)
-      code <- ZIO.attempt { cmd.!(logger) }
+      code <- ZIO.attempt { toProcess.!(logger) }
     } yield code) @@ ZIOAspect.annotated("command", command)
 
   def executeSuccess(
@@ -49,24 +53,40 @@ final class Command private (isSudo: Boolean, command: String, args: List[String
   )(using trace: Trace): Task[String] =
     (for {
       logger <- ZProcessLogger.make(errorLevel = errorLevel)
-      output <- ZIO.attempt { cmd.!!(logger) }
+      output <- ZIO.attempt { toProcess.!!(logger) }
     } yield output) @@ ZIOAspect.annotated("command", command)
 
 }
 object Command {
 
-  def apply(command: String): Command = new Command(false, command, Nil)
+  def apply(command: String): Command = new Command(false, command, Growable.Empty, Growable.empty)
 
-  type Arg = String | Option[String] | Seq[String] | Option[Seq[String]]
-  object Arg {
+  final case class Args(args: Growable[String])
+  object Args {
 
-    @nowarn
-    def unapply(arg: Arg): Some[List[String]] = arg match
-      case str: String            => Some(str :: Nil)
-      case seq: Seq[String]       => Some(seq.toList)
-      case None                   => Some(Nil)
-      case Some(str: String)      => Some(str :: Nil)
-      case Some(seq: Seq[String]) => Some(seq.toList)
+    trait ToArgs[-A] {
+      def toArgs(a: A): Args
+    }
+    object ToArgs {
+
+      given id: ToArgs[Args] =
+        identity(_)
+
+      given string: ToArgs[String] =
+        str => Args(Growable.single(str))
+
+      given option: [A] => (aToArgs: ToArgs[A]) => ToArgs[Option[A]] = {
+        case Some(a) => aToArgs.toArgs(a)
+        case None    => Args(Growable.empty)
+      }
+
+      given seq: [S[_], A] => (seqOps: SeqOps[S], aToArgs: ToArgs[A]) => ToArgs[S[A]] =
+        sa => Args(Growable.many(sa).flatMap(aToArgs.toArgs(_).args))
+
+    }
+
+    given convertToArgs: [A] => (aToArgs: ToArgs[A]) => Conversion[A, Args] =
+      aToArgs.toArgs(_)
 
   }
 
