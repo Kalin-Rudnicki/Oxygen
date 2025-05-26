@@ -2,7 +2,7 @@ package oxygen.core
 
 import oxygen.predef.core.*
 import oxygen.test.*
-import oxygen.test.OAssertions.*
+import oxygen.test.OxygenAssertions.*
 import scala.reflect.ClassTag
 import zio.test.*
 import zio.test.Assertion.*

@@ -6,7 +6,7 @@ import scala.Console.*
 import zio.test.*
 import zio.test.Assertion.*
 
-object OAssertions {
+object OxygenAssertions {
 
   extension [A](self: Assertion[A]) {
 

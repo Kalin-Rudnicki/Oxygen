@@ -8,20 +8,38 @@ import zio.*
 import zio.oxygen.logOps
 import zio.test.*
 
-object OAspect {
+object OxygenAspects {
 
-  extension [_R](self: FiberRefModificationR[_R])
-    def toTestAspect: TestAspect.PerTest.AtLeastR[_R] =
+  extension [_R](self: FiberRefModificationR[_R]) {
+
+    /**
+      * Will apply the following fiber-ref-modification on a per-test basis.
+      */
+    def toTestAspectPerTest: TestAspect.PerTest.AtLeastR[_R] =
       new TestAspect.PerTest.AtLeastR[_R] {
         override def perTest[R <: _R, E](test: ZIO[R, TestFailure[E], TestSuccess])(implicit trace: Trace): ZIO[R, TestFailure[E], TestSuccess] =
           test @@ self
       }
 
-  def usingConfig(config: LogConfig): TestAspect.PerTest.Poly =
-    LogConfig.usingConfig(config).toTestAspect
+    /**
+      * Will apply the following fiber-ref-modification in a scoped manner to the whole spec.
+      */
+    def toTestAspectGlobal: TestAspectAtLeastR[_R] =
+      new TestAspectAtLeastR[_R] {
+        override def some[R <: _R, E](spec: Spec[R, E])(implicit trace: Trace): Spec[R, E] =
+          Spec { Spec.ScopedCase { self.setScoped.as(spec) } }
+      }
 
-  def withMinLogLevel(level: LogLevel): TestAspect.PerTest.Poly =
-    logOps.withMinLogLevel(level).toTestAspect
+  }
+
+  def usingConfig(config: LogConfig): TestAspectAtLeastR[Any] =
+    LogConfig.usingConfig(config).toTestAspectGlobal
+
+  def withMinLogLevel(level: LogLevel): TestAspectAtLeastR[Any] =
+    logOps.withMinLogLevel(level).toTestAspectGlobal
+
+  val silentLogging: TestAspectAtLeastR[Any] =
+    withMinLogLevel(LogLevel.None)
 
   val withTestAsLogSpan: TestAspect[Nothing, Any, Nothing, Any] =
     new TestAspect[Nothing, Any, Nothing, Any] {

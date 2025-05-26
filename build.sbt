@@ -71,7 +71,7 @@ lazy val `oxygen-modules-jvm`: Project =
       `oxygen-test`.jvm,
 
       // Internal
-      `oxygen-pre-test-unit-tests`.jvm,
+      `ut`.jvm,
     )
 
 lazy val `oxygen-modules-js`: Project =
@@ -96,7 +96,7 @@ lazy val `oxygen-modules-js`: Project =
       `oxygen-test`.js,
 
       // Internal
-      `oxygen-pre-test-unit-tests`.js,
+      `ut`.js,
     )
 
 lazy val `oxygen-modules-native`: Project =
@@ -121,7 +121,7 @@ lazy val `oxygen-modules-native`: Project =
       `oxygen-test`.native,
 
       // Internal
-      `oxygen-pre-test-unit-tests`.native,
+      `ut`.native,
     )
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -259,7 +259,7 @@ lazy val `it`: Project =
     .aggregate(
     )
 
-lazy val `oxygen-pre-test-unit-tests`: CrossProject =
+lazy val `ut`: CrossProject =
   crossProject(JSPlatform, JVMPlatform, NativePlatform)
     .crossType(CrossType.Pure)
     .in(file("testing/pre-test-unit-tests"))

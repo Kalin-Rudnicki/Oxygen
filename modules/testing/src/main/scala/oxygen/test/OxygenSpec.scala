@@ -6,8 +6,10 @@ import zio.test.*
 
 abstract class OxygenSpec[_R: EnvironmentTag] extends ZIOSpecDefault {
 
-  final type R = _R
   final type DefaultEnv = OxygenSpec.DefaultEnv
+  final type RootTestAspect = OxygenSpec.RootTestAspect
+
+  final type R = _R
   final type Env = DefaultEnv & R
 
   final type TestSpecAspect = TestAspectAtLeastR[Env]
@@ -21,40 +23,50 @@ abstract class OxygenSpec[_R: EnvironmentTag] extends ZIOSpecDefault {
 
   // =====| Overridable |=====
 
+  def defaultLogLevel: LogLevel = LogLevels.Important
+
   def withDefaultAspects: Boolean = true
 
-  /**
-    * Chunk of aspects to be applied to [[testSpec]].
-    * Note: `Chunk(a, b, c)` will yield `a(b(c(testSpec)))`.
-    */
+  // NOTE : aspect priority: defaultTestAspects > OxygenSpec.defaultTestAspects > testAspects
+
   def testAspects: Chunk[TestSpecAspect] = Chunk.empty
+  def rootTestAspects: Chunk[RootTestAspect] = Chunk.empty
 
   // TODO (KR) : allow aspects with `Chunk[TestAspectAtLeastR[DefaultEnv]]` that can be applied after layer application.
 
   // =====| Concrete |=====
 
-  override final def spec: Spec[TestEnvironment & Scope, Any] = {
-    val spec2: TestSpec =
-      testAspects.foldRight(testSpec) { case (a, s) => s @@ a }
-    val spec3: Spec[DefaultEnv, Any] =
-      layerProvider.build(spec2)
-    val spec4: Spec[DefaultEnv, Any] =
-      if (withDefaultAspects) OxygenSpec.defaultTestAspects.foldRight(spec3) { case (a, s) => s @@ a } else spec3
+  override final def aspects: Chunk[TestAspectAtLeastR[TestEnvironment]] = super.aspects
 
-    spec4
+  override final def spec: Spec[TestEnvironment & Scope, Any] = {
+    val testAspects0: Chunk[TestSpecAspect] =
+      testAspects
+    val rootTestAspects0: Chunk[RootTestAspect] =
+      if (withDefaultAspects) OxygenSpec.defaultTestAspects(defaultLogLevel) ++ rootTestAspects
+      else rootTestAspects
+
+    val withTestAspectsApplied: TestSpec =
+      testAspects0.foldLeft(testSpec) { _ @@ _ }
+    val withLayersApplied: Spec[DefaultEnv, Any] =
+      layerProvider.build(withTestAspectsApplied)
+    val withRootAspectsApplied: Spec[DefaultEnv, Any] =
+      rootTestAspects0.foldLeft(withLayersApplied) { _ @@ _ }
+
+    withRootAspectsApplied
   }
 
 }
 object OxygenSpec {
 
   type DefaultEnv = TestEnvironment & Scope
+  type RootTestAspect = TestAspectAtLeastR[DefaultEnv]
 
-  private val defaultTestAspects: Chunk[TestAspectAtLeastR[DefaultEnv]] =
+  private def defaultTestAspects(defaultLogLevel: LogLevel): Chunk[TestAspectAtLeastR[DefaultEnv]] =
     Chunk(
       TestAspect.samples(15),
       TestAspect.shrinks(0),
-      OAspect.usingConfig(LogConfig.oxygenDefault(LogLevels.Important)),
-      OAspect.withTestAsLogSpan,
+      OxygenAspects.usingConfig(LogConfig.oxygenDefault(defaultLogLevel)),
+      OxygenAspects.withTestAsLogSpan,
     )
 
 }
