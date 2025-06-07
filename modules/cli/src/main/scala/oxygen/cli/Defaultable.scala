@@ -1,7 +1,5 @@
 package oxygen.cli
 
-import oxygen.predef.core.*
-
 object Defaultable {
 
   sealed trait Optional[+V] {

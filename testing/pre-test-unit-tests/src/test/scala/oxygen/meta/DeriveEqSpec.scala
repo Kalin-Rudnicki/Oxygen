@@ -2,7 +2,6 @@ package oxygen.meta
 
 import oxygen.meta.example.*
 import oxygen.predef.test.*
-import scala.quoted.*
 
 object DeriveEqSpec extends OxygenSpecDefault {
 

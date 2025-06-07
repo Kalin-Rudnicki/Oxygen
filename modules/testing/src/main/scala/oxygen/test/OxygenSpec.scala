@@ -4,7 +4,7 @@ import oxygen.zio.logging.{LogConfig, LogLevels}
 import zio.*
 import zio.test.*
 
-abstract class OxygenSpec[_R: EnvironmentTag] extends ZIOSpecDefault {
+abstract class OxygenSpec[_R] extends ZIOSpecDefault {
 
   final type DefaultEnv = OxygenSpec.DefaultEnv
   final type RootTestAspect = OxygenSpec.RootTestAspect

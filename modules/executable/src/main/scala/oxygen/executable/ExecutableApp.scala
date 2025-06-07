@@ -3,7 +3,6 @@ package oxygen.executable
 import oxygen.cli.*
 import oxygen.executable.error.ExecuteError
 import oxygen.json.KeyedMapDecoder
-import oxygen.json.syntax.interop.*
 import oxygen.predef.core.*
 import oxygen.predef.json.*
 import oxygen.predef.zio.*

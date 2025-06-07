@@ -5,7 +5,6 @@ import oxygen.sql.*
 import oxygen.sql.query.InputWriter
 import oxygen.sql.schema.*
 
-@scala.annotation.nowarn("msg=unused import")
 final class DeriveProductInputEncoder[Q <: Quotes, A](val k0: K0[Q])(generic: k0.ProductGeneric[A], instances: k0.ValExpressions[InputEncoder]) {
   import generic.given
   import k0.given

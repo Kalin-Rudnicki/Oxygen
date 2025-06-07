@@ -4,7 +4,7 @@ import oxygen.core.syntax.option.*
 import zio.*
 import zio.test.*
 
-abstract class OxygenContractSpec[_R: EnvironmentTag](implName: String, contract: Contract[_R]) extends OxygenSpec[_R] {
+abstract class OxygenContractSpec[_R](implName: String, contract: Contract[_R]) extends OxygenSpec[_R] {
 
   private def modifyCase(spec: TestSpec): Option[TestSpec] =
     spec.caseValue match {

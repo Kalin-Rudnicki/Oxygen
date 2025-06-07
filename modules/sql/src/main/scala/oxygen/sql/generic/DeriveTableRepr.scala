@@ -4,9 +4,7 @@ import oxygen.predef.core.*
 import oxygen.predef.meta.*
 import oxygen.sql.*
 import oxygen.sql.schema.*
-import scala.annotation.nowarn
 
-@scala.annotation.nowarn("msg=unused import")
 final class DeriveTableRepr[Q <: Quotes, A, K: Type](val k0: K0[Q])(generic: k0.ProductGeneric[A], instances: k0.ValExpressions[RowRepr]) {
   import generic.given
   import k0.given
@@ -36,7 +34,6 @@ final class DeriveTableRepr[Q <: Quotes, A, K: Type](val k0: K0[Q])(generic: k0.
   private lazy val nonPKFields: Contiguous[generic.Field[?]] =
     fieldsWithIsPK.collect { case (f, false) => f }
 
-  @nowarn("msg=unused local definition")
   private def makePartial(columns: Contiguous[generic.Field[?]]): (TypeRepr, Expr[TableRepr.Partial[A, ?]]) =
     columns match {
       case Contiguous() =>
