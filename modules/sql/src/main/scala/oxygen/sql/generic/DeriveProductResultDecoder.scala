@@ -6,7 +6,6 @@ import oxygen.sql.*
 import oxygen.sql.error.*
 import oxygen.sql.schema.*
 
-@scala.annotation.nowarn("msg=unused import")
 final class DeriveProductResultDecoder[Q <: Quotes, A](val k0: K0[Q])(generic: k0.ProductGeneric[A], instances: k0.ValExpressions[ResultDecoder]) {
   import generic.given
   import k0.given

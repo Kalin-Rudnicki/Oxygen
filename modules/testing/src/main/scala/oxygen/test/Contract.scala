@@ -1,9 +1,8 @@
 package oxygen.test
 
-import zio.*
 import zio.test.*
 
-abstract class Contract[_R: EnvironmentTag] {
+abstract class Contract[_R] {
 
   final type R = _R
   final type DefaultEnv = OxygenSpec.DefaultEnv

@@ -7,7 +7,7 @@ import oxygen.predef.meta.*
 import oxygen.sql.query.*
 import oxygen.sql.query.dsl.*
 import oxygen.sql.schema.{InputEncoder, ResultDecoder, RowRepr, TableRepr}
-import scala.annotation.{nowarn, tailrec, unused}
+import scala.annotation.{tailrec, unused}
 import scala.collection.mutable
 import scala.util.NotGiven
 
@@ -24,7 +24,7 @@ final class Macros[Q <: Quotes](val k0: K0[Q]) {
           case '{ oxygen.sql.query.dsl.select.apply(${ Expr(queryName) }).debug } => ParseResult.Success((queryName, true))
           case _                                                                  => ParseResult.error(select.toTerm, "Invalid `select` statement")
         }
-        (_, repr, sql, decoder) <- doStuffShared(select, f, false)
+        (_, _, sql, decoder) <- doStuffShared(select, f, false)
 
         sqlExpr = sql.buildExpr
         decoderExpr = decoder.buildExpr[O]
@@ -403,7 +403,6 @@ final class Macros[Q <: Quotes](val k0: K0[Q]) {
   //      Misc
   //////////////////////////////////////////////////////////////////////////////////////////////////////
 
-  @nowarn("msg=unused local definition")
   private def productSchemaField(term: Term, field: String, schema: Expr[RowRepr[?]]): Expr[RowRepr[?]] = {
     type T
     given Type[T] = term.tpe.widen.asTyped
@@ -411,7 +410,6 @@ final class Macros[Q <: Quotes](val k0: K0[Q]) {
     '{ $schema.unsafeChild[T](${ Expr(field) }) }
   }
 
-  @nowarn("msg=unused local definition")
   private def optionSchemaGet(term: Term, schema: Expr[RowRepr[?]]): Expr[RowRepr[?]] = {
     type T
     given Type[T] = term.tpe.widen.asTyped

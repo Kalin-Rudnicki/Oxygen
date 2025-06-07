@@ -4,7 +4,6 @@ import oxygen.json.*
 import oxygen.meta.*
 import scala.quoted.*
 
-@scala.annotation.nowarn("msg=unused import")
 final class DeriveProductJsonEncoder[Q <: Quotes, A](val k0: K0[Q])(generic: k0.ProductGeneric[A], instances: k0.ValExpressions[JsonEncoder]) {
   import generic.tpe
   private given quotes: Q = k0.meta.quotes

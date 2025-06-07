@@ -3116,14 +3116,14 @@ final class Meta[Q <: Quotes](val quotes: Q) {
       *  ```scala
       *  //{
       *  given Quotes = ???
-      *  import quotes.reflect._
+      *  import quotes.reflect.*
       *  //}
       *  val moduleName: String = Symbol.freshName("MyModule")
       *  val parents = List(TypeTree.of[Object])
       *  def decls(cls: Symbol): List[Symbol] =
       *    List(Symbol.newMethod(cls, "run", MethodType(Nil)(_ => Nil, _ => TypeRepr.of[Unit]), Flags.EmptyFlags, Symbol.noSymbol))
       *
-      *  val mod = Symbol.newModule(Symbol.spliceOwner, moduleName, Flags.EmptyFlags, Flags.EmptyFlags, parents.map(_.tpe), decls, Symbol.noSymbol)
+      *  val mod = Symbol.newModule(Symbol.spliceOwner, moduleName, Flags.EmptyFlags, Flags.EmptyFlags, _ => parents.map(_.tpe), decls, Symbol.noSymbol)
       *  val cls = mod.moduleClass
       *  val runSym = cls.declaredMethod("run").head
       *
@@ -3138,7 +3138,7 @@ final class Meta[Q <: Quotes](val quotes: Q) {
       *  ```scala
       *  //{
       *  given Quotes = ???
-      *  import quotes.reflect._
+      *  import quotes.reflect.*
       *  //}
       *  '{
       *    object MyModule$macro$1 extends Object:
@@ -3151,7 +3151,7 @@ final class Meta[Q <: Quotes](val quotes: Q) {
       *  @param name The name of the class
       *  @param modFlags extra flags with which the module symbol should be constructed
       *  @param clsFlags extra flags with which the module class symbol should be constructed
-      *  @param parents The parent classes of the class. The first parent must not be a trait.
+      *  @param parents A function that takes the symbol of the module class as input and returns the parent classes of the class. The first parent must not be a trait.
       *  @param decls A function that takes the symbol of the module class as input and return the symbols of its declared members
       *  @param privateWithin the symbol within which this new method symbol should be private. May be noSymbol.
       *
@@ -3164,8 +3164,18 @@ final class Meta[Q <: Quotes](val quotes: Q) {
       *
       *  @syntax markdown
       */
-    @experimental def newModule(owner: Symbol, name: String, modFlags: Flags, clsFlags: Flags, parents: List[TypeRepr], decls: Symbol => List[Symbol], privateWithin: Symbol): Symbol =
-      Symbol(Raw.Symbol.newModule(owner.raw, name, modFlags.raw, clsFlags.raw, parents.map(_.raw), i => decls(Symbol(i)).map(_.raw), privateWithin.raw))
+    @experimental def newModule(owner: Symbol, name: String, modFlags: Flags, clsFlags: Flags, parents: Symbol => List[TypeRepr], decls: Symbol => List[Symbol], privateWithin: Symbol): Symbol = {
+      val tmp = Raw.Symbol.newModule(
+        owner.raw,
+        name,
+        modFlags.raw,
+        clsFlags.raw,
+        sym => parents(Symbol(sym)).map(_.raw),
+        sym => decls(Symbol(sym)).map(_.raw),
+        privateWithin.raw,
+      )
+      Symbol(tmp)
+    }
 
     /**
       * Generates a new method symbol with the given parent, name and type.

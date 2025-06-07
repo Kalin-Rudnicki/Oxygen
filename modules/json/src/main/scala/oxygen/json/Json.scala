@@ -7,7 +7,7 @@ sealed trait Json {
 
   private[Json] def writeCompact(sb: mutable.StringBuilder): Unit
 
-  private[Json] def writePretty(sb: mutable.StringBuilder, indent: String): Unit =
+  private[Json] def writePretty(sb: mutable.StringBuilder, @scala.annotation.unused indent: String): Unit =
     writeCompact(sb)
 
   infix final def merge(that: Json): Json =

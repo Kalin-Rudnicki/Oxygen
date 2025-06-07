@@ -30,7 +30,6 @@ object Show extends K0.Derivable[Show] {
 
       object macros {
 
-        @scala.annotation.nowarn("msg=unused import")
         def appendToStringBuilder(sb: Expr[mutable.StringBuilder], a: Expr[A]): Expr[Unit] =
           Expr.unitBlock(
             g.builders
@@ -104,7 +103,6 @@ object Show extends K0.Derivable[Show] {
 
       object macros {
 
-        @scala.annotation.nowarn("msg=unused import")
         def appendToStringBuilder(sb: Expr[mutable.StringBuilder], a: Expr[A]): Expr[Unit] =
           g.builders.matchOnInstance[Unit](a) {
             [i <: A] =>

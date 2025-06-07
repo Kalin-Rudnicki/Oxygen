@@ -34,7 +34,6 @@ object Eq extends K0.Derivable[Eq], K0.DerivableUnion.Fold[Eq], K0.DerivableInte
 
       object macros {
 
-        @scala.annotation.nowarn("msg=unused import")
         def areEqual(a: Expr[A], b: Expr[A]): Expr[Boolean] = {
           val fieldExprs: Seq[Expr[Boolean]] =
             g.builders.mapToSeq[Expr[Boolean]] {
@@ -72,7 +71,6 @@ object Eq extends K0.Derivable[Eq], K0.DerivableUnion.Fold[Eq], K0.DerivableInte
 
       object macros {
 
-        @scala.annotation.nowarn("msg=unused import")
         def areEqual(a: Expr[A], b: Expr[A]): Expr[Boolean] = {
           (g.MatchBuilder.instance(a) ++ g.MatchBuilder.instance(b)).build[Boolean] {
             [i <: A] => (_: g.Case[i]) => EmptyTuple
