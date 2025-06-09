@@ -64,6 +64,7 @@ lazy val `oxygen-modules-jvm`: Project =
       `oxygen-executable`.jvm,
       `oxygen-json`.jvm,
       `oxygen-meta`.jvm,
+      `oxygen-quoted`.jvm,
       `oxygen-sql`,
       `oxygen-sql-migration`,
       `oxygen-web-model`.jvm,
@@ -92,6 +93,7 @@ lazy val `oxygen-modules-js`: Project =
       `oxygen-executable`.js,
       `oxygen-json`.js,
       `oxygen-meta`.js,
+      `oxygen-quoted`.js,
       `oxygen-web-model`.js,
       `oxygen-zio`.js,
 
@@ -117,6 +119,7 @@ lazy val `oxygen-modules-native`: Project =
       `oxygen-executable`.native,
       `oxygen-json`.native,
       `oxygen-meta`.native,
+      `oxygen-quoted`.native,
       `oxygen-web-model`.native,
       `oxygen-zio`.native,
 
@@ -191,6 +194,20 @@ lazy val `oxygen-meta`: CrossProject =
       publishedProjectSettings,
       name := "oxygen-meta",
       description := "Metaprogramming for scala-3.",
+    )
+    .dependsOn(
+      `oxygen-core` % testAndCompile,
+      `oxygen-quoted` % testAndCompile,
+    )
+
+lazy val `oxygen-quoted`: CrossProject =
+  crossProject(JSPlatform, JVMPlatform, NativePlatform)
+    .crossType(CrossType.Pure)
+    .in(file("modules/quoted"))
+    .settings(
+      publishedProjectSettings,
+      name := "oxygen-quoted",
+      description := "Wrapper around scala.quoted.Quotes.reflect.*, exposing the types at a top-level.",
     )
     .dependsOn(
       `oxygen-core` % testAndCompile,

@@ -22,7 +22,7 @@ object Settings {
     Seq(
       scalaVersion := Scala_3,
       organization := Dependencies.kalinRudnicki.organization,
-      scalacOptions ++= Seq("-source:future", "-Ycheck-all-patmat", "-Wunused:all", "-Werror", "-language:implicitConversions", "-deprecation", "-feature", "-experimental"),
+      scalacOptions ++= Seq("-source:future", "-Ycheck-all-patmat", "-Wunused:all", "-Werror", "-language:implicitConversions", "-deprecation", "-feature"),
       name := { throw new RuntimeException("You must define a project name!!!") },
       description := { throw new RuntimeException("You must define a project description!!!") },
       testFrameworks := Seq(new TestFramework("zio.test.sbt.ZTestFramework")),
