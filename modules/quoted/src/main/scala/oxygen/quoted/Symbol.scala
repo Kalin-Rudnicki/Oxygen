@@ -282,6 +282,8 @@ final class Symbol private (using val quotes: Quotes)(val unwrap: quotes.reflect
 
   def annotations: Annotations = new Annotations(this.unwrap.annotations.map(Term.wrap(_)), this.unwrap.toString)
 
+  def toTerm: Term = this.termRef.toTerm
+
 }
 object Symbol {
 

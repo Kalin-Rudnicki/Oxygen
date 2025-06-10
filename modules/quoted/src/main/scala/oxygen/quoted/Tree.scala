@@ -442,12 +442,37 @@ sealed trait Term extends Statement {
   /** A select node that selects the given symbol. */
   final def select(sym: Symbol): Select = Select.wrap(this.unwrap.select(sym.unwrapWithin))
 
+  // =====| Added |=====
+
+  final def select(name: String): Select =
+    (this.symbol.methodMembers ++ this.symbol.fieldMembers).filter(_.name == name) match {
+      case sym :: Nil => select(sym)
+      case Nil        => report.errorAndAbort(s"No symbols with name $name for $show")
+      case syms =>
+        val shown = syms.map { sym =>
+          sym.tree match {
+            case defDef: DefDef =>
+              s"def ${defDef.name}${defDef.paramss.map(_.render).mkString}: ${defDef.returnTpt.tpe.show}"
+            case valDef: ValDef =>
+              s"val ${valDef.name}: ${valDef.tpt.tpe.show}"
+            case tree =>
+              s"<unknown> ${sym.name}: ${tree.show}"
+          }
+        }
+        report.errorAndAbort(s"Many symbols with name $name for $show:${shown.map(s => s"\n    - $s").mkString}")
+    }
+
+  final def removeInline: Term = this match
+    case Inlined(_, _, term) => term
+    case _                   => this
+
 }
 object Term {
 
   def wrap(using quotes: Quotes)(unwrap: quotes.reflect.Term): Term =
     unwrap match
       case unwrap: quotes.reflect.Ref         => Ref.wrap(unwrap)
+      case unwrap: quotes.reflect.Literal     => Literal.wrap(unwrap)
       case unwrap: quotes.reflect.This        => This.wrap(unwrap)
       case unwrap: quotes.reflect.New         => New.wrap(unwrap)
       case unwrap: quotes.reflect.NamedArg    => NamedArg.wrap(unwrap)

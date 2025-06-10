@@ -63,15 +63,15 @@ trait ProductGeneric[A] private extends Generic[A] { generic =>
 
   object util {
 
-    def map[Out](f: [b] => Type[b] ?=> Field[b] => Out): Contiguous[Out] =
-      fields.map { _field =>
+    def map[Out](f: [b] => Type[b] ?=> Field[b] => Out): Growable[Out] =
+      Growable.many(fields).map { _field =>
         type _b
         val field: Field[_b] = _field.asInstanceOf[Field[_b]]
 
         f[_b](using field.tpe)(field)
       }
 
-    def mapExpr[Out](f: [b] => Type[b] ?=> Field[b] => Expr[Out]): Contiguous[Expr[Out]] =
+    def mapExpr[Out](f: [b] => Type[b] ?=> Field[b] => Expr[Out]): Growable[Expr[Out]] =
       map[Expr[Out]](f)
 
     // FIX-PRE-MERGE (KR) :
@@ -106,15 +106,15 @@ trait SumGeneric[A] private extends Generic[A] { generic =>
 
   object util {
 
-    def map[Out](f: [b <: A] => Type[b] ?=> Case[b] => Out): Contiguous[Out] =
-      cases.map { _case =>
+    def map[Out](f: [b <: A] => Type[b] ?=> Case[b] => Out): Growable[Out] =
+      Growable.many(cases).map { _case =>
         type _b <: A
         val `case`: Case[_b] = _case.asInstanceOf[Case[_b]]
 
         f[_b](using `case`.tpe)(`case`)
       }
 
-    def mapExpr[Out](f: [b <: A] => Type[b] ?=> Case[b] => Expr[Out]): Contiguous[Expr[Out]] =
+    def mapExpr[Out](f: [b <: A] => Type[b] ?=> Case[b] => Expr[Out]): Growable[Expr[Out]] =
       map[Expr[Out]](f)
 
     // FIX-PRE-MERGE (KR) :

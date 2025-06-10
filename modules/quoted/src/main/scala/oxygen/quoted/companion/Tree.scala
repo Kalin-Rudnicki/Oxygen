@@ -491,6 +491,19 @@ final class RepeatedCompanion(using quotes: Quotes) {
   def copy(original: Tree)(elems: List[Term], tpt: TypeTree): Repeated =
     Repeated.wrap(quotes.reflect.Repeated.copy(original.unwrapWithin)(elems.map(_.unwrapWithin), tpt.unwrapWithin))
 
+  // =====| Added |=====
+
+  /**
+    * Similar to [[apply]], but [[apply]] is missing the `*` in `fun(values*)`.
+    */
+  def spread(elems: Seq[Term], tpt: TypeTree): Term = {
+    type A
+    given Type[A] = tpt.tpe.asTypeOf
+    val elems2: Seq[Expr[A]] = elems.map(_.asExprOf[A])
+    val expr: Expr[Seq[A]] = '{ Seq(${ Expr.ofSeq(elems2) }*) }
+    expr.toTerm.removeInline.narrow[Apply].args.head
+  }
+
 }
 
 final class InlinedCompanion(using quotes: Quotes) {

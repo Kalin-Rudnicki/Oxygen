@@ -87,6 +87,9 @@ object seq {
     def surround[B >: A](startJoinEnd: B): F[B] =
       surround(startJoinEnd, startJoinEnd, startJoinEnd)
 
+    def into[F2[_]: SeqOps]: F2[A] =
+      SeqOps.transform[F, F2, A](self)
+
   }
 
 }

@@ -252,6 +252,11 @@ object NamedType {
 final class TermRef(val quotes: Quotes)(val unwrap: quotes.reflect.TermRef) extends NamedType {
   override type This <: TermRef
   override def unwrapWithin(using newQuotes: Quotes): newQuotes.reflect.TermRef = unwrap.asInstanceOf[newQuotes.reflect.TermRef]
+
+  // =====| Added |=====
+
+  def toTerm: Term = Ref.term(this)
+
 }
 object TermRef {
 
