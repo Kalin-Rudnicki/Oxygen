@@ -59,11 +59,22 @@ trait ProductGeneric[A] private extends Generic[A] { generic =>
 
     def annotations: AnnotationsTyped[B] = AnnotationsTyped(constructorSym.annotations.all, valDef.show)
 
-    object util {
+  }
 
-      // FIX-PRE-MERGE (KR) :
+  object util {
 
-    }
+    def map[Out](f: [b] => Type[b] ?=> Field[b] => Out): Contiguous[Out] =
+      fields.map { _field =>
+        type _b
+        val field: Field[_b] = _field.asInstanceOf[Field[_b]]
+
+        f[_b](using field.tpe)(field)
+      }
+
+    def mapExpr[Out](f: [b] => Type[b] ?=> Field[b] => Expr[Out]): Contiguous[Expr[Out]] =
+      map[Expr[Out]](f)
+
+    // FIX-PRE-MERGE (KR) :
 
   }
 
@@ -82,9 +93,29 @@ trait SumGeneric[A] private extends Generic[A] { generic =>
   final case class Case[B <: A](
       idx: Int,
       productGeneric: ProductGeneric[B],
-  )
+  ) {
+
+    given tpe: Type[B] = productGeneric.tpe
+    given quotes: Quotes = productGeneric.quotes
+
+    def label: String = productGeneric.label
+
+    def annotations: Annotations = productGeneric.annotations
+
+  }
 
   object util {
+
+    def map[Out](f: [b <: A] => Type[b] ?=> Case[b] => Out): Contiguous[Out] =
+      cases.map { _case =>
+        type _b <: A
+        val `case`: Case[_b] = _case.asInstanceOf[Case[_b]]
+
+        f[_b](using `case`.tpe)(`case`)
+      }
+
+    def mapExpr[Out](f: [b <: A] => Type[b] ?=> Case[b] => Expr[Out]): Contiguous[Expr[Out]] =
+      map[Expr[Out]](f)
 
     // FIX-PRE-MERGE (KR) :
 
