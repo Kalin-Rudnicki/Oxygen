@@ -36,7 +36,7 @@ trait JsonDecoder[A] {
     JsonDecoder.OrElse(this, that)
 
 }
-object JsonDecoder extends K0.Derivable.WithInstances[JsonDecoder], JsonDecoderLowPriority.LowPriority1 {
+object JsonDecoder extends K0.Derivable[JsonDecoder], JsonDecoderLowPriority.LowPriority1 {
 
   inline def apply[A](using ev: JsonDecoder[A]): JsonDecoder[A] = ev
 
@@ -275,19 +275,13 @@ object JsonDecoder extends K0.Derivable.WithInstances[JsonDecoder], JsonDecoderL
   //      Generic
   //////////////////////////////////////////////////////////////////////////////////////////////////////
 
-  override protected def internalDeriveProductI[Q <: Quotes, A](k0: K0[Q])(
-      g: k0.ProductGeneric[A],
-      i: k0.ValExpressions[JsonDecoder],
-  )(using quotes: Q, aTpe: Type[A], tTpe: Type[JsonDecoder]): Expr[JsonDecoder[A]] =
-    DeriveProductJsonDecoder[Q, A](k0)(g, i).makeJsonDecoder
+  override protected def productDeriver[A](using Quotes, Type[JsonDecoder], Type[A], K0.ProductGeneric[A], K0.Derivable[JsonDecoder]): K0.Derivable.ProductDeriver[JsonDecoder, A] =
+    K0.Derivable.ProductDeriver.withInstances { DeriveProductJsonDecoder[A](_) }
 
-  override protected def internalDeriveSumI[Q <: Quotes, A](k0: K0[Q])(
-      g: k0.SumGeneric[A],
-      i: k0.ValExpressions[JsonDecoder],
-  )(using quotes: Q, aTpe: Type[A], tTpe: Type[JsonDecoder]): Expr[JsonDecoder[A]] =
-    DeriveSumJsonDecoder(k0)(g, i).makeJsonDecoder
+  override protected def sumDeriver[A](using Quotes, Type[JsonDecoder], Type[A], K0.SumGeneric[A], K0.Derivable[JsonDecoder]): K0.Derivable.SumDeriver[JsonDecoder, A] =
+    K0.Derivable.SumDeriver.withInstances { DeriveSumJsonDecoder[A](_) }
 
-  inline def derived[A]: JsonDecoder[A] = ${ derivedImpl[A] }
+  override inline def derived[A]: JsonDecoder[A] = ${ derivedImpl[A] }
 
 }
 

@@ -10,7 +10,7 @@ object ParserSpec extends OxygenSpecDefault {
         case Right((values, params)) =>
           parser.parse(values, params) match {
             case Parser.ParseResult.Success(value, _, _, _) => assertTrue(value == exp)
-            case Parser.ParseResult.Fail(_, help) =>
+            case Parser.ParseResult.Fail(_, help)           =>
               val fullHelp = parser.build.toOption.get.helpMessage.removeEmpties
               throw new RuntimeException(s"\n\n\n$fullHelp\n\n\n$help\n\n\n")
           }

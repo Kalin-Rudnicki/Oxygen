@@ -1,58 +1,69 @@
 package oxygen.sql.generic
 
+import oxygen.meta.*
 import oxygen.predef.core.*
-import oxygen.predef.meta.*
 import oxygen.sql.*
 import oxygen.sql.error.*
 import oxygen.sql.schema.*
+import scala.quoted.*
 
-final class DeriveProductResultDecoder[Q <: Quotes, A](val k0: K0[Q])(generic: k0.ProductGeneric[A], instances: k0.ValExpressions[ResultDecoder]) {
-  import generic.given
-  import k0.given
+final class DeriveProductResultDecoder[A](
+    instances: K0.Expressions[ResultDecoder, A],
+)(using Quotes, Type[ResultDecoder], Type[A], K0.ProductGeneric[A])
+    extends K0.Derivable.ProductDeriver[ResultDecoder, A] {
 
   private def makeSize: Expr[Int] =
-    generic.builders.foldLeft(Expr(0)) {
+    generic.mapChildren.foldLeftExpr[Int](Expr(0)) {
       [i] =>
-        (acc: Expr[Int], field: generic.Field[i]) =>
-          import field.given
-
-          '{ $acc + ${ field.getExpr(instances) }.size }
+        (_, _) ?=>
+          (field: generic.Field[i], acc: Expr[Int]) =>
+            '{
+              $acc + ${ field.getExpr(instances) }.size
+          }
     }
 
   private def makeDecode(offset: Expr[Int], values: Expr[Contiguous[Matchable]]): Expr[Either[QueryError.UnableToDecodeRow, A]] =
-    generic.builders.withValExpressionsFold('{ ($offset, $offset) }) { // TODO (KR) : consider caching these outside the schema, or within a val
-      [i] =>
-        (acc: Expr[(Int, Int)], field: generic.Field[i]) =>
-          import field.given
-
-          '{ ($acc._2, $acc._2 + ${ field.getExpr(instances) }.size) }
-    } { offsets =>
-      generic.builders.eitherMapToInstance {
+    generic.cacheVals
+      .foldLeftDelayed[Int](
+        valName = name => s"offset_$name",
+      )(offset) { // TODO (KR) : consider caching these outside the schema, or within a val
         [i] =>
-          (field: generic.Field[i]) =>
-            import field.given
-
-            '{ ${ field.getExpr(instances) }.__decodeInternal(${ field.getExpr(offsets) }._1, $values) }
+          (_, _) ?=>
+            (field: generic.Field[i], acc: Expr[Int]) =>
+              '{
+                $acc + ${ field.getExpr(instances) }.size
+            }
       }
-    }
+      .defineAndUse { (offsets, _) =>
+        generic.instantiate.either {
+          [i] =>
+            (_, _) ?=>
+              (field: generic.Field[i]) =>
+                '{
+                  ${ field.getExpr(instances) }.__decodeInternal(${ field.getExpr(offsets) }, $values)
+              }
+        }
+      }
 
-  private def makeToStringHeader(size: Expr[Int]): Contiguous[Expr[String]] =
-    Contiguous[Expr[String]](
+  private def makeToStringHeader(size: Expr[Int]): Growable[Expr[String]] =
+    Growable[Expr[String]](
       Expr(s"ResultDecoder.CustomDecoder(type = ${generic.typeRepr.show}, size = "),
       '{ $size.toString },
       Expr(")"),
     )
 
-  private def makeToStringBody: Contiguous[Expr[String]] =
-    generic.builders.mapToContiguous {
+  private def makeToStringBody: Growable[Expr[String]] =
+    generic.mapChildren.flatMapExpr[Growable, String] {
       [i] =>
-        (field: generic.Field[i]) =>
-          import field.given
-
-          '{ s"\n    ${${ field.getExpr(instances) }}" }
+        (_, _) ?=>
+          (field: generic.Field[i]) =>
+            Growable(
+              Expr("\n    "),
+              '{ ${ field.getExpr(instances) }.toString },
+          )
     }
 
-  def makeResultDecoder: Expr[ResultDecoder.CustomDecoder[A]] =
+  override def derive: Expr[ResultDecoder.CustomDecoder[A]] =
     '{
       new ResultDecoder.CustomDecoder[A] {
 
@@ -61,7 +72,7 @@ final class DeriveProductResultDecoder[Q <: Quotes, A](val k0: K0[Q])(generic: k
         override def __decodeInternal(offset: Int, values: Contiguous[Matchable]): Either[QueryError.UnableToDecodeRow, A] =
           ${ makeDecode('offset, 'values) }
 
-        override def toString: String = ${ (makeToStringHeader('size) ++ makeToStringBody).flattenExprs }.mkString
+        override def toString: String = ${ (makeToStringHeader('size) ++ makeToStringBody).toContiguous.exprMkString }
 
       }
     }

@@ -4,7 +4,7 @@ import oxygen.quoted.companion.*
 import scala.annotation.experimental
 import scala.quoted.*
 
-sealed trait Selector {
+sealed trait Selector extends Model {
   type This <: Selector
   val quotes: Quotes
   val unwrap: quotes.reflect.Selector

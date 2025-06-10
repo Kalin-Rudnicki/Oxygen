@@ -5,16 +5,19 @@ import oxygen.quoted.error.UnknownCase
 import scala.annotation.experimental
 import scala.quoted.*
 
-sealed trait ParamClause {
+sealed trait ParamClause extends Model {
   type This <: ParamClause
   val quotes: Quotes
   val unwrap: quotes.reflect.ParamClause
   def unwrapWithin(using newQuotes: Quotes): newQuotes.reflect.ParamClause = unwrap.asInstanceOf[newQuotes.reflect.ParamClause]
-
   given givenQuotes: quotes.type = quotes
 
   /** List of parameters of the clause */
   def params: List[ValDef] | List[TypeDef]
+
+  // =====| Added |=====
+
+  def render: String
 
 }
 object ParamClause {
@@ -35,6 +38,10 @@ final class TypeParamClause(val quotes: Quotes)(val unwrap: quotes.reflect.TypeP
 
   /** List of parameters of the clause */
   override def params: List[TypeDef] = this.unwrap.params.map(TypeDef.wrap(_))
+
+  // =====| Added |=====
+
+  override def render: String = params.map(_.name).mkString("[", ", ", "]")
 
 }
 object TypeParamClause {
@@ -73,6 +80,16 @@ final class TermParamClause(val quotes: Quotes)(val unwrap: quotes.reflect.TermP
   /** Whether the clause has any erased parameters */
   @experimental
   def hasErasedArgs: Boolean = this.unwrap.hasErasedArgs
+
+  // =====| Added |=====
+
+  def renderPrefix: String =
+    if (isGiven) "given "
+    else if (isImplicit) "implicit "
+    else ""
+
+  override def render: String =
+    params.map(v => s"${v.name}: ${v.tpt.show}").mkString("(" + renderPrefix, ", ", ")")
 
 }
 object TermParamClause {

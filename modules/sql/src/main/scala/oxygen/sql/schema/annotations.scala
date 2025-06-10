@@ -1,8 +1,8 @@
 package oxygen.sql.schema
 
 import oxygen.predef.core.*
-import oxygen.predef.meta.*
 import scala.annotation.*
+import scala.quoted.*
 
 /**
   * Explicitly set the name of the schema a table is in.

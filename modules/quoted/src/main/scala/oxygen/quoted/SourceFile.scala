@@ -3,7 +3,7 @@ package oxygen.quoted
 import oxygen.quoted.companion.*
 import scala.quoted.*
 
-final class SourceFile private (using val quotes: Quotes)(val unwrap: quotes.reflect.SourceFile) {
+final class SourceFile private (using val quotes: Quotes)(val unwrap: quotes.reflect.SourceFile) extends Model {
   def unwrapWithin(using newQuotes: Quotes): newQuotes.reflect.SourceFile = this.unwrap.asInstanceOf[newQuotes.reflect.SourceFile]
 
   /** Path to this source file. May be `None` for virtual files such as in the REPL. */

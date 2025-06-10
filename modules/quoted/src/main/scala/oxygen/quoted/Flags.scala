@@ -3,7 +3,7 @@ package oxygen.quoted
 import oxygen.quoted.companion.*
 import scala.quoted.*
 
-final class Flags private (using val quotes: Quotes)(val unwrap: quotes.reflect.Flags) {
+final class Flags private (using val quotes: Quotes)(val unwrap: quotes.reflect.Flags) extends Model {
   def unwrapWithin(using newQuotes: Quotes): newQuotes.reflect.Flags = this.unwrap.asInstanceOf[newQuotes.reflect.Flags]
 
   /** Is the given flag set a subset of this flag sets */

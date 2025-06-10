@@ -2,34 +2,35 @@ package oxygen.json.generic
 
 import oxygen.json.*
 import oxygen.meta.*
+import oxygen.predef.core.*
 import scala.quoted.*
 
-final class DeriveProductJsonEncoder[Q <: Quotes, A](val k0: K0[Q])(generic: k0.ProductGeneric[A], instances: k0.ValExpressions[JsonEncoder]) {
-  import generic.tpe
-  private given quotes: Q = k0.meta.quotes
+final class DeriveProductJsonEncoder[A](
+    instances: K0.Expressions[JsonEncoder, A],
+)(using Quotes, Type[JsonEncoder], Type[A], K0.ProductGeneric[A])
+    extends K0.Derivable.ProductDeriver[JsonEncoder, A] {
 
   private def makeEncodeJsonAST(value: Expr[A]): Expr[Json] = {
-    val fields: Seq[Expr[Option[(String, Json)]]] =
-      generic.builders.mapToSeq[Expr[Option[(String, Json)]]] {
+    val fields: Growable[Expr[Option[(String, Json)]]] =
+      generic.mapChildren.mapExpr[Option[(String, Json)]] {
         [a] =>
-          (field: generic.Field[a]) =>
-            import field.given
+          (_, _) ?=>
+            (field: generic.Field[a]) =>
 
-            val fieldName = Expr(field.name)
+              val fieldName = Expr(field.name)
 
-            '{
-              Option.when(${ field.getExpr(instances) }.addToObject(${ field.get(value) })) {
-                $fieldName ->
-                  ${ field.getExpr(instances) }.encodeJsonAST(${ field.get(value) })
-              }
-          }
+              '{
+                Option.when(${ field.getExpr(instances) }.addToObject(${ field.fromParent(value) })) {
+                  $fieldName ->
+                    ${ field.getExpr(instances) }.encodeJsonAST(${ field.fromParent(value) })
+                }
+            }
       }
 
-    '{ Json.obj(${ Expr.ofSeq(fields) }.flatten*) }
+    '{ Json.Obj(${ fields.to[Contiguous].seqToExpr }.flattenIterable) }
   }
 
-  // NOTE : this needs to be called where the provided [[instances]] have been spliced into the expr.
-  def makeJsonEncoder: Expr[JsonEncoder[A]] =
+  override def derive: Expr[JsonEncoder[A]] =
     '{
       new JsonEncoder[A] {
         override def encodeJsonAST(value: A): Json = ${ makeEncodeJsonAST('value) }

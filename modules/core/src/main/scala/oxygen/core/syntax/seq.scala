@@ -10,7 +10,13 @@ object seq {
     def newIterator: Iterator[A] =
       fOps.newIterator(self)
 
+    def knownSize: Int = fOps.knownSize(self)
+
+    def size: Int = fOps.size(self)
+
     def transformTo[G[_]: SeqOps]: G[A] =
+      SeqOps.transform(self)
+    def into[G[_]: SeqOps]: G[A] =
       SeqOps.transform(self)
 
     def toContiguous: Contiguous[A] =

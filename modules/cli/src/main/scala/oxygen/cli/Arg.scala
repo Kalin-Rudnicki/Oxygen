@@ -56,7 +56,7 @@ object Arg {
       stack: List[Arg.ValueLike],
   ): Either[String, (List[Arg.ValueLike], List[GroupedArg])] =
     queue match {
-      case GroupedArg.Value(i, v) :: tail => parseAllValueLike(tail, Arg.Value(i, v) :: stack)
+      case GroupedArg.Value(i, v) :: tail      => parseAllValueLike(tail, Arg.Value(i, v) :: stack)
       case GroupedArg.Bracketed(i, vs) :: tail =>
         parseBracketed(i, vs) match {
           case Right(value) => parseAllValueLike(tail, value :: stack)

@@ -4,28 +4,30 @@ import oxygen.json.*
 import oxygen.meta.*
 import scala.quoted.*
 
-final class DeriveSumJsonEncoder[Q <: Quotes, A](val k0: K0[Q])(generic: k0.SumGeneric[A], instances: k0.ValExpressions[JsonEncoder]) {
-  import generic.tpe
-  private given quotes: Q = k0.meta.quotes
+final class DeriveSumJsonEncoder[A](
+    instances: K0.Expressions[JsonEncoder, A],
+)(using Quotes, Type[JsonEncoder], Type[A], K0.SumGeneric[A])
+    extends K0.Derivable.SumDeriver[JsonEncoder, A] {
 
   private def makeEncodeJsonAST(value: Expr[A]): Expr[Json] =
-    generic.builders.matchOnInstance[Json](value) {
-      [i <: A] =>
-        (kase: generic.Case[i], value: Expr[i]) =>
-          import kase.given
+    generic.matcher.instance[Json](value) {
+      [b <: A] =>
+        (_, _) ?=>
+          (kase: generic.Case[b]) =>
 
-          val caseName = Expr(kase.name)
+            val caseName = Expr(kase.name)
 
-          '{
-            Json.obj(
-              $caseName ->
-                ${ kase.getExpr(instances) }.encodeJsonAST($value),
-            )
-        }
+            kase.caseExtractor.withRHS { value =>
+              '{
+                Json.obj(
+                  $caseName ->
+                    ${ kase.getExpr(instances) }.encodeJsonAST($value),
+                )
+              }
+          }
     }
 
-  // NOTE : this needs to be called where the provided [[instances]] have been spliced into the expr.
-  def makeJsonEncoder: Expr[JsonEncoder[A]] =
+  override def derive: Expr[JsonEncoder[A]] =
     '{
       new JsonEncoder[A] {
         override def encodeJsonAST(value: A): Json = ${ makeEncodeJsonAST('value) }

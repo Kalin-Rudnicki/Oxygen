@@ -5,7 +5,7 @@ import oxygen.quoted.error.UnknownCase
 import scala.quoted.*
 import scala.reflect.TypeTest
 
-sealed trait Tree {
+sealed trait Tree extends Model {
   type This <: Tree
   val quotes: Quotes
   val unwrap: quotes.reflect.Tree
@@ -32,6 +32,16 @@ sealed trait Tree {
 
   /** Changes the owner of the symbols in the tree */
   final def changeOwner(newOwner: Symbol): This = Tree.wrap(this.unwrap.changeOwner(newOwner.unwrapWithin)).asInstanceOf[This]
+
+  // =====| Added |=====
+
+  override final def maybePos: Option[Position] = Some(pos)
+
+  final def showWith(f: PrinterCompanion => Printer[Tree]): String = this.show(using f(Printer.companion(using quotes)))
+  final def showCode: String = showWith(_.TreeCode)
+  final def showShortCode: String = showWith(_.TreeShortCode)
+  final def showAnsiCode: String = showWith(_.TreeAnsiCode)
+  final def showStructure: String = showWith(_.TreeStructure)
 
 }
 object Tree {
@@ -366,6 +376,15 @@ object DefDef {
 final class ValDef(val quotes: Quotes)(val unwrap: quotes.reflect.ValDef) extends ValOrDefDef {
   override type This <: ValDef
   override def unwrapWithin(using newQuotes: Quotes): newQuotes.reflect.ValDef = unwrap.asInstanceOf[newQuotes.reflect.ValDef]
+
+  // =====| Added |=====
+
+  /**
+    * val a = ...
+    * returns a ref to `a`
+    */
+  def valRef: Ref = Ref(this.symbol)
+
 }
 object ValDef {
 
@@ -442,12 +461,37 @@ sealed trait Term extends Statement {
   /** A select node that selects the given symbol. */
   final def select(sym: Symbol): Select = Select.wrap(this.unwrap.select(sym.unwrapWithin))
 
+  // =====| Added |=====
+
+  final def select(name: String): Select =
+    (this.symbol.methodMembers ++ this.symbol.fieldMembers).filter(_.name == name) match {
+      case sym :: Nil => select(sym)
+      case Nil        => report.errorAndAbort(s"No symbols with name $name for $show")
+      case syms       =>
+        val shown = syms.map { sym =>
+          sym.tree match {
+            case defDef: DefDef =>
+              s"def ${defDef.name}${defDef.paramss.map(_.render).mkString}: ${defDef.returnTpt.tpe.show}"
+            case valDef: ValDef =>
+              s"val ${valDef.name}: ${valDef.tpt.tpe.show}"
+            case tree =>
+              s"<unknown> ${sym.name}: ${tree.show}"
+          }
+        }
+        report.errorAndAbort(s"Many symbols with name $name for $show:${shown.map(s => s"\n    - $s").mkString}")
+    }
+
+  final def removeInline: Term = this match
+    case Inlined(_, _, term) => term
+    case _                   => this
+
 }
 object Term {
 
   def wrap(using quotes: Quotes)(unwrap: quotes.reflect.Term): Term =
     unwrap match
       case unwrap: quotes.reflect.Ref         => Ref.wrap(unwrap)
+      case unwrap: quotes.reflect.Literal     => Literal.wrap(unwrap)
       case unwrap: quotes.reflect.This        => This.wrap(unwrap)
       case unwrap: quotes.reflect.New         => New.wrap(unwrap)
       case unwrap: quotes.reflect.NamedArg    => NamedArg.wrap(unwrap)

@@ -1,8 +1,9 @@
 package oxygen.sql.schema
 
+import oxygen.meta.*
 import oxygen.predef.core.*
-import oxygen.predef.meta.*
 import oxygen.sql.generic.*
+import scala.quoted.*
 
 final case class Columns[A](columns: Contiguous[Column]) {
 
@@ -21,18 +22,14 @@ final case class Columns[A](columns: Contiguous[Column]) {
   def `(ref.a, ref.b, ref.c)`(ref: String): String = `ref.a, ref.b, ref.c`(ref).surroundIfMulti
 
 }
-object Columns extends K0.Derivable.WithInstances[Columns] {
+object Columns extends K0.Derivable[Columns] {
 
-  override protected def internalDeriveProductI[Q <: Quotes, A](k0: K0[Q])(
-      g: k0.ProductGeneric[A],
-      i: k0.ValExpressions[Columns],
-  )(using quotes: Q, aTpe: Type[A], tTpe: Type[Columns]): Expr[Columns[A]] =
-    DeriveProductColumns[Q, A](k0)(g, i).makeColumns
+  override protected def productDeriver[A](using Quotes, Type[Columns], Type[A], K0.ProductGeneric[A], K0.Derivable[Columns]): K0.Derivable.ProductDeriver[Columns, A] =
+    K0.Derivable.ProductDeriver.withInstances[Columns, A] { DeriveProductColumns(_) }
 
-  override protected def internalDeriveSumI[Q <: Quotes, A](k0: K0[Q])(
-      g: k0.SumGeneric[A],
-      i: k0.ValExpressions[Columns],
-  )(using quotes: Q, aTpe: Type[A], tTpe: Type[Columns]): Expr[Columns[A]] =
-    k0.meta.report.errorAndAbort("Not supported: Columns.derive for sum type")
+  override protected def sumDeriver[A](using Quotes, Type[Columns], Type[A], K0.SumGeneric[A], K0.Derivable[Columns]): K0.Derivable.SumDeriver[Columns, A] =
+    K0.Derivable.SumDeriver.notSupported
+
+  override inline def derived[A]: Columns[A] = ${ derivedImpl[A] }
 
 }

@@ -4,7 +4,7 @@ import oxygen.quoted.companion.*
 import scala.annotation.experimental
 import scala.quoted.*
 
-final class Symbol private (using val quotes: Quotes)(val unwrap: quotes.reflect.Symbol) {
+final class Symbol private (using val quotes: Quotes)(val unwrap: quotes.reflect.Symbol) extends Model {
   def unwrapWithin(using newQuotes: Quotes): newQuotes.reflect.Symbol = this.unwrap.asInstanceOf[newQuotes.reflect.Symbol]
 
   /** Owner of this symbol. The owner is the symbol in which this symbol is defined. Throws if this symbol does not have an owner. */
@@ -70,9 +70,6 @@ final class Symbol private (using val quotes: Quotes)(val unwrap: quotes.reflect
 
   /** Get the annotation defined with `annotSym` attached to this symbol */
   def getAnnotation(annotSym: Symbol): Option[Term] = this.unwrap.getAnnotation(annotSym.unwrapWithin).map(Term.wrap(_))
-
-  /** Annotations attached to this symbol */
-  def annotations: List[Term] = this.unwrap.annotations.map(Term.wrap(_))
 
   /** Does this symbol come from a currently compiled source file? */
   def isDefinedInCurrentRun: Boolean = this.unwrap.isDefinedInCurrentRun
@@ -278,6 +275,22 @@ final class Symbol private (using val quotes: Quotes)(val unwrap: quotes.reflect
   // =====| Added |=====
 
   def asQuotesUsing[A](f: Quotes ?=> A): A = f(using this.asQuotes)
+
+  def typeType: Option[TypeType] = TypeType.fromSym(this)
+  def typeTypeSealed: Option[TypeType.Sealed] = TypeType.Sealed.fromSym(this)
+  def typeTypeCase: Option[TypeType.Case] = TypeType.Case.fromSym(this)
+  def typeTypeCaseClass: Option[TypeType.Case.Class] = TypeType.Case.Class.fromSym(this)
+  def typeTypeCaseObject: Option[TypeType.Case.Object] = TypeType.Case.Object.fromSym(this)
+
+  def annotations: Annotations = new Annotations(this.unwrap.annotations.map(Term.wrap(_)), this.unwrap.toString)
+
+  def toTerm: Term = this.termRef.toTerm
+
+  def isTupleClass: Boolean = quotes.reflect.defn.isTupleClass(this.unwrap)
+
+  // =====| Added |=====
+
+  override def maybePos: Option[Position] = pos
 
 }
 object Symbol {

@@ -47,10 +47,10 @@ object OxygenAspects {
       def loop[R, E](acc: Growable[String], spec: Spec[R, E])(using trace: Trace): Spec[R, E] = {
         val res: Spec.SpecCase[R, E, Spec[R, E]] =
           spec.caseValue match {
-            case Spec.ExecCase(exec, spec)     => Spec.ExecCase(exec, loop(acc, spec))
-            case Spec.LabeledCase(label, spec) => Spec.LabeledCase(label, loop(acc :+ label, spec))
-            case Spec.ScopedCase(scoped)       => Spec.ScopedCase(scoped.map(loop(acc, _)))
-            case Spec.MultipleCase(specs)      => Spec.MultipleCase(specs.map(loop(acc, _)))
+            case Spec.ExecCase(exec, spec)        => Spec.ExecCase(exec, loop(acc, spec))
+            case Spec.LabeledCase(label, spec)    => Spec.LabeledCase(label, loop(acc :+ label, spec))
+            case Spec.ScopedCase(scoped)          => Spec.ScopedCase(scoped.map(loop(acc, _)))
+            case Spec.MultipleCase(specs)         => Spec.MultipleCase(specs.map(loop(acc, _)))
             case Spec.TestCase(test, annotations) =>
               Spec.TestCase(
                 test @@ ZIO.withLogSpans(LogSpan(acc.toContiguous.mkString(" / "), java.time.Instant.now().toEpochMilli) :: Nil),

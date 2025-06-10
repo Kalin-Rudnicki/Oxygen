@@ -101,6 +101,8 @@ sealed trait IndentedString {
       Color.RGB.hex("#3E8914"),
       Color.RGB.hex("#806FC3"),
     )
+  final def toStringColorized: String =
+    toStringColorized("|   ")
 
   override final def toString: String =
     toString("    ")
@@ -190,7 +192,7 @@ object IndentedString {
     val matchable: Matchable = any.asInstanceOf[Matchable]
     show(matchable) match {
       case Some(is) => is
-      case None =>
+      case None     =>
         matchable match {
           case option: Option[?] => fromAnyProduct(option, show)
           case seq: List[?]      => IndentedString.section("[List[_]]:")(seq.map(fromAny(_, show))*)

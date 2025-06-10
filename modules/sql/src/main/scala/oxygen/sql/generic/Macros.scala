@@ -1,20 +1,18 @@
 package oxygen.sql.generic
 
 import oxygen.core.typeclass.{Functor, Traverse}
+import oxygen.meta.*
 import oxygen.predef.color.given
 import oxygen.predef.core.*
-import oxygen.predef.meta.*
+import oxygen.quoted.*
 import oxygen.sql.query.*
 import oxygen.sql.query.dsl.*
 import oxygen.sql.schema.{InputEncoder, ResultDecoder, RowRepr, TableRepr}
 import scala.annotation.{tailrec, unused}
-import scala.collection.mutable
+import scala.quoted.*
 import scala.util.NotGiven
 
-final class Macros[Q <: Quotes](val k0: K0[Q]) {
-  import k0.meta.*
-  import k0.meta.flatTerms.*
-  import k0.meta.given
+final class Macros(using quotes: Quotes) {
 
   def selectNoInputs[O: Type](select: Expr[SelectNoInput], f: Expr[Unit => Returning[O]]): Expr[QueryO[O]] =
     ParseContext.root("select without inputs") {
@@ -44,9 +42,9 @@ final class Macros[Q <: Quotes](val k0: K0[Q]) {
           report.info(
             Contiguous(
               queryName,
-              sqlExpr.showSimple,
-              decoderExpr.showAnsi,
-              query.showAnsi,
+              sqlExpr.showShortCode,
+              decoderExpr.showAnsiCode,
+              query.showAnsiCode,
             ).mkString(" \n", "\n \n ", "\n "),
             select,
           )
@@ -85,10 +83,10 @@ final class Macros[Q <: Quotes](val k0: K0[Q]) {
           report.info(
             Contiguous(
               queryName,
-              sqlExpr.showSimple,
-              encoderExpr.showSimple,
-              decoderExpr.showSimple,
-              query.showAnsi,
+              sqlExpr.showShortCode,
+              encoderExpr.showShortCode,
+              decoderExpr.showShortCode,
+              query.showAnsiCode,
             ).mkString(" \n", "\n \n ", "\n "),
             select,
           )
@@ -134,18 +132,8 @@ final class Macros[Q <: Quotes](val k0: K0[Q]) {
     def parens: GeneratedSql = GeneratedSql.of("(", this, ")")
     def parensIf(cond: Boolean): GeneratedSql = if (cond) this.parens else this
 
-    def buildExpr: Expr[String] = {
-      def addAll(builder: Expr[mutable.StringBuilder]): Expr[String] =
-        Expr.block(
-          sqls.toContiguous.toList.map { expr => '{ $builder.append($expr) } },
-          '{ $builder.result() },
-        )
-
-      '{
-        val builder = mutable.StringBuilder(128)
-        ${ addAll('builder) }
-      }
-    }
+    def buildExpr: Expr[String] =
+      sqls.exprMkString
 
   }
   private object GeneratedSql {
@@ -253,8 +241,8 @@ final class Macros[Q <: Quotes](val k0: K0[Q]) {
 
   private def toSql(expr: QueryExpr)(using ParseContext): ParseResult[GeneratedSql] =
     expr match {
-      case _: QueryExpr.InputLike    => ParseResult.error(expr.term, "not supported - input that does not reference table")
-      case expr: QueryExpr.QueryLike => ParseResult.Success(toSqlQ(expr, false))
+      case _: QueryExpr.InputLike           => ParseResult.error(expr.term, "not supported - input that does not reference table")
+      case expr: QueryExpr.QueryLike        => ParseResult.Success(toSqlQ(expr, false))
       case QueryExpr.AndOr(_, lhs, op, rhs) =>
         for {
           lhs <- toSql(lhs).map(_.parensIf(lhs.isAndOr))
@@ -284,7 +272,7 @@ final class Macros[Q <: Quotes](val k0: K0[Q]) {
         case Contiguous(single) =>
           single.buildExpr[I]
         case many =>
-          '{ InputEncoder.ConcatAll[I](${ many.map(_.buildExpr[I]).flattenExprs }) }
+          '{ InputEncoder.ConcatAll[I](${ many.map(_.buildExpr[I]).seqToExpr }) }
       }
 
   }
@@ -300,7 +288,7 @@ final class Macros[Q <: Quotes](val k0: K0[Q]) {
         fromInput match {
           case Some(fromInput) =>
             type MyI
-            given Type[MyI] = typeRepr.asTyped
+            given Type[MyI] = typeRepr.asTypeOf
             val typedEncoder: Expr[InputEncoder[MyI]] = encoder.asExprOf[InputEncoder[MyI]]
 
             val f: Expr[I => MyI] =
@@ -342,8 +330,8 @@ final class Macros[Q <: Quotes](val k0: K0[Q]) {
 
   private def toInputs(expr: QueryExpr)(using ParseContext): ParseResult[GeneratedInputEncoder] =
     expr match {
-      case _: QueryExpr.InputLike => ParseResult.error(expr.term, "not supported - input that does not reference table")
-      case _: QueryExpr.QueryLike => ParseResult.Success(GeneratedInputEncoder.empty)
+      case _: QueryExpr.InputLike          => ParseResult.error(expr.term, "not supported - input that does not reference table")
+      case _: QueryExpr.QueryLike          => ParseResult.Success(GeneratedInputEncoder.empty)
       case QueryExpr.AndOr(_, lhs, _, rhs) =>
         for {
           lhs <- toInputs(lhs)
@@ -358,36 +346,31 @@ final class Macros[Q <: Quotes](val k0: K0[Q]) {
   //      Decoding Result
   //////////////////////////////////////////////////////////////////////////////////////////////////////
 
-  final case class GeneratedResultDecoder private (decoders: Growable[GeneratedResultDecoder.Elem]) {
+  final case class GeneratedResultDecoder private (decoders: Growable[K0.Expressions.Elem[ResultDecoder, ?]]) {
 
     def ++(that: GeneratedResultDecoder): GeneratedResultDecoder = GeneratedResultDecoder(this.decoders ++ that.decoders)
 
     def buildExpr[O: Type]: Expr[ResultDecoder[O]] =
       decoders.toContiguous match {
-        case Contiguous(single) =>
-          single.decoder.asExprOf[ResultDecoder[O]]
         case Contiguous() =>
           '{ ResultDecoder.Empty }.asExprOf[ResultDecoder[O]]
+        case Contiguous(single) =>
+          single.expr.asExprOf[ResultDecoder[O]]
         case many =>
-          val insts: k0.ValExpressions[ResultDecoder] = k0.ValExpressions.unsafeMake(many.map(_.toValExprElem))
-          k0.ProductGeneric.tupleInstance(ResultDecoder, insts)._2.asExprOf[ResultDecoder[O]]
+          type O2
+          given tupGeneric: K0.ProductGeneric[O2] = K0.ProductGeneric.ofTuple[O2](many.map(_.bTpe.toTypeRepr).toList)
+          given Type[O2] = tupGeneric.tpe
+          val exprs: K0.Expressions[ResultDecoder, O2] = K0.Expressions(Type.of[ResultDecoder], tupGeneric.tpe, many)
+          val instanceExpr: Expr[ResultDecoder[O2]] = DeriveProductResultDecoder(exprs).derive
+
+          instanceExpr.asExprOf[ResultDecoder[O]]
       }
 
   }
   object GeneratedResultDecoder {
 
-    final case class Elem(
-        typeRepr: TypeRepr,
-        decoder: Expr[ResultDecoder[?]],
-    ) {
-
-      def toValExprElem: k0.ValExpressions.Elem[ResultDecoder, ?] =
-        k0.ValExpressions.Elem.unsafeMake(decoder, typeRepr.asTyped)
-
-    }
-
     val empty: GeneratedResultDecoder = GeneratedResultDecoder(Growable.empty)
-    def single(tpe: TypeRepr, expr: Expr[ResultDecoder[?]]): GeneratedResultDecoder = GeneratedResultDecoder(Growable.single(Elem(tpe, expr)))
+    def single(tpe: TypeRepr, expr: Expr[ResultDecoder[?]]): GeneratedResultDecoder = GeneratedResultDecoder(Growable.single(K0.Expressions.Elem(tpe.asTypeOf, expr)))
     def option(decoder: Option[GeneratedResultDecoder]): GeneratedResultDecoder = decoder.getOrElse(GeneratedResultDecoder.empty)
     def seq(decoders: Seq[GeneratedResultDecoder]): GeneratedResultDecoder = GeneratedResultDecoder(Growable.many(decoders).flatMap(_.decoders))
     def nel(decoders: NonEmptyList[GeneratedResultDecoder]): GeneratedResultDecoder = GeneratedResultDecoder.seq(decoders.toList)
@@ -405,22 +388,22 @@ final class Macros[Q <: Quotes](val k0: K0[Q]) {
 
   private def productSchemaField(term: Term, field: String, schema: Expr[RowRepr[?]]): Expr[RowRepr[?]] = {
     type T
-    given Type[T] = term.tpe.widen.asTyped
+    given Type[T] = term.tpe.widen.asTypeOf
 
     '{ $schema.unsafeChild[T](${ Expr(field) }) }
   }
 
   private def optionSchemaGet(term: Term, schema: Expr[RowRepr[?]]): Expr[RowRepr[?]] = {
     type T
-    given Type[T] = term.tpe.widen.asTyped
+    given Type[T] = term.tpe.widen.asTypeOf
 
     '{ $schema.unsafeRequired[T] }
   }
 
   extension (self: Term)
     private def simplify: Term = self.underlying match
-      case Tree.Statement.Term.Typed(term, _) => term.simplify
-      case _                                  => self
+      case Typed(term, _) => term.simplify
+      case _              => self
 
   private trait Parser[-A, +B] {
 
@@ -785,19 +768,19 @@ final class Macros[Q <: Quotes](val k0: K0[Q]) {
         term match {
           case Select(lhs, funct) =>
             type T
-            given Type[T] = lhs.tpe.widen.asTyped
+            given Type[T] = lhs.tpe.widen.asTypeOf
 
             // TODO (KR) : consider requiring an `extends Column.Product`
+
             for {
-              gen <- k0.ProductGeneric.attemptOf[T] match {
-                case Right(value) => ParseResult.Success(value)
-                case Left(_)      => ParseResult.unknown(lhs, "no product generic")
-              }
-              field <- gen.fields.find(_.name == funct) match {
+              gen <-
+                if (TypeRepr.of[T].typeTypeCase.nonEmpty) ParseResult.Success(K0.ProductGeneric.of[T](K0.Derivable.Config()))
+                else ParseResult.unknown(lhs, "no product generic")
+              field <- gen.fields.iterator.find(_.name == funct) match {
                 case Some(field) => ParseResult.Success(field)
                 case None        => ParseResult.error(term, s"not a product field: $funct")
               }
-            } yield (lhs, funct, field.get.asInstanceOf[Expr[Any] => Expr[Any]])
+            } yield (lhs, funct, field.fromParent.asInstanceOf[Expr[Any] => Expr[Any]])
         }
 
     }
@@ -1139,7 +1122,7 @@ final class Macros[Q <: Quotes](val k0: K0[Q]) {
       s"params(${params.map { p => s"\n  ${p.name}: ${p.tpe.show} <${p.tree.symbol.fullName}>," }.mkString}\n) "
 
     private def makeTupleAccess(size: Int, idx: Int): Expr[Any] => Expr[Any] = {
-      val selectSym: Symbol = defn.TupleClass(size).fieldMember(s"_${idx + 1}")
+      val selectSym: Symbol = Symbol.tupleClass(size).fieldMember(s"_${idx + 1}")
       _.toTerm.select(selectSym).asExpr
     }
 
@@ -1151,13 +1134,12 @@ final class Macros[Q <: Quotes](val k0: K0[Q]) {
         }
 
         params <- defDef.paramss match {
-          case head :: Nil => ParseResult.Success(head)
-          case params      => ParseResult.error(defDef, s"Expected DefDef to have single param group, but had (${params.size})")
+          case (head: TermParamClause) :: Nil => ParseResult.Success(head)
+          case params                         => ParseResult.error(defDef, s"Expected DefDef to have single param group, but had (${params.size})")
         }
         valDef <- params.params match {
-          case Left(valDef :: Nil) => ParseResult.Success(valDef)
-          case Left(valDefs)       => ParseResult.error(defDef, s"Expected DefDef to have single val def, but had (${valDefs.size})")
-          case Right(_)            => ParseResult.error(defDef, "Expected val params, not type params")
+          case valDef :: Nil => ParseResult.Success(valDef)
+          case valDefs       => ParseResult.error(defDef, s"Expected DefDef to have single val def, but had (${valDefs.size})")
         }
 
         rhs <- defDef.rhs match {
