@@ -3,7 +3,7 @@ package oxygen.quoted
 import oxygen.quoted.companion.*
 import scala.quoted.*
 
-final class Signature private (using val quotes: Quotes)(val unwrap: quotes.reflect.Signature) {
+final class Signature private (using val quotes: Quotes)(val unwrap: quotes.reflect.Signature) extends Model {
   def unwrapWithin(using newQuotes: Quotes): newQuotes.reflect.Signature = this.unwrap.asInstanceOf[newQuotes.reflect.Signature]
 
   /**

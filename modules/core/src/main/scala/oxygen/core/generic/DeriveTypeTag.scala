@@ -51,7 +51,7 @@ final class DeriveTypeTag(val quotes: Quotes) {
         R.report.errorAndAbort(s"Missing implicit typeTag for $name")
       case typeOrTerm(prefix, name)        => deriveSingle(prefix, name, Nil)
       case appliedType(prefix, name, args) => deriveSingle(prefix, name, args.map(summonOrDeriveRef))
-      case andType(types) =>
+      case andType(types)                  =>
         '{
           TypeTag.TypeRef.Intersection(Set(${ Expr.ofSeq(types.toList.map(summonOrDeriveRef)) }*))
         }

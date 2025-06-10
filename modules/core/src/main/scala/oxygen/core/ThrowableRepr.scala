@@ -28,7 +28,7 @@ object ThrowableRepr {
   def fromThrowable(throwable: Throwable): ThrowableRepr =
     throwable match {
       case throwable: ThrowableRepr => throwable
-      case _ =>
+      case _                        =>
         ThrowableRepr(
           TypeTag.fromClass(throwable.getClass),
           Option(throwable.getMessage),

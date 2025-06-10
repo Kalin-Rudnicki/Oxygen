@@ -496,4 +496,9 @@ final class SymbolCompanion(using quotes: Quotes) {
   def freshName(prefix: String): String =
     quotes.reflect.Symbol.freshName(prefix)
 
+  // =====| Added |=====
+
+  def tupleClass(arity: Int): Symbol =
+    Symbol.wrap(quotes.reflect.defn.TupleClass(arity))
+
 }

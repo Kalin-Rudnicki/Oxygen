@@ -5,7 +5,7 @@ import oxygen.quoted.error.UnknownCase
 import scala.annotation.experimental
 import scala.quoted.*
 
-sealed trait TypeRepr {
+sealed trait TypeRepr extends Model {
   type This <: TypeRepr
   val quotes: Quotes
   val unwrap: quotes.reflect.TypeRepr
@@ -16,6 +16,9 @@ sealed trait TypeRepr {
 
   /** Shows the type as a String */
   final def show(using printer: Printer[TypeRepr]): String = printer.show(this)
+
+  final def show(f: PrinterCompanion => Printer[TypeRepr]): String =
+    show(using f(Printer.companion))
 
   /**
     * Convert this `TypeRepr` to an `Type[?]`
@@ -170,13 +173,40 @@ sealed trait TypeRepr {
 
   // =====| Added |=====
 
-  def andChildren: Set[TypeRepr] = this match
+  final def andChildren: Set[TypeRepr] = this match
     case and: AndType => and.left.andChildren ++ and.right.andChildren
     case _            => Set(this)
 
-  def orChildren: Set[TypeRepr] = this match
+  final def orChildren: Set[TypeRepr] = this match
     case or: OrType => or.left.orChildren ++ or.right.orChildren
     case _          => Set(this)
+
+  final def asTypeOf[A]: Type[A] =
+    this.asType.asInstanceOf[Type[A]]
+
+  final def typeOrTermSymbol: Symbol = if (this.isSingleton) this.termSymbol else this.typeSymbol
+
+  final def typeType: Option[TypeType] = this.typeOrTermSymbol.typeType
+  final def typeTypeSealed: Option[TypeType.Sealed] = this.typeOrTermSymbol.typeTypeSealed
+  final def typeTypeCase: Option[TypeType.Case] = this.typeOrTermSymbol.typeTypeCase
+  final def typeTypeCaseClass: Option[TypeType.Case.Class] = this.typeOrTermSymbol.typeTypeCaseClass
+  final def typeTypeCaseObject: Option[TypeType.Case.Object] = this.typeOrTermSymbol.typeTypeCaseObject
+
+  final def annotations: Annotations = new Annotations(this.typeOrTermSymbol.annotations.all, show)
+
+  final def typeTree: TypeTree =
+    TypeTree.fromType(this.asType)
+
+  override final def maybePos: Option[Position] = this.typeOrTermSymbol.pos
+
+  final def appliedTo(targ0: TypeRepr, targ1: TypeRepr, targN: TypeRepr*): TypeRepr =
+    this.appliedTo(targ0 :: targ1 :: targN.toList)
+
+  final def showWith(f: PrinterCompanion => Printer[TypeRepr]): String = this.show(using f(Printer.companion(using quotes)))
+  final def showCode: String = showWith(_.TypeReprCode)
+  final def showShortCode: String = showWith(_.TypeReprShortCode)
+  final def showAnsiCode: String = showWith(_.TypeReprAnsiCode)
+  final def showStructure: String = showWith(_.TypeReprStructure)
 
 }
 object TypeRepr {
@@ -238,6 +268,11 @@ object NamedType {
 final class TermRef(val quotes: Quotes)(val unwrap: quotes.reflect.TermRef) extends NamedType {
   override type This <: TermRef
   override def unwrapWithin(using newQuotes: Quotes): newQuotes.reflect.TermRef = unwrap.asInstanceOf[newQuotes.reflect.TermRef]
+
+  // =====| Added |=====
+
+  def toTerm: Term = Ref.term(this)
+
 }
 object TermRef {
 

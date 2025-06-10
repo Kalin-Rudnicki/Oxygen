@@ -40,7 +40,7 @@ object EncodedLogCause {
       case Cause.Die(value, trace)           => EncodedLogCause.Die(value, if (ignoreStackless || stack) trace else StackTrace.none).some
       case Cause.Interrupt(fiberId, trace)   => EncodedLogCause.Interrupt(fiberId, if (ignoreStackless || stack) trace else StackTrace.none).some
       case Cause.Stackless(cause, stackless) => rec(cause, show, ignoreStackless, stack && !stackless)
-      case Cause.Then(left, right) =>
+      case Cause.Then(left, right)           =>
         (rec(left, show, ignoreStackless, stack), rec(right, show, ignoreStackless, stack)) match {
           case (Some(left), Some(right)) => EncodedLogCause.Then(left, right).some
           case (Some(left), None)        => left.some

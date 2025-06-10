@@ -8,7 +8,7 @@ object Macros {
     val repr = TypeRepr.of[A]
     val pc = repr.typeSymbol.primaryConstructor
     val res = pc.paramSymss.flatten.map(_.name)
-    report.info(s"${repr.show} : ${res.mkString(", ")}")
+    // report.info(s"${repr.show} : ${res.mkString(", ")}")
     Expr(res.toSet)
   }
 

@@ -131,7 +131,7 @@ object Parser {
     override def parse(values: List[Arg.ValueLike], params: List[Arg.ParamLike]): Parser.ParseResult[A] =
       left.parse(values, params) match {
         case success @ Parser.ParseResult.Success(_, _, _, _) => success
-        case Parser.ParseResult.Fail(error1, help1) =>
+        case Parser.ParseResult.Fail(error1, help1)           =>
           right.parse(values, params) match {
             case success @ Parser.ParseResult.Success(_, _, _, _) => success
             case Parser.ParseResult.Fail(error2, help2)           => Parser.ParseResult.Fail(ParseError.RootOr(error1, error2), HelpMessage.RootMessage.Or(help1, help2))
@@ -614,7 +614,7 @@ object Values {
     override def parseValues(values: List[Arg.ValueLike]): Values.ParseResult[A] =
       left.parseValues(values) match {
         case success @ Values.ParseResult.Success(_, _, _) => success
-        case Values.ParseResult.Fail(error1, help1) =>
+        case Values.ParseResult.Fail(error1, help1)        =>
           right.parseValues(values) match {
             case success @ Values.ParseResult.Success(_, _, _) => success
             case Values.ParseResult.Fail(error2, help2)        => Values.ParseResult.Fail(ParseError.ValueErrorOr(error1, error2), HelpMessage.ValueMessage.Or(help1, help2))
@@ -967,7 +967,7 @@ object Params {
         case Some((param, rest)) =>
           val parsedArg = ParsedParamArg(longName :: Nil, param :: Nil)
           param.values match {
-            case Nil => Params.ParseResult.Success(value, parsedArg :: Nil, rest)
+            case Nil    => Params.ParseResult.Success(value, parsedArg :: Nil, rest)
             case h :: t =>
               Params.ParseResult.Fail(
                 ParseError.SingleParamError(parsedArg :: Nil, ParseError.ParamValuesValidation(ParseError.UnparsedValues(NonEmptyList(h, t)))),
@@ -1013,7 +1013,7 @@ object Params {
         case Some((param, value, rest)) =>
           val parsedArg = ParsedParamArg(longName :: Nil, param :: Nil)
           param.values match {
-            case Nil => Params.ParseResult.Success(value, parsedArg :: Nil, rest)
+            case Nil    => Params.ParseResult.Success(value, parsedArg :: Nil, rest)
             case h :: t =>
               Params.ParseResult.Fail(
                 ParseError.SingleParamError(parsedArg :: Nil, ParseError.ParamValuesValidation(ParseError.UnparsedValues(NonEmptyList(h, t)))),
@@ -1314,7 +1314,7 @@ object Params {
     override def parseParams(params: List[Arg.ParamLike]): Params.ParseResult[A] =
       left.parseParams(params) match {
         case success @ Params.ParseResult.Success(_, _, _) => success
-        case Params.ParseResult.Fail(error1, help1) =>
+        case Params.ParseResult.Fail(error1, help1)        =>
           right.parseParams(params) match {
             case success @ Params.ParseResult.Success(_, _, _) => success
             case Params.ParseResult.Fail(error2, help2)        => Params.ParseResult.Fail(ParseError.ParamErrorOr(error1, error2), HelpMessage.ParamMessage.Or(help1, help2))

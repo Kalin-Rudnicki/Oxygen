@@ -1,146 +1,94 @@
 package oxygen.meta
 
-import oxygen.meta.example.*
+import oxygen.core.generic.ShowGeneric.annotation.*
+import oxygen.core.generic.derived
+import oxygen.core.typeclass.Show
 import oxygen.predef.test.*
 
 object DeriveShowSpec extends OxygenSpecDefault {
 
-  private def makeTest[A: {Show as show}](label: String)(value: A, exp: String): TestSpec =
-    test(label) {
-      assertTrue(
-        show.show(value) == exp,
-      )
-    }
+  @K0.annotation.showDerivation[Show]
+  final case class CaseClass1(
+      a: Int,
+      b: Option[String],
+  ) derives Show
 
-  // given [A: Show] => Show[Option[A]] = Show.derived
+  // @K0.annotation.showDerivation[Show]
+  @typeName("MyCaseClass")
+  final case class CaseClass2(
+      @obfuscate.map('*')
+      @fieldName("masked")
+      a: Int,
+      @hide
+      b: String,
+  ) derives Show
 
-  given [A: {Show as show}] => Show[Option[A]] = {
-    case Some(value) => show.show(value)
-    case None        => "none"
+  // @K0.annotation.showDerivation[Show]
+  final case class CaseClass3[A](
+      a: A,
+      b: Option[String],
+  ) derives Show
+
+  final case class CaseClass4(
+      i: Int,
+      inner: Option[CaseClass4],
+  ) derives Show
+
+  final case class AnyVal1(value: String) extends AnyVal derives Show
+
+  case object CaseObject1 {
+    given Show[CaseObject1.type] = Show.derived
   }
 
-  given Show[CaseClass1] = Show.derived
-  given Show[CaseClass2] = Show.derived
-  given Show[CaseClass4] = Show.derived
-  given [A: Show] => Show[CaseClass6[A]] = Show.derived
+  // @K0.annotation.showDerivation[Show]
+  enum Enum1 derives Show {
+    case A1
+    case B1(value: CaseClass1)
+  }
 
-  given Show[CaseObject1.type] = Show.derived
-  given Show[Enum1.Case1] = Show.derived
-  given Show[Enum1] = Show.derived
-  given [A: Show] => Show[SealedTrait3.A[A]] = Show.derived
+  sealed trait Enum3 derives Show
+  object Enum3 {
+    case object A3 extends Enum3
+    final case class B3(value: CaseClass1) extends Enum3
+  }
 
-  private def productSpec: TestSpec =
-    suite("product")(
-      suite("CaseClass1")(
-        makeTest("false")(
-          CaseClass1(0, "no", false),
-          """{ my-int = 0, string = "no", boolean = false }""",
-        ),
-        makeTest("true")(
-          CaseClass1(1, "yes", true),
-          """{ my-int = 1, string = "yes", boolean = true }""",
-        ),
-      ),
-      makeTest("CaseClass2")(
-        CaseClass2(),
-        """{}""",
-      ),
-      suite("CaseClass4")(
-        makeTest("no nesting")(
-          CaseClass4(0, None),
-          """{ value = 0, nested = none }""",
-        ),
-        makeTest("nesting")(
-          CaseClass4(1, CaseClass4(0, None).some),
-          """{ value = 1, nested = { value = 0, nested = none } }""",
-        ),
-      ),
-      makeTest("CaseObject1")(
-        CaseObject1,
-        """{}""",
-      ),
-      suite("CaseClass6")(
-        makeTest("int")(
-          CaseClass6(5),
-          """{ field = 5 }""",
-        ),
-        makeTest("CaseClass1")(
-          CaseClass6(CaseClass1(0, "no", false)),
-          """{ field = { my-int = 0, string = "no", boolean = false } }""",
-        ),
-      ),
-      makeTest("SealedTrait3.A")(
-        SealedTrait3.A(1),
-        """{ a = 1 }""",
-      ),
-    )
-
-  private def sumSpec: TestSpec =
-    suite("sum")(
-      suite("Enum1")(
-        makeTest[Enum1]("Case1")(
-          Enum1.Case1(0, "0"),
-          """Case1: { int = 0, string = "0" }""",
-        ),
-        makeTest[Enum1]("Case2")(
-          Enum1.Case2(),
-          """Case2: {}""",
-        ),
-        makeTest[Enum1]("Case3")(
-          Enum1.Case3,
-          """Case3: {}""",
-        ),
-      ),
-      suite("SealedTrait3")(
-        makeTest[SealedTrait3[Int, String]]("A")(
-          SealedTrait3.A(1),
-          """A: { a = 1 }""",
-        ),
-        makeTest[SealedTrait3[Int, String]]("B")(
-          SealedTrait3.B("s"),
-          """B: { b = "s" }""",
-        ),
-        makeTest[SealedTrait3[Int, String]]("AB")(
-          SealedTrait3.AB1(1, "s"),
-          """AB1: { a = 1, b = "s" }""",
-        ),
-        makeTest[SealedTrait3[Int, String]]("AB")(
-          SealedTrait3.AB2("s", 1),
-          """AB2: { a = "s", b = 1 }""",
-        ),
-        makeTest[SealedTrait3[Int, String]]("Neither")(
-          SealedTrait3.Neither,
-          """Neither: {}""",
-        ),
-      ),
-      suite("Enum2")(
-        makeTest[Enum2[Int, String]]("A")(
-          Enum2.A(1),
-          """A: { a = 1 }""",
-        ),
-        makeTest[Enum2[Int, String]]("B")(
-          Enum2.B("s"),
-          """B: { b = "s" }""",
-        ),
-        makeTest[Enum2[Int, String]]("AB")(
-          Enum2.AB1(1, "s"),
-          """AB1: { a = 1, b = "s" }""",
-        ),
-        makeTest[Enum2[Int, String]]("AB")(
-          Enum2.AB2("s", 1),
-          """AB2: { a = "s", b = 1 }""",
-        ),
-        makeTest[Enum2[Int, String]]("Neither")(
-          Enum2.Neither,
-          """Neither: {}""",
-        ),
-      ),
-    )
+  private def showSpec[A: Show as showA](name: String)(value: A)(exp: String)(using SourceLocation): TestSpec =
+    test(name) {
+      assert(showA.show(value))(equalTo(exp))
+    }
 
   override def testSpec: TestSpec =
     suite("DeriveShowSpec")(
-      productSpec,
-      sumSpec,
+      suite("CaseClass1")(
+        showSpec("some")(CaseClass1(1, "string".some))("CaseClass1(a = 1, b = \"string\")"),
+        showSpec("none")(CaseClass1(1, None))("CaseClass1(a = 1, b = <none>)"),
+      ),
+      suite("CaseClass2")(
+        showSpec("simple")(CaseClass2(56, "heyo"))("MyCaseClass(masked = **)"),
+      ),
+      suite("CaseClass3")(
+        showSpec("string")(CaseClass3("str", None))("CaseClass3(a = \"str\", b = <none>)"),
+        showSpec("int")(CaseClass3(56, None))("CaseClass3(a = 56, b = <none>)"),
+      ),
+      suite("CaseClass4")(
+        showSpec("1 level")(CaseClass4(1, None))("CaseClass4(i = 1, inner = <none>)"),
+        showSpec("2 levels")(CaseClass4(1, CaseClass4(2, None).some))("CaseClass4(i = 1, inner = CaseClass4(i = 2, inner = <none>))"),
+        showSpec("3 levels")(CaseClass4(1, CaseClass4(2, CaseClass4(3, None).some).some).some)("CaseClass4(i = 1, inner = CaseClass4(i = 2, inner = CaseClass4(i = 3, inner = <none>)))"),
+      ),
+      suite("AnyVal1")(
+        showSpec("simple")(AnyVal1("heyo"))("\"heyo\""),
+      ),
+      suite("CaseObject1")(
+        showSpec("simple")(CaseObject1)("CaseObject1"),
+      ),
+      suite("Enum1")(
+        showSpec[Enum1]("A")(Enum1.A1)("Enum1.A1"),
+        showSpec[Enum1]("B")(Enum1.B1(CaseClass1(56, "heyo".some)))("Enum1.B1(value = CaseClass1(a = 56, b = \"heyo\"))"),
+      ),
+      suite("Enum3")(
+        showSpec[Enum3]("A")(Enum3.A3)("Enum3.A3"),
+        showSpec[Enum3]("B")(Enum3.B3(CaseClass1(56, "heyo".some)))("Enum3.B3(value = CaseClass1(a = 56, b = \"heyo\"))"),
+      ),
     )
 
 }

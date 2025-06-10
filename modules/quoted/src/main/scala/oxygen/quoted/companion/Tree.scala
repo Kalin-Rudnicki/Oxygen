@@ -189,6 +189,27 @@ final class ValDefCompanion(using quotes: Quotes) {
   def let(owner: Symbol, terms: List[Term])(body: List[Ref] => Term): Term =
     Term.wrap(quotes.reflect.ValDef.let(owner.unwrapWithin, terms.map(_.unwrapWithin))(x => body(x.map(Ref.wrap(_))).unwrapWithin))
 
+  // =====| Added |=====
+
+  /**
+    * Creates a block `{ val <name> = <rhs: Term>; <body(x): Term> }`
+    *
+    *  Usage:
+    *  ```
+    *  ValDef.let(owner, "x", rhs1) { x =>
+    *    ValDef.let(x.symbol.owner, "y", rhs2) { y =>
+    *      // use `x` and `y`
+    *    }
+    *  }
+    *  ```
+    */
+  def let(owner: Symbol, name: String, rhs: Term, flags: Flags)(body: Ref => Term): Term = {
+    val sym: Symbol = Symbol.newVal(owner, name, rhs.tpe.widen, flags, Symbol.noSymbol)
+    val valDef: ValDef = apply(sym, Some(rhs.changeOwner(sym)))
+    val ref: Ref = Ref.companion.apply(sym)
+    Block.companion.apply(List(valDef), body(ref))
+  }
+
 }
 
 final class TermCompanion(using quotes: Quotes) {
@@ -491,6 +512,19 @@ final class RepeatedCompanion(using quotes: Quotes) {
   def copy(original: Tree)(elems: List[Term], tpt: TypeTree): Repeated =
     Repeated.wrap(quotes.reflect.Repeated.copy(original.unwrapWithin)(elems.map(_.unwrapWithin), tpt.unwrapWithin))
 
+  // =====| Added |=====
+
+  /**
+    * Similar to [[apply]], but [[apply]] is missing the `*` in `fun(values*)`.
+    */
+  def spread(elems: Seq[Term], tpt: TypeTree): Term = {
+    type A
+    given Type[A] = tpt.tpe.asTypeOf
+    val elems2: Seq[Expr[A]] = elems.map(_.asExprOf[A])
+    val expr: Expr[Seq[A]] = '{ Seq(${ Expr.ofSeq(elems2) }*) }
+    expr.toTerm.removeInline.narrow[Apply].args.head
+  }
+
 }
 
 final class InlinedCompanion(using quotes: Quotes) {
@@ -603,6 +637,11 @@ final class TypeTreeCompanion(using quotes: Quotes) {
 
   def ref(typeSymbol: Symbol): TypeTree =
     TypeTree.wrap(quotes.reflect.TypeTree.ref(typeSymbol.unwrapWithin))
+
+  // =====| Added |=====
+
+  def fromType(tpe: Type[?]): TypeTree =
+    TypeTree.of[Any](using tpe.asInstanceOf[Type[Any]])
 
 }
 

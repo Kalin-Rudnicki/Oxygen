@@ -1,27 +1,30 @@
 package oxygen.sql.generic
 
+import oxygen.meta.*
 import oxygen.predef.core.*
-import oxygen.predef.meta.*
 import oxygen.sql.*
 import oxygen.sql.schema.*
+import scala.quoted.*
 
-final class DeriveProductColumns[Q <: Quotes, A](val k0: K0[Q])(generic: k0.ProductGeneric[A], instances: k0.ValExpressions[Columns]) {
-  import generic.given
-  import k0.given
+final class DeriveProductColumns[A](
+    instances: K0.Expressions[Columns, A],
+)(using Quotes, Type[Columns], Type[A], K0.ProductGeneric[A])
+    extends K0.Derivable.ProductDeriver[Columns, A] {
 
-  private def makeColumnsInner: Seq[Expr[Contiguous[Column]]] =
-    generic.builders.mapToSeq {
+  private def makeColumnsInner: Growable[Expr[Contiguous[Column]]] =
+    generic.mapChildren.mapExpr[Contiguous[Column]] {
       [i] =>
-        (field: generic.Field[i]) =>
-          import field.given
+        (_, _) ?=>
+          (field: generic.Field[i]) =>
+            import field.given
 
-          '{ ${ field.getExpr(instances) }.columns }
+            '{ ${ field.getExpr(instances) }.columns }
     }
 
   private def makeColumnsExpr: Expr[Contiguous[Column]] =
-    '{ ${ makeColumnsInner.toContiguous.flattenExprs }.flatten }
+    '{ ${ makeColumnsInner.toContiguous.seqToExpr }.flatten }
 
-  def makeColumns: Expr[Columns[A]] =
+  override def derive: Expr[Columns[A]] =
     '{ Columns($makeColumnsExpr) }
 
 }

@@ -1,9 +1,10 @@
 package oxygen.sql.schema
 
+import oxygen.meta.*
 import oxygen.predef.core.*
-import oxygen.predef.meta.*
 import oxygen.sql.generic.*
 import oxygen.sql.query.InputWriter
+import scala.quoted.*
 
 trait InputEncoder[-A] {
 
@@ -21,7 +22,7 @@ trait InputEncoder[-A] {
     InputEncoder.Zip(this, that)
 
 }
-object InputEncoder extends K0.Derivable.WithInstances[InputEncoder] {
+object InputEncoder extends K0.Derivable[InputEncoder] {
 
   //////////////////////////////////////////////////////////////////////////////////////////////////////
   //      Instances
@@ -107,19 +108,13 @@ object InputEncoder extends K0.Derivable.WithInstances[InputEncoder] {
   //      Generic
   //////////////////////////////////////////////////////////////////////////////////////////////////////
 
-  override protected def internalDeriveProductI[Q <: Quotes, A](k0: K0[Q])(
-      g: k0.ProductGeneric[A],
-      i: k0.ValExpressions[InputEncoder],
-  )(using quotes: Q, aTpe: Type[A], tTpe: Type[InputEncoder]): Expr[InputEncoder[A]] =
-    DeriveProductInputEncoder[Q, A](k0)(g, i).makeInputEncoder
+  override protected def productDeriver[A](using Quotes, Type[InputEncoder], Type[A], K0.ProductGeneric[A], K0.Derivable[InputEncoder]): K0.Derivable.ProductDeriver[InputEncoder, A] =
+    K0.Derivable.ProductDeriver.withInstances { DeriveProductInputEncoder(_) }
 
-  override protected def internalDeriveSumI[Q <: Quotes, A](k0: K0[Q])(
-      g: k0.SumGeneric[A],
-      i: k0.ValExpressions[InputEncoder],
-  )(using quotes: Q, aTpe: Type[A], tTpe: Type[InputEncoder]): Expr[InputEncoder[A]] =
-    k0.meta.report.errorAndAbort("Not supported: InputEncoder.derive for sum type")
+  override protected def sumDeriver[A](using Quotes, Type[InputEncoder], Type[A], K0.SumGeneric[A], K0.Derivable[InputEncoder]): K0.Derivable.SumDeriver[InputEncoder, A] =
+    K0.Derivable.SumDeriver.notSupported
 
-  inline def derived[A]: InputEncoder[A] = ${ derivedImpl[A] }
+  override inline def derived[A]: InputEncoder[A] = ${ derivedImpl[A] }
 
   //////////////////////////////////////////////////////////////////////////////////////////////////////
   //      Helpers

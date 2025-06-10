@@ -12,6 +12,33 @@ final class TypeReprCompanion(using quotes: Quotes) {
   /** Returns the type constructor of the runtime (erased) class */
   def typeConstructorOf(clazz: Class[?]): TypeRepr = TypeRepr.wrap(quotes.reflect.TypeRepr.typeConstructorOf(clazz))
 
+  // =====| Added |=====
+
+  def fromType(tpe: Type[?]): TypeRepr = {
+    type T
+    of[T](using tpe.asInstanceOf[Type[T]])
+  }
+
+  def emptyTuple: TypeRepr = TypeRepr.of[EmptyTuple]
+  def unappliedTuplePrepend: TypeRepr = TypeRepr.of[? *: ?].narrow[AppliedType].tycon
+
+  def tuplePreferTupleN(typeParams: List[TypeRepr]): TypeRepr = {
+    val size = typeParams.size
+    if (size > 0 && size <= 22) Symbol.tupleClass(size).typeRef.appliedTo(typeParams)
+    else tupleUsingAppend(typeParams)
+  }
+
+  def tuplePreferTupleN(typeParam0: TypeRepr, typeParamN: TypeRepr*): TypeRepr =
+    tuplePreferTupleN(typeParam0 :: typeParamN.toList)
+
+  def tupleUsingAppend(typeParams: List[TypeRepr]): TypeRepr = {
+    val pre = unappliedTuplePrepend
+    typeParams.foldRight(emptyTuple) { pre.appliedTo(_, _) }
+  }
+
+  def tupleUsingAppend(typeParam0: TypeRepr, typeParamN: TypeRepr*): TypeRepr =
+    tupleUsingAppend(typeParam0 :: typeParamN.toList)
+
 }
 
 final class NamedTypeCompanion(using @unused quotes: Quotes) {}

@@ -1,9 +1,10 @@
 package oxygen.sql.schema
 
+import oxygen.meta.*
 import oxygen.predef.core.*
-import oxygen.predef.meta.*
 import oxygen.sql.error.QueryError
 import oxygen.sql.generic.*
+import scala.quoted.*
 
 trait ResultDecoder[+A] {
 
@@ -33,7 +34,7 @@ trait ResultDecoder[+A] {
     case _                                                 => ResultDecoder.MapOrFailDecoder(this, ab)
 
 }
-object ResultDecoder extends K0.Derivable.WithInstances[ResultDecoder] {
+object ResultDecoder extends K0.Derivable[ResultDecoder] {
 
   //////////////////////////////////////////////////////////////////////////////////////////////////////
   //      Instances
@@ -129,19 +130,13 @@ object ResultDecoder extends K0.Derivable.WithInstances[ResultDecoder] {
   //      Generic
   //////////////////////////////////////////////////////////////////////////////////////////////////////
 
-  override protected def internalDeriveProductI[Q <: Quotes, A](k0: K0[Q])(
-      g: k0.ProductGeneric[A],
-      i: k0.ValExpressions[ResultDecoder],
-  )(using quotes: Q, aTpe: Type[A], tTpe: Type[ResultDecoder]): Expr[ResultDecoder[A]] =
-    DeriveProductResultDecoder[Q, A](k0)(g, i).makeResultDecoder
+  override protected def productDeriver[A](using Quotes, Type[ResultDecoder], Type[A], K0.ProductGeneric[A], K0.Derivable[ResultDecoder]): K0.Derivable.ProductDeriver[ResultDecoder, A] =
+    K0.Derivable.ProductDeriver.withInstances { DeriveProductResultDecoder(_) }
 
-  override protected def internalDeriveSumI[Q <: Quotes, A](k0: K0[Q])(
-      g: k0.SumGeneric[A],
-      i: k0.ValExpressions[ResultDecoder],
-  )(using quotes: Q, aTpe: Type[A], tTpe: Type[ResultDecoder]): Expr[ResultDecoder[A]] =
-    k0.meta.report.errorAndAbort("Not supported: ResultDecoder.derive for sum type")
+  override protected def sumDeriver[A](using Quotes, Type[ResultDecoder], Type[A], K0.SumGeneric[A], K0.Derivable[ResultDecoder]): K0.Derivable.SumDeriver[ResultDecoder, A] =
+    K0.Derivable.SumDeriver.notSupported
 
-  inline def derived[A]: ResultDecoder[A] = ${ derivedImpl[A] }
+  override inline def derived[A]: ResultDecoder[A] = ${ derivedImpl[A] }
 
   //////////////////////////////////////////////////////////////////////////////////////////////////////
   //      Helpers

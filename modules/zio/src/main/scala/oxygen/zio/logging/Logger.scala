@@ -54,7 +54,7 @@ object Logger {
 
         val colorize: (String, Color) => Unit =
           colorMode match {
-            case ColorMode.Colorless => (string, _) => sb.append(string)
+            case ColorMode.Colorless             => (string, _) => sb.append(string)
             case colored: ColorMode.NonColorless => {
               case (string, Color.Default) =>
                 sb.append(string)

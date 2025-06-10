@@ -4,7 +4,7 @@ import oxygen.quoted.companion.*
 import oxygen.quoted.error.UnknownCase
 import scala.quoted.*
 
-sealed trait Constant {
+sealed trait Constant extends Model {
   type This <: Constant
   val quotes: Quotes
   val unwrap: quotes.reflect.Constant

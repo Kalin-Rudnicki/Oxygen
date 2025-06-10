@@ -31,7 +31,7 @@ object ParTraverseLowPriority {
               .map(self) { a =>
                 f(a) match {
                   case Right(value) => value
-                  case Left(value) =>
+                  case Left(value)  =>
                     left =
                       if (left == null) value
                       else semigroup.combine(left, value)

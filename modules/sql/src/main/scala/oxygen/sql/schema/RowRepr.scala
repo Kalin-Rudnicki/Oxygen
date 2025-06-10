@@ -3,11 +3,12 @@ package oxygen.sql.schema
 import java.time.*
 import java.util.UUID
 import org.postgresql.util.PGobject
+import oxygen.meta.*
 import oxygen.predef.core.*
 import oxygen.predef.json.*
-import oxygen.predef.meta.*
 import oxygen.sql.error.*
 import oxygen.sql.generic.*
+import scala.quoted.*
 
 trait RowRepr[A] {
 
@@ -120,19 +121,13 @@ object RowRepr {
   }
   object ProductRepr extends K0.Derivable[ProductRepr] {
 
-    override def internalDeriveProduct[Q <: Quotes, A](k0: K0[Q])(
-        g: k0.ProductGeneric[A],
-    )(using quotes: Q, aTpe: Type[A], tTpe: Type[RowRepr.ProductRepr]): Expr[RowRepr.ProductRepr[A]] =
-      DeriveProductRowRepr.populateFields[Q, A, RowRepr.ProductRepr[A]](k0)(g) { i =>
-        DeriveProductRowRepr[Q, A](k0)(g, i).makeRowRepr
-      }
+    override protected def productDeriver[A](using Quotes, Type[ProductRepr], Type[A], K0.ProductGeneric[A], K0.Derivable[ProductRepr]): K0.Derivable.ProductDeriver[ProductRepr, A] =
+      K0.Derivable.ProductDeriver.impl { DeriveProductRowRepr.populateFields[A].defineAndUse { DeriveProductRowRepr(_).derive } }
 
-    override protected def internalDeriveSum[Q <: Quotes, A](k0: K0[Q])(
-        g: k0.SumGeneric[A],
-    )(using quotes: Q, aTpe: Type[A], tTpe: Type[RowRepr.ProductRepr]): Expr[RowRepr.ProductRepr[A]] =
-      k0.meta.report.errorAndAbort("Not a product type.")
+    override protected def sumDeriver[A](using Quotes, Type[ProductRepr], Type[A], K0.SumGeneric[A], K0.Derivable[ProductRepr]): K0.Derivable.SumDeriver[ProductRepr, A] =
+      K0.Derivable.SumDeriver.notSupported
 
-    inline def derived[A]: RowRepr.ProductRepr[A] = ${ derivedImpl[A] }
+    override inline def derived[A]: RowRepr.ProductRepr[A] = ${ derivedImpl[A] }
 
   }
 

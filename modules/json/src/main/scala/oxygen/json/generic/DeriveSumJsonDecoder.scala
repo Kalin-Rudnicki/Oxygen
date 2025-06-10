@@ -5,35 +5,34 @@ import oxygen.meta.*
 import oxygen.predef.core.*
 import scala.quoted.*
 
-final class DeriveSumJsonDecoder[Q <: Quotes, A](val k0: K0[Q])(generic: k0.SumGeneric[A], instances: k0.ValExpressions[JsonDecoder]) {
-  import generic.tpe
-  private given quotes: Q = k0.meta.quotes
+final class DeriveSumJsonDecoder[A](
+    instances: K0.Expressions[JsonDecoder, A],
+)(using Quotes, Type[JsonDecoder], Type[A], K0.SumGeneric[A])
+    extends K0.Derivable.SumDeriver[JsonDecoder, A] {
 
   private val validKeysExpr: Expr[String] =
     Expr(generic.cases.map { kase => s"'${kase.name}'" }.mkString(", "))
 
   private def makeDecodeJsonAST(key: Expr[String], value: Expr[Json]): Expr[Either[JsonError, A]] =
-    generic.builders.matchOnInput[String, Either[JsonError, A]](key) {
-      [i <: A] =>
-        (kase: generic.Case[i]) =>
-          import kase.given
+    generic.matcher.value[String, Either[JsonError, A]](key) {
+      [b <: A] =>
+        (_, _) ?=>
+          (kase: generic.Case[b]) =>
 
-          val caseName = Expr(kase.name)
+            val caseName = Expr(kase.name)
 
-          (
-            caseName,
-            '{
-              ${ kase.getExpr(instances) }.decodeJsonAST($value).leftMap(_.inField($key))
-            },
-        )
+            CaseExtractor.const[String](caseName).withRHS { _ =>
+              '{
+                ${ kase.getExpr(instances) }.decodeJsonAST($value).leftMap(_.inField($key))
+              }
+          }
     } {
       '{
         JsonError(JsonError.Path.Field($key) :: Nil, JsonError.Cause.DecodingFailed("Invalid key, expected one of: " + $validKeysExpr)).asLeft
       }
     }
 
-  // NOTE : this needs to be called where the provided [[instances]] have been spliced into the expr.
-  def makeJsonDecoder: Expr[JsonDecoder[A]] =
+  override def derive: Expr[JsonDecoder[A]] =
     '{
       new JsonDecoder[A] {
         override def decodeJsonAST(ast: Json): Either[JsonError, A] = ast match {

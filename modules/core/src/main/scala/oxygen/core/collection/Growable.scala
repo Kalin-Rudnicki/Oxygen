@@ -16,6 +16,15 @@ sealed trait Growable[+A] {
 
   def foreach(f: A => Unit): Unit
 
+  def size: Int = {
+    var acc: Int = 0
+    foreach { _ => acc += 1 }
+    acc
+  }
+
+  def addTo[G[_], B >: A](builder: mutable.Builder[B, G[B]]): Unit =
+    foreach(builder.addOne)
+
   final def toContiguous: Contiguous[A] = this.to[Contiguous]
 
   final def ++[B >: A](that: Growable[B]): Growable[B] = Growable.Concat(this, that)
@@ -45,27 +54,41 @@ object Growable {
 
   case object Empty extends Growable[Nothing] {
     override val knownSize: Int = 0
+    override def size: Int = 0
     override def foreach(f: Nothing => Unit): Unit =
+      ()
+    override def addTo[G[_], B >: Nothing](builder: mutable.Builder[B, G[B]]): Unit =
       ()
   }
 
   final case class Single[A](value: A) extends Growable[A] {
     override val knownSize: Int = 1
+    override def size: Int = 1
     override def foreach(f: A => Unit): Unit =
       f(value)
+    override def addTo[G[_], B >: A](builder: mutable.Builder[B, G[B]]): Unit =
+      builder.addOne(value)
   }
 
   final case class Many[S[_], A](values: S[A], seqOps: SeqOps[S]) extends Growable[A] {
     override val knownSize: Int = seqOps.knownSize(values)
+    override def size: Int = seqOps.size(values)
     override def foreach(f: A => Unit): Unit =
       seqOps.newIterator(values).foreach(f)
+    override def addTo[G[_], B >: A](builder: mutable.Builder[B, G[B]]): Unit =
+      seqOps.addToBuilder(values)(builder)
   }
 
   final case class Concat[A](a: Growable[A], b: Growable[A]) extends Growable[A] {
     override val knownSize: Int = -1
+    override def size: Int = a.size + b.size
     override def foreach(f: A => Unit): Unit = {
       a.foreach(f)
       b.foreach(f)
+    }
+    override def addTo[G[_], B >: A](builder: mutable.Builder[B, G[B]]): Unit = {
+      a.addTo(builder)
+      b.addTo(builder)
     }
   }
 
@@ -93,7 +116,7 @@ object Growable {
       a.foreach { ab(_).foreach(f) }
   }
 
-  final case class Fill[A](size: Int, fill: Int => A) extends Growable[A] {
+  final case class Fill[A](override val size: Int, fill: Int => A) extends Growable[A] {
     override val knownSize: Int = size
     override def foreach(f: A => Unit): Unit = {
       var c: Int = 0
@@ -113,7 +136,6 @@ object Growable {
           f(a)
       }
     }
-
   }
 
   extension [A](self: Growable[A])
@@ -126,7 +148,10 @@ object Growable {
 
   def empty[A]: Growable[A] = Empty
   def single[A](value: A): Growable[A] = Single(value)
-  def many[S[_], A](values: S[A])(using seqOps: SeqOps[S]): Growable[A] = Many(values, seqOps)
+  def many[S[_], A](values: S[A])(using seqOps: SeqOps[S]): Growable[A] = values.asInstanceOf[Matchable] match
+    case growable: Growable[A @unchecked] => growable
+    case _                                => Many(values, seqOps)
+
   def apply[A](values: A*): Growable[A] = Growable.many(values)
 
   def option[A](value: Option[A]): Growable[A] = value match

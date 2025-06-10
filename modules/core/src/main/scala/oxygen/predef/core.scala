@@ -1,9 +1,9 @@
 package oxygen.predef
 
 object core {
-  export oxygen.core.{EitherNel, Enum, IndentedString, Specified, ThrowableRepr, TypeTag, Unapply}
+  export oxygen.core.{EitherNel, Enum, IndentedString, Lazy, Specified, ThrowableRepr, TypeTag}
   export oxygen.core.collection.{Contiguous, Growable, NonEmptyList}
   export oxygen.core.idToSpecified
   export oxygen.core.syntax.common.*
-  export oxygen.core.typeclass.{SeqOps, StringCodec, StringDecoder, StringEncoder, Zip}
+  export oxygen.core.typeclass.{SeqOps, Show, StringCodec, StringDecoder, StringEncoder, Zip}
 }
