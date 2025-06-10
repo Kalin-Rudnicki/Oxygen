@@ -170,13 +170,27 @@ sealed trait TypeRepr {
 
   // =====| Added |=====
 
-  def andChildren: Set[TypeRepr] = this match
+  final def andChildren: Set[TypeRepr] = this match
     case and: AndType => and.left.andChildren ++ and.right.andChildren
     case _            => Set(this)
 
-  def orChildren: Set[TypeRepr] = this match
+  final def orChildren: Set[TypeRepr] = this match
     case or: OrType => or.left.orChildren ++ or.right.orChildren
     case _          => Set(this)
+
+  final def asTypeOf[A]: Type[A] =
+    this.asType.asInstanceOf[Type[A]]
+
+  final def typeOrTermSymbol: Symbol = if (this.isSingleton) this.termSymbol else this.typeSymbol
+
+  final def typeType: Option[TypeType] = this.typeOrTermSymbol.typeType
+  final def typeTypeSealed: Option[TypeType.Sealed] = this.typeOrTermSymbol.typeTypeSealed
+  final def typeTypeCase: Option[TypeType.Case] = this.typeOrTermSymbol.typeTypeCase
+
+  final def annotations: Annotations = new Annotations(this.typeOrTermSymbol.annotations.all, show)
+
+  final def typeTree: TypeTree =
+    TypeTree.fromType(this.asType)
 
 }
 object TypeRepr {

@@ -10,7 +10,6 @@ sealed trait ParamClause {
   val quotes: Quotes
   val unwrap: quotes.reflect.ParamClause
   def unwrapWithin(using newQuotes: Quotes): newQuotes.reflect.ParamClause = unwrap.asInstanceOf[newQuotes.reflect.ParamClause]
-
   given givenQuotes: quotes.type = quotes
 
   /** List of parameters of the clause */

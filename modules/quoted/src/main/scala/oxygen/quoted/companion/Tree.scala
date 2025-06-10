@@ -604,6 +604,11 @@ final class TypeTreeCompanion(using quotes: Quotes) {
   def ref(typeSymbol: Symbol): TypeTree =
     TypeTree.wrap(quotes.reflect.TypeTree.ref(typeSymbol.unwrapWithin))
 
+  // =====| Added |=====
+
+  def fromType(tpe: Type[?]): TypeTree =
+    TypeTree.of[Any](using tpe.asInstanceOf[Type[Any]])
+
 }
 
 final class InferredCompanion(using quotes: Quotes) {

@@ -209,9 +209,6 @@ lazy val `oxygen-quoted`: CrossProject =
       name := "oxygen-quoted",
       description := "Wrapper around scala.quoted.Quotes.reflect.*, exposing the types at a top-level.",
     )
-    .dependsOn(
-      `oxygen-core` % testAndCompile,
-    )
 
 lazy val `oxygen-sql`: Project =
   project

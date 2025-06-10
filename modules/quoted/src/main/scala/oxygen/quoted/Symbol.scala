@@ -71,9 +71,6 @@ final class Symbol private (using val quotes: Quotes)(val unwrap: quotes.reflect
   /** Get the annotation defined with `annotSym` attached to this symbol */
   def getAnnotation(annotSym: Symbol): Option[Term] = this.unwrap.getAnnotation(annotSym.unwrapWithin).map(Term.wrap(_))
 
-  /** Annotations attached to this symbol */
-  def annotations: List[Term] = this.unwrap.annotations.map(Term.wrap(_))
-
   /** Does this symbol come from a currently compiled source file? */
   def isDefinedInCurrentRun: Boolean = this.unwrap.isDefinedInCurrentRun
 
@@ -278,6 +275,12 @@ final class Symbol private (using val quotes: Quotes)(val unwrap: quotes.reflect
   // =====| Added |=====
 
   def asQuotesUsing[A](f: Quotes ?=> A): A = f(using this.asQuotes)
+
+  def typeType: Option[TypeType] = TypeType.fromSym(this)
+  def typeTypeSealed: Option[TypeType.Sealed] = TypeType.Sealed.fromSym(this)
+  def typeTypeCase: Option[TypeType.Case] = TypeType.Case.fromSym(this)
+
+  def annotations: Annotations = new Annotations(this.unwrap.annotations.map(Term.wrap(_)), this.unwrap.toString)
 
 }
 object Symbol {
