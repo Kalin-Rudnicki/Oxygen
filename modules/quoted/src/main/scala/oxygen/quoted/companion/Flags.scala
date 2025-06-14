@@ -5,6 +5,9 @@ import scala.quoted.*
 
 final class FlagsCompanion(using quotes: Quotes) {
 
+  /** The empty set of flags */
+  def EmptyFlags: Flags = Flags.wrap(quotes.reflect.Flags.EmptyFlags)
+
   /** Is this symbol `abstract` */
   def Abstract: Flags = Flags.wrap(quotes.reflect.Flags.Abstract)
 
@@ -36,9 +39,6 @@ final class FlagsCompanion(using quotes: Quotes) {
 
   /** Is a declared, but not defined member */
   def Deferred: Flags = Flags.wrap(quotes.reflect.Flags.Deferred)
-
-  /** The empty set of flags */
-  def EmptyFlags: Flags = Flags.wrap(quotes.reflect.Flags.EmptyFlags)
 
   /** Is this symbol an enum */
   def Enum: Flags = Flags.wrap(quotes.reflect.Flags.Enum)

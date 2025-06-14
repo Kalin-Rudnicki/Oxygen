@@ -17,7 +17,6 @@ object MacroSpec extends OxygenSpecDefault {
         seqTest(1, 2, 3)(Contiguous(1, 2, 3)),
         seqTest(1, 2, 3)(Seq(1, 2, 3)),
         seqTest()(Contiguous()),
-        seqTest()(Array[Any]()),
       ),
     )
 

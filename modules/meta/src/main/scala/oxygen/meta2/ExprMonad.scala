@@ -1,4 +1,4 @@
-package oxygen.meta
+package oxygen.meta2
 
 import oxygen.core.*
 import scala.quoted.*
@@ -11,10 +11,10 @@ trait ExprMonad[F[_]] {
 
   def flatMap[A, B](a: Expr[F[A]])(f: Expr[A => F[B]])(using quotes: Quotes, fType: Type[F], aType: Type[A], bType: Type[B]): Expr[F[B]]
 
-  final def mapE[A, B](a: Expr[F[A]])(f: Expr[A] => Expr[B])(using quotes: Quotes, fType: Type[F], aType: Type[A], bType: Type[B]): Expr[F[B]] =
+  final def mapE[A, B](a: Expr[F[A]])(f: Quotes ?=> Expr[A] => Expr[B])(using quotes: Quotes, fType: Type[F], aType: Type[A], bType: Type[B]): Expr[F[B]] =
     map[A, B](a)('{ (a: A) => ${ f('a) } })
 
-  final def flatMapE[A, B](a: Expr[F[A]])(f: Expr[A] => Expr[F[B]])(using quotes: Quotes, fType: Type[F], aType: Type[A], bType: Type[B]): Expr[F[B]] =
+  final def flatMapE[A, B](a: Expr[F[A]])(f: Quotes ?=> Expr[A] => Expr[F[B]])(using quotes: Quotes, fType: Type[F], aType: Type[A], bType: Type[B]): Expr[F[B]] =
     flatMap[A, B](a)('{ (a: A) => ${ f('a) } })
 
 }

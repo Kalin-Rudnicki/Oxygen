@@ -366,6 +366,15 @@ object DefDef {
 final class ValDef(val quotes: Quotes)(val unwrap: quotes.reflect.ValDef) extends ValOrDefDef {
   override type This <: ValDef
   override def unwrapWithin(using newQuotes: Quotes): newQuotes.reflect.ValDef = unwrap.asInstanceOf[newQuotes.reflect.ValDef]
+
+  // =====| Added |=====
+
+  /**
+    * val a = ...
+    * returns a ref to `a`
+    */
+  def valRef: Term = this.symbol.toTerm
+
 }
 object ValDef {
 
