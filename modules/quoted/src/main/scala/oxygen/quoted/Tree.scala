@@ -5,7 +5,7 @@ import oxygen.quoted.error.UnknownCase
 import scala.quoted.*
 import scala.reflect.TypeTest
 
-sealed trait Tree {
+sealed trait Tree extends Model {
   type This <: Tree
   val quotes: Quotes
   val unwrap: quotes.reflect.Tree

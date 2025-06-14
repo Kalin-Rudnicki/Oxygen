@@ -1,13 +1,13 @@
 package oxygen.core.syntax
 
-import oxygen.core.typeclass.{Functor, SeqOps}
+import oxygen.core.typeclass.Functor
 
 object functor {
 
-  extension [S[_], A](self: S[A]) {
+  extension [F[_], A](self: F[A]) {
 
-    def map[B](f: A => B)(using seqOps: SeqOps[S]): S[B] =
-      Functor[S].map(self)(f)
+    def map[B](f: A => B)(using functor: Functor[F]): F[B] =
+      functor.map(self)(f)
 
   }
 

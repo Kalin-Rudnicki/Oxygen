@@ -1,6 +1,7 @@
 package oxygen.core.typeclass
 
 import oxygen.meta2.*
+import oxygen.meta2.K0.ProductGeneric
 import oxygen.predef.core.*
 import scala.annotation.Annotation
 import scala.collection.mutable
@@ -13,7 +14,7 @@ trait Show[A] {
   def writeTo(builder: mutable.StringBuilder, value: A): Unit = builder.append(show(value))
 
 }
-object Show extends K0.Derivable.WithInstances[Show] {
+object Show extends K0.Derivable.WithInstances[Show], K0.Derivable.WrapAnyVal[Show] {
 
   inline def apply[A: Show as ev]: Show[A] = ev
 
@@ -103,8 +104,54 @@ object Show extends K0.Derivable.WithInstances[Show] {
   //      Generic
   //////////////////////////////////////////////////////////////////////////////////////////////////////
 
-  override protected def deriveProductImplInst[A](g: K0.ProductGeneric[A])(i: g.Expressions[Show])(using Quotes, Type[Show], Type[A]): Expr[Show[A]] =
-    ??? // FIX-PRE-MERGE (KR) :
+  override protected def deriveProductImplInst[A](g: K0.ProductGeneric[A])(i: g.Expressions[Show])(using Quotes, Type[Show], Type[A]): Expr[Show[A]] = {
+    def makeWriteTo(builder: Expr[mutable.StringBuilder], value: Expr[A]): Expr[Unit] = {
+      val strExprs: Growable[StringExpr] =
+        g.util.flatMapJoin[Contiguous, StringExpr](
+          StringExpr.const(g.label + "("),
+          StringExpr.const(", "),
+          StringExpr.const(")"),
+        ) {
+          [b] =>
+            _ ?=>
+              (field: g.Field[b]) =>
+                Contiguous(
+                  StringExpr.const(field.name),
+                  StringExpr.const(" = "),
+                  StringExpr.StrBuilder { builder => '{ ${ field.getExpr(i) }.writeTo($builder, ${ field.get(value) }) } },
+              )
+        }
+
+      val res = strExprs.exprMkStringTo(builder)
+
+      // report.errorAndAbort(res.show)
+
+      res
+    }
+
+    '{
+      new PreferBuffer[A] {
+        override def writeTo(builder: mutable.StringBuilder, value: A): Unit = ${ makeWriteTo('builder, 'value) }
+      }
+    }
+  }
+
+  override protected def wrapAnyValInstance[A, B](a: Expr[Show[A]], wrap: Expr[A] => Expr[B], unwrap: Expr[B] => Expr[A])(using Quotes, Type[A], Type[B]): Expr[Show[B]] =
+    '{
+      new Show[B] {
+        override def show(value: B): String =
+          $a.show(${ unwrap('value) })
+        override def writeTo(builder: mutable.StringBuilder, value: B): Unit =
+          $a.writeTo(builder, ${ unwrap('value) })
+      }
+    }
+
+  override protected def deriveCaseObjectImpl[A](g: ProductGeneric.CaseObjectGeneric[A])(using Quotes, Type[Show], Type[A]): Expr[Show[A]] =
+    '{
+      new Show[A] {
+        override def show(value: A): String = ${ Expr(g.label) }
+      }
+    }
 
   override protected def deriveSumImplInst[A](g: K0.SumGeneric[A])(i: g.Expressions[Show])(using Quotes, Type[Show], Type[A]): Expr[Show[A]] =
     ??? // FIX-PRE-MERGE (KR) :

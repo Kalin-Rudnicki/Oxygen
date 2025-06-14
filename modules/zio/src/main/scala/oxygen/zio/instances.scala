@@ -18,7 +18,9 @@ object instances {
     new SeqOps[Chunk] {
       override def newIterator[A](self: Chunk[A]): Iterator[A] = self.iterator
       override def newBuilder[A]: mutable.Builder[A, Chunk[A]] = Chunk.newBuilder
+      override def toIterable[A](self: Chunk[A]): Iterable[A] = self
       override def knownSize[A](self: Chunk[A]): Int = self.knownSize
+      override def size[A](self: Chunk[A]): Int = self.size
     }
 
 }

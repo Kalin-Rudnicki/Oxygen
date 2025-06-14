@@ -4,7 +4,7 @@ import oxygen.quoted.companion.*
 import scala.annotation.experimental
 import scala.quoted.*
 
-final class Symbol private (using val quotes: Quotes)(val unwrap: quotes.reflect.Symbol) {
+final class Symbol private (using val quotes: Quotes)(val unwrap: quotes.reflect.Symbol) extends Model  {
   def unwrapWithin(using newQuotes: Quotes): newQuotes.reflect.Symbol = this.unwrap.asInstanceOf[newQuotes.reflect.Symbol]
 
   /** Owner of this symbol. The owner is the symbol in which this symbol is defined. Throws if this symbol does not have an owner. */

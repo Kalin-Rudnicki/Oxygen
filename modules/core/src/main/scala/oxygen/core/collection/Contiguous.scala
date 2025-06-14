@@ -1,6 +1,7 @@
 package oxygen.core.collection
 
 import scala.annotation.unchecked.uncheckedVariance
+import scala.collection.immutable.ArraySeq
 import scala.collection.mutable
 import scala.reflect.ClassTag
 
@@ -161,9 +162,14 @@ final class Contiguous[+A] private[collection] (private val array: Array[A @unch
   inline def toList: List[A] = array.toList
   inline def toVector: Vector[A] = array.toVector
   inline def toArray: Array[A @uncheckedVariance] = array.clone()
+  inline def toArraySeq: ArraySeq[A] = ArraySeq.unsafeWrapArray(array)
   inline def toIArray: IArray[A] = IArray.unsafeFromArray(array)
   inline def toSet[B >: A]: Set[B] = array.toSet
   inline def toMap[K, V](implicit ev: A <:< (K, V)): Map[K, V] = array.toMap
+  def toIterable: Iterable[A] =
+    new Iterable[A] {
+      override def iterator: Iterator[A] = array.iterator
+    }
 
   def zipWithIndexFrom(startIdx: Int): Contiguous[(A, Int)] = {
     val builder = Contiguous.newBuilder[(A, Int)]
@@ -235,6 +241,8 @@ final class Contiguous[+A] private[collection] (private val array: Array[A @unch
       case _ =>
         false
     }
+
+  def addTo[G[_], B >: A](builder: mutable.Builder[B, G[B]]): Unit = builder.addAll(array)
 
   private[collection] inline def getRawArray: Array[A @uncheckedVariance] = array
 

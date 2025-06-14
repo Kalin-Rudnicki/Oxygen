@@ -87,53 +87,76 @@ extension [A](self: Expr[A]) {
 
 @tailrec
 private def combineStrings(
-    queue: List[Expr[String]],
+    queue: List[StringExpr],
     combine: Option[String],
-    acc: Growable[Expr[String]],
-)(using Quotes): Growable[Expr[String]] =
+    acc: Growable[StringExpr],
+)(using Quotes): Growable[StringExpr] =
   queue match {
-    case head :: tail =>
+    case StringExpr.Str(head) :: tail =>
       (combine, head.evalEither) match {
         case (Some(combine), Right(const)) => combineStrings(tail, (combine + const).some, acc)
-        case (None, Left(expr))            => combineStrings(tail, None, acc :+ expr)
+        case (None, Left(expr))            => combineStrings(tail, None, acc :+ StringExpr.Str(expr))
         case (None, Right(const))          => combineStrings(tail, const.some, acc)
-        case (Some(combine), Left(expr))   => combineStrings(tail, None, acc :+ Expr(combine) :+ expr)
+        case (Some(combine), Left(expr))   => combineStrings(tail, None, acc :+ StringExpr.const(combine) :+ StringExpr.Str(expr))
+      }
+    case (head: StringExpr.StrBuilder) :: tail =>
+      combine match {
+        case Some(combine) => combineStrings(tail, None, acc :+ StringExpr.const(combine) :+ head)
+        case None          => combineStrings(tail, None, acc :+ head)
       }
     case Nil =>
       combine match {
-        case Some(combine) => acc :+ Expr(combine)
+        case Some(combine) => acc :+ StringExpr.const(combine)
         case None          => acc
       }
   }
 
-extension [S[_]](self: S[Expr[String]]) {
+extension [S[_]](self: S[StringExpr]) {
 
-  def exprMkString(builder: Expr[mutable.StringBuilder])(using Quotes, SeqOps[S]): Expr[Unit] =
+  def mergeConstStrings(using Quotes, SeqOps[S]): Growable[StringExpr] =
+    combineStrings(self.into[List], None, Growable.empty)
+
+  def exprMkStringTo(builder: Expr[mutable.StringBuilder])(using Quotes, SeqOps[S]): Expr[Unit] =
     Expr.block(
-      combineStrings(self.into[List], None, Growable.empty).to[List].map { s => '{ $builder.append($s) } },
+      self.mergeConstStrings
+        .map {
+          case StringExpr.Str(expr)        => '{ $builder.append($expr) }
+          case StringExpr.StrBuilder(expr) => expr(builder)
+        }
+        .to[List],
       '{ () },
     )
 
+  def exprMkStringTo(builder: Expr[mutable.StringBuilder], sep: StringExpr)(using Quotes, SeqOps[S]): Expr[Unit] =
+    self.intersperse(sep).exprMkStringTo(builder)
+
+  def exprMkStringTo(builder: Expr[mutable.StringBuilder], start: StringExpr, sep: StringExpr, end: StringExpr)(using Quotes, SeqOps[S]): Expr[Unit] =
+    self.surround(start, sep, end).exprMkStringTo(builder)
+
   def exprMkString(using Quotes, SeqOps[S]): Expr[String] =
     combineStrings(self.into[List], None, Growable.empty).to[List] match {
-      case single :: Nil => single
-      case Nil           => Expr("")
+      case StringExpr.Str(single) :: Nil                 => single
+      case StringExpr.Str(a) :: StringExpr.Str(b) :: Nil => '{ $a + $b }
+      case Nil                                           => Expr("")
       case many =>
         '{
           val builder = mutable.StringBuilder()
           ${
             Expr.block(
-              many.map { s => '{ builder.append($s) } },
+              many.map {
+                case StringExpr.Str(expr)        => '{ builder.append($expr) }
+                case StringExpr.StrBuilder(expr) => expr('builder)
+              },
               '{ builder.result() },
             )
           }
         }
     }
 
-  def exprMkString(sep: String)(using Quotes, SeqOps[S]): Expr[String] =
-    self.intersperse(Expr(sep)).exprMkString
+  def exprMkString(sep: StringExpr)(using Quotes, SeqOps[S]): Expr[String] =
+    self.intersperse(sep).exprMkString
 
-  def exprMkString(start: String, sep: String, end: String)(using Quotes, SeqOps[S]): Expr[String] =
-    self.surround(Expr(start), Expr(sep), Expr(end)).exprMkString
+  def exprMkString(start: StringExpr, sep: StringExpr, end: StringExpr)(using Quotes, SeqOps[S]): Expr[String] =
+    self.surround(start, sep, end).exprMkString
 
 }

@@ -23,6 +23,15 @@ object Show extends K0.Derivable[Show] {
   given Show[Int] = _.toString
   given Show[String] = _.unesc
   given Show[Boolean] = _.toString
+  given [A: Show as showA] => Show[Option[A]] =
+    new Show[Option[A]] {
+      override def show(a: Option[A]): String = a match
+        case Some(value) => showA.show(value)
+        case None        => "<none>"
+      override def appendToStringBuilder(sb: mutable.StringBuilder, a: Option[A]): Unit = a match
+        case Some(value) => showA.appendToStringBuilder(sb, value)
+        case None        => sb.append("<none>")
+    }
 
   override protected def internalDeriveProduct[Q <: Quotes, A](k0: K0[Q])(g: k0.ProductGeneric[A])(using quotes: Q, tpe: Type[A], tTpe: Type[Show]): Expr[Show[A]] =
     g.builders.instanceFromLazyTypeClasses[Show] { tcs =>
@@ -122,7 +131,7 @@ object Show extends K0.Derivable[Show] {
       '{
         new Show.PrioritizeStringBuilder[A] {
 
-          override def appendToStringBuilder(sb: StringBuilder, a: A): Unit = ${ macros.appendToStringBuilder('sb, 'a) }
+          override def appendToStringBuilder(sb: mutable.StringBuilder, a: A): Unit = ${ macros.appendToStringBuilder('sb, 'a) }
 
         }
       }

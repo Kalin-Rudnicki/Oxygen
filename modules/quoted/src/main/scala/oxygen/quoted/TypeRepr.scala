@@ -5,7 +5,7 @@ import oxygen.quoted.error.UnknownCase
 import scala.annotation.experimental
 import scala.quoted.*
 
-sealed trait TypeRepr {
+sealed trait TypeRepr extends Model {
   type This <: TypeRepr
   val quotes: Quotes
   val unwrap: quotes.reflect.TypeRepr

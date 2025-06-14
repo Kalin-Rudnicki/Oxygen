@@ -5,7 +5,7 @@ import oxygen.quoted.error.UnknownCase
 import scala.annotation.experimental
 import scala.quoted.*
 
-sealed trait ParamClause {
+sealed trait ParamClause  extends Model {
   type This <: ParamClause
   val quotes: Quotes
   val unwrap: quotes.reflect.ParamClause

@@ -3,7 +3,7 @@ package oxygen.quoted
 import oxygen.quoted.error.UnknownCase
 import scala.quoted.*
 
-sealed trait ImplicitSearchResult {
+sealed trait ImplicitSearchResult extends Model {
   type This <: ImplicitSearchResult
   val quotes: Quotes
   val unwrap: quotes.reflect.ImplicitSearchResult

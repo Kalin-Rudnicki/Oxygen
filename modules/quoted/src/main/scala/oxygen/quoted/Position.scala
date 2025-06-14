@@ -3,7 +3,7 @@ package oxygen.quoted
 import oxygen.quoted.companion.*
 import scala.quoted.*
 
-final class Position private (using val quotes: Quotes)(val unwrap: quotes.reflect.Position) {
+final class Position private (using val quotes: Quotes)(val unwrap: quotes.reflect.Position)  extends Model {
   def unwrapWithin(using newQuotes: Quotes): newQuotes.reflect.Position = this.unwrap.asInstanceOf[newQuotes.reflect.Position]
 
   /** The start offset in the source file */
