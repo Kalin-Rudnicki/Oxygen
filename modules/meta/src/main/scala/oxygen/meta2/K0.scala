@@ -237,6 +237,12 @@ object K0 {
       )(using quotes: Quotes): ValDefinitions[F] =
         cacheVals[F](valName = valName, valType = valType) { [b] => (q, _) ?=> (field: Field[b]) => field.summonTypeClass[F] }
 
+      def cacheTypeClassInstancesOrDerive[F[_]: Type](
+          valName: String => String = n => s"instance_$n",
+          valType: ValType = ValType.LazyVal,
+      )(f: [b] => Type[b] ?=> Field[b] => Expr[F[b]])(using quotes: Quotes): ValDefinitions[F] =
+        cacheVals[F](valName = valName, valType = valType) { [b] => (q, _) ?=> (field: Field[b]) => field.summonTypeClassOrDerive[F](f(field)) }
+
       def summonTypeClass[TC[_]: Type](using quotes: Quotes): Expr[TC[A]] =
         Implicits.search(TypeRepr.of[TC[A]]) match
           case ImplicitSearchSuccess(tree)        => tree.asExprOf[TC[A]]
@@ -491,21 +497,21 @@ object K0 {
 
     final case class Case[B <: A](
         idx: Int,
-        productGeneric: ProductGeneric[B],
+        generic: Generic[B],
     ) {
 
-      def label: String = productGeneric.label
-      def typeRepr: TypeRepr = productGeneric.typeRepr
+      def label: String = generic.label
+      def typeRepr: TypeRepr = generic.typeRepr
 
-      given tpe: Type[B] = productGeneric.tpe
+      given tpe: Type[B] = generic.tpe
 
-      def annotations(using Quotes): AnnotationsTyped[B] = productGeneric.annotations
+      def annotations(using Quotes): AnnotationsTyped[B] = generic.annotations
 
       def summonTypeClass[TC[_]: Type](using quotes: Quotes): Expr[TC[B]] =
-        productGeneric.util.summonTypeClass[TC]
+        generic.util.summonTypeClass[TC]
 
       def summonTypeClassOrDerive[TC[_]: Type](f: => Type[B] ?=> Expr[TC[B]])(using quotes: Quotes): Expr[TC[B]] =
-        productGeneric.util.summonTypeClassOrDerive[TC](f)
+        generic.util.summonTypeClassOrDerive[TC](f)
 
     }
 
@@ -578,8 +584,6 @@ object K0 {
       def mapExpr[Out](f: [b <: A] => Type[b] ?=> Case[b] => Expr[Out]): Growable[Expr[Out]] =
         map[Expr[Out]](f)
 
-      // FIX-PRE-MERGE (KR) :
-
       def cacheVals[F[_]: Type as fTpe](
           valName: String => String = n => s"value_$n",
           valType: ValType = ValType.Val,
@@ -612,7 +616,13 @@ object K0 {
           valName: String => String = n => s"instance_$n",
           valType: ValType = ValType.LazyVal,
       )(using Quotes): ValDefinitions[F] =
-        ??? // FIX-PRE-MERGE (KR) :
+        cacheVals[F](valName = valName, valType = valType) { [b <: A] => (_, _) ?=> (kase: Case[b]) => kase.summonTypeClass[F] }
+
+      def cacheTypeClassInstancesOrDerive[F[_]: Type](
+          valName: String => String = n => s"instance_$n",
+          valType: ValType = ValType.LazyVal,
+      )(f: [b <: A] => Type[b] ?=> Case[b] => Expr[F[b]])(using Quotes): ValDefinitions[F] =
+        cacheVals[F](valName = valName, valType = valType) { [b <: A] => (_, _) ?=> (kase: Case[b]) => kase.summonTypeClassOrDerive[F](f(kase)) }
 
       def showTypeClassInstances[F[_]: Type](using Quotes): Unit =
         cases.foreach { _kase =>
@@ -626,8 +636,8 @@ object K0 {
                |$label: $str""".stripMargin
 
           Implicits.search(TypeRepr.of[F[B]]) match
-            case success: ImplicitSearchSuccess => report.info(msg("instance", success.tree.show), kase.productGeneric.sym.pos)
-            case failure: ImplicitSearchFailure => report.warning(msg("explanation", failure.explanation), kase.productGeneric.sym.pos)
+            case success: ImplicitSearchSuccess => report.info(msg("instance", success.tree.show), kase.generic.sym.pos)
+            case failure: ImplicitSearchFailure => report.warning(msg("explanation", failure.explanation), kase.generic.sym.pos)
         }
 
     }
@@ -658,8 +668,7 @@ object K0 {
     protected def deriveCaseObjectImpl[A](g: ProductGeneric.CaseObjectGeneric[A])(using Quotes, Type[F], Type[A]): Expr[F[A]] =
       deriveProductImpl(g)
 
-    protected final def derivedImpl[A](using Quotes, Type[F], Type[A]): Expr[F[A]] = {
-      val g: Generic[A] = Generic.of[A]
+    protected final def deriveFromGenericImpl[A](g: Generic[A])(using Quotes, Type[F], Type[A]): Expr[F[A]] = {
       val res: Expr[F[A]] = g match {
         case g: ProductGeneric.AnyValGeneric[A, ?] =>
           type B
@@ -671,12 +680,15 @@ object K0 {
         case g: SumGeneric[A]                       => deriveSumImpl(g)
       }
 
-      g.annotations.allOf[annotation.showDerivation[F]].foreach { annot =>
+      g.annotations.optionalOf[annotation.showDerivation[F]].foreach { annot =>
         report.info(s"derivation for ${TypeRepr.of[F[A]].show}:\n\n${res.toTerm.show(using Printer.TreeAnsiCode)}", annot.toTerm.pos)
       }
 
       res
     }
+
+    protected final def derivedImpl[A](using Quotes, Type[F], Type[A]): Expr[F[A]] =
+      deriveFromGenericImpl(Generic.of[A])
 
   }
   object Derivable {
@@ -687,7 +699,7 @@ object K0 {
         g.util.cacheTypeClassInstances[F]().defineAndUse { exprs => deriveProductImplInst(g)(exprs) }
 
       override protected final def deriveSumImpl[A](g: SumGeneric[A])(using Quotes, Type[F], Type[A]): Expr[F[A]] =
-        g.util.cacheTypeClassInstances[F]().defineAndUse { exprs => deriveSumImplInst(g)(exprs) }
+        g.util.cacheTypeClassInstancesOrDerive[F]() { [b <: A] => _ ?=> (kase: g.Case[b]) => deriveFromGenericImpl(kase.generic) }.defineAndUse { exprs => deriveSumImplInst(g)(exprs) }
 
       protected def deriveProductImplInst[A](g: ProductGeneric[A])(i: g.Expressions[F])(using Quotes, Type[F], Type[A]): Expr[F[A]]
 
