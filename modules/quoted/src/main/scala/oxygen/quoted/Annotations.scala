@@ -8,16 +8,12 @@ class Annotations(
 )(using Quotes) {
 
   def all: List[Term] = _all
-  
-  def allOf[Annot: Type]: List[Expr[Annot]] = {
-    val annotTpe = TypeRepr.of[Annot]
-    val annotFlags = annotTpe.typeSymbol.flags
 
-    if (annotFlags.is(Flags.Abstract) || annotFlags.is(Flags.Trait))
-      report.errorAndAbort(s"Bad annotation type ${annotTpe.show} is abstract")
-
-    all.collect { case tree if tree.tpe <:< annotTpe => tree.asExprOf[Annot] }
-  }
+  def allOf[Annot: Type]: List[Expr[Annot]] =
+    all.flatMap { tree =>
+      try { Some(tree.asExprOf[Annot]) }
+      catch { case _ => None }
+    }
 
   def optionalOf[Annot: Type]: Option[Expr[Annot]] =
     allOf[Annot] match

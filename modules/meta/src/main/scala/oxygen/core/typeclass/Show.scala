@@ -3,6 +3,7 @@ package oxygen.core.typeclass
 import oxygen.meta2.*
 import oxygen.meta2.K0.ProductGeneric
 import oxygen.predef.core.*
+import oxygen.quoted.*
 import scala.annotation.Annotation
 import scala.collection.mutable
 import scala.quoted.*
@@ -92,11 +93,38 @@ object Show extends K0.Derivable.WithInstances[Show], K0.Derivable.WrapAnyVal[Sh
 
     sealed trait obfuscate extends Annotation
     object obfuscate {
+
       final case class map(char: Char) extends obfuscate
       final case class const(str: String) extends obfuscate
+
+      given FromExpr[obfuscate] =
+        new FromExpr[obfuscate] {
+          override def unapply(x: Expr[obfuscate])(using Quotes): Option[obfuscate] = x match
+            case '{ new `map`(${ Expr(name) }) }     => map(name).some
+            case '{ `map`(${ Expr(name) }) }         => map(name).some
+            case '{ `map`.apply(${ Expr(name) }) }   => map(name).some
+            case '{ new `const`(${ Expr(name) }) }   => const(name).some
+            case '{ `const`(${ Expr(name) }) }       => const(name).some
+            case '{ `const`.apply(${ Expr(name) }) } => const(name).some
+            case _                                   => None
+        }
+
     }
 
     final class hide extends Annotation
+    object hide {
+
+      given FromExpr[hide] =
+        new FromExpr[hide] {
+          override def unapply(x: Expr[hide])(using Quotes): Option[hide] = x match
+            case '{ new `hide` }     => hide().some
+            case '{ new `hide`() }   => hide().some
+            case '{ `hide`() }       => hide().some
+            case '{ `hide`.apply() } => hide().some
+            case _                   => None
+        }
+
+    }
 
   }
 
@@ -106,27 +134,39 @@ object Show extends K0.Derivable.WithInstances[Show], K0.Derivable.WrapAnyVal[Sh
 
   override protected def deriveProductImplInst[A](g: K0.ProductGeneric[A])(i: g.Expressions[Show])(using Quotes, Type[Show], Type[A]): Expr[Show[A]] = {
     def makeWriteTo(builder: Expr[mutable.StringBuilder], value: Expr[A]): Expr[Unit] = {
-      val strExprs: Growable[StringExpr] =
-        g.util.flatMapJoin[Contiguous, StringExpr](
-          StringExpr.const(g.label + "("),
-          StringExpr.const(", "),
-          StringExpr.const(")"),
-        ) {
+      g.util
+        .map[Option[Growable[StringExpr]]] {
           [b] =>
             _ ?=>
               (field: g.Field[b]) =>
-                Contiguous(
-                  StringExpr.const(field.name),
-                  StringExpr.const(" = "),
-                  StringExpr.StrBuilder { builder => '{ ${ field.getExpr(i) }.writeTo($builder, ${ field.get(value) }) } },
-              )
+                val valueExpr: Option[StringExpr] =
+                  (field.annotations.optionalOfValue[Show.annotation.obfuscate], field.annotations.optionalOfValue[Show.annotation.hide]) match {
+                    case (None, None) =>
+                      StringExpr.StrBuilder { builder => '{ ${ field.getExpr(i) }.writeTo($builder, ${ field.get(value) }) } }.some
+                    case (Some(Show.annotation.obfuscate.map(char)), None) =>
+                      StringExpr.StrBuilder { builder => '{ $builder.append(${ field.getExpr(i) }.show(${ field.get(value) }).map { _ => ${ Expr(char) } }) } }.some
+                    case (Some(Show.annotation.obfuscate.const(str)), None) =>
+                      StringExpr.const(str).some
+                    case (None, Some(_))    => None
+                    case (Some(_), Some(_)) => report.errorAndAbort("You can not both hide and obfuscate a field")
+                  }
+
+                valueExpr.map { value =>
+                  Growable(
+                    StringExpr.const(field.name),
+                    StringExpr.const(" = "),
+                    value,
+                  )
+              }
         }
-
-      val res = strExprs.exprMkStringTo(builder)
-
-      // report.errorAndAbort(res.show)
-
-      res
+        .flatMap(identity)
+        .surround(
+          Growable.single(StringExpr.const(g.label + "(")),
+          Growable.single(StringExpr.const(", ")),
+          Growable.single(StringExpr.const(")")),
+        )
+        .flatten
+        .exprMkStringTo(builder)
     }
 
     '{

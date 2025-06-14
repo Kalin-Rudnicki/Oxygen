@@ -16,6 +16,9 @@ sealed trait TypeRepr extends Model {
 
   /** Shows the type as a String */
   final def show(using printer: Printer[TypeRepr]): String = printer.show(this)
+  
+  final def show(f: PrinterCompanion => Printer[TypeRepr]): String =
+    show(using f(Printer.companion))
 
   /**
     * Convert this `TypeRepr` to an `Type[?]`

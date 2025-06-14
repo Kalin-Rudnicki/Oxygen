@@ -8,24 +8,22 @@ object NewDeriveShowSpec extends OxygenSpecDefault {
   final case class CaseClass0[A](
       a: A,
       b: Option[String],
-  ) derives example.Show
+  ) // derives Show
   object CaseClass0 {
-    // given show: [A: Show] => Show[CaseClass0[A]] = Show.derived
+    inline given show: [A: Show] => Show[CaseClass0[A]] = Show.derived
   }
 
-  // summon[Show[CaseClass0[Double]]]
+  summon[Show[CaseClass0[Double]]]
 
   final case class CaseClass1(
       a: Int,
       b: Option[String],
   ) derives Show
 
-  /*
   final case class CaseClass2(
       @Show.annotation.obfuscate.map('*') a: Int,
       @Show.annotation.hide b: String,
   ) derives Show
-   */
 
   final case class AnyVal1(value: String) extends AnyVal derives Show
 
@@ -40,7 +38,6 @@ object NewDeriveShowSpec extends OxygenSpecDefault {
 
   override def testSpec: TestSpec =
     suite("NewDeriveShowSpec")(
-      /*
       suite("CaseClass1")(
         showSpec("some")(CaseClass1(1, "string".some))("CaseClass1(a = 1, b = \"string\")"),
         showSpec("none")(CaseClass1(1, None))("CaseClass1(a = 1, b = <none>)"),
@@ -48,7 +45,6 @@ object NewDeriveShowSpec extends OxygenSpecDefault {
       suite("CaseClass2")(
         showSpec("simple")(CaseClass2(56, "heyo"))("CaseClass2(a = **)"),
       ),
-       */
       suite("AnyVal1")(
         showSpec("simple")(AnyVal1("heyo"))("\"heyo\""),
       ),
