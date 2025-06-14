@@ -126,6 +126,34 @@ object Show extends K0.Derivable.WithInstances[Show], K0.Derivable.WrapAnyVal[Sh
 
     }
 
+    final case class fieldName(name: String) extends Annotation
+    object fieldName {
+
+      given FromExpr[fieldName] =
+        new FromExpr[fieldName] {
+          override def unapply(x: Expr[fieldName])(using Quotes): Option[fieldName] = x match
+            case '{ new `fieldName`(${ Expr(name) }) }   => fieldName(name).some
+            case '{ `fieldName`(${ Expr(name) }) }       => fieldName(name).some
+            case '{ `fieldName`.apply(${ Expr(name) }) } => fieldName(name).some
+            case _                                       => None
+        }
+
+    }
+
+    final case class typeName(name: String) extends Annotation
+    object typeName {
+
+      given FromExpr[typeName] =
+        new FromExpr[typeName] {
+          override def unapply(x: Expr[typeName])(using Quotes): Option[typeName] = x match
+            case '{ new `typeName`(${ Expr(name) }) }   => typeName(name).some
+            case '{ `typeName`(${ Expr(name) }) }       => typeName(name).some
+            case '{ `typeName`.apply(${ Expr(name) }) } => typeName(name).some
+            case _                                      => None
+        }
+
+    }
+
   }
 
   //////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -133,7 +161,7 @@ object Show extends K0.Derivable.WithInstances[Show], K0.Derivable.WrapAnyVal[Sh
   //////////////////////////////////////////////////////////////////////////////////////////////////////
 
   override protected def deriveProductImplInst[A](g: K0.ProductGeneric[A])(i: g.Expressions[Show])(using Quotes, Type[Show], Type[A]): Expr[Show[A]] = {
-    def makeWriteTo(builder: Expr[mutable.StringBuilder], value: Expr[A]): Expr[Unit] = {
+    def makeWriteTo(builder: Expr[mutable.StringBuilder], value: Expr[A]): Expr[Unit] =
       g.util
         .map[Option[Growable[StringExpr]]] {
           [b] =>
@@ -153,7 +181,7 @@ object Show extends K0.Derivable.WithInstances[Show], K0.Derivable.WrapAnyVal[Sh
 
                 valueExpr.map { value =>
                   Growable(
-                    StringExpr.const(field.name),
+                    StringExpr.const(field.annotations.optionalOfValue[annotation.fieldName].fold(field.name)(_.name)),
                     StringExpr.const(" = "),
                     value,
                   )
@@ -161,13 +189,12 @@ object Show extends K0.Derivable.WithInstances[Show], K0.Derivable.WrapAnyVal[Sh
         }
         .flatMap(identity)
         .surround(
-          Growable.single(StringExpr.const(g.label + "(")),
+          Growable.single(StringExpr.const(g.annotations.optionalOfValue[annotation.typeName].fold(g.label)(_.name) + "(")),
           Growable.single(StringExpr.const(", ")),
           Growable.single(StringExpr.const(")")),
         )
         .flatten
         .exprMkStringTo(builder)
-    }
 
     '{
       new PreferBuffer[A] {

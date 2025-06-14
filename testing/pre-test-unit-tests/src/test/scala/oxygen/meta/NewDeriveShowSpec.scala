@@ -1,28 +1,31 @@
 package oxygen.meta
 
 import oxygen.core.typeclass.Show
+import oxygen.core.typeclass.Show.annotation.*
+import oxygen.meta2.*
 import oxygen.predef.test.*
 
 object NewDeriveShowSpec extends OxygenSpecDefault {
-
-  final case class CaseClass0[A](
-      a: A,
-      b: Option[String],
-  ) // derives Show
-  object CaseClass0 {
-    inline given show: [A: Show] => Show[CaseClass0[A]] = Show.derived
-  }
-
-  summon[Show[CaseClass0[Double]]]
 
   final case class CaseClass1(
       a: Int,
       b: Option[String],
   ) derives Show
 
+  @K0.annotation.showDerivation[Show]
+  @typeName("MyCaseClass")
   final case class CaseClass2(
-      @Show.annotation.obfuscate.map('*') a: Int,
-      @Show.annotation.hide b: String,
+      @obfuscate.map('*')
+      @fieldName("masked")
+      a: Int,
+      @Show.annotation.hide
+      b: String,
+  ) derives Show
+
+  @K0.annotation.showDerivation[Show]
+  final case class CaseClass3[A](
+      a: A,
+      b: Option[String],
   ) derives Show
 
   final case class AnyVal1(value: String) extends AnyVal derives Show
@@ -43,7 +46,11 @@ object NewDeriveShowSpec extends OxygenSpecDefault {
         showSpec("none")(CaseClass1(1, None))("CaseClass1(a = 1, b = <none>)"),
       ),
       suite("CaseClass2")(
-        showSpec("simple")(CaseClass2(56, "heyo"))("CaseClass2(a = **)"),
+        showSpec("simple")(CaseClass2(56, "heyo"))("MyCaseClass(masked = **)"),
+      ),
+      suite("CaseClass3")(
+        showSpec("string")(CaseClass3("str", None))("CaseClass3(a = \"str\", b = <none>)"),
+        showSpec("int")(CaseClass3(56, None))("CaseClass3(a = 56, b = <none>)"),
       ),
       suite("AnyVal1")(
         showSpec("simple")(AnyVal1("heyo"))("\"heyo\""),

@@ -4,10 +4,13 @@ import oxygen.core.RightProjection
 import oxygen.core.syntax.extra.*
 import oxygen.predef.core.*
 import oxygen.quoted.*
-import scala.annotation.tailrec
+import scala.annotation.{tailrec, Annotation}
 import scala.quoted.*
 
 object K0 {
+
+  type Const[A] = [_] =>> A
+  type Id[A] = A
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////
 //      Generic
@@ -21,7 +24,6 @@ object K0 {
     val typeType: TypeType
 
     final given tpe: Type[A] = typeRepr.asTypeOf
-    // final given quotes: Quotes = sym.quotes
 
     final def annotations(using Quotes): AnnotationsTyped[A] = AnnotationsTyped(typeRepr.annotations.all, typeRepr.show)
 
@@ -49,7 +51,6 @@ object K0 {
 
     def fieldsToInstance[S[_]: SeqOps](exprs: S[Expr[?]])(using Quotes): Expr[A]
 
-    // FIX-PRE-MERGE (KR) :
     final class ValDefinitions[F[_]](fTpe: Type[F], make: Quotes ?=> Contiguous[(ValDef, Type[?])]) {
 
       private given Type[F] = fTpe
@@ -119,8 +120,13 @@ object K0 {
 
       def summonTypeClass[TC[_]: Type](using quotes: Quotes): Expr[TC[B]] =
         Implicits.search(TypeRepr.of[TC[B]]) match
-          case ImplicitSearchSuccess(tree)        => tree.asExprOf[TC[B]] // FIX-PRE-MERGE (KR) :
-          case ImplicitSearchFailure(explanation) => report.errorAndAbort(s"[${Expr.summon[TC[B]].nonEmpty}] Error summoning ${TypeRepr.of[TC[B]].show}\n\n$explanation", constructorValDef.pos)
+          case ImplicitSearchSuccess(tree)        => tree.asExprOf[TC[B]]
+          case ImplicitSearchFailure(explanation) => report.errorAndAbort(s"Error summoning ${TypeRepr.of[TC[B]].show}\n\n$explanation", constructorValDef.pos)
+
+      def summonTypeClassOrDerive[TC[_]: Type](f: => Type[B] ?=> Expr[TC[B]])(using quotes: Quotes): Expr[TC[B]] =
+        Implicits.search(TypeRepr.of[TC[B]]) match
+          case ImplicitSearchSuccess(tree) => tree.asExprOf[TC[B]]
+          case ImplicitSearchFailure(_)    => f(using tpe)
 
       def annotations(using Quotes): AnnotationsTyped[B] = AnnotationsTyped(constructorValDef.symbol.annotations.all, constructorValDef.show)
 
@@ -155,36 +161,6 @@ object K0 {
 
       def flatMapExpr[S[_]: SeqOps, Out](f: [b] => Type[b] ?=> Field[b] => S[Expr[Out]]): Growable[Expr[Out]] =
         flatMap[S, Expr[Out]](f)
-
-      def flatMapJoin[S[_]: SeqOps, Out](
-          sep: Out,
-      )(f: [b] => Type[b] ?=> Field[b] => S[Out]): Growable[Out] =
-        Growable
-          .many(fields)
-          .map { _field =>
-            type _b
-            val field: Field[_b] = _field.asInstanceOf[Field[_b]]
-
-            Growable.many(f[_b](using field.tpe)(field))
-          }
-          .intersperse(Growable.single(sep))
-          .flatten
-
-      def flatMapJoin[S[_]: SeqOps, Out](
-          start: Out,
-          sep: Out,
-          end: Out,
-      )(f: [b] => Type[b] ?=> Field[b] => S[Out]): Growable[Out] =
-        Growable
-          .many(fields)
-          .map { _field =>
-            type _b
-            val field: Field[_b] = _field.asInstanceOf[Field[_b]]
-
-            Growable.many(f[_b](using field.tpe)(field))
-          }
-          .surround(Growable.single(start), Growable.single(sep), Growable.single(end))
-          .flatten
 
       def instantiate(f: [b] => Type[b] ?=> Field[b] => Expr[b])(using Quotes): Expr[A] =
         fieldsToInstance(
@@ -228,7 +204,7 @@ object K0 {
         instantiateM[RightProjection[Left]](f)
 
       def cacheVals[F[_]: Type as fTpe](
-          valName: String => String = n => s"${n}_value",
+          valName: String => String = n => s"value_$n",
           valType: ValType = ValType.Val,
       )(
           f: [b] => (Quotes, Type[b]) ?=> Field[b] => Expr[F[b]],
@@ -256,10 +232,20 @@ object K0 {
       }
 
       def cacheTypeClassInstances[F[_]: Type](
-          valName: String => String = n => s"${n}_instance",
+          valName: String => String = n => s"instance_$n",
           valType: ValType = ValType.LazyVal,
       )(using quotes: Quotes): ValDefinitions[F] =
-        cacheVals[F](valName = valName, valType = valType) { [b] => (q, _) ?=> (field: Field[b]) => field.summonTypeClass[F](using quotes = quotes) }
+        cacheVals[F](valName = valName, valType = valType) { [b] => (q, _) ?=> (field: Field[b]) => field.summonTypeClass[F] }
+
+      def summonTypeClass[TC[_]: Type](using quotes: Quotes): Expr[TC[A]] =
+        Implicits.search(TypeRepr.of[TC[A]]) match
+          case ImplicitSearchSuccess(tree)        => tree.asExprOf[TC[A]]
+          case ImplicitSearchFailure(explanation) => report.errorAndAbort(s"Error summoning ${TypeRepr.of[TC[A]].show}\n\n$explanation", sym.pos)
+
+      def summonTypeClassOrDerive[TC[_]: Type](f: => Type[A] ?=> Expr[TC[A]])(using quotes: Quotes): Expr[TC[A]] =
+        Implicits.search(TypeRepr.of[TC[A]]) match
+          case ImplicitSearchSuccess(tree) => tree.asExprOf[TC[A]]
+          case ImplicitSearchFailure(_)    => f(using tpe)
 
       def showTypeClassInstances[F[_]: Type](using Quotes): Unit =
         fields.foreach { _field =>
@@ -361,19 +347,10 @@ object K0 {
         val alterRepr: TypeRepr => TypeRepr =
           constructorTypes match {
             case Some(constructorTypes) =>
-              val typeArgsSymbols: List[Symbol] = constructorTypes.params.map(p => _typeSym.typeMember(p.name))
+              val typeArgsSymbols: List[Symbol] = constructorTypes.params.map { s => _typeSym.typeMember(s.name) }
 
               if (typeArgsSymbols.size != typeArgs.size)
                 report.errorAndAbort("Type param symbols and reprs have different size?")
-
-              // FIX-PRE-MERGE (KR) : remove
-              /*
-              report.errorAndAbort(
-                "types:" + "\n\n" +
-                  typeArgsSymbols.map(_.fullName).mkString("\n") + "\n\n" +
-                  tpeArgs.map { a => s"${a.show} => ${a.dealias.show}" }.mkString("\n"),
-              )
-               */
 
               _.substituteTypes(typeArgsSymbols, typeArgs)
             case None =>
@@ -385,10 +362,7 @@ object K0 {
             if (constructorVal.name != fieldVal.name)
               report.errorAndAbort("vals are not in same order?")
 
-            val typeRepr: TypeRepr = alterRepr(constructorVal.tpt.tpe)
-
-            // FIX-PRE-MERGE (KR) : remove
-            // report.info(typeRepr.show, constructorVal.pos)
+            val typeRepr: TypeRepr = alterRepr(fieldVal.tpt.tpe)
 
             (idx, typeRepr, constructorVal, fieldVal)
           }
@@ -520,27 +494,78 @@ object K0 {
         productGeneric: ProductGeneric[B],
     ) {
 
-      given tpe: Type[B] = productGeneric.tpe
-      // given quotes: Quotes = productGeneric.quotes
-
       def label: String = productGeneric.label
+      def typeRepr: TypeRepr = productGeneric.typeRepr
+
+      given tpe: Type[B] = productGeneric.tpe
 
       def annotations(using Quotes): AnnotationsTyped[B] = productGeneric.annotations
 
-    }
+      def summonTypeClass[TC[_]: Type](using quotes: Quotes): Expr[TC[B]] =
+        productGeneric.util.summonTypeClass[TC]
 
-    // FIX-PRE-MERGE (KR) :
-    final class ValDefinitions[F[_]] {
-
-      def defineAndUse[B: Type](f: Quotes ?=> Expressions[F] => Expr[B])(using quotes: Quotes): Expr[B] =
-        ??? // FIX-PRE-MERGE (KR) :
+      def summonTypeClassOrDerive[TC[_]: Type](f: => Type[B] ?=> Expr[TC[B]])(using quotes: Quotes): Expr[TC[B]] =
+        productGeneric.util.summonTypeClassOrDerive[TC](f)
 
     }
 
-    // FIX-PRE-MERGE (KR) :
-    final class Expressions[F[_]]
+    final class ValDefinitions[F[_]](fTpe: Type[F], make: Quotes ?=> Contiguous[(ValDef, Type[?])]) {
 
-    object util {
+      private given Type[F] = fTpe
+
+      def defineAndUse[B: Type](f: Quotes ?=> Expressions[F] => Expr[B])(using quotes: Quotes): Expr[B] = {
+        val vals: Contiguous[(ValDef, Type[?])] = make(using quotes)
+        val newQuotes: Quotes = vals.lastOption.fold(quotes)(_._1.symbol.asQuotes) // this might be unnecessary
+        val expressions: Expressions[F] =
+          Expressions[F](
+            fTpe,
+            vals.map { case (v, tpe) =>
+              type C
+              given cTpe: Type[C] = tpe.asInstanceOf[Type[C]]
+              Expressions.Elem(
+                cTpe,
+                v.valRef.asExprOf[F[C]],
+              )
+            },
+          )
+        val res: Expr[B] = f(using newQuotes)(expressions)
+        Block.companion.apply(vals.map(_._1).toList, res.toTerm(using newQuotes)).asExprOf[B]
+      }
+
+    }
+
+    final class Expressions[F[_]](
+        fTpe: Type[F],
+        expressions: Contiguous[Expressions.Elem[F, ?]],
+    ) {
+
+      private given Type[F] = fTpe
+
+      def at[B: Type](idx: Int)(using Quotes): Expr[F[B]] =
+        expressions.at(idx).expr.asExprOf[F[B]]
+
+      def mapK[G[_]: Type as gTpe](f: [b] => Type[b] ?=> Expr[F[b]] => Expr[G[b]]): Expressions[G] =
+        Expressions[G](
+          gTpe,
+          expressions.map(elem => elem.mapK(f(_))),
+        )
+
+    }
+    object Expressions {
+
+      final case class Elem[F[_], B](
+          bTpe: Type[B],
+          expr: Expr[F[B]],
+      ) {
+
+        def mapK[G[_]](f: Type[B] ?=> Expr[F[B]] => Expr[G[B]]): Elem[G, B] =
+          Elem[G, B](bTpe, f(using bTpe)(expr))
+
+      }
+
+    }
+
+    class Util {
 
       def map[Out](f: [b <: A] => Type[b] ?=> Case[b] => Out): Growable[Out] =
         Growable.many(cases).map { _case =>
@@ -556,20 +581,58 @@ object K0 {
       // FIX-PRE-MERGE (KR) :
 
       def cacheVals[F[_]: Type as fTpe](
-          valName: String => String = n => s"${n}_value",
+          valName: String => String = n => s"value_$n",
           valType: ValType = ValType.Val,
       )(
           f: [b <: A] => (Quotes, Type[b]) ?=> Case[b] => Expr[F[b]],
-      ): ValDefinitions[F] =
-        ??? // FIX-PRE-MERGE (KR) :
+      )(using Quotes): ValDefinitions[F] = {
+        val flags: Flags = valType match
+          case ValType.Val     => Flags.EmptyFlags
+          case ValType.LazyVal => Flags.Lazy
+          case ValType.Var     => Flags.Mutable
+
+        @tailrec
+        def rec(queue: List[Case[?]], acc: Growable[(ValDef, Type[?])]): Contiguous[(ValDef, Type[?])] =
+          queue match {
+            case head :: tail =>
+              type B <: A
+              val kase: Case[B] = head.asInstanceOf[Case[B]]
+              given bTpe: Type[B] = kase.tpe
+              val newSym: Symbol = Symbol.companion.newVal(Symbol.spliceOwner, valName(kase.label), TypeRepr.of[F[B]], flags, Symbol.noSymbol)
+              val newDef: ValDef = ValDef.companion.apply(newSym, f[B](using quotes, kase.tpe)(kase).toTerm(using quotes).some)
+              rec(tail, acc :+ (newDef, kase.tpe))
+            case Nil =>
+              acc.to[Contiguous]
+          }
+
+        new ValDefinitions[F](fTpe, (quotes: Quotes) ?=> rec(cases.toList, Growable.empty))
+      }
 
       def cacheTypeClassInstances[F[_]: Type](
-          valName: String => String = n => s"${n}_instance",
+          valName: String => String = n => s"instance_$n",
           valType: ValType = ValType.LazyVal,
-      ): ValDefinitions[F] =
+      )(using Quotes): ValDefinitions[F] =
         ??? // FIX-PRE-MERGE (KR) :
 
+      def showTypeClassInstances[F[_]: Type](using Quotes): Unit =
+        cases.foreach { _kase =>
+          type B <: A
+          val kase: Case[B] = _kase.asInstanceOf[Case[B]]
+          import kase.tpe
+
+          def msg(label: String, str: String): String =
+            s"""case: ${kase.label}
+               |type: ${kase.typeRepr.show}
+               |$label: $str""".stripMargin
+
+          Implicits.search(TypeRepr.of[F[B]]) match
+            case success: ImplicitSearchSuccess => report.info(msg("instance", success.tree.show), kase.productGeneric.sym.pos)
+            case failure: ImplicitSearchFailure => report.warning(msg("explanation", failure.explanation), kase.productGeneric.sym.pos)
+        }
+
     }
+
+    val util: Util = new Util
 
   }
   object SumGeneric {
@@ -608,8 +671,9 @@ object K0 {
         case g: SumGeneric[A]                       => deriveSumImpl(g)
       }
 
-      // FIX-PRE-MERGE (KR) : annotation
-      // report.info(res.show)
+      g.annotations.allOf[annotation.showDerivation[F]].foreach { annot =>
+        report.info(s"derivation for ${TypeRepr.of[F[A]].show}:\n\n${res.toTerm.show(using Printer.TreeAnsiCode)}", annot.toTerm.pos)
+      }
 
       res
     }
@@ -619,11 +683,8 @@ object K0 {
 
     trait WithInstances[F[_]] extends Derivable[F] {
 
-      override protected final def deriveProductImpl[A](g: ProductGeneric[A])(using Quotes, Type[F], Type[A]): Expr[F[A]] = {
-        g.util.showTypeClassInstances[F]
-        report.errorAndAbort("die")
-        ??? // g.util.cacheTypeClassInstances[F]().defineAndUse { exprs => deriveProductImplInst(g)(exprs) }
-      }
+      override protected final def deriveProductImpl[A](g: ProductGeneric[A])(using Quotes, Type[F], Type[A]): Expr[F[A]] =
+        g.util.cacheTypeClassInstances[F]().defineAndUse { exprs => deriveProductImplInst(g)(exprs) }
 
       override protected final def deriveSumImpl[A](g: SumGeneric[A])(using Quotes, Type[F], Type[A]): Expr[F[A]] =
         g.util.cacheTypeClassInstances[F]().defineAndUse { exprs => deriveSumImplInst(g)(exprs) }
@@ -644,6 +705,12 @@ object K0 {
         }
 
     }
+
+  }
+
+  object annotation {
+
+    final class showDerivation[F[_]] extends Annotation
 
   }
 

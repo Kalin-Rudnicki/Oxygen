@@ -184,12 +184,6 @@ final class K0[Q <: Quotes](val meta: Meta[Q]) { k0 =>
             .summon[TC[I]]
             .getOrElse(report.errorAndAbort(s"Unable to find instance `${TypeRepr.of[TC[I]].show}` for field `$name` in type `${productGeneric.typeRepr.show}`"))
 
-        report.info(
-          s"""summon: $name -> ${TypeRepr.of[TC[I]].show} -> ${TypeRepr.of[TC[I]].dealias.show}
-             |${res.show}""".stripMargin,
-          res.toTerm.pos,
-        )
-
         res
       }
 
