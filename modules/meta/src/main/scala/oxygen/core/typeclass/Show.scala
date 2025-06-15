@@ -1,7 +1,6 @@
 package oxygen.core.typeclass
 
 import oxygen.meta2.*
-import oxygen.meta2.K0.ProductGeneric
 import oxygen.predef.core.*
 import oxygen.quoted.*
 import scala.annotation.Annotation
@@ -15,7 +14,7 @@ trait Show[A] {
   def writeTo(builder: mutable.StringBuilder, value: A): Unit = builder.append(show(value))
 
 }
-object Show extends K0.Derivable.WithInstances[Show], K0.Derivable.WrapAnyVal[Show] {
+object Show extends K0.Derivable[Show] {
 
   inline def apply[A: Show as ev]: Show[A] = ev
 
@@ -160,68 +159,83 @@ object Show extends K0.Derivable.WithInstances[Show], K0.Derivable.WrapAnyVal[Sh
   //      Generic
   //////////////////////////////////////////////////////////////////////////////////////////////////////
 
-  override protected def deriveProductImplInst[A](g: K0.ProductGeneric[A])(i: g.Expressions[Show])(using Quotes, Type[Show], Type[A]): Expr[Show[A]] = {
-    def makeWriteTo(builder: Expr[mutable.StringBuilder], value: Expr[A]): Expr[Unit] =
-      g.util
-        .map[Option[Growable[StringExpr]]] {
-          [b] =>
-            _ ?=>
-              (field: g.Field[b]) =>
-                val valueExpr: Option[StringExpr] =
-                  (field.annotations.optionalOfValue[Show.annotation.obfuscate], field.annotations.optionalOfValue[Show.annotation.hide]) match {
-                    case (None, None) =>
-                      StringExpr.StrBuilder { builder => '{ ${ field.getExpr(i) }.writeTo($builder, ${ field.get(value) }) } }.some
-                    case (Some(Show.annotation.obfuscate.map(char)), None) =>
-                      StringExpr.StrBuilder { builder => '{ $builder.append(${ field.getExpr(i) }.show(${ field.get(value) }).map { _ => ${ Expr(char) } }) } }.some
-                    case (Some(Show.annotation.obfuscate.const(str)), None) =>
-                      StringExpr.const(str).some
-                    case (None, Some(_))    => None
-                    case (Some(_), Some(_)) => report.errorAndAbort("You can not both hide and obfuscate a field")
+  override protected def productDeriver[A](using Quotes, Type[Show], Type[A], K0.ProductGeneric[A], K0.Derivable[Show]): K0.Derivable.ProductDeriver[Show, A] =
+    K0.Derivable.ProductDeriver.withInstances[Show, A] { i =>
+      new K0.Derivable.ProductDeriver.Split[Show, A] {
+
+        private def makeWriteTo(builder: Expr[mutable.StringBuilder], value: Expr[A]): Expr[Unit] =
+          generic.util
+            .map[Option[Growable[StringExpr]]] {
+              [b] =>
+                _ ?=>
+                  (field: generic.Field[b]) =>
+                    val valueExpr: Option[StringExpr] =
+                      (field.annotations.optionalOfValue[Show.annotation.obfuscate], field.annotations.optionalOfValue[Show.annotation.hide]) match {
+                        case (None, None) =>
+                          StringExpr.StrBuilder { builder => '{ ${ field.getExpr(i) }.writeTo($builder, ${ field.get(value) }) } }.some
+                        case (Some(Show.annotation.obfuscate.map(char)), None) =>
+                          StringExpr.StrBuilder { builder => '{ $builder.append(${ field.getExpr(i) }.show(${ field.get(value) }).map { _ => ${ Expr(char) } }) } }.some
+                        case (Some(Show.annotation.obfuscate.const(str)), None) =>
+                          StringExpr.const(str).some
+                        case (None, Some(_))    => None
+                        case (Some(_), Some(_)) => report.errorAndAbort("You can not both hide and obfuscate a field")
+                      }
+
+                    valueExpr.map { value =>
+                      Growable(
+                        StringExpr.const(field.annotations.optionalOfValue[annotation.fieldName].fold(field.name)(_.name)),
+                        StringExpr.const(" = "),
+                        value,
+                      )
                   }
+            }
+            .flatMap(identity)
+            .surround(
+              Growable.single(StringExpr.const(generic.annotations.optionalOfValue[annotation.typeName].fold(generic.label)(_.name) + "(")),
+              Growable.single(StringExpr.const(", ")),
+              Growable.single(StringExpr.const(")")),
+            )
+            .flatten
+            .exprMkStringTo(builder)
 
-                valueExpr.map { value =>
-                  Growable(
-                    StringExpr.const(field.annotations.optionalOfValue[annotation.fieldName].fold(field.name)(_.name)),
-                    StringExpr.const(" = "),
-                    value,
-                  )
+        override def deriveCaseClass(generic: K0.ProductGeneric.CaseClassGeneric[A]): Expr[Show[A]] =
+          '{
+            new PreferBuffer[A] {
+              override def writeTo(builder: mutable.StringBuilder, value: A): Unit = ${ makeWriteTo('builder, 'value) }
+            }
+          }
+
+        override def deriveAnyVal[B: Type](generic: K0.ProductGeneric.AnyValGeneric[A, B]): Expr[Show[A]] =
+          '{
+            new Show[A] {
+              override def show(value: A): String =
+                ${ generic.field.getExpr(i) }.show(${ generic.util.unwrap('value) })
+              override def writeTo(builder: mutable.StringBuilder, value: A): Unit =
+                ${ generic.field.getExpr(i) }.writeTo(builder, ${ generic.util.unwrap('value) })
+            }
+          }
+
+        override def deriveCaseObject(generic: K0.ProductGeneric.CaseObjectGeneric[A]): Expr[Show[A]] = ???
+
+      }
+    }
+
+  override protected def sumDeriver[A](using Quotes, Type[Show], Type[A], K0.SumGeneric[A], K0.Derivable[Show]): K0.Derivable.SumDeriver[Show, A] =
+    K0.Derivable.SumDeriver.withInstances[Show, A] { _ =>
+      new K0.Derivable.SumDeriver[Show, A] {
+
+        override def derive: Expr[Show[A]] =
+          '{
+            new PreferBuffer[A] {
+              override def writeTo(builder: mutable.StringBuilder, value: A): Unit = {
+                builder.append(${ Expr(generic.annotations.optionalOfValue[annotation.typeName].fold(generic.label)(_.name) + ".") })
+                builder.append("TODO : pick case")
               }
-        }
-        .flatMap(identity)
-        .surround(
-          Growable.single(StringExpr.const(g.annotations.optionalOfValue[annotation.typeName].fold(g.label)(_.name) + "(")),
-          Growable.single(StringExpr.const(", ")),
-          Growable.single(StringExpr.const(")")),
-        )
-        .flatten
-        .exprMkStringTo(builder)
+            }
+          }
 
-    '{
-      new PreferBuffer[A] {
-        override def writeTo(builder: mutable.StringBuilder, value: A): Unit = ${ makeWriteTo('builder, 'value) }
       }
     }
-  }
-
-  override protected def wrapAnyValInstance[A, B](a: Expr[Show[A]], wrap: Expr[A] => Expr[B], unwrap: Expr[B] => Expr[A])(using Quotes, Type[A], Type[B]): Expr[Show[B]] =
-    '{
-      new Show[B] {
-        override def show(value: B): String =
-          $a.show(${ unwrap('value) })
-        override def writeTo(builder: mutable.StringBuilder, value: B): Unit =
-          $a.writeTo(builder, ${ unwrap('value) })
-      }
-    }
-
-  override protected def deriveCaseObjectImpl[A](g: ProductGeneric.CaseObjectGeneric[A])(using Quotes, Type[Show], Type[A]): Expr[Show[A]] =
-    '{
-      new Show[A] {
-        override def show(value: A): String = ${ Expr(g.label) }
-      }
-    }
-
-  override protected def deriveSumImplInst[A](g: K0.SumGeneric[A])(i: g.Expressions[Show])(using Quotes, Type[Show], Type[A]): Expr[Show[A]] =
-    ??? // FIX-PRE-MERGE (KR) :
 
   inline def derived[A]: Show[A] = ${ derivedImpl[A] }
 

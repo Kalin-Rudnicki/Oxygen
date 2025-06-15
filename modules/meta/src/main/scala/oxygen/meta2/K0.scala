@@ -610,8 +610,8 @@ object K0 {
     //           : type SumF[A] <: F[A]
 
     protected val deriveConfig: Derivable.Config = Derivable.Config()
-    protected def productDeriver[A](using Type[F], Type[A], ProductGeneric[A], Derivable[F]): Derivable.ProductDeriver[F, A]
-    protected def sumDeriver[A](using Type[F], Type[A], SumGeneric[A], Derivable[F]): Derivable.SumDeriver[F, A]
+    protected def productDeriver[A](using Quotes, Type[F], Type[A], ProductGeneric[A], Derivable[F]): Derivable.ProductDeriver[F, A]
+    protected def sumDeriver[A](using Quotes, Type[F], Type[A], SumGeneric[A], Derivable[F]): Derivable.SumDeriver[F, A]
 
     private[meta2] final def deriveFromGenericImpl[A](g: Generic[A])(using Quotes, Type[F], Type[A]): Expr[F[A]] = {
       given Derivable[F] = this
