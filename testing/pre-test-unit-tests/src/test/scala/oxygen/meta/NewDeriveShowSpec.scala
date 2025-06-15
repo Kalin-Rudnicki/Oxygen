@@ -2,7 +2,7 @@ package oxygen.meta
 
 import oxygen.core.typeclass.Show
 import oxygen.core.typeclass.Show.annotation.*
-import oxygen.meta2.*
+// import oxygen.meta2.*
 import oxygen.predef.test.*
 
 object NewDeriveShowSpec extends OxygenSpecDefault {
@@ -12,7 +12,7 @@ object NewDeriveShowSpec extends OxygenSpecDefault {
       b: Option[String],
   ) derives Show
 
-  @K0.annotation.showDerivation[Show]
+  // @K0.annotation.showDerivation[Show]
   @typeName("MyCaseClass")
   final case class CaseClass2(
       @obfuscate.map('*')
@@ -22,7 +22,7 @@ object NewDeriveShowSpec extends OxygenSpecDefault {
       b: String,
   ) derives Show
 
-  @K0.annotation.showDerivation[Show]
+  // @K0.annotation.showDerivation[Show]
   final case class CaseClass3[A](
       a: A,
       b: Option[String],
@@ -34,24 +34,15 @@ object NewDeriveShowSpec extends OxygenSpecDefault {
     given Show[CaseObject1.type] = Show.derived
   }
 
-  enum Enum1 derives Show {
+  enum Enum1 {
     case A1
     case B1(value: CaseClass1)
   }
 
-  /*
-  enum Enum2[V] derives Show {
-    case A2 extends Enum2[Nothing]
-    case B2(value: V)
-  }
-   */
-
   sealed trait Enum3 derives Show
   object Enum3 {
-
     case object A3 extends Enum3
-    final case class B3(value: Float) extends Enum3
-
+    final case class B3(value: CaseClass1) extends Enum3
   }
 
   private def showSpec[A: Show as showA](name: String)(value: A)(exp: String)(using SourceLocation): TestSpec =
@@ -78,9 +69,9 @@ object NewDeriveShowSpec extends OxygenSpecDefault {
       suite("CaseObject1")(
         showSpec("simple")(CaseObject1)("CaseObject1"),
       ),
-      suite("Enum1")(
-        showSpec("A")(Enum1.A1)("A1"),
-        showSpec("B")(Enum1.B1(CaseClass1(56, "heyo".some)))("B1(value = CaseClass1(a = 56, b = \"heyo\"))"),
+      suite("Enum3")(
+        showSpec[Enum3]("A")(Enum3.A3)("A3"),
+        showSpec[Enum3]("B")(Enum3.B3(CaseClass1(56, "heyo".some)))("B3(value = CaseClass1(a = 56, b = \"heyo\"))"),
       ),
     )
 

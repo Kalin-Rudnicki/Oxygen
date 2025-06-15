@@ -362,3 +362,11 @@ lazy val `ut`: CrossProject =
 addCommandAlias("jvm-compile", "oxygen-modules-jvm/compile")
 addCommandAlias("jvm-test-compile", "oxygen-modules-jvm/test:compile")
 addCommandAlias("jvm-test", "oxygen-modules-jvm/test")
+
+addCommandAlias("js-compile", "oxygen-modules-js/compile")
+addCommandAlias("js-test-compile", "oxygen-modules-js/test:compile")
+addCommandAlias("js-test", "oxygen-modules-js/test")
+
+addCommandAlias("native-compile", "oxygen-modules-native/compile")
+addCommandAlias("native-test-compile", "oxygen-modules-native/test:compile")
+addCommandAlias("native-test", "oxygen-modules-native/test")

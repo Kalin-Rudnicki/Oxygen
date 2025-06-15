@@ -5,7 +5,7 @@ import oxygen.core.instances.listOrd
 import oxygen.core.syntax.extra.*
 import oxygen.predef.core.*
 import oxygen.quoted.*
-import scala.annotation.{tailrec, Annotation}
+import scala.annotation.{tailrec, unused, Annotation}
 import scala.quoted.*
 
 object K0 {
@@ -244,7 +244,7 @@ object K0 {
           case ValType.LazyVal => Flags.Lazy
           case ValType.Var     => Flags.Mutable
 
-        // FIX-PRE-MERGE (KR) : if the vals dont have the parent as their symbol, could this just be a Map?
+        // TODO (KR) : if the vals dont have the parent as their symbol, could this just be a `_.map`?
         @tailrec
         def rec(queue: List[AnyChild], acc: Growable[(ValDef, Type[?])]): Contiguous[(ValDef, Type[?])] =
           queue match {
@@ -298,12 +298,15 @@ object K0 {
   }
   object Generic {
 
-    def of[A: Type](config: Derivable.Config)(using Quotes): Generic[A] =
-      TypeRepr.of[A].typeType match {
-        case Some(_: TypeType.Case)   => ProductGeneric.unsafeOf[A](config)
-        case Some(_: TypeType.Sealed) => SumGeneric.unsafeOf[A](config)
+    def of[A: Type](config: Derivable.Config)(using Quotes): Generic[A] = {
+      val repr: TypeRepr = TypeRepr.of[A]
+      val sym: Symbol = repr.typeOrTermSymbol
+      sym.typeType match {
+        case Some(_: TypeType.Case)   => ProductGeneric.unsafeOf[A](repr, sym, config)
+        case Some(_: TypeType.Sealed) => SumGeneric.unsafeOf[A](repr, sym, config)
         case None                     => report.errorAndAbort(s"Type ${TypeRepr.of[A].show} is not a product or sum type")
       }
+    }
 
   }
 
@@ -416,10 +419,11 @@ object K0 {
     }
     object CaseObjectGeneric {
 
-      private[ProductGeneric] def unsafeOf[A: Type](using Quotes): CaseObjectGeneric[A] = {
-        val _typeRepr: TypeRepr = TypeRepr.of[A]
-        val _termSym: Symbol = _typeRepr.termSymbol
-
+      private[ProductGeneric] def unsafeOf[A](
+          _typeRepr: TypeRepr,
+          _termSym: Symbol,
+          @unused config: Derivable.Config,
+      ): CaseObjectGeneric[A] =
         new CaseObjectGeneric[A] {
 
           override val label: String = _termSym.name
@@ -434,7 +438,6 @@ object K0 {
               _termSym.toTerm.asExprOf[A]
 
         }
-      }
 
     }
 
@@ -443,9 +446,11 @@ object K0 {
     }
     object CaseClassGeneric {
 
-      private[ProductGeneric] def unsafeOf[A: Type](using Quotes): CaseClassGeneric[A] = {
-        val _typeRepr: TypeRepr = TypeRepr.of[A]
-        val _typeSym: Symbol = _typeRepr.typeSymbol
+      private[ProductGeneric] def unsafeOf[A](
+          _typeRepr: TypeRepr,
+          _typeSym: Symbol,
+          @unused config: Derivable.Config,
+      )(using Quotes): CaseClassGeneric[A] = {
         val _primaryConstructorSym: Symbol = _typeSym.primaryConstructor
         val _primaryConstructor: DefDef = _primaryConstructorSym.tree.narrow[DefDef]
 
@@ -551,8 +556,12 @@ object K0 {
     }
     object AnyValGeneric {
 
-      private[ProductGeneric] def unsafeOf[A: Type](using Quotes): AnyValGeneric[A, ?] = {
-        val g: CaseClassGeneric[A] = CaseClassGeneric.unsafeOf[A]
+      private[ProductGeneric] def unsafeOf[A](
+          _typeRepr: TypeRepr,
+          _typeSym: Symbol,
+          config: Derivable.Config,
+      )(using Quotes): AnyValGeneric[A, ?] = {
+        val g: CaseClassGeneric[A] = CaseClassGeneric.unsafeOf[A](_typeRepr, _typeSym, config)
 
         val _gField: g.Field[?] = g.fields match {
           case Contiguous(field) => field
@@ -585,31 +594,28 @@ object K0 {
 
     }
 
-    private[K0] def unsafeOf[A: Type](@scala.annotation.unused config: Derivable.Config)(using Quotes): ProductGeneric[A] = {
-      println(1)
-      val repr = TypeRepr.of[A]
-      println(2)
-      repr.typeTypeCase match {
+    private[K0] def unsafeOf[A](
+        repr: TypeRepr,
+        sym: Symbol,
+        config: Derivable.Config,
+    )(using Quotes): ProductGeneric[A] =
+      sym.typeTypeCase match {
         case Some(_: TypeType.Case.Class) =>
           repr.typeSymbol.tree match {
             case cdef: ClassDef if cdef.parents.headOption.flatMap(_.narrowOpt[TypeTree]).exists(_.tpe =:= TypeRepr.of[AnyVal]) =>
-              AnyValGeneric.unsafeOf[A]
+              AnyValGeneric.unsafeOf[A](repr, sym, config)
             case _ =>
-              CaseClassGeneric.unsafeOf[A]
+              CaseClassGeneric.unsafeOf[A](repr, sym, config)
           }
         case Some(_: TypeType.Case.Object) =>
-          println(3)
-          CaseObjectGeneric.unsafeOf[A]
+          CaseObjectGeneric.unsafeOf[A](repr, sym, config)
         case None => report.errorAndAbort(s"Not a product type: ${repr.show}")
       }
-    }
 
     def of[A: Type](config: Derivable.Config)(using Quotes): ProductGeneric[A] =
-      TypeRepr.of[A].typeType match {
-        case Some(_: TypeType.Case)   => ProductGeneric.unsafeOf[A](config)
-        case Some(_: TypeType.Sealed) => report.errorAndAbort(s"${TypeRepr.of[A].show} is not a product type")
-        case None                     => report.errorAndAbort(s"Type ${TypeRepr.of[A].show} is not a product or sum type")
-      }
+      Generic.of[A](config) match
+        case g: ProductGeneric[A] => g
+        case _                    => report.errorAndAbort(s"Not a product type: ${TypeRepr.of[A].show}", TypeRepr.of[A].typeOrTermSymbol.pos)
 
   }
 
@@ -702,117 +708,62 @@ object K0 {
       override final type Gen[b] = Generic[b]
     }
 
-    private[K0] def unsafeOf[A: Type](config: Derivable.Config)(using Quotes): SumGeneric[A] = {
-      val _typeRepr: TypeRepr = TypeRepr.of[A]
-      val _typeSym: Symbol = _typeRepr.typeSymbol
+    private[K0] def unsafeOf[A](
+        _typeRepr: TypeRepr,
+        _typeSym: Symbol,
+        config: Derivable.Config,
+    )(using Quotes): SumGeneric[A] = {
 
       def unroll(isRoot: Boolean): Boolean =
         config.defaultUnrollStrategy match
           case UnrollStrategy.Unroll => true
           case UnrollStrategy.Nested => isRoot
 
-      def childGenericsRec(isRoot: Boolean, typeSym: Symbol): Growable[Generic[? <: A]] =
-        typeSym.typeType match {
+      def childGenericsRec(isRoot: Boolean, sym: Symbol): Growable[Generic[? <: A]] =
+        sym.typeType match {
           case Some(_: TypeType.Case.Class) =>
-            val classDef: ClassDef = typeSym.tree.narrow[ClassDef]
+            val classDef: ClassDef = sym.tree.narrow[ClassDef]
             if (classDef.constructor.paramss.exists { case _: TypeParamClause => true; case _ => false })
               report.errorAndAbort("Type params on sum types is not yet supported")
 
             type B <: A
-            val typeRepr: TypeRepr = typeSym.typeRef
-            given Type[B] = typeRepr.asTypeOf
-
-            Growable.single(ProductGeneric.unsafeOf[B](config))
-
-          /*
-            [error]    |    oxygen.meta.NewDeriveShowSpec.CaseObject1
-            [error]    |
-            [error]    |    lazy val CaseObject1: oxygen.meta.NewDeriveShowSpec.CaseObject1.type
-            [error]    |
-            [error]    |    [TermRef]:
-            [error]    |        prefix: [ThisType]:
-            [error]    |            tref: [TypeRef]:
-            [error]    |                prefix: [ThisType]:
-            [error]    |                    tref: [TypeRef]:
-            [error]    |                        prefix: [NoPrefix]:
-            [error]    |                        myDesignator: module class meta
-            [error]    |                myDesignator: module class NewDeriveShowSpec$
-            [error]    |        myDesignator: object CaseObject1
-           */
-
-          case Some(TypeType.EnumCaseObject) =>
-
-            type B <: A
-            val typeRepr: TypeRepr = typeSym.termRef
-            given Type[B] = typeRepr.asTypeOf
-
-            /*
-            val valDef: ValDef = typeSym.tree.narrow[ValDef]
-            report.errorAndAbort(
-              s"""${typeRepr.show}
-                 |
-                 |${typeSym.flags.show}
-                 |
-                 |${valDef.show}
-                 |
-                 |${valDef.tpt.show}
-                 |
-                 |${valDef.tpt.tpe.show}
-                 |
-                 |${valDef.toIndentedString.toStringColorized}""".stripMargin,
-            )
-             */
-
-            Growable.single(ProductGeneric.unsafeOf[B](config))
+            Growable.single(ProductGeneric.unsafeOf[B](sym.typeRef, sym, config))
 
           case Some(TypeType.CaseObject) =>
-
             type B <: A
-            val typeRepr: TypeRepr = typeSym.termRef
-            given Type[B] = typeRepr.asTypeOf
+            Growable.single(ProductGeneric.unsafeOf[B](sym.termRef, sym, config))
 
-            /*
-            val valDef: ValDef = typeSym.tree.narrow[ValDef]
+          case Some(TypeType.EnumCaseObject) =>
+            // FIX-PRE-MERGE (KR) :
             report.errorAndAbort(
-              s"""${typeRepr.show}
-                 |
-                 |${typeSym.flags.show}
-                 |
-                 |${valDef.show}
-                 |
-                 |${valDef.tpt.show}
-                 |
-                 |${valDef.tpt.tpe.show}
-                 |
-                 |${valDef.toIndentedString.toStringColorized}""".stripMargin,
+              "There is some sort of bug with the way enum case objects are defined that currently prevents deriving instances for them.\nFor now, sealed trait is the only option :(",
             )
-             */
-
-            Growable.single(ProductGeneric.unsafeOf[B](config))
+            type B <: A
+            Growable.single(ProductGeneric.unsafeOf[B](Singleton.companion.apply(sym.termRef.toTerm).tpe, sym, config))
 
           case Some(TypeType.Scala2CaseObject) =>
             // FIX-PRE-MERGE (KR) :
             report.errorAndAbort("TODO : support scala-2 case object")
 
           case Some(_: TypeType.Sealed) =>
-            val classDef: ClassDef = typeSym.tree.narrow[ClassDef]
+            val classDef: ClassDef = sym.tree.narrow[ClassDef]
             if (classDef.constructor.paramss.exists { case _: TypeParamClause => true; case _ => false })
               report.errorAndAbort("Type params on sum types is not yet supported")
 
             if (unroll(isRoot)) {
-              val children = typeSym.children
+              val children = sym.children
               if (children.isEmpty)
-                report.errorAndAbort(s"Sum type ${typeSym.name} has no children", typeSym.pos)
+                report.errorAndAbort(s"Sum type ${sym.name} has no children", sym.pos)
 
               Growable.many(children).flatMap(childGenericsRec(false, _))
             } else {
               type B <: A
-              val typeRepr: TypeRepr = typeSym.typeRef
+              val typeRepr: TypeRepr = sym.typeRef
               given Type[B] = typeRepr.asTypeOf
               Growable.single(Generic.of[B](config))
             }
 
-          case None => report.errorAndAbort(s"Type ${typeSym.name} is not a product or sum type", typeSym.pos)
+          case None => report.errorAndAbort(s"Type ${sym.name} is not a product or sum type", sym.pos)
         }
 
       val childGenerics: Contiguous[Generic[? <: A]] =
@@ -866,11 +817,9 @@ object K0 {
     }
 
     def of[A: Type](config: Derivable.Config)(using Quotes): SumGeneric[A] =
-      TypeRepr.of[A].typeType match {
-        case Some(_: TypeType.Sealed) => SumGeneric.unsafeOf[A](config)
-        case Some(_: TypeType.Case)   => report.errorAndAbort(s"${TypeRepr.of[A].show} is not a sum type")
-        case None                     => report.errorAndAbort(s"Type ${TypeRepr.of[A].show} is not a product or sum type")
-      }
+      Generic.of[A](config) match
+        case g: SumGeneric[A] => g
+        case _                => report.errorAndAbort(s"Not a sum type: ${TypeRepr.of[A].show}", TypeRepr.of[A].typeOrTermSymbol.pos)
 
   }
 
@@ -896,7 +845,9 @@ object K0 {
           productDeriver[A].derive
         case g: SumGeneric[A] =>
           given SumGeneric[A] = g
-          sumDeriver[A].derive
+          val res = sumDeriver[A].derive
+          report.errorAndAbort(res.toTerm.show(using Printer.TreeAnsiCode))
+          res
       }
 
       g.annotations.optionalOf[annotation.showDerivation[F]].foreach { annot =>
