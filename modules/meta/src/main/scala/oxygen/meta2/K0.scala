@@ -845,9 +845,7 @@ object K0 {
           productDeriver[A].derive
         case g: SumGeneric[A] =>
           given SumGeneric[A] = g
-          val res = sumDeriver[A].derive
-          report.errorAndAbort(res.toTerm.show(using Printer.TreeAnsiCode))
-          res
+          sumDeriver[A].derive
       }
 
       g.annotations.optionalOf[annotation.showDerivation[F]].foreach { annot =>
