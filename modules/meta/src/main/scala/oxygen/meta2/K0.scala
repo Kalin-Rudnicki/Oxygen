@@ -12,35 +12,177 @@ object K0 {
   type Const[A] = [_] =>> A
   type Id[A] = A
 
-//////////////////////////////////////////////////////////////////////////////////////////////////////
-//      Generic
-//////////////////////////////////////////////////////////////////////////////////////////////////////
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
+  //      Child
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
 
-  sealed trait Generic[A] {
+  trait Entity[A] {
 
     val label: String
+    final def name: String = label
+
     val sym: Symbol
     val typeRepr: TypeRepr
-    val typeType: TypeType
 
-    final def name: String = label
-    final def pos: Position = sym.pos.get
+    final given tpe: Type[A] = typeRepr.asTypeOf[A]
 
-    final given tpe: Type[A] = typeRepr.asTypeOf
+    def pos: Position
 
-    final def annotations(using Quotes): AnnotationsTyped[A] = AnnotationsTyped(typeRepr.annotations.all, typeRepr.show)
+    def annotations(using Quotes): AnnotationsTyped[A]
 
     final def summonTypeClass[TC[_]: Type](using quotes: Quotes): Expr[TC[A]] =
       Implicits.search(TypeRepr.of[TC[A]]) match
         case ImplicitSearchSuccess(tree)        => tree.asExprOf[TC[A]]
-        case ImplicitSearchFailure(explanation) => report.errorAndAbort(s"Error summoning ${TypeRepr.of[TC[A]].show}\n\n$explanation", sym.pos)
+        case ImplicitSearchFailure(explanation) => report.errorAndAbort(s"Error summoning ${TypeRepr.of[TC[A]].show}\n\n$explanation", pos)
 
     final def summonTypeClassOrDerive[TC[_]: Type](f: => Type[A] ?=> Expr[TC[A]])(using quotes: Quotes): Expr[TC[A]] =
       Implicits.search(TypeRepr.of[TC[A]]) match
         case ImplicitSearchSuccess(tree) => tree.asExprOf[TC[A]]
         case ImplicitSearchFailure(_)    => f(using tpe)
 
-    def showTypeClassInstances[F[_]: Type](using Quotes): Unit
+  }
+  object Entity {
+
+    trait Child[B, A] extends Entity[B] {
+
+      val idx: Int
+      val childType: String
+
+      final def getExpr[F[_]](expressions: Expressions[F, A])(using Quotes): Expr[F[B]] =
+        expressions.at[B](idx)
+
+    }
+    object Child {
+
+      abstract class Deferred[A, B](entity: Entity[A]) extends Child[A, B] {
+        override final val label: String = entity.label
+        override final val sym: Symbol = entity.sym
+        override final val typeRepr: TypeRepr = entity.typeRepr
+        override final def pos: Position = entity.pos
+        override final def annotations(using Quotes): AnnotationsTyped[A] = entity.annotations
+      }
+
+    }
+
+  }
+
+  final class ChildMapper[Bound, A, Child[B <: Bound] <: Entity.Child[B, A], F[_]](children: Contiguous[(Child[Bound], F[Bound])]) {
+
+    def addContext[F2[_]](f: [b <: Bound] => Type[b] ?=> (child: Child[b], value: F[b]) => F2[b]): ChildMapper[Bound, A, Child, ChildMapper.Zip[F, F2]] =
+      ChildMapper[Bound, A, Child, ChildMapper.Zip[F, F2]] {
+        children.map { tup =>
+          type B <: Bound
+          val child: Child[B] = tup._1.asInstanceOf[Child[B]]
+          val value: F[B] = tup._2.asInstanceOf[F[B]]
+          val value2: F2[B] = f[B](using child.tpe)(child, value)
+          (tup._1, ChildMapper.Zip[F, F2, B](value, value2).asInstanceOf[ChildMapper.Zip[F, F2][Bound]])
+        }
+      }
+
+  }
+  object ChildMapper {
+
+    type Zip[F1[_], F2[_]] =
+      [B] =>> (F1[B], F2[B]) match
+        case (Unit, b)     => b
+        case (a, Unit)     => a
+        case (a, b1 *: b2) => a *: b1 *: b2
+        case (a, b)        => (a, b)
+    object Zip {
+
+      def apply[F1[_], F2[_], B](f1: F1[B], f2: F2[B]): Zip[F1, F2][B] =
+        (f1.asInstanceOf[Matchable], f2.asInstanceOf[Matchable]) match {
+          case ((), b)       => b.asInstanceOf[Zip[F1, F2][B]]
+          case (a, ())       => a.asInstanceOf[Zip[F1, F2][B]]
+          case (a, b1 *: b2) => (a *: b1 *: b2).asInstanceOf[Zip[F1, F2][B]]
+          case (a, b)        => (a, b).asInstanceOf[Zip[F1, F2][B]]
+        }
+
+    }
+
+  }
+
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
+  //      Generic
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
+
+  sealed trait Generic[A] extends Entity[A] {
+
+    type Bound <: Any
+    type Child[B <: Bound] <: Entity.Child[B, A]
+    final type AnyChild = Child[Bound]
+
+    val typeType: TypeType
+    def children: Contiguous[AnyChild]
+
+    override final def pos: Position = sym.pos.get
+
+    override final def annotations(using Quotes): AnnotationsTyped[A] = AnnotationsTyped(typeRepr.annotations.all, typeRepr.show)
+
+    @scala.annotation.nowarn("msg=unused import")
+    final def showTypeClassInstances[F[_]: Type](using Quotes): Unit =
+      children.foreach { child0 =>
+        type B <: Bound
+        val child: Child[B] = child0.asInstanceOf[Child[B]]
+        import child.tpe
+
+        def msg(label: String, str: String): String =
+          s"""${child.childType}: ${child.label}
+             |type: ${child.typeRepr.show}
+             |$label: $str""".stripMargin
+
+        Implicits.search(TypeRepr.of[F[B]]) match
+          case success: ImplicitSearchSuccess => report.info(msg("instance", success.tree.show), child.pos)
+          case failure: ImplicitSearchFailure => report.warning(msg("explanation", failure.explanation), child.pos)
+      }
+
+    /////// CacheVals ///////////////////////////////////////////////////////////////
+
+    class CacheVals {
+
+      final def apply[F[_]: Type as fTpe](
+          valName: String => String = n => s"value_$n",
+          valType: ValType = ValType.Val,
+      )(
+          f: [b <: Bound] => (Quotes, Type[b]) ?=> Child[b] => Expr[F[b]],
+      )(using Quotes): ValDefinitions[F, A] = {
+        val flags: Flags = valType match
+          case ValType.Val     => Flags.EmptyFlags
+          case ValType.LazyVal => Flags.Lazy
+          case ValType.Var     => Flags.Mutable
+
+        @tailrec
+        def rec(queue: List[AnyChild], acc: Growable[(ValDef, Type[?])]): Contiguous[(ValDef, Type[?])] =
+          queue match {
+            case child0 :: tail =>
+              type B <: Bound
+              val child: Child[B] = child0.asInstanceOf[Child[B]]
+              given bTpe: Type[B] = child.tpe
+              val newSym: Symbol = Symbol.companion.newVal(Symbol.spliceOwner, valName(child.name), TypeRepr.of[F[B]], flags, Symbol.noSymbol)
+              val newDef: ValDef = ValDef.companion.apply(newSym, f[B](using quotes, child.tpe)(child).toTerm(using quotes).some)
+              rec(tail, acc :+ (newDef, child.tpe))
+            case Nil =>
+              acc.to[Contiguous]
+          }
+
+        new ValDefinitions[F, A](fTpe, tpe, (quotes: Quotes) ?=> rec(children.toList, Growable.empty))
+      }
+
+      final def summonTypeClasses[F[_]: Type](
+          valName: String => String = n => s"instance_$n",
+          valType: ValType = ValType.LazyVal,
+      )(using quotes: Quotes): ValDefinitions[F, A] =
+        cacheVals[F](valName = valName, valType = valType) { [b <: Bound] => (_, _) ?=> (child: Child[b]) => child.summonTypeClass[F] }
+
+      final def summonTypeClassesOrDerive[F[_]: Type](
+          valName: String => String = n => s"instance_$n",
+          valType: ValType = ValType.LazyVal,
+      )(f: [b <: Bound] => Type[b] ?=> Child[b] => Expr[F[b]])(using quotes: Quotes): ValDefinitions[F, A] =
+        cacheVals[F](valName = valName, valType = valType) { [b <: Bound] => (_, _) ?=> (child: Child[b]) => child.summonTypeClassOrDerive[F](f(child)) }
+
+    }
+
+    val cacheVals: CacheVals = new CacheVals
 
   }
   object Generic {
@@ -54,33 +196,22 @@ object K0 {
 
   }
 
-//////////////////////////////////////////////////////////////////////////////////////////////////////
-//      ProductGeneric
-//////////////////////////////////////////////////////////////////////////////////////////////////////
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
+  //      ProductGeneric
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
 
   sealed trait ProductGeneric[A] private extends Generic[A] { generic =>
+
+    override final type Bound = Any
+    override final type Child[B] = Field[B]
 
     override val typeType: TypeType.Case
 
     def fields: Contiguous[Field[?]]
 
+    override final def children: Contiguous[AnyChild] = fields.asInstanceOf[Contiguous[AnyChild]]
+
     def fieldsToInstance[S[_]: SeqOps](exprs: S[Expr[?]])(using Quotes): Expr[A]
-
-    override final def showTypeClassInstances[F[_]: Type](using Quotes): Unit =
-      fields.foreach { _field =>
-        type B
-        val field: Field[B] = _field.asInstanceOf[Field[B]]
-        import field.tpe
-
-        def msg(label: String, str: String): String =
-          s"""field: ${field.name}
-             |type: ${field.typeRepr.show}
-             |$label: $str""".stripMargin
-
-        Implicits.search(TypeRepr.of[F[B]]) match
-          case success: ImplicitSearchSuccess => report.info(msg("instance", success.tree.show), field.constructorValDef.pos)
-          case failure: ImplicitSearchFailure => report.warning(msg("explanation", failure.explanation), field.constructorValDef.pos)
-      }
 
     /////// Field ///////////////////////////////////////////////////////////////
 
@@ -89,29 +220,20 @@ object K0 {
         typeRepr: TypeRepr,
         constructorValDef: ValDef,
         fieldValDef: ValDef,
-    ) {
+    ) extends Entity.Child[B, A] {
 
-      def name: String = fieldValDef.name
+      override val childType: String = "field"
 
-      given tpe: Type[B] = typeRepr.asTypeOf
+      override val label: String = constructorValDef.name
 
-      def summonTypeClass[TC[_]: Type](using quotes: Quotes): Expr[TC[B]] =
-        Implicits.search(TypeRepr.of[TC[B]]) match
-          case ImplicitSearchSuccess(tree)        => tree.asExprOf[TC[B]]
-          case ImplicitSearchFailure(explanation) => report.errorAndAbort(s"Error summoning ${TypeRepr.of[TC[B]].show}\n\n$explanation", constructorValDef.pos)
+      override val sym: Symbol = constructorValDef.symbol
 
-      def summonTypeClassOrDerive[TC[_]: Type](f: => Type[B] ?=> Expr[TC[B]])(using quotes: Quotes): Expr[TC[B]] =
-        Implicits.search(TypeRepr.of[TC[B]]) match
-          case ImplicitSearchSuccess(tree) => tree.asExprOf[TC[B]]
-          case ImplicitSearchFailure(_)    => f(using tpe)
+      override def pos: Position = constructorValDef.pos
 
       def annotations(using Quotes): AnnotationsTyped[B] = AnnotationsTyped(constructorValDef.symbol.annotations.all, constructorValDef.show)
 
       def get(parent: Expr[A])(using quotes: Quotes): Expr[B] =
         parent.toTerm.select(fieldValDef.symbol).asExprOf[B]
-
-      def getExpr[F[_]](expressions: Expressions[F, A])(using Quotes): Expr[F[B]] =
-        expressions.at[B](idx)
 
     }
 
@@ -181,46 +303,6 @@ object K0 {
 
       def instantiateEither[Left: Type](f: [b] => Type[b] ?=> Field[b] => Expr[Either[Left, b]])(using Quotes): Expr[Either[Left, A]] =
         instantiateM[RightProjection[Left]](f)
-
-      def cacheVals[F[_]: Type as fTpe](
-          valName: String => String = n => s"value_$n",
-          valType: ValType = ValType.Val,
-      )(
-          f: [b] => (Quotes, Type[b]) ?=> Field[b] => Expr[F[b]],
-      )(using Quotes): ValDefinitions[F, A] = {
-        val flags: Flags = valType match
-          case ValType.Val     => Flags.EmptyFlags
-          case ValType.LazyVal => Flags.Lazy
-          case ValType.Var     => Flags.Mutable
-
-        @tailrec
-        def rec(queue: List[Field[?]], acc: Growable[(ValDef, Type[?])]): Contiguous[(ValDef, Type[?])] =
-          queue match {
-            case head :: tail =>
-              type B
-              val field: Field[B] = head.asInstanceOf[Field[B]]
-              given bTpe: Type[B] = field.tpe
-              val newSym: Symbol = Symbol.companion.newVal(Symbol.spliceOwner, valName(field.name), TypeRepr.of[F[B]], flags, Symbol.noSymbol)
-              val newDef: ValDef = ValDef.companion.apply(newSym, f[B](using quotes, field.tpe)(field).toTerm(using quotes).some)
-              rec(tail, acc :+ (newDef, field.tpe))
-            case Nil =>
-              acc.to[Contiguous]
-          }
-
-        new ValDefinitions[F, A](fTpe, tpe, (quotes: Quotes) ?=> rec(fields.toList, Growable.empty))
-      }
-
-      def cacheTypeClassInstances[F[_]: Type](
-          valName: String => String = n => s"instance_$n",
-          valType: ValType = ValType.LazyVal,
-      )(using quotes: Quotes): ValDefinitions[F, A] =
-        cacheVals[F](valName = valName, valType = valType) { [b] => (q, _) ?=> (field: Field[b]) => field.summonTypeClass[F] }
-
-      def cacheTypeClassInstancesOrDerive[F[_]: Type](
-          valName: String => String = n => s"instance_$n",
-          valType: ValType = ValType.LazyVal,
-      )(f: [b] => Type[b] ?=> Field[b] => Expr[F[b]])(using quotes: Quotes): ValDefinitions[F, A] =
-        cacheVals[F](valName = valName, valType = valType) { [b] => (q, _) ?=> (field: Field[b]) => field.summonTypeClassOrDerive[F](f(field)) }
 
     }
 
@@ -438,55 +520,29 @@ object K0 {
 
   }
 
-//////////////////////////////////////////////////////////////////////////////////////////////////////
-//      SumGeneric
-//////////////////////////////////////////////////////////////////////////////////////////////////////
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
+  //      SumGeneric
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
 
   sealed trait SumGeneric[A] private extends Generic[A] { generic =>
 
+    override final type Bound = A
+    override final type Child[B <: A] = Case[B]
+
     override val typeType: TypeType.Sealed
 
-    val cases: Contiguous[Case[? <: A]]
+    def cases: Contiguous[Case[? <: A]]
 
-    override final def showTypeClassInstances[F[_]: Type](using Quotes): Unit =
-      cases.foreach { _kase =>
-        type B <: A
-        val kase: Case[B] = _kase.asInstanceOf[Case[B]]
-        import kase.tpe
-
-        def msg(label: String, str: String): String =
-          s"""case: ${kase.name}
-             |type: ${kase.typeRepr.show}
-             |$label: $str""".stripMargin
-
-        Implicits.search(TypeRepr.of[F[B]]) match
-          case success: ImplicitSearchSuccess => report.info(msg("instance", success.tree.show), kase.generic.pos)
-          case failure: ImplicitSearchFailure => report.warning(msg("explanation", failure.explanation), kase.generic.pos)
-      }
+    override final def children: Contiguous[AnyChild] = cases.asInstanceOf[Contiguous[AnyChild]]
 
     /////// Case ///////////////////////////////////////////////////////////////
 
     final case class Case[B <: A](
         idx: Int,
         generic: Generic[B],
-    ) {
+    ) extends Entity.Child.Deferred[B, A](generic) {
 
-      def name: String = generic.name
-      def label: String = generic.label
-      def typeRepr: TypeRepr = generic.typeRepr
-
-      given tpe: Type[B] = generic.tpe
-
-      def annotations(using Quotes): AnnotationsTyped[B] = generic.annotations
-
-      def getExpr[F[_]](expressions: Expressions[F, A])(using Quotes): Expr[F[B]] =
-        expressions.at[B](idx)
-
-      def summonTypeClass[TC[_]: Type](using quotes: Quotes): Expr[TC[B]] =
-        generic.summonTypeClass[TC]
-
-      def summonTypeClassOrDerive[TC[_]: Type](f: => Type[B] ?=> Expr[TC[B]])(using quotes: Quotes): Expr[TC[B]] =
-        generic.summonTypeClassOrDerive[TC](f)
+      override val childType: String = "case"
 
     }
 
@@ -504,46 +560,6 @@ object K0 {
 
       def mapExpr[Out](f: [b <: A] => Type[b] ?=> Case[b] => Expr[Out]): Growable[Expr[Out]] =
         map[Expr[Out]](f)
-
-      def cacheVals[F[_]: Type as fTpe](
-          valName: String => String = n => s"value_$n",
-          valType: ValType = ValType.Val,
-      )(
-          f: [b <: A] => (Quotes, Type[b]) ?=> Case[b] => Expr[F[b]],
-      )(using Quotes): ValDefinitions[F, A] = {
-        val flags: Flags = valType match
-          case ValType.Val     => Flags.EmptyFlags
-          case ValType.LazyVal => Flags.Lazy
-          case ValType.Var     => Flags.Mutable
-
-        @tailrec
-        def rec(queue: List[Case[?]], acc: Growable[(ValDef, Type[?])]): Contiguous[(ValDef, Type[?])] =
-          queue match {
-            case head :: tail =>
-              type B <: A
-              val kase: Case[B] = head.asInstanceOf[Case[B]]
-              given bTpe: Type[B] = kase.tpe
-              val newSym: Symbol = Symbol.companion.newVal(Symbol.spliceOwner, valName(kase.label), TypeRepr.of[F[B]], flags, Symbol.noSymbol)
-              val newDef: ValDef = ValDef.companion.apply(newSym, f[B](using quotes, kase.tpe)(kase).toTerm(using quotes).some)
-              rec(tail, acc :+ (newDef, kase.tpe))
-            case Nil =>
-              acc.to[Contiguous]
-          }
-
-        new ValDefinitions[F, A](fTpe, tpe, (quotes: Quotes) ?=> rec(cases.toList, Growable.empty))
-      }
-
-      def cacheTypeClassInstances[F[_]: Type](
-          valName: String => String = n => s"instance_$n",
-          valType: ValType = ValType.LazyVal,
-      )(using Quotes): ValDefinitions[F, A] =
-        cacheVals[F](valName = valName, valType = valType) { [b <: A] => (_, _) ?=> (kase: Case[b]) => kase.summonTypeClass[F] }
-
-      def cacheTypeClassInstancesOrDerive[F[_]: Type](
-          valName: String => String = n => s"instance_$n",
-          valType: ValType = ValType.LazyVal,
-      )(f: [b <: A] => Type[b] ?=> Case[b] => Expr[F[b]])(using Quotes): ValDefinitions[F, A] =
-        cacheVals[F](valName = valName, valType = valType) { [b <: A] => (_, _) ?=> (kase: Case[b]) => kase.summonTypeClassOrDerive[F](f(kase)) }
 
     }
 
@@ -668,7 +684,7 @@ object K0 {
 
       final class WithInstances[F[_], A](f: Quotes ?=> Expressions[F, A] => ProductDeriver[F, A])(using Quotes, Type[F], Type[A], ProductGeneric[A]) extends ProductDeriver[F, A] {
         override def derive: Expr[F[A]] =
-          generic.util.cacheTypeClassInstances[F]().defineAndUse { f(_).derive }
+          generic.cacheVals.summonTypeClasses[F]().defineAndUse { f(_).derive }
       }
 
       def withInstances[F[_], A](f: Quotes ?=> Expressions[F, A] => ProductDeriver[F, A])(using Quotes, Type[F], Type[A], ProductGeneric[A]) =
@@ -716,7 +732,7 @@ object K0 {
 
       final class WithInstances[F[_]: Derivable as derivable, A](f: Quotes ?=> Expressions[F, A] => SumDeriver[F, A])(using Quotes, Type[F], Type[A], SumGeneric[A]) extends SumDeriver[F, A] {
         override def derive: Expr[F[A]] =
-          generic.util.cacheTypeClassInstancesOrDerive[F]() { [b <: A] => _ ?=> (kase: generic.Case[b]) => derivable.deriveFromGenericImpl(kase.generic) }.defineAndUse { f(_).derive }
+          generic.cacheVals.summonTypeClassesOrDerive[F]() { [b <: A] => _ ?=> (kase: generic.Case[b]) => derivable.deriveFromGenericImpl(kase.generic) }.defineAndUse { f(_).derive }
       }
 
       def withInstances[F[_], A](f: Quotes ?=> Expressions[F, A] => SumDeriver[F, A])(using Quotes, Type[F], Type[A], SumGeneric[A], Derivable[F]): SumDeriver[F, A] = new WithInstances[F, A](f)
