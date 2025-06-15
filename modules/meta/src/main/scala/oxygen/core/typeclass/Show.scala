@@ -164,7 +164,7 @@ object Show extends K0.Derivable[Show] {
       new K0.Derivable.ProductDeriver.Split[Show, A] {
 
         private def makeWriteTo(builder: Expr[mutable.StringBuilder], value: Expr[A]): Expr[Unit] =
-          generic.util
+          generic.mapChildren
             .map[Option[Growable[StringExpr]]] {
               [b] =>
                 _ ?=>
@@ -209,9 +209,9 @@ object Show extends K0.Derivable[Show] {
           '{
             new Show[A] {
               override def show(value: A): String =
-                ${ generic.field.getExpr(i) }.show(${ generic.util.unwrap('value) })
+                ${ generic.field.getExpr(i) }.show(${ generic.anyVal.unwrap('value) })
               override def writeTo(builder: mutable.StringBuilder, value: A): Unit =
-                ${ generic.field.getExpr(i) }.writeTo(builder, ${ generic.util.unwrap('value) })
+                ${ generic.field.getExpr(i) }.writeTo(builder, ${ generic.anyVal.unwrap('value) })
             }
           }
 

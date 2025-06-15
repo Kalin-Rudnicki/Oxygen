@@ -66,28 +66,70 @@ object K0 {
 
   }
 
-  final class ChildMapper[Bound, A, Child[B <: Bound] <: Entity.Child[B, A], F[_]](val children: Growable[(Child[Bound], F[Bound])]) {
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
+  //      Caching
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
 
-    def values: Growable[F[Bound]] = children.map(_._2)
+  final class ValDefinitions[F[_], A](
+      fTpe: Type[F],
+      aTpe: Type[A],
+      make: Quotes ?=> Contiguous[(ValDef, Type[?])],
+  ) {
 
-    def mapK[F2[_] <: Tuple](f: [b <: Bound] => Type[b] ?=> (child: Child[b], value: F[b]) => F2[b]): ChildMapper[Bound, A, Child, F2] =
-      ChildMapper[Bound, A, Child, F2] {
-        children.map { tup =>
-          type B <: Bound
-          val child: Child[B] = tup._1.asInstanceOf[Child[B]]
-          val value: F[B] = tup._2.asInstanceOf[F[B]]
-          val value2: F2[Bound] = f[B](using child.tpe)(child, value).asInstanceOf[F2[Bound]]
-          (tup._1, value2)
-        }
-      }
+    private given Type[F] = fTpe
+
+    def defineAndUse[B: Type](f: Quotes ?=> Expressions[F, A] => Expr[B])(using quotes: Quotes): Expr[B] = {
+      val vals: Contiguous[(ValDef, Type[?])] = make(using quotes)
+      val newQuotes: Quotes = vals.lastOption.fold(quotes)(_._1.symbol.asQuotes) // this might be unnecessary
+      val expressions: Expressions[F, A] =
+        Expressions[F, A](
+          fTpe,
+          aTpe,
+          vals.map { case (v, tpe) =>
+            type C
+            given cTpe: Type[C] = tpe.asInstanceOf[Type[C]]
+            Expressions.Elem(
+              cTpe,
+              v.valRef.asExprOf[F[C]],
+            )
+          },
+        )
+      val res: Expr[B] = f(using newQuotes)(expressions)
+      Block.companion.apply(vals.map(_._1).toList, res.toTerm(using newQuotes)).asExprOf[B]
+    }
 
   }
-  object ChildMapper {
 
-    extension [Bound, A, Child[B <: Bound] <: Entity.Child[B, A], F[_] <: Tuple](self: ChildMapper[Bound, A, Child, F]) {
+  // FIX-PRE-MERGE (KR) : Have a concept like `Expressions`, but without F being restricted to `[b] =>> Expr[F[b]]`
 
-      def addContext[F2[_]](f: [b <: Bound] => Type[b] ?=> (child: Child[b], value: F[b]) => F2[b]): ChildMapper[Bound, A, Child, [b] =>> F2[b] *: F[b]] =
-        self.mapK[[b] =>> F2[b] *: F[b]] { [b <: Bound] => _ ?=> (child: Child[b], value: F[b]) => f(child, value) *: value }
+  final class Expressions[F[_], A](
+      fTpe: Type[F],
+      aTpe: Type[A],
+      expressions: Contiguous[Expressions.Elem[F, ?]],
+  ) {
+
+    private given Type[F] = fTpe
+
+    def at[B: Type](idx: Int)(using Quotes): Expr[F[B]] =
+      expressions.at(idx).expr.asExprOf[F[B]]
+
+    def mapK[G[_]: Type as gTpe](f: [b] => Type[b] ?=> Expr[F[b]] => Expr[G[b]]): Expressions[G, A] =
+      Expressions[G, A](
+        gTpe,
+        aTpe,
+        expressions.map(elem => elem.mapK(f(_))),
+      )
+
+  }
+  object Expressions {
+
+    final case class Elem[F[_], B](
+        bTpe: Type[B],
+        expr: Expr[F[B]],
+    ) {
+
+      def mapK[G[_]](f: Type[B] ?=> Expr[F[B]] => Expr[G[B]]): Elem[G, B] =
+        Elem[G, B](bTpe, f(using bTpe)(expr))
 
     }
 
@@ -102,10 +144,26 @@ object K0 {
     type Bound <: Any
     type Child[B <: Bound] <: Entity.Child[B, A]
     final type AnyChild = Child[Bound]
-    final type Children[F[_]] = K0.ChildMapper[Bound, A, Child, F]
+
+    type ChildFunction[O[_]] = [b <: Bound] => Type[b] ?=> Child[b] => O[b]
+    // type ChildFunction[O[_]] = [b <: Bound] =>> Type[b] ?=> Child[b] => O[b]
+    object ChildFunction {
+      type Nested[O1[_], O2[_]] = ChildFunction[[b] =>> O1[O2[b]]]
+      type IdExpr = ChildFunction[Expr]
+      type FExpr[F[_]] = ChildFunction.Nested[Expr, F]
+
+      def run[F[_]](f: ChildFunction[F]): Growable[F[Bound]] =
+        Growable.many(children).map { child0 =>
+          type B <: Bound
+          val child: Child[B] = child0.asInstanceOf[Child[B]]
+          val value: F[B] = f[B](using child.tpe)(child)
+          value.asInstanceOf[F[Bound]]
+        }
+
+    }
 
     val typeType: TypeType
-    def children: Children[K0.Const[EmptyTuple]]
+    def children: Contiguous[AnyChild]
 
     override final def pos: Position = sym.pos.get
 
@@ -113,7 +171,7 @@ object K0 {
 
     @scala.annotation.nowarn("msg=unused import")
     final def showTypeClassInstances[F[_]: Type](using Quotes): Unit =
-      children.children.foreach { (child0, _) =>
+      children.foreach { child0 =>
         type B <: Bound
         val child: Child[B] = child0.asInstanceOf[Child[B]]
         import child.tpe
@@ -136,48 +194,63 @@ object K0 {
           valName: String => String = n => s"value_$n",
           valType: ValType = ValType.Val,
       )(
-          children: Children[[b] =>> Expr[F[b]]],
+          f: ChildFunction.FExpr[F],
       )(using Quotes): ValDefinitions[F, A] = {
         val flags: Flags = valType match
           case ValType.Val     => Flags.EmptyFlags
           case ValType.LazyVal => Flags.Lazy
           case ValType.Var     => Flags.Mutable
 
+        // FIX-PRE-MERGE (KR) : if the vals dont have the parent as their symbol, could this just be a Map?
         @tailrec
-        def rec(queue: List[(AnyChild, Expr[F[Bound]])], acc: Growable[(ValDef, Type[?])]): Contiguous[(ValDef, Type[?])] =
+        def rec(queue: List[AnyChild], acc: Growable[(ValDef, Type[?])]): Contiguous[(ValDef, Type[?])] =
           queue match {
-            case (child0, value0) :: tail =>
+            case child0 :: tail =>
               type B <: Bound
               val child: Child[B] = child0.asInstanceOf[Child[B]]
-              val value: Expr[F[B]] = child0.asInstanceOf[Expr[F[B]]]
               given bTpe: Type[B] = child.tpe
+              val value: Expr[F[B]] = f[B](using bTpe)(child)
               val newSym: Symbol = Symbol.companion.newVal(Symbol.spliceOwner, valName(child.name), TypeRepr.of[F[B]], flags, Symbol.noSymbol)
               val newDef: ValDef = ValDef.companion.apply(newSym, value.toTerm.some)
-              rec(tail, acc :+ (newDef, child.tpe))
+              rec(tail, acc :+ (newDef, bTpe))
             case Nil =>
               acc.to[Contiguous]
           }
 
-        new ValDefinitions[F, A](fTpe, tpe, _ ?=> rec(children.children.to[List], Growable.empty))
+        new ValDefinitions[F, A](fTpe, tpe, _ ?=> rec(children.toList, Growable.empty))
       }
 
       final def summonTypeClasses[F[_]: Type](
           valName: String => String = n => s"instance_$n",
           valType: ValType = ValType.LazyVal,
       )(using quotes: Quotes): ValDefinitions[F, A] =
-        cacheVals[F](valName = valName, valType = valType) { children.mapK[[b] =>> Expr[F[b]]](???) }
+        apply[F](valName = valName, valType = valType) { [b <: Bound] => _ ?=> (child: Child[b]) => child.summonTypeClass[F] }
 
       final def summonTypeClassesOrDerive[F[_]: Type](
           valName: String => String = n => s"instance_$n",
           valType: ValType = ValType.LazyVal,
       )(
-          f: [b <: Bound] => Type[b] ?=> Child[b] => Expr[F[b]], // TODO (KR) : do I really want to continue down this path?
+          f: ChildFunction.FExpr[F],
       )(using quotes: Quotes): ValDefinitions[F, A] =
-        cacheVals[F](valName = valName, valType = valType) { [b <: Bound] => (_, _) ?=> (child: Child[b]) => child.summonTypeClassOrDerive[F](f(child)) }
+        apply[F](valName = valName, valType = valType) { [b <: Bound] => _ ?=> (child: Child[b]) => child.summonTypeClassOrDerive[F] { f(child) } }
 
     }
 
     val cacheVals: CacheVals = new CacheVals
+
+    /////// MapChildren ///////////////////////////////////////////////////////////////
+
+    class MapChildren {
+
+      def map[Out](f: ChildFunction[K0.Const[Out]]): Growable[Out] = ChildFunction.run(f)
+      def mapExpr[Out](f: ChildFunction[K0.Const[Expr[Out]]]): Growable[Expr[Out]] = map[Expr[Out]](f)
+
+      def flatMap[S[_]: SeqOps, Out](f: ChildFunction[K0.Const[S[Out]]]): Growable[Out] = ??? // FIX-PRE-MERGE (KR) :
+      def flatMapExpr[S[_]: SeqOps, Out](f: ChildFunction[K0.Const[S[Expr[Out]]]]): Growable[Expr[Out]] = flatMap[S, Expr[Out]](f)
+
+    }
+
+    val mapChildren: MapChildren = new MapChildren
 
   }
   object Generic {
@@ -204,10 +277,7 @@ object K0 {
 
     def fields: Contiguous[Field[?]]
 
-    override final lazy val children: Children[K0.Const[EmptyTuple]] =
-      new ChildMapper[Bound, A, Child, K0.Const[EmptyTuple]](
-        fields.map { field => (field.asInstanceOf[AnyChild], EmptyTuple) },
-      )
+    override final def children: Contiguous[AnyChild] = fields.asInstanceOf[Contiguous[AnyChild]]
 
     def fieldsToInstance[S[_]: SeqOps](exprs: S[Expr[?]])(using Quotes): Expr[A]
 
@@ -239,17 +309,22 @@ object K0 {
 
     class Instantiate {
 
-      def apply(children: Children[Expr])(using Quotes): Expr[A] =
-        fieldsToInstance(children.values)
+      def apply(
+          f: ChildFunction.IdExpr,
+      )(using Quotes): Expr[A] =
+        fieldsToInstance(ChildFunction.run(f))
 
-      def monad[F[_]: {ExprMonad as monad, Type}](children: Children[[b] =>> Expr[F[b]]])(using Quotes): Expr[F[A]] = {
-        def rec(queue: List[(Field[Bound], Expr[F[Bound]])], acc: Growable[Expr[?]])(using Quotes): Expr[F[A]] =
+      def monad[F[_]: {ExprMonad as monad, Type}](
+          f: ChildFunction.FExpr[F],
+      )(using Quotes): Expr[F[A]] = {
+        def rec(queue: List[AnyChild], acc: Growable[Expr[?]])(using Quotes): Expr[F[A]] =
           queue match {
-            case head :: tail =>
+            case child0 :: tail =>
               type B
-              val field: Field[B] = head._1.asInstanceOf[Field[B]]
-              val value: Expr[F[B]] = head._2.asInstanceOf[Expr[F[B]]]
-              given Type[B] = field.tpe
+              val child: Field[B] = child0.asInstanceOf[Field[B]]
+              @scala.annotation.unused
+              given Type[B] = child.tpe
+              val value: Expr[F[B]] = f[B](child)
 
               tail match {
                 case Nil => monad.mapE(value) { a => fieldsToInstance((acc :+ a).to[Contiguous]) }
@@ -259,14 +334,18 @@ object K0 {
               monad.pure(fieldsToInstance(acc.to[Contiguous]))
           }
 
-        rec(children.children.to[List], Growable.empty)
+        rec(children.toList, Growable.empty)
       }
 
-      def option(children: Children[[b] =>> Expr[Option[b]]])(using Quotes): Expr[Option[A]] =
-        monad[Option](children)
+      def option(
+          f: ChildFunction.FExpr[Option],
+      )(using Quotes): Expr[Option[A]] =
+        monad[Option](f)
 
-      def either[Left: Type](children: Children[[b] =>> Expr[Either[Left, b]]])(using Quotes): Expr[Either[Left, A]] =
-        monad[RightProjection[Left]](children)
+      def either[Left: Type](
+          f: ChildFunction.FExpr[RightProjection[Left]],
+      )(using Quotes): Expr[Either[Left, A]] =
+        monad[RightProjection[Left]](f)
 
     }
 
@@ -510,7 +589,7 @@ object K0 {
 
     class Util {
 
-      def map[Out](f: [b <: A] => Type[b] ?=> Case[b] => Out): Growable[Out] =
+      def map[Out](f: ChildFunction[K0.Const[Out]]): Growable[Out] =
         Growable.many(cases).map { _case =>
           type _b <: A
           val `case`: Case[_b] = _case.asInstanceOf[Case[_b]]
@@ -518,7 +597,7 @@ object K0 {
           f[_b](using `case`.tpe)(`case`)
         }
 
-      def mapExpr[Out](f: [b <: A] => Type[b] ?=> Case[b] => Expr[Out]): Growable[Expr[Out]] =
+      def mapExpr[Out](f: ChildFunction[K0.Const[Expr[Out]]]): Growable[Expr[Out]] =
         map[Expr[Out]](f)
 
     }
