@@ -215,7 +215,12 @@ object Show extends K0.Derivable[Show] {
             }
           }
 
-        override def deriveCaseObject(generic: K0.ProductGeneric.CaseObjectGeneric[A]): Expr[Show[A]] = ???
+        override def deriveCaseObject(generic: K0.ProductGeneric.CaseObjectGeneric[A]): Expr[Show[A]] =
+          '{
+            new Show[A] {
+              override def show(value: A): String = ${ Expr(generic.annotations.optionalOfValue[annotation.typeName].fold(generic.label)(_.name)) }
+            }
+          }
 
       }
     }

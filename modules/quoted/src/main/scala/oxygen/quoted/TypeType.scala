@@ -12,6 +12,14 @@ sealed abstract class TypeType(final val isScala2: Boolean, final val isEnum: Bo
     case self: TypeType.Case => Some(self)
     case _: TypeType.Sealed  => None
 
+  final def toCaseClass: Option[TypeType.Case.Class] = this match
+    case self: TypeType.Case.Class => Some(self)
+    case _                         => None
+
+  final def toCaseObject: Option[TypeType.Case.Object] = this match
+    case self: TypeType.Case.Object => Some(self)
+    case _                          => None
+
 }
 object TypeType {
 
@@ -22,7 +30,19 @@ object TypeType {
 
   sealed abstract class Case(isScala2: Boolean, isEnum: Boolean, final val isObject: Boolean) extends TypeType(isScala2, isEnum)
   object Case {
+
+    sealed abstract class Class(isScala2: Boolean, isEnum: Boolean) extends Case(isScala2, isEnum, false)
+    object Class {
+      def fromSym(sym: Symbol)(using Quotes): Option[TypeType.Case.Class] = TypeType.fromSym(sym).flatMap(_.toCaseClass)
+    }
+
+    sealed abstract class Object(isScala2: Boolean, isEnum: Boolean) extends Case(isScala2, isEnum, true)
+    object Object {
+      def fromSym(sym: Symbol)(using Quotes): Option[TypeType.Case.Object] = TypeType.fromSym(sym).flatMap(_.toCaseObject)
+    }
+
     def fromSym(sym: Symbol)(using Quotes): Option[TypeType.Case] = TypeType.fromSym(sym).flatMap(_.toCase)
+
   }
 
   case object SealedTrait extends TypeType.Sealed(false, false)
@@ -31,12 +51,13 @@ object TypeType {
   case object Scala2SealedTrait extends TypeType.Sealed(true, false)
   case object Scala2SealedAbstractClass extends TypeType.Sealed(true, false)
 
-  case object CaseClass extends TypeType.Case(false, false, false)
-  case object CaseObject extends TypeType.Case(false, false, true)
-  case object EnumCaseClass extends TypeType.Case(false, true, false)
-  case object EnumCaseObject extends TypeType.Case(false, true, true)
-  case object Scala2CaseClass extends TypeType.Case(true, false, false)
-  case object Scala2CaseObject extends TypeType.Case(true, false, true)
+  case object CaseClass extends TypeType.Case.Class(false, false)
+  case object EnumCaseClass extends TypeType.Case.Class(false, true)
+  case object Scala2CaseClass extends TypeType.Case.Class(true, false)
+
+  case object CaseObject extends TypeType.Case.Object(false, false)
+  case object EnumCaseObject extends TypeType.Case.Object(false, true)
+  case object Scala2CaseObject extends TypeType.Case.Object(true, false)
 
   def fromSym(sym: Symbol)(using Quotes): Option[TypeType] = {
     val flags = sym.flags

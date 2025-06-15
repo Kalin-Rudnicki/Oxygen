@@ -3,7 +3,7 @@ package oxygen.meta2
 import oxygen.core.syntax.functor.*
 import oxygen.predef.core.*
 import oxygen.quoted.*
-import scala.annotation.{tailrec, unused}
+import scala.annotation.{tailrec, targetName, unused}
 import scala.collection.mutable
 import scala.quoted.*
 
@@ -37,14 +37,28 @@ extension [S[_], A](self: S[Expr[A]]) {
 
 }
 
-extension (using quotes: Quotes)(self: quotes.reflect.Tree)
+extension (using quotes: Quotes)(self: quotes.reflect.TypeRepr) {
+  @targetName("typeReprToIndentedString")
+  def toIndentedString: IndentedString =
+    IndentedString.fromAny(self)
+}
+
+extension (using quotes: Quotes)(self: quotes.reflect.Tree) {
+  @targetName("treeToIndentedString")
   def toIndentedString: IndentedString = {
     val opt: Matchable => Option[quotes.reflect.TypeTree] =
       m =>
         try { quotes.reflect.TypeTreeTypeTest.unapply(m.asInstanceOf[quotes.reflect.Tree]) }
         catch { case _ => None }
-    val part: PartialFunction[Matchable, quotes.reflect.Tree] = opt.unlift
-    IndentedString.fromAny(self) { case part(tt) => tt.toString }
+    val part: PartialFunction[Matchable, quotes.reflect.TypeTree] = opt.unlift
+    IndentedString.fromAny(self) { case part(tt) => tt.tpe.toIndentedString }
+  }
+}
+
+extension (self: TypeRepr)
+  def toIndentedString: IndentedString = {
+    given Quotes = self.quotes
+    self.unwrapWithin.toIndentedString
   }
 
 extension (self: Tree)
@@ -138,7 +152,7 @@ extension [S[_]](self: S[StringExpr]) {
       case StringExpr.Str(single) :: Nil                 => single
       case StringExpr.Str(a) :: StringExpr.Str(b) :: Nil => '{ $a + $b }
       case Nil                                           => Expr("")
-      case many =>
+      case many                                          =>
         '{
           val builder = mutable.StringBuilder()
           ${

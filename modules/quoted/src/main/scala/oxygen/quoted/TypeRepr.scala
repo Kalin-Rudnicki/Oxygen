@@ -16,7 +16,7 @@ sealed trait TypeRepr extends Model {
 
   /** Shows the type as a String */
   final def show(using printer: Printer[TypeRepr]): String = printer.show(this)
-  
+
   final def show(f: PrinterCompanion => Printer[TypeRepr]): String =
     show(using f(Printer.companion))
 
@@ -189,6 +189,8 @@ sealed trait TypeRepr extends Model {
   final def typeType: Option[TypeType] = this.typeOrTermSymbol.typeType
   final def typeTypeSealed: Option[TypeType.Sealed] = this.typeOrTermSymbol.typeTypeSealed
   final def typeTypeCase: Option[TypeType.Case] = this.typeOrTermSymbol.typeTypeCase
+  final def typeTypeCaseClass: Option[TypeType.Case.Class] = this.typeOrTermSymbol.typeTypeCaseClass
+  final def typeTypeCaseObject: Option[TypeType.Case.Object] = this.typeOrTermSymbol.typeTypeCaseObject
 
   final def annotations: Annotations = new Annotations(this.typeOrTermSymbol.annotations.all, show)
 

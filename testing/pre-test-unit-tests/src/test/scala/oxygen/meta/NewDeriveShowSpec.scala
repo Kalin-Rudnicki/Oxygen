@@ -35,8 +35,23 @@ object NewDeriveShowSpec extends OxygenSpecDefault {
   }
 
   enum Enum1 derives Show {
-    case A
-    case B(value: CaseClass1)
+    case A1
+    case B1(value: CaseClass1)
+  }
+
+  /*
+  enum Enum2[V] derives Show {
+    case A2 extends Enum2[Nothing]
+    case B2(value: V)
+  }
+   */
+
+  sealed trait Enum3 derives Show
+  object Enum3 {
+
+    case object A3 extends Enum3
+    final case class B3(value: Float) extends Enum3
+
   }
 
   private def showSpec[A: Show as showA](name: String)(value: A)(exp: String)(using SourceLocation): TestSpec =
@@ -64,8 +79,8 @@ object NewDeriveShowSpec extends OxygenSpecDefault {
         showSpec("simple")(CaseObject1)("CaseObject1"),
       ),
       suite("Enum1")(
-        showSpec("A")(Enum1.A)("A"),
-        showSpec("B")(Enum1.B(CaseClass1(56, "heyo".some)))("B(value = CaseClass1(a = 56, b = \"heyo\"))"),
+        showSpec("A")(Enum1.A1)("A1"),
+        showSpec("B")(Enum1.B1(CaseClass1(56, "heyo".some)))("B1(value = CaseClass1(a = 56, b = \"heyo\"))"),
       ),
     )
 
