@@ -105,7 +105,7 @@ object K0 {
     final type Children[F[_]] = K0.ChildMapper[Bound, A, Child, F]
 
     val typeType: TypeType
-    def children: Contiguous[AnyChild]
+    def children: Children[K0.Const[EmptyTuple]]
 
     override final def pos: Position = sym.pos.get
 
@@ -113,7 +113,7 @@ object K0 {
 
     @scala.annotation.nowarn("msg=unused import")
     final def showTypeClassInstances[F[_]: Type](using Quotes): Unit =
-      children.foreach { child0 =>
+      children.children.foreach { (child0, _) =>
         type B <: Bound
         val child: Child[B] = child0.asInstanceOf[Child[B]]
         import child.tpe
@@ -136,7 +136,7 @@ object K0 {
           valName: String => String = n => s"value_$n",
           valType: ValType = ValType.Val,
       )(
-          f: [b <: Bound] => (Quotes, Type[b]) ?=> Child[b] => Expr[F[b]],
+          children: Children[[b] =>> Expr[F[b]]],
       )(using Quotes): ValDefinitions[F, A] = {
         val flags: Flags = valType match
           case ValType.Val     => Flags.EmptyFlags
@@ -144,32 +144,35 @@ object K0 {
           case ValType.Var     => Flags.Mutable
 
         @tailrec
-        def rec(queue: List[AnyChild], acc: Growable[(ValDef, Type[?])]): Contiguous[(ValDef, Type[?])] =
+        def rec(queue: List[(AnyChild, Expr[F[Bound]])], acc: Growable[(ValDef, Type[?])]): Contiguous[(ValDef, Type[?])] =
           queue match {
-            case child0 :: tail =>
+            case (child0, value0) :: tail =>
               type B <: Bound
               val child: Child[B] = child0.asInstanceOf[Child[B]]
+              val value: Expr[F[B]] = child0.asInstanceOf[Expr[F[B]]]
               given bTpe: Type[B] = child.tpe
               val newSym: Symbol = Symbol.companion.newVal(Symbol.spliceOwner, valName(child.name), TypeRepr.of[F[B]], flags, Symbol.noSymbol)
-              val newDef: ValDef = ValDef.companion.apply(newSym, f[B](using quotes, child.tpe)(child).toTerm(using quotes).some)
+              val newDef: ValDef = ValDef.companion.apply(newSym, value.toTerm.some)
               rec(tail, acc :+ (newDef, child.tpe))
             case Nil =>
               acc.to[Contiguous]
           }
 
-        new ValDefinitions[F, A](fTpe, tpe, (quotes: Quotes) ?=> rec(children.toList, Growable.empty))
+        new ValDefinitions[F, A](fTpe, tpe, _ ?=> rec(children.children.to[List], Growable.empty))
       }
 
       final def summonTypeClasses[F[_]: Type](
           valName: String => String = n => s"instance_$n",
           valType: ValType = ValType.LazyVal,
       )(using quotes: Quotes): ValDefinitions[F, A] =
-        cacheVals[F](valName = valName, valType = valType) { [b <: Bound] => (_, _) ?=> (child: Child[b]) => child.summonTypeClass[F] }
+        cacheVals[F](valName = valName, valType = valType) { children.mapK[[b] =>> Expr[F[b]]](???) }
 
       final def summonTypeClassesOrDerive[F[_]: Type](
           valName: String => String = n => s"instance_$n",
           valType: ValType = ValType.LazyVal,
-      )(f: [b <: Bound] => Type[b] ?=> Child[b] => Expr[F[b]])(using quotes: Quotes): ValDefinitions[F, A] =
+      )(
+          f: [b <: Bound] => Type[b] ?=> Child[b] => Expr[F[b]], // TODO (KR) : do I really want to continue down this path?
+      )(using quotes: Quotes): ValDefinitions[F, A] =
         cacheVals[F](valName = valName, valType = valType) { [b <: Bound] => (_, _) ?=> (child: Child[b]) => child.summonTypeClassOrDerive[F](f(child)) }
 
     }
@@ -201,7 +204,10 @@ object K0 {
 
     def fields: Contiguous[Field[?]]
 
-    override final def children: Contiguous[AnyChild] = fields.asInstanceOf[Contiguous[AnyChild]]
+    override final lazy val children: Children[K0.Const[EmptyTuple]] =
+      new ChildMapper[Bound, A, Child, K0.Const[EmptyTuple]](
+        fields.map { field => (field.asInstanceOf[AnyChild], EmptyTuple) },
+      )
 
     def fieldsToInstance[S[_]: SeqOps](exprs: S[Expr[?]])(using Quotes): Expr[A]
 
@@ -266,36 +272,6 @@ object K0 {
 
     val instantiate: Instantiate = new Instantiate
 
-    /////// Util ///////////////////////////////////////////////////////////////
-
-    class Util {
-
-      def map[Out](f: [b] => Type[b] ?=> Field[b] => Out): Growable[Out] =
-        Growable.many(fields).map { _field =>
-          type _b
-          val field: Field[_b] = _field.asInstanceOf[Field[_b]]
-
-          f[_b](using field.tpe)(field)
-        }
-
-      def mapExpr[Out](f: [b] => Type[b] ?=> Field[b] => Expr[Out]): Growable[Expr[Out]] =
-        map[Expr[Out]](f)
-
-      def flatMap[S[_]: SeqOps, Out](f: [b] => Type[b] ?=> Field[b] => S[Out]): Growable[Out] =
-        Growable.many(fields).flatMap { _field =>
-          type _b
-          val field: Field[_b] = _field.asInstanceOf[Field[_b]]
-
-          Growable.many(f[_b](using field.tpe)(field))
-        }
-
-      def flatMapExpr[S[_]: SeqOps, Out](f: [b] => Type[b] ?=> Field[b] => S[Expr[Out]]): Growable[Expr[Out]] =
-        flatMap[S, Expr[Out]](f)
-
-    }
-
-    val util: Util = new Util
-
   }
   object ProductGeneric {
 
@@ -303,13 +279,15 @@ object K0 {
 
       override final val fields: Contiguous[Field[?]] = Contiguous.empty
 
-      class CaseObjectUtil extends Util {
+      /////// Instantiate ///////////////////////////////////////////////////////////////
+
+      class CaseObjectInstantiate extends Instantiate {
 
         def instance(using Quotes): Expr[A] = fieldsToInstance(Nil)
 
       }
 
-      override val util: CaseObjectUtil = new CaseObjectUtil
+      override val instantiate: CaseObjectInstantiate = new CaseObjectInstantiate
 
     }
     object CaseObjectGeneric {
@@ -335,13 +313,7 @@ object K0 {
 
     }
 
-    trait CaseClassGeneric[A] extends ProductGeneric[A] {
-
-      class CaseClassUtil extends Util
-
-      override val util: CaseClassUtil = new CaseClassUtil
-
-    }
+    trait CaseClassGeneric[A] extends ProductGeneric[A]
     object CaseClassGeneric {
 
       private[ProductGeneric] def of[A: Type](using Quotes): CaseClassGeneric[A] = {
@@ -444,7 +416,7 @@ object K0 {
 
       override final lazy val fields: Contiguous[Field[?]] = Contiguous.single(field)
 
-      class AnyValUtil extends CaseClassUtil {
+      class AnyValUtil {
 
         def wrap(value: Expr[B])(using Quotes): Expr[A] = fieldsToInstance(value :: Nil)
 
@@ -452,7 +424,7 @@ object K0 {
 
       }
 
-      override val util: AnyValUtil = new AnyValUtil
+      val anyVal: AnyValUtil = new AnyValUtil
 
     }
     object AnyValGeneric {
