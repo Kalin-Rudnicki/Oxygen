@@ -66,9 +66,11 @@ object K0 {
 
   }
 
-  final class ChildMapper[Bound, A, Child[B <: Bound] <: Entity.Child[B, A], F[_] <: Tuple](children: Contiguous[(Child[Bound], F[Bound])]) {
+  final class ChildMapper[Bound, A, Child[B <: Bound] <: Entity.Child[B, A], F[_]](val children: Growable[(Child[Bound], F[Bound])]) {
 
-    def mapKTup[F2[_] <: Tuple](f: [b <: Bound] => Type[b] ?=> (child: Child[b], value: F[b]) => F2[b]): ChildMapper[Bound, A, Child, F2] =
+    def values: Growable[F[Bound]] = children.map(_._2)
+
+    def mapK[F2[_] <: Tuple](f: [b <: Bound] => Type[b] ?=> (child: Child[b], value: F[b]) => F2[b]): ChildMapper[Bound, A, Child, F2] =
       ChildMapper[Bound, A, Child, F2] {
         children.map { tup =>
           type B <: Bound
@@ -79,11 +81,15 @@ object K0 {
         }
       }
 
-    def mapK[F2[_]](f: [b <: Bound] => Type[b] ?=> (child: Child[b], value: F[b]) => F2[b]): ChildMapper[Bound, A, Child, [b] =>> Tuple1[F2[b]]] =
-      mapKTup[[b] =>> Tuple1[F2[b]]] { [b <: Bound] => _ ?=> (child: Child[b], value: F[b]) => Tuple1(f(child, value)) }
+  }
+  object ChildMapper {
 
-    def addContext[F2[_]](f: [b <: Bound] => Type[b] ?=> (child: Child[b], value: F[b]) => F2[b]): ChildMapper[Bound, A, Child, [b] =>> F2[b] *: F[b]] =
-      mapKTup[[b] =>> F2[b] *: F[b]] { [b <: Bound] => _ ?=> (child: Child[b], value: F[b]) => f(child, value) *: value }
+    extension [Bound, A, Child[B <: Bound] <: Entity.Child[B, A], F[_] <: Tuple](self: ChildMapper[Bound, A, Child, F]) {
+
+      def addContext[F2[_]](f: [b <: Bound] => Type[b] ?=> (child: Child[b], value: F[b]) => F2[b]): ChildMapper[Bound, A, Child, [b] =>> F2[b] *: F[b]] =
+        self.mapK[[b] =>> F2[b] *: F[b]] { [b <: Bound] => _ ?=> (child: Child[b], value: F[b]) => f(child, value) *: value }
+
+    }
 
   }
 
@@ -96,7 +102,7 @@ object K0 {
     type Bound <: Any
     type Child[B <: Bound] <: Entity.Child[B, A]
     final type AnyChild = Child[Bound]
-    final type ChildMapper[F[_] <: Tuple] = K0.ChildMapper[Bound, A, Child, F]
+    final type Children[F[_]] = K0.ChildMapper[Bound, A, Child, F]
 
     val typeType: TypeType
     def children: Contiguous[AnyChild]
@@ -223,6 +229,43 @@ object K0 {
 
     }
 
+    /////// Instantiate ///////////////////////////////////////////////////////////////
+
+    class Instantiate {
+
+      def apply(children: Children[Expr])(using Quotes): Expr[A] =
+        fieldsToInstance(children.values)
+
+      def monad[F[_]: {ExprMonad as monad, Type}](children: Children[[b] =>> Expr[F[b]]])(using Quotes): Expr[F[A]] = {
+        def rec(queue: List[(Field[Bound], Expr[F[Bound]])], acc: Growable[Expr[?]])(using Quotes): Expr[F[A]] =
+          queue match {
+            case head :: tail =>
+              type B
+              val field: Field[B] = head._1.asInstanceOf[Field[B]]
+              val value: Expr[F[B]] = head._2.asInstanceOf[Expr[F[B]]]
+              given Type[B] = field.tpe
+
+              tail match {
+                case Nil => monad.mapE(value) { a => fieldsToInstance((acc :+ a).to[Contiguous]) }
+                case _   => monad.flatMapE(value) { a => rec(tail, acc :+ a) }
+              }
+            case Nil =>
+              monad.pure(fieldsToInstance(acc.to[Contiguous]))
+          }
+
+        rec(children.children.to[List], Growable.empty)
+      }
+
+      def option(children: Children[[b] =>> Expr[Option[b]]])(using Quotes): Expr[Option[A]] =
+        monad[Option](children)
+
+      def either[Left: Type](children: Children[[b] =>> Expr[Either[Left, b]]])(using Quotes): Expr[Either[Left, A]] =
+        monad[RightProjection[Left]](children)
+
+    }
+
+    val instantiate: Instantiate = new Instantiate
+
     /////// Util ///////////////////////////////////////////////////////////////
 
     class Util {
@@ -248,47 +291,6 @@ object K0 {
 
       def flatMapExpr[S[_]: SeqOps, Out](f: [b] => Type[b] ?=> Field[b] => S[Expr[Out]]): Growable[Expr[Out]] =
         flatMap[S, Expr[Out]](f)
-
-      def instantiate(f: [b] => Type[b] ?=> Field[b] => Expr[b])(using Quotes): Expr[A] =
-        fieldsToInstance(
-          fields.map { _field =>
-            type B
-            val field: Field[B] = _field.asInstanceOf[Field[B]]
-            f[B](using field.tpe)(field)
-          },
-        )
-
-      def instantiateM[F[_]: {ExprMonad as monad, Type}](f: [b] => Type[b] ?=> Field[b] => Expr[F[b]])(using Quotes): Expr[F[A]] = {
-        def rec(queue: List[Field[?]], acc: Growable[Expr[?]])(using Quotes): Expr[F[A]] =
-          queue match {
-            case head :: Nil =>
-              type B
-              val field: Field[B] = head.asInstanceOf[Field[B]]
-              given Type[B] = field.tpe
-              val res: Expr[F[B]] = f[B](field)
-              monad.mapE(res) { a =>
-                fieldsToInstance((acc :+ a).to[Contiguous])
-              }
-            case head :: tail =>
-              type B
-              val field: Field[B] = head.asInstanceOf[Field[B]]
-              given Type[B] = field.tpe
-              val res: Expr[F[B]] = f[B](field)
-              monad.flatMapE(res) { a =>
-                rec(tail, acc :+ a)
-              }
-            case Nil =>
-              monad.pure(fieldsToInstance(acc.to[Contiguous]))
-          }
-
-        rec(fields.toList, Growable.empty)
-      }
-
-      def instantiateOption(f: [b] => Type[b] ?=> Field[b] => Expr[Option[b]])(using Quotes): Expr[Option[A]] =
-        instantiateM[Option](f)
-
-      def instantiateEither[Left: Type](f: [b] => Type[b] ?=> Field[b] => Expr[Either[Left, b]])(using Quotes): Expr[Either[Left, A]] =
-        instantiateM[RightProjection[Left]](f)
 
     }
 
