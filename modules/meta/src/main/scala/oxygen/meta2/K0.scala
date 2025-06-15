@@ -66,39 +66,24 @@ object K0 {
 
   }
 
-  final class ChildMapper[Bound, A, Child[B <: Bound] <: Entity.Child[B, A], F[_]](children: Contiguous[(Child[Bound], F[Bound])]) {
+  final class ChildMapper[Bound, A, Child[B <: Bound] <: Entity.Child[B, A], F[_] <: Tuple](children: Contiguous[(Child[Bound], F[Bound])]) {
 
-    def addContext[F2[_]](f: [b <: Bound] => Type[b] ?=> (child: Child[b], value: F[b]) => F2[b]): ChildMapper[Bound, A, Child, ChildMapper.Zip[F, F2]] =
-      ChildMapper[Bound, A, Child, ChildMapper.Zip[F, F2]] {
+    def mapKTup[F2[_] <: Tuple](f: [b <: Bound] => Type[b] ?=> (child: Child[b], value: F[b]) => F2[b]): ChildMapper[Bound, A, Child, F2] =
+      ChildMapper[Bound, A, Child, F2] {
         children.map { tup =>
           type B <: Bound
           val child: Child[B] = tup._1.asInstanceOf[Child[B]]
           val value: F[B] = tup._2.asInstanceOf[F[B]]
-          val value2: F2[B] = f[B](using child.tpe)(child, value)
-          (tup._1, ChildMapper.Zip[F, F2, B](value, value2).asInstanceOf[ChildMapper.Zip[F, F2][Bound]])
+          val value2: F2[Bound] = f[B](using child.tpe)(child, value).asInstanceOf[F2[Bound]]
+          (tup._1, value2)
         }
       }
 
-  }
-  object ChildMapper {
+    def mapK[F2[_]](f: [b <: Bound] => Type[b] ?=> (child: Child[b], value: F[b]) => F2[b]): ChildMapper[Bound, A, Child, [b] =>> Tuple1[F2[b]]] =
+      mapKTup[[b] =>> Tuple1[F2[b]]] { [b <: Bound] => _ ?=> (child: Child[b], value: F[b]) => Tuple1(f(child, value)) }
 
-    type Zip[F1[_], F2[_]] =
-      [B] =>> (F1[B], F2[B]) match
-        case (Unit, b)     => b
-        case (a, Unit)     => a
-        case (a, b1 *: b2) => a *: b1 *: b2
-        case (a, b)        => (a, b)
-    object Zip {
-
-      def apply[F1[_], F2[_], B](f1: F1[B], f2: F2[B]): Zip[F1, F2][B] =
-        (f1.asInstanceOf[Matchable], f2.asInstanceOf[Matchable]) match {
-          case ((), b)       => b.asInstanceOf[Zip[F1, F2][B]]
-          case (a, ())       => a.asInstanceOf[Zip[F1, F2][B]]
-          case (a, b1 *: b2) => (a *: b1 *: b2).asInstanceOf[Zip[F1, F2][B]]
-          case (a, b)        => (a, b).asInstanceOf[Zip[F1, F2][B]]
-        }
-
-    }
+    def addContext[F2[_]](f: [b <: Bound] => Type[b] ?=> (child: Child[b], value: F[b]) => F2[b]): ChildMapper[Bound, A, Child, [b] =>> F2[b] *: F[b]] =
+      mapKTup[[b] =>> F2[b] *: F[b]] { [b <: Bound] => _ ?=> (child: Child[b], value: F[b]) => f(child, value) *: value }
 
   }
 
@@ -111,6 +96,7 @@ object K0 {
     type Bound <: Any
     type Child[B <: Bound] <: Entity.Child[B, A]
     final type AnyChild = Child[Bound]
+    final type ChildMapper[F[_] <: Tuple] = K0.ChildMapper[Bound, A, Child, F]
 
     val typeType: TypeType
     def children: Contiguous[AnyChild]
