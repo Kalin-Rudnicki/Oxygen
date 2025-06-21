@@ -8,6 +8,7 @@ private[generic] enum QueryReference {
 
   val param: Function.Param
 
+  // FIX-PRE-MERGE (KR) : [[idx]] needs to be removed
   case Input(param: Function.Param, idx: Option[Int])
   case Query(param: Function.Param, schema: Expr[TableRepr[?, ?]], isRoot: Boolean)
 

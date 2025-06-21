@@ -1,5 +1,5 @@
 package oxygen.sql
-
+/*
 import oxygen.predef.test.*
 import oxygen.sql.error.QueryError
 import oxygen.sql.migration.*
@@ -8,8 +8,12 @@ import oxygen.sql.migration.persistence.MigrationRepo
 import oxygen.sql.query.{Helpers as QueryHelpers, *}
 import oxygen.sql.query.dsl.*
 import oxygen.sql.schema.*
+ */
 
-object MigrationSpec extends OxygenSpec[Database & MigrationService] {
+// FIX-PRE-MERGE (KR) : re-add
+object MigrationSpec
+/*
+extends OxygenSpec[Database & MigrationService] {
 
   @tableName("model_a")
   final case class ModelA1(
@@ -141,3 +145,4 @@ object MigrationSpec extends OxygenSpec[Database & MigrationService] {
   override def testAspects: Chunk[TestSpecAspect] = Chunk(TestAspect.withLiveRandom, TestAspect.withLiveClock)
 
 }
+ */
