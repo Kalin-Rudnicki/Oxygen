@@ -2,7 +2,7 @@ package oxygen.sql.schema
 
 import oxygen.meta.*
 import oxygen.predef.core.*
-import oxygen.sql.generic.*
+import oxygen.sql.generic.typeclass.*
 import scala.quoted.*
 
 final case class Columns[A](columns: Contiguous[Column]) {

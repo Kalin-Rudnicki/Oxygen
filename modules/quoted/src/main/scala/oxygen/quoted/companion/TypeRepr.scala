@@ -39,6 +39,58 @@ final class TypeReprCompanion(using quotes: Quotes) {
   def tupleUsingAppend(typeParam0: TypeRepr, typeParamN: TypeRepr*): TypeRepr =
     tupleUsingAppend(typeParam0 :: typeParamN.toList)
 
+  /**
+    * Useful for covariant types.
+    *
+    * ```scala
+    * trait Dec[+V] { def decode(s: String): Either[String, V] }
+    * def orElse[V](a: Dec[V], b: Dec[V]): Dec[V] = ???
+    *
+    * type A
+    * type B <: A
+    * type C <: A
+    * val a: Dec[A] = ??? // can result in A, B, or C
+    * val b: Dec[B] = ??? // can result in B
+    * val c: Dec[C] = ??? // can result in C
+    *
+    * val ab: Dec[A] = orElse(a, b) // can result in A, B, or C
+    * val ac: Dec[A] = orElse(a, c) // can result in A, B, or C
+    * val bc: Dec[B | C] = orElse(b, c) // can result in B or C
+    * ```
+    */
+  def covariantJoin(a: TypeRepr, b: TypeRepr): TypeRepr =
+    if (a <:< b) b
+    else if (b <:< a) a
+    else OrType.companion.apply(a, b)
+  def covariantJoin(all: Seq[TypeRepr]): TypeRepr =
+    all.reduceLeft(covariantJoin(_, _))
+
+  /**
+    * Useful for contravariant types.
+    *
+    * ```scala
+    * trait Enc[-V] { def encode(v: V): String }
+    * def joinBoth[V](a: Enc[V], b: Enc[V]): Enc[V] = ab => s"${a.encode(ab)}${b.encode(ab)}"
+    *
+    * type A
+    * type B <: A
+    * type C <: A
+    * val a: Enc[A] = ??? // can encode A, B, or C
+    * val b: Enc[B] = ??? // can encode B
+    * val c: Enc[C] = ??? // can encode C
+    *
+    * val ab: Enc[B] = joinBoth(a, b) // can encode B
+    * val ac: Enc[C] = joinBoth(a, c) // can encode C
+    * val bc: Enc[B & C] = joinBoth(b, c) // can encode only something that conforms to both B and C
+    * ```
+    */
+  def contravariantJoin(a: TypeRepr, b: TypeRepr): TypeRepr =
+    if (a <:< b) a
+    else if (b <:< a) b
+    else AndType.companion.apply(a, b)
+  def contravariantJoin(all: Seq[TypeRepr]): TypeRepr =
+    all.reduceLeft(contravariantJoin(_, _))
+
 }
 
 final class NamedTypeCompanion(using @unused quotes: Quotes) {}

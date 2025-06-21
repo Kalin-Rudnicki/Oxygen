@@ -97,6 +97,7 @@ object TestContainerService {
         service <- ZIO.service[TestContainerService]
         (a, containers) <- make
         _ <- ZIO.foreachDiscard(containers.to[Chunk])(service.run)
+        _ <- ZIO.logInfo("All test containers are now available")
       } yield a
     }
 

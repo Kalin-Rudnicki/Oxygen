@@ -30,8 +30,8 @@ final class Database(config: DbConfig, ref: FiberRef[Database.ConnectionState]) 
 
   private[sql] val logQuery: QueryContext => UIO[Unit] =
     config.logging match {
-      case DbConfig.Logging(queryLogLevel, true)  => ctx => ZIO.logAtLevel(queryLogLevel)(s"Executing query: ${ctx.queryName}\n\n${ctx.sql}", Cause.Empty)
-      case DbConfig.Logging(queryLogLevel, false) => ctx => ZIO.logAtLevel(queryLogLevel)(s"Executing query: ${ctx.queryName}", Cause.Empty)
+      case DbConfig.Logging(queryLogLevel, true)  => ctx => ZIO.logAtLevel(queryLogLevel)(s"Executing query: ${ctx.queryContextHeader}\n\n${ctx.sql}", Cause.Empty)
+      case DbConfig.Logging(queryLogLevel, false) => ctx => ZIO.logAtLevel(queryLogLevel)(s"Executing query: ${ctx.queryContextHeader}", Cause.Empty)
     }
 
 }
@@ -47,7 +47,7 @@ object Database {
     ZLayer.scoped { ZIO.serviceWithZIO[DbConfig](make(_)) }
 
   val healthCheck: RIO[Database, Unit] =
-    QueryO[Int](QueryContext("HealthCheck", "SELECT 1", QueryContext.QueryType.Select), RowRepr.int.decoder)
+    QueryO[Int](QueryContext("HealthCheck", "SELECT 1", QueryContext.QueryType.Select), None, RowRepr.int.decoder)
       .execute()
       .single
       .flatMap {

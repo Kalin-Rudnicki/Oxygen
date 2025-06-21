@@ -30,14 +30,14 @@ private[sql] final class PreparedStatement private (
   def executeQuery[O](resultDecoder: ResultDecoder[O]): ZStream[Database & Scope, QueryError, O] =
     for {
       rawRS <- ZStream.fromZIO { executeResult }
-      o <- ZStream.repeatZIOOption(readOutputsOpt(rawRS, resultDecoder))
+      o <- ZStream.repeatZIOOption(readOutputsOpt(rawRS, resultDecoder)) // TODO (KR) : figure out efficient way to chunk this, special casing for 0/1?
     } yield o
 
   def executeQuery[I, O](inputEncoder: InputEncoder[I], input: I, resultDecoder: ResultDecoder[O]): ZStream[Scope, QueryError, O] =
     for {
       _ <- ZStream.fromZIO { writeInput(inputEncoder, input) }
       rawRS <- ZStream.fromZIO { executeResult }
-      o <- ZStream.repeatZIOOption(readOutputsOpt(rawRS, resultDecoder))
+      o <- ZStream.repeatZIOOption(readOutputsOpt(rawRS, resultDecoder)) // TODO (KR) : figure out efficient way to chunk this, special casing for 0/1?
     } yield o
 
   //////////////////////////////////////////////////////////////////////////////////////////////////////

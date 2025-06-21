@@ -1,5 +1,6 @@
 package oxygen.sql.error
 
+import oxygen.predef.color.given
 import oxygen.predef.core.*
 import oxygen.sql.query.QueryContext
 import oxygen.sql.schema.*
@@ -9,12 +10,48 @@ final case class QueryError(
     cause: QueryError.Cause,
 ) extends Throwable {
 
-  def toIndentedString: IndentedString =
+  private type Pos = (pos: Int, line: Int, inLine: Int)
+
+  private def positionInfo: Option[Pos] =
+    cause.optPosition.map { positionInfo(_) }
+
+  private def positionInfo(pos: Int): Pos = {
+    val str = ctx.sql.substring(0, pos - 1)
+    val (line, inLine) = str.foldLeft((1, 1)) {
+      case ((line, _), '\n')   => (line + 1, 1)
+      case ((line, inLine), _) => (line, inLine + 1)
+    }
+    (pos, line, inLine)
+  }
+
+  private def showSql(pos: Pos): String = {
+    val before = ctx.sql.substring(0, pos.pos - 1)
+    val at = ctx.sql.charAt(pos.pos - 1)
+    val after = ctx.sql.substring(pos.pos)
+
+    val atColor =
+      if (at.isWhitespace) at.unesc("").magentaBg
+      else at.toString.magentaFg
+
+    s"$before$atColor$after"
+  }
+
+  def toIndentedString: IndentedString = {
+    val optPosInfo = positionInfo
+
     IndentedString.section("Error executing sql query")(
-      s"query-name: ${ctx.queryName}",
+      s"query-name: ${ctx.queryContextHeader}",
       IndentedString.section("cause:")(cause.toIndentedString),
-      IndentedString.section("sql:")(ctx.sql),
+      optPosInfo.map { case (pos, line, inLine) =>
+        IndentedString.keyValueSection("position:")(
+          "pos: " -> pos.toString,
+          "line: " -> line.toString,
+          "inLine: " -> inLine.toString,
+        )
+      },
+      IndentedString.section("sql:")(optPosInfo.fold(ctx.sql)(showSql)),
     )
+  }
 
   override def getMessage: String =
     toIndentedString.toString("    ")
@@ -23,6 +60,10 @@ final case class QueryError(
 object QueryError {
 
   sealed trait Cause extends Throwable {
+
+    final def optPosition: Option[Int] = this match
+      case PSQL(e) => Option(e.e.getServerErrorMessage.getPosition)
+      case _       => None
 
     final def toIndentedString: IndentedString =
       this match {

@@ -3,7 +3,7 @@ package oxygen.sql.schema
 import oxygen.meta.*
 import oxygen.predef.core.*
 import oxygen.sql.error.QueryError
-import oxygen.sql.generic.*
+import oxygen.sql.generic.typeclass.*
 import scala.quoted.*
 
 trait ResultDecoder[+A] {

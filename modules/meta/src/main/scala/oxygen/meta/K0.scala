@@ -511,13 +511,15 @@ object K0 {
 
       override def annotations(using Quotes): AnnotationsTyped[B] = AnnotationsTyped(constructorValDef.symbol.annotations.all, constructorValDef.show)
 
+      def fromParentTerm(parent: Term): Term = parent.select(fieldValDef.symbol)
+
       /**
         * Go from a product type to its field.
         * final case class Person(first: String, last: String)
         *
         * field.fromParent(p) -> `p.first`
         */
-      def fromParent(parent: Expr[A])(using quotes: Quotes): Expr[B] = parent.toTerm.select(fieldValDef.symbol).asExprOf[B]
+      def fromParent(parent: Expr[A])(using quotes: Quotes): Expr[B] = fromParentTerm(parent.toTerm).asExprOf[B]
       def fromParentExpr(using quotes: Quotes): Expr[A => B] = '{ (a: A) => ${ fromParent('a) } }
 
       /**

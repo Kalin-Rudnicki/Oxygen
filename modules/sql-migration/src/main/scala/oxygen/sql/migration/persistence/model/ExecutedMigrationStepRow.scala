@@ -1,6 +1,7 @@
 package oxygen.sql.migration.persistence.model
 
 import oxygen.sql.model.TypedJsonb
+import oxygen.sql.query.TableCompanion
 import oxygen.sql.schema.*
 
 @schemaName("oxygen_migration")
@@ -12,6 +13,4 @@ final case class ExecutedMigrationStepRow(
     step: TypedJsonb[MigrationStepColumn],
     sql: Option[String],
 )
-object ExecutedMigrationStepRow {
-  given tableRepr: TableRepr[ExecutedMigrationStepRow, (Int, Int)] = TableRepr.derived
-}
+object ExecutedMigrationStepRow extends TableCompanion[ExecutedMigrationStepRow, (Int, Int)](TableRepr.derived[ExecutedMigrationStepRow])

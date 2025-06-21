@@ -1,4 +1,4 @@
-package oxygen.sql.generic
+package oxygen.sql.generic.model
 
 import oxygen.predef.color.given
 import oxygen.predef.core.*
