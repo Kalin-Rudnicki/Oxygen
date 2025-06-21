@@ -153,6 +153,12 @@ object Growable {
     case growable: Growable[A @unchecked] => growable
     case _                                => Many(values, seqOps)
 
+  def manyMapped[S[_]: SeqOps, A, B](values: S[A])(f: A => B): Growable[B] =
+    many(values).map(f)
+
+  def manyFlatMapped[S[_]: SeqOps, A, B](values: S[A])(f: A => Growable[B]): Growable[B] =
+    many(values).flatMap(f)
+
   def apply[A](values: A*): Growable[A] = Growable.many(values)
 
   def option[A](value: Option[A]): Growable[A] = value match

@@ -7,7 +7,7 @@ import oxygen.meta.*
 import oxygen.predef.core.*
 import oxygen.predef.json.*
 import oxygen.sql.error.*
-import oxygen.sql.generic.*
+import oxygen.sql.generic.typeclass.*
 import scala.quoted.*
 
 trait RowRepr[A] {

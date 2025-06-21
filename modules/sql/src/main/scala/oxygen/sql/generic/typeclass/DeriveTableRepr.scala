@@ -1,4 +1,4 @@
-package oxygen.sql.generic
+package oxygen.sql.generic.typeclass
 
 import oxygen.meta.*
 import oxygen.predef.core.*
@@ -7,11 +7,9 @@ import oxygen.sql.*
 import oxygen.sql.schema.*
 import scala.quoted.*
 
-final class DeriveTableRepr[A: Type, K: Type](
+final class DeriveTableRepr[A: Type](
     instances: K0.Expressions[RowRepr, A],
 )(using quotes: Quotes, fTpe: Type[RowRepr], generic: K0.ProductGeneric[A]) {
-
-  private val kRepr: TypeRepr = TypeRepr.of[K]
 
   private def schemaNameExpr: Expr[String] =
     Expr { generic.annotations.optionalOfValue[schemaName].fold("public")(_.name) }
@@ -40,30 +38,29 @@ final class DeriveTableRepr[A: Type, K: Type](
     subset.bGeneric.typeRepr ->
       '{
         TableRepr.Partial[A, B](
-          get = ${ subset.convertExpr },
+          _get = ${ subset.convertExpr },
           rowRepr = $rowReprExpr,
         )
       }
   }
 
-  def derive: Expr[TableRepr[A, K]] = {
+  def derive: Expr[TableRepr.Typed[A, ?, ?]] = {
     val (pkTpe, pkPartial) = makePartial(true)
-    val (_, nonPKPartial) = makePartial(false)
+    val (npkTpe, npkPartial) = makePartial(false)
 
-    if (!(pkTpe =:= kRepr))
-      report.errorAndAbort(
-        s"""Derived PK does not match specification:
-           |  Expected: ${kRepr.show}
-           |  Actual: ${pkTpe.show}""".stripMargin,
-      )
+    type PK
+    type NPK
+
+    given Type[PK] = pkTpe.asTypeOf
+    given Type[NPK] = npkTpe.asTypeOf
 
     '{
-      TableRepr[A, K](
+      TableRepr.TypedImpl[A, PK, NPK](
         schemaName = $schemaNameExpr,
         tableName = $tableNameExpr,
         rowRepr = $rowReprExpr,
-        pk = ${ pkPartial.asExprOf[TableRepr.Partial[A, K]] },
-        nonPK = $nonPKPartial,
+        pk = ${ pkPartial.asExprOf[TableRepr.Partial[A, PK]] },
+        npk = ${ npkPartial.asExprOf[TableRepr.Partial[A, NPK]] },
       )
     }
   }

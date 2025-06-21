@@ -11,8 +11,8 @@ import oxygen.sql.migration.persistence.conversion.domainToDb.*
 import oxygen.sql.migration.persistence.model.*
 import oxygen.sql.model.TypedJsonb
 import oxygen.sql.query.*
-import oxygen.sql.query.dsl.*
-import oxygen.sql.schema.{InputEncoder, RowRepr, TableRepr}
+import oxygen.sql.query.dsl.Q.*
+import oxygen.sql.schema.TableRepr
 import zio.*
 
 trait MigrationRepo {
@@ -96,31 +96,27 @@ object MigrationRepo {
         MigrationQueries.createTable(TableState.unsafeFromTable(TableRepr.of[ExecutedMigrationStepRow]), true)
 
       val insertMigration: QueryI[ExecutedMigrationRow] =
-        Helpers.insertInto[ExecutedMigrationRow]
+        ExecutedMigrationRow.insert
 
       val insertMigrationStep: QueryI[ExecutedMigrationStepRow] =
-        Helpers.insertInto[ExecutedMigrationStepRow]
+        ExecutedMigrationStepRow.insert
 
-      // TODO (KR) : update this when DSL supports updates
       val setCompletedAt: QueryI[(Instant, Int)] =
-        QueryI.simple("set completed at", QueryContext.QueryType.Update)(InputEncoder.derived[(Instant, Int)]) {
-          s"""UPDATE ${ExecutedMigrationRow.tableRepr.ref} m
-             |  SET completed_at = ?
-             |  WHERE m.version = ?
-             |""".stripMargin
+        QueryI.compile("setCompleteAt") {
+          for {
+            at <- input[Instant]
+            v <- input[Int]
+            (m, set) <- update[ExecutedMigrationRow]
+            _ <- where if m.version == v
+            _ <- set(_.completedAt.get := at)
+          } yield ()
         }
 
       val getMigrations: QueryO[ExecutedMigrationRow] =
-        for {
-          _ <- select("get migrations")
-          m <- from[ExecutedMigrationRow]
-        } yield m
+        ExecutedMigrationRow.selectAll
 
       val getMigrationSteps: QueryO[ExecutedMigrationStepRow] =
-        for {
-          _ <- select("get migration steps")
-          m <- from[ExecutedMigrationStepRow]
-        } yield m
+        ExecutedMigrationStepRow.selectAll
 
     }
 

@@ -1,6 +1,7 @@
 package oxygen.sql.migration.persistence.model
 
 import java.time.Instant
+import oxygen.sql.query.TableCompanion
 import oxygen.sql.schema.*
 
 @schemaName("oxygen_migration")
@@ -10,6 +11,4 @@ final case class ExecutedMigrationRow(
     startedAt: Instant,
     completedAt: Option[Instant],
 )
-object ExecutedMigrationRow {
-  given tableRepr: TableRepr[ExecutedMigrationRow, Int] = TableRepr.derived
-}
+object ExecutedMigrationRow extends TableCompanion[ExecutedMigrationRow, Int](TableRepr.derived[ExecutedMigrationRow])

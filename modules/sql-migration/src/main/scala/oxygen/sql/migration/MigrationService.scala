@@ -18,10 +18,13 @@ final class MigrationService(
   //      API
   //////////////////////////////////////////////////////////////////////////////////////////////////////
 
-  def migrate(migrations: Migrations): IO[MigrationError, MigrationResult] =
+  def migrate(migrations: => Migrations): IO[MigrationError, MigrationResult] =
     for {
       _ <- ZIO.logDebug("Making sure oxygen migration is initialized")
       _ <- repo.initialize
+
+      _ <- ZIO.logDebug("Evaluating lazy migrations")
+      migrations <- ZIO.succeed { migrations }
 
       _ <- ZIO.logDebug("Calculating planned migrations")
       (newState, calculated) <- ZIO.fromEither { calculateMigrations(migrations.migrations) }
@@ -135,10 +138,10 @@ object MigrationService {
   val layer: URLayer[Atomically & MigrationRepo & MigrationConfig, MigrationService] =
     ZLayer.fromFunction { MigrationService.apply }
 
-  def migrate(migrations: Migrations): ZIO[MigrationService, MigrationError, MigrationResult] =
+  def migrate(migrations: => Migrations): ZIO[MigrationService, MigrationError, MigrationResult] =
     ZIO.serviceWithZIO[MigrationService](_.migrate(migrations))
 
-  def migrateLayer(migrations: Migrations): ZLayer[MigrationService, MigrationError, Unit] =
+  def migrateLayer(migrations: => Migrations): ZLayer[MigrationService, MigrationError, Unit] =
     ZLayer { migrate(migrations) }.unit
 
 }

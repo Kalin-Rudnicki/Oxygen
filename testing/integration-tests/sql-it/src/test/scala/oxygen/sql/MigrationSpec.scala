@@ -5,8 +5,7 @@ import oxygen.sql.error.QueryError
 import oxygen.sql.migration.*
 import oxygen.sql.migration.model.*
 import oxygen.sql.migration.persistence.MigrationRepo
-import oxygen.sql.query.{Helpers as QueryHelpers, *}
-import oxygen.sql.query.dsl.*
+import oxygen.sql.query.*
 import oxygen.sql.schema.*
 
 object MigrationSpec extends OxygenSpec[Database & MigrationService] {
@@ -17,19 +16,7 @@ object MigrationSpec extends OxygenSpec[Database & MigrationService] {
       field1: String,
       field2: Boolean,
   )
-  object ModelA1 {
-
-    given tableRepr: TableRepr[ModelA1, Int] = TableRepr.derived
-
-    val insert: QueryI[ModelA1] = QueryHelpers.insertInto[ModelA1]
-
-    val getAll: QueryO[ModelA1] =
-      for {
-        _ <- select("select a1")
-        a1 <- from[ModelA1]
-      } yield a1
-
-  }
+  object ModelA1 extends TableCompanion[ModelA1, Int](TableRepr.derived[ModelA1])
 
   @tableName("model_a")
   final case class ModelA2(
@@ -38,17 +25,7 @@ object MigrationSpec extends OxygenSpec[Database & MigrationService] {
       field2: Option[Boolean],
       other: Option[Int],
   )
-  object ModelA2 {
-
-    given tableRepr: TableRepr[ModelA2, Int] = TableRepr.derived
-
-    val getAll: QueryO[ModelA2] =
-      for {
-        _ <- select("select a2")
-        a2 <- from[ModelA2]
-      } yield a2
-
-  }
+  object ModelA2 extends TableCompanion[ModelA2, Int](TableRepr.derived[ModelA2])
 
   @tableName("model_a")
   final case class ModelA3(
@@ -56,9 +33,7 @@ object MigrationSpec extends OxygenSpec[Database & MigrationService] {
       field1: Option[Int], // different field type
       field2: Boolean,
   )
-  object ModelA3 {
-    given tableRepr: TableRepr[ModelA3, Int] = TableRepr.derived
-  }
+  object ModelA3 extends TableCompanion[ModelA3, Int](TableRepr.derived[ModelA3])
 
   @tableName("model_a")
   final case class ModelA4(
@@ -66,15 +41,13 @@ object MigrationSpec extends OxygenSpec[Database & MigrationService] {
       field1: String,
       field2: Boolean,
   )
-  object ModelA4 {
-    given tableRepr: TableRepr[ModelA4, Unit] = TableRepr.derived
-  }
+  object ModelA4 extends TableCompanion.NoKey[ModelA4](TableRepr.derived[ModelA4])
 
   override def testSpec: TestSpec =
     suite("MigrationSpec")(
       test("simple migration works") {
         for {
-          err1 <- ModelA1.getAll.execute().contiguous.exit
+          err1 <- ModelA1.selectAll.execute().contiguous.exit
           migration1 = PlannedMigration.auto(1)(ModelA1.tableRepr)
           migration2 = PlannedMigration.auto(2)(ModelA2.tableRepr)
 
@@ -87,10 +60,10 @@ object MigrationSpec extends OxygenSpec[Database & MigrationService] {
           v2 = ModelA1(2, "value-2", false)
 
           _ <- ModelA1.insert.all(v1, v2).unit
-          get1 <- ModelA1.getAll.execute().to[Seq]
+          get1 <- ModelA1.selectAll.execute().to[Seq]
 
           exe3 <- MigrationService.migrate(Migrations(migration1, migration2))
-          get2 <- ModelA2.getAll.execute().to[Seq]
+          get2 <- ModelA2.selectAll.execute().to[Seq]
 
           stage1 = Seq(v1, v2)
           stage2 = stage1.map { a1 => ModelA2(a1.id, a1.field1, a1.field2.some, None) }

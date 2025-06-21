@@ -2,7 +2,7 @@ package oxygen.sql.schema
 
 import oxygen.meta.*
 import oxygen.predef.core.*
-import oxygen.sql.generic.*
+import oxygen.sql.generic.typeclass.*
 import oxygen.sql.query.InputWriter
 import scala.quoted.*
 
@@ -89,6 +89,11 @@ object InputEncoder extends K0.Derivable[InputEncoder] {
       b.unsafeEncode(writer, value)
     }
 
+  }
+
+  final case class Const[A](inner: InputEncoder[A], const: A) extends InputEncoder[Any] {
+    override val size: Int = inner.size
+    override def unsafeEncode(writer: InputWriter, value: Any): Unit = inner.unsafeEncode(writer, const)
   }
 
   case object Empty extends InputEncoder[Any] {

@@ -1,4 +1,4 @@
-package oxygen.sql.generic
+package oxygen.sql.generic.parsing
 
 import scala.quoted.*
 

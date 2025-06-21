@@ -1,140 +1,206 @@
 package oxygen.sql
 
 import java.util.UUID
-import oxygen.predef.test.*
+import oxygen.predef.test.{*, given}
 import oxygen.sql.migration.*
 import oxygen.sql.migration.model.*
-import oxygen.sql.migration.persistence.*
-import oxygen.sql.query.{Helpers as QueryHelpers, *}
-import oxygen.sql.query.dsl.*
-import oxygen.sql.schema.*
+import oxygen.sql.migration.persistence.MigrationRepo
+import scala.annotation.experimental
+import zio.*
 
+@experimental
 object QuerySpec extends OxygenSpec[Database] {
 
-  final case class Table1(
-      @primaryKey id: UUID,
-      externalId: UUID,
-      str: String,
-  )
-  object Table1 {
+  extension [A](self: Specified[A])
+    private def orGen(eff: => UIO[A]): UIO[A] = self match
+      case Specified.WasSpecified(value) => ZIO.succeed(value)
+      case Specified.WasNotSpecified     => eff
 
-    given tableRepr: TableRepr[Table1, UUID] = TableRepr.derived
+  private val randomName: UIO[String] =
+    Random.nextIntBetween('a'.toInt, 'z'.toInt + 1).map(_.toChar).replicateZIO(10).map(_.mkString)
 
-    val insert: QueryI[Table1] = QueryHelpers.insertInto[Table1]
-
-  }
-
-  final case class Table2(
-      @primaryKey id: UUID,
-      table1Id: UUID,
-      num: Int,
-  )
-  object Table2 {
-
-    given tableRepr: TableRepr[Table2, UUID] = TableRepr.derived
-
-    val insert: QueryI[Table2] = QueryHelpers.insertInto[Table2]
-
-  }
-
-  val get1: QueryIO[UUID, Table1] =
+  private def randomPerson(groupId: UUID)(
+      id: Specified[UUID] = Specified.WasNotSpecified,
+      first: Specified[String] = Specified.WasNotSpecified,
+      last: Specified[String] = Specified.WasNotSpecified,
+      age: Specified[Int] = Specified.WasNotSpecified,
+  ): UIO[Person] =
     for {
-      i <- select.input[UUID]("get1")
-      t1 <- from[Table1]
-      _ <- where if t1.externalId == i
-    } yield t1
+      id <- id.orGen { Random.nextUUID }
+      first <- first.orGen { randomName }
+      last <- last.orGen { randomName }
+      age <- age.orGen { Random.nextIntBetween(0, 100) }
+    } yield Person(id, groupId, first, last, age)
 
-  val get2: QueryIO[UUID, Table2] =
-    for {
-      i <- select.input[UUID]("get1")
-      t1 <- from[Table1]
-      t2 <- join[Table2] if t2.table1Id == t1.id
-      _ <- where if t1.externalId == i
-    } yield t2
-
-  val get3: QueryIO[UUID, (Table1, Table2)] =
-    for {
-      i <- select.input[UUID]("get1")
-      t1 <- from[Table1]
-      t2 <- join[Table2] if t2.table1Id == t1.id
-      _ <- where if t1.externalId == i
-    } yield (t1, t2)
-
-  val randomString: UIO[String] =
-    Random.nextString(10)
-
-  def randomT1(externalId: UUID): UIO[Table1] =
-    for {
-      id <- Random.nextUUID
-      str <- randomString
-    } yield Table1(id, externalId, str)
-
-  def randomT2(t1: Table1): UIO[Table2] =
-    for {
-      id <- Random.nextUUID
-      num <- Random.nextInt
-    } yield Table2(id, t1.id, num)
-
-  override def testSpec: TestSpec =
-    suite("QuerySpec")(
-      test("select + joins work") {
+  private def tableCompanionSpec: TestSpec =
+    suite("TableCompanion queries")(
+      test("insert & select") {
         for {
-          externalId1 <- Random.nextUUID
-          externalId2 <- Random.nextUUID
-          externalId3 <- Random.nextUUID
+          groupId <- Random.nextUUID
+          p1 <- randomPerson(groupId)()
+          p2 <- randomPerson(groupId)()
+          p1p2 = Set(p1, p2)
+          otherId <- Random.nextUUID
 
-          t1_1 <- randomT1(externalId1)
-          t1_2 <- randomT1(externalId1)
-          t1_3 <- randomT1(externalId1)
-          t1_4 <- randomT1(externalId2)
-          t1_5 <- randomT1(externalId2)
+          all1 <- Person.selectAll().contiguous
+          _ <- Person.insert.all(p1, p2).unit
+          all2 <- Person.selectAll().contiguous
 
-          t2_1_1 <- randomT2(t1_1)
-          t2_1_2 <- randomT2(t1_1)
-          t2_1_3 <- randomT2(t1_1)
-          t2_2_1 <- randomT2(t1_2)
-          t2_4_1 <- randomT2(t1_4)
-          t2_4_2 <- randomT2(t1_4)
+          getP1Opt <- Person.selectByPK(p1.id).option
+          getP1Req <- Person.selectByPK(p1.id).single
+          getP2Opt <- Person.selectByPK(p2.id).option
+          getP2Req <- Person.selectByPK(p2.id).single
+          getOtherOpt <- Person.selectByPK(otherId).option
+          getOtherReq <- Person.selectByPK(otherId).single.exit
+        } yield assertTrue(
+          (all1.toSet & p1p2).isEmpty,
+          (all2.toSet & p1p2) == p1p2,
+          getP1Opt.contains(p1),
+          getP1Req == p1,
+          getP2Opt.contains(p2),
+          getP2Req == p2,
+          getOtherOpt.isEmpty,
+          getOtherReq.isFailure,
+        )
+      },
+      test("can delete") {
+        for {
+          groupId <- Random.nextUUID
+          p1 <- randomPerson(groupId)()
+          p2 <- randomPerson(groupId)()
 
-          _ <- Table1.insert.all(t1_1, t1_2, t1_3, t1_4, t1_5).unit
-          _ <- Table2.insert.all(t2_1_1, t2_1_2, t2_1_3, t2_2_1, t2_4_1, t2_4_2).unit
+          _ <- Person.insert(p2).unit
 
-          get1_1 <- get1.execute(externalId1).to[Seq]
-          get1_2 <- get1.execute(externalId2).to[Seq]
-          get1_3 <- get1.execute(externalId3).to[Seq]
-          get2_1 <- get2.execute(externalId1).to[Seq]
-          get2_2 <- get2.execute(externalId2).to[Seq]
-          get2_3 <- get2.execute(externalId3).to[Seq]
-          get3_1 <- get3.execute(externalId1).to[Seq]
+          p1Get1 <- Person.selectByPK(p1.id).option
+          _ <- Person.insert(p1).unit
+          p1Get2 <- Person.selectByPK(p1.id).option
+          _ <- Person.deleteByPK(p1.id).unit
+          p1Get3 <- Person.selectByPK(p1.id).option
 
-        } yield assert(get1_1)(hasSameElements(Seq(t1_1, t1_2, t1_3))) &&
-          assert(get1_2)(hasSameElements(Seq(t1_4, t1_5))) &&
-          assert(get1_3)(isEmpty) &&
-          assert(get2_1)(hasSameElements(Seq(t2_1_1, t2_1_2, t2_1_3, t2_2_1))) &&
-          assert(get2_2)(hasSameElements(Seq(t2_4_1, t2_4_2))) &&
-          assert(get2_3)(isEmpty) &&
-          assert(get3_1)(hasSameElements(Seq(t1_1 -> t2_1_1, t1_1 -> t2_1_2, t1_1 -> t2_1_3, t1_2 -> t2_2_1)))
+          p2Get <- Person.selectByPK(p2.id).option
+        } yield assertTrue(
+          p1Get1.isEmpty,
+          p1Get2.contains(p1),
+          p1Get3.isEmpty,
+          p2Get.contains(p2),
+        )
+      },
+      test("can update") {
+        for {
+          groupId <- Random.nextUUID
+          p1 <- randomPerson(groupId)()
+          updatedP1 = p1.copy(age = p1.age + 1)
+
+          _ <- Person.insert(p1).unit
+          p1Get1 <- Person.selectByPK(p1.id).single
+          _ <- Person.update(updatedP1).unit
+          p1Get2 <- Person.selectByPK(p1.id).single
+        } yield assertTrue(
+          p1Get1 == p1,
+          p1Get2 == updatedP1,
+        )
       },
     )
 
-  override def layerProvider: LayerProvider[R] =
-    LayerProvider.provideShared[R](
-      Helpers.databaseLayer,
-      Helpers.testContainerLayer,
-      MigrationService.layer,
-      MigrationConfig.defaultLayer,
-      Atomically.LiveDB.layer,
-      MigrationRepo.layer,
-      MigrationService.migrateLayer(
-        Migrations(
-          PlannedMigration.auto(1)(
-            Table1.tableRepr,
-            Table2.tableRepr,
-          ),
-        ),
-      ),
+  private def customQuerySpec: TestSpec =
+    suite("custom queries")(
+      test("selectByGroupId") {
+        for {
+          groupId1 <- Random.nextUUID
+          groupId2 <- Random.nextUUID
+          p1s <- randomPerson(groupId1)().replicateZIO(10)
+          p2s <- randomPerson(groupId2)().replicateZIO(10)
+
+          _ <- Person.insert.batched(p1s ++ p2s).unit
+          getP1s <- queries.selectByGroupId(groupId1).to[Set]
+          getP2s <- queries.selectByGroupId(groupId2).to[Set]
+        } yield assertTrue(
+          getP1s == p1s.toSet,
+          getP2s == p2s.toSet,
+        )
+      },
+      test("setAgeTo0") {
+        for {
+          groupId <- Random.nextUUID
+          p1 <- randomPerson(groupId)()
+
+          _ <- Person.insert(p1).unit
+          get1 <- Person.selectByPK(p1.id).single
+          set1 <- queries.setAgeTo0(p1).single
+          get2 <- Person.selectByPK(p1.id).single
+        } yield assertTrue(
+          get1 == p1,
+          get2 == p1.copy(age = 0),
+          set1 == get2,
+        )
+      },
+      test("deleteByGroupId") {
+        for {
+          groupId1 <- Random.nextUUID
+          groupId2 <- Random.nextUUID
+          p1s <- randomPerson(groupId1)().replicateZIO(10)
+          p2s <- randomPerson(groupId2)().replicateZIO(10)
+
+          _ <- Person.insert.batched(p1s ++ p2s).unit
+          getP1s1 <- queries.selectByGroupId(groupId1).to[Set]
+          getP2s1 <- queries.selectByGroupId(groupId2).to[Set]
+
+          deleteP1s <- queries.deleteByGroupId(groupId1).to[Set]
+
+          getP1s2 <- queries.selectByGroupId(groupId1).to[Set]
+          getP2s2 <- queries.selectByGroupId(groupId2).to[Set]
+        } yield assertTrue(
+          getP1s1 == p1s.toSet,
+          getP2s1 == p2s.toSet,
+          getP1s2.isEmpty,
+          getP1s1 == deleteP1s,
+          getP2s2 == p2s.toSet,
+        )
+      },
+      test("othersWithSameLastNameAsId") {
+        for {
+          groupId <- Random.nextUUID
+          p1 <- randomPerson(groupId)()
+          othersSame <- randomPerson(groupId)(last = p1.last).replicateZIO(10).map(_.toSet)
+          othersNotSame <- randomPerson(groupId)().replicateZIO(10).map(_.toSet)
+
+          run = queries.othersWithSameLastNameAsId(p1.id).to[Set]
+
+          res1 <- run
+          _ <- Person.insert(p1).unit
+          res2 <- run
+          _ <- Person.insert.batched(othersSame ++ othersNotSame).unit
+          res3 <- run
+
+        } yield assertTrue(
+          res1.isEmpty,
+          res2.isEmpty,
+          res3 == othersSame,
+        )
+      },
     )
 
-  override def testAspects: Chunk[TestSpecAspect] = Chunk(TestAspect.withLiveRandom, TestAspect.withLiveClock)
+  override def testSpec: TestSpec =
+    suite("QuerySpec")(
+      tableCompanionSpec,
+      customQuerySpec,
+    )
+
+  override def testAspects: Chunk[QuerySpec.TestSpecAspect] = Chunk(TestAspect.nondeterministic)
+
+  override def layerProvider: LayerProvider[R] =
+    LayerProvider.provideShared[R](
+      Helpers.testContainerLayer,
+      Helpers.databaseLayer,
+      MigrationService.layer,
+      MigrationConfig.defaultLayer,
+      MigrationService.migrateLayer(
+        Migrations(
+          PlannedMigration.auto(1)(Person.tableRepr),
+        ),
+      ),
+      Atomically.LiveDB.layer,
+      MigrationRepo.layer,
+    )
 
 }

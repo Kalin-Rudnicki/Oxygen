@@ -1,4 +1,4 @@
-package oxygen.sql.generic
+package oxygen.sql.generic.typeclass
 
 import oxygen.meta.*
 import oxygen.predef.core.*
