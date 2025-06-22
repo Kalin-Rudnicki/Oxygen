@@ -1,16 +1,8 @@
 package oxygen.sql.generic
 
-import oxygen.predef.core.*
-import oxygen.quoted.*
-import oxygen.sql.query.*
-import oxygen.sql.query.dsl.*
-import oxygen.sql.schema.{InputEncoder, ResultDecoder, RowRepr}
-import scala.annotation.unused
-import scala.quoted.*
-import scala.util.NotGiven
-
-final class Macros(using quotes: Quotes) {
-
+// FIX-PRE-MERGE (KR) : remove
+object Macros {
+  /*
   def selectNoInputs[O: Type](select: Expr[SelectNoInput], f: Expr[Unit => Returning[O]]): Expr[QueryO[O]] =
     ParseContext.root("select without inputs") {
       for {
@@ -263,5 +255,5 @@ final class Macros(using quotes: Quotes) {
     case _: QueryExpr.InputLike    => ParseResult.error(expr.term, "returning an input is not supported")
     case expr: QueryExpr.QueryLike => ParseResult.Success(GeneratedResultDecoder.single(expr.term.tpe.widen, '{ ${ expr.rowRepr }.decoderWithColumns }))
     case _: QueryExpr.Binary       => ParseResult.Success(GeneratedResultDecoder.single(TypeRepr.of[Boolean], '{ RowRepr.boolean.decoderWithColumns }))
-
+   */
 }

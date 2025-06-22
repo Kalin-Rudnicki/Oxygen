@@ -2,6 +2,7 @@ package oxygen.sql.generic
 
 import oxygen.predef.core.*
 import oxygen.quoted.*
+import oxygen.sql.query.dsl.{Q, T}
 import oxygen.sql.schema.*
 import scala.annotation.tailrec
 import scala.quoted.*
@@ -27,10 +28,10 @@ private[generic] object QueryParser {
       for {
         FunctionCall(f1Lhs, f1Name, f1Function) <- ParseContext.add("function 1") { FunctionCall.parse(term) }
         expr <- f1Lhs.asExpr match {
-          case '{ oxygen.sql.query.dsl2.Q.input.apply[a] }             => ParseResult.Success(None)
-          case '{ oxygen.sql.query.dsl2.Q.input.const[a](${ expr }) }  => ParseResult.Success(expr.toTerm.some)
-          case expr if expr.isExprOf[oxygen.sql.query.dsl2.T.Input[?]] => ParseResult.error(f1Lhs, "invalid `input` invocation")
-          case _                                                       => ParseResult.unknown(f1Lhs, "not an `input` invocation")
+          case '{ Q.input.apply[a] }                                  => ParseResult.Success(None)
+          case '{ Q.input.const[a](${ expr }) }                       => ParseResult.Success(expr.toTerm.some)
+          case expr if expr.isExprOf[oxygen.sql.query.dsl.T.Input[?]] => ParseResult.error(f1Lhs, "invalid `input` invocation")
+          case _                                                      => ParseResult.unknown(f1Lhs, "not an `input` invocation")
         }
         p1 <- f1Function.parseSingleParam
         f1Name <- functionNames.mapOrFlatMap.parse(f1Name).unknownAsError
@@ -63,8 +64,8 @@ private[generic] object QueryParser {
       for {
         FunctionCall(f1Lhs, f1Name, f1Function) <- ParseContext.add("function 1") { FunctionCall.parse(term) }
         schema <- f1Lhs.asExpr match {
-          case '{ oxygen.sql.query.dsl2.Q.select[a](using $schema) } => ParseResult.Success(schema)
-          case _                                                     => ParseResult.error(f1Lhs, "invalid `select` invocation")
+          case '{ oxygen.sql.query.dsl.Q.select[a](using $schema) } => ParseResult.Success(schema)
+          case _                                                    => ParseResult.error(f1Lhs, "invalid `select` invocation")
         }
         p1 <- f1Function.parseSingleParam
         f1Name <- functionNames.mapOrFlatMap.parse(f1Name).unknownAsError
@@ -104,8 +105,8 @@ private[generic] object QueryParser {
         FunctionCall(f1Lhs, f1Name, f1Function) <- ParseContext.add("function 1") { FunctionCall.parse(term) }
         FunctionCall(f2Lhs, f2Name, f2Function) <- ParseContext.add("function 2") { FunctionCall.parse(f1Lhs) }
         schema <- f2Lhs.asExpr match {
-          case '{ oxygen.sql.query.dsl.join[a](using $schema) } => ParseResult.Success(schema)
-          case _                                                => ParseResult.unknown(f2Lhs, "invalid `join` invocation")
+          case '{ oxygen.sql.query.dsl.Q.join[a](using $schema) } => ParseResult.Success(schema)
+          case _                                                  => ParseResult.unknown(f2Lhs, "invalid `join` invocation")
         }
         p1 <- f1Function.parseSingleParam
         p2 <- f2Function.parseSingleParam
@@ -133,10 +134,7 @@ private[generic] object QueryParser {
       for {
         FunctionCall(f1Lhs, f1Name, f1Function) <- ParseContext.add("function 1") { FunctionCall.parse(term) }
         FunctionCall(f2Lhs, f2Name, f2Function) <- ParseContext.add("function 2") { FunctionCall.parse(f1Lhs) }
-        _ <- f2Lhs.asExpr match {
-          case '{ oxygen.sql.query.dsl.where } => ParseResult.Success(())
-          case _                               => ParseResult.unknown(f2Lhs, "invalid `where` invocation")
-        }
+        _ <- f2Lhs.parseExpr[T.Partial.Where] { case '{ Q.where } => ParseResult.Success(()) }
         _ <- f1Function.parseEmptyParams
         _ <- f2Function.parseEmptyParams
         f1Name <- functionNames.mapOrFlatMap.parse(f1Name).unknownAsError
@@ -285,6 +283,27 @@ private[generic] object QueryParser {
       WithContext(self, ctx)
 
   }
+
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
+  //      Helpers
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
+
+  private final class PartiallyAppliedParse[A: Type](self: Term) {
+
+    def apply[B](pf: PartialFunction[Expr[A], ParseResult[B]])(using ParseContext, Quotes): ParseResult[B] =
+      if (self.tpe <:< TypeRepr.of[A])
+        pf.applyOrElse(
+          self.asExprOf[A],
+          _ => ParseResult.error(self, s"invalid ${TypeRepr.of[A].showCode}"),
+        )
+      else
+        ParseResult.unknown(self, s"not a ${TypeRepr.of[A].showCode}")
+
+  }
+
+  extension (self: Term)
+    private def parseExpr[A: Type]: PartiallyAppliedParse[A] =
+      PartiallyAppliedParse[A](self)
 
   //////////////////////////////////////////////////////////////////////////////////////////////////////
   //      Combinators

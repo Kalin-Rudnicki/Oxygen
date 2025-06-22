@@ -11,8 +11,9 @@ import oxygen.sql.migration.persistence.conversion.domainToDb.*
 import oxygen.sql.migration.persistence.model.*
 import oxygen.sql.model.TypedJsonb
 import oxygen.sql.query.*
-import oxygen.sql.query.dsl.*
-import oxygen.sql.schema.{InputEncoder, RowRepr, TableRepr}
+// import oxygen.sql.query.dsl.*
+// import oxygen.sql.schema.{InputEncoder, RowRepr, TableRepr}
+import oxygen.sql.schema.TableRepr
 import zio.*
 
 trait MigrationRepo {
@@ -102,25 +103,37 @@ object MigrationRepo {
         Helpers.insertInto[ExecutedMigrationStepRow]
 
       // TODO (KR) : update this when DSL supports updates
-      val setCompletedAt: QueryI[(Instant, Int)] =
+      val setCompletedAt: QueryI[(Instant, Int)] = {
+        /*
         QueryI.simple("set completed at", QueryContext.QueryType.Update)(InputEncoder.derived[(Instant, Int)]) {
           s"""UPDATE ${ExecutedMigrationRow.tableRepr.ref} m
              |  SET completed_at = ?
              |  WHERE m.version = ?
              |""".stripMargin
         }
+         */
+        ??? // FIX-PRE-MERGE (KR) :
+      }
 
-      val getMigrations: QueryO[ExecutedMigrationRow] =
+      val getMigrations: QueryO[ExecutedMigrationRow] = {
+        /*
         for {
           _ <- select("get migrations")
           m <- from[ExecutedMigrationRow]
         } yield m
+         */
+        ??? // FIX-PRE-MERGE (KR) :
+      }
 
-      val getMigrationSteps: QueryO[ExecutedMigrationStepRow] =
+      val getMigrationSteps: QueryO[ExecutedMigrationStepRow] = {
+        /*
         for {
           _ <- select("get migration steps")
           m <- from[ExecutedMigrationStepRow]
         } yield m
+         */
+        ??? // FIX-PRE-MERGE (KR) :
+      }
 
     }
 

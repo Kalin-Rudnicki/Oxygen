@@ -1,4 +1,4 @@
-package oxygen.sql.query.dsl2
+package oxygen.sql.query.dsl
 
 import oxygen.predef.core.*
 import oxygen.sql.query.{Query, QueryI, QueryIO, QueryO}

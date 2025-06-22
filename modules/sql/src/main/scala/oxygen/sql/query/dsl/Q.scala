@@ -1,4 +1,4 @@
-package oxygen.sql.query.dsl2
+package oxygen.sql.query.dsl
 
 import oxygen.core.collection.Contiguous
 import oxygen.sql.query.QueryIO

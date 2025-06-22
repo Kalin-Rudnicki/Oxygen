@@ -3,8 +3,8 @@ package oxygen.sql
 import java.util.UUID
 import oxygen.core.collection.Contiguous
 import oxygen.sql.query.*
-import oxygen.sql.query.dsl2.*
-import oxygen.sql.query.dsl2.Q.*
+import oxygen.sql.query.dsl.*
+import oxygen.sql.query.dsl.Q.*
 import oxygen.sql.schema.*
 import scala.annotation.experimental
 
