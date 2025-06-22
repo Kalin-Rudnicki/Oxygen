@@ -9,14 +9,16 @@ object T {
   //      Inputs
   //////////////////////////////////////////////////////////////////////////////////////////////////////
 
-  final class Input[I] private {
+  sealed trait InputLike
+
+  final class Input[I] private extends InputLike {
     def flatMap(f: I => Query): QueryI[I] = macroOnly
     def flatMap[I2](f: I => QueryI[I2])(using zip: Zip[I, I2]): QueryI[zip.Out] = macroOnly
     def flatMap[O](f: I => QueryO[O]): QueryIO[I, O] = macroOnly
     def flatMap[I2, O](f: I => QueryIO[I2, O])(using zip: Zip[I, I2]): QueryIO[zip.Out, O] = macroOnly
   }
 
-  final class ConstInput[I] private {
+  final class ConstInput[I] private extends InputLike {
     def flatMap(f: I => Query): Query = macroOnly
     def flatMap[I2](f: I => QueryI[I2]): QueryI[I2] = macroOnly
     def flatMap[O](f: I => QueryO[O]): QueryO[O] = macroOnly
@@ -87,11 +89,13 @@ object T {
       def withFilter(f: Unit => Boolean): T.Where = macroOnly
     }
 
-    final class Join[A] private {
+    sealed trait JoinLike
+
+    final class Join[A] private extends JoinLike {
       def withFilter(f: A => Boolean): T.Join[A] = macroOnly
     }
 
-    final class LeftJoin[A] private {
+    final class LeftJoin[A] private extends JoinLike {
       def withFilter(f: A => Boolean): T.Join[Option[A]] = macroOnly
     }
 

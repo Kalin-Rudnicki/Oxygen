@@ -20,17 +20,31 @@ private[sql] sealed trait ParseResult[+A] {
     case known: ParseResult.Known[A] => known.some
     case _: ParseResult.Unknown      => None
 
-  // TODO (KR) : a way to control whether detailed info should be emitted
-  final def getOrReport(using Quotes): A =
+  final def getOrReportShort(using Quotes): A =
     this match {
       case ParseResult.Success(value)                            => value
-      case ParseResult.Error(tree: Tree, attempting, message)    => report.errorAndAbort(s"Error attempting : $attempting : $message\n\n" + tree.showDetailed("tree"), tree.pos)
+      case ParseResult.Error(tree: Tree, attempting, message)    => report.errorAndAbort(s"Error attempting : $attempting : $message", tree.pos)
+      case ParseResult.Error(pos: Position, attempting, message) => report.errorAndAbort(s"Error attempting : $attempting : $message", pos)
+      case ParseResult.Unknown(NonEmptyList(kase, Nil))          =>
+        report.errorAndAbort(s"Unknown tree attempting : ${kase.showShort}", kase.pos)
+      case ParseResult.Unknown(cases) =>
+        report.errorAndAbort(s"Unknown tree attempting :\n\n${cases.map { _.showShort }.mkString("\n\n")}", cases.head.pos)
+    }
+
+  final def getOrReportVerbose(using Quotes): A =
+    this match {
+      case ParseResult.Success(value)                            => value
+      case ParseResult.Error(tree: Tree, attempting, message)    => report.errorAndAbort(s"Error attempting : $attempting : $message\n\n${tree.showDetailed("tree")}", tree.pos)
       case ParseResult.Error(pos: Position, attempting, message) => report.errorAndAbort(s"Error attempting : $attempting : $message\n\n", pos)
       case ParseResult.Unknown(NonEmptyList(kase, Nil))          =>
-        report.errorAndAbort(s"Unknown tree attempting : ${kase.show}", kase.pos)
+        report.errorAndAbort(s"Unknown tree attempting : ${kase.showVerbose}", kase.pos)
       case ParseResult.Unknown(cases) =>
-        report.errorAndAbort(s"Unknown tree attempting :\n\n${cases.map { _.show }.mkString("\n\n")}", cases.head.pos)
+        report.errorAndAbort(s"Unknown tree attempting :\n\n${cases.map { _.showVerbose }.mkString("\n\n")}", cases.head.pos)
     }
+
+  final def getOrReport(using Quotes): A =
+    if (ParseResult.verbose) this.getOrReportVerbose
+    else this.getOrReportShort
 
   final def toEither: Either[ParseResult.NotSuccess, A] = this match
     case ParseResult.Success(value)         => value.asRight
@@ -51,6 +65,10 @@ private[sql] sealed trait ParseResult[+A] {
 
 }
 private[sql] object ParseResult {
+
+  // TODO (KR) : better way to do this? compiler flags?
+  private val verbose: Boolean =
+    true // java.lang.System.getenv("OXYGEN_SQL_VERBOSE").toBooleanOption.getOrElse(false)
 
   given parseResultFunctor: [F[_]] => (functor: Functor[F]) => Traverse[F, ParseResult] =
     new Traverse[F, ParseResult] {
@@ -100,7 +118,13 @@ private[sql] object ParseResult {
         message: String,
     ) {
 
-      def show: String =
+      def showShort: String =
+        marked match {
+          case _: Tree     => s"$attempting : $message"
+          case _: Position => s"$attempting : $message"
+        }
+
+      def showVerbose: String =
         marked match {
           case tree: Tree  => s"$attempting : $message :\n\n${tree.showDetailed("tree")}"
           case _: Position => s"$attempting : $message"

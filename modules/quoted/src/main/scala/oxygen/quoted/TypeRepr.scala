@@ -49,7 +49,7 @@ sealed trait TypeRepr extends Model {
   final def =:=(that: TypeRepr): Boolean = this.unwrap =:= that.unwrapWithin
 
   /** Is this type a subtype of that type? */
-  final def <:<(that: TypeRepr): Boolean = this.unwrap =:= that.unwrapWithin
+  final def <:<(that: TypeRepr): Boolean = this.unwrap <:< that.unwrapWithin
 
   /**
     * Widen from singleton type to its underlying non-singleton

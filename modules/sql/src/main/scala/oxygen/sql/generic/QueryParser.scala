@@ -1,5 +1,6 @@
 package oxygen.sql.generic
 
+import oxygen.meta.*
 import oxygen.predef.core.*
 import oxygen.quoted.*
 import oxygen.sql.query.dsl.{Q, T}
@@ -27,11 +28,9 @@ private[generic] object QueryParser {
     override def parse(term: Term, refs: RefMap, prevFunction: String)(using ParseContext, Quotes): ParseResult[(Input, String, RefMap, Term)] =
       for {
         FunctionCall(f1Lhs, f1Name, f1Function) <- ParseContext.add("function 1") { FunctionCall.parse(term) }
-        expr <- f1Lhs.asExpr match {
-          case '{ Q.input.apply[a] }                                  => ParseResult.Success(None)
-          case '{ Q.input.const[a](${ expr }) }                       => ParseResult.Success(expr.toTerm.some)
-          case expr if expr.isExprOf[oxygen.sql.query.dsl.T.Input[?]] => ParseResult.error(f1Lhs, "invalid `input` invocation")
-          case _                                                      => ParseResult.unknown(f1Lhs, "not an `input` invocation")
+        expr <- f1Lhs.parseExpr[T.InputLike] {
+          case '{ Q.input.apply[a] }            => ParseResult.Success(None)
+          case '{ Q.input.const[a](${ expr }) } => ParseResult.Success(expr.toTerm.some)
         }
         p1 <- f1Function.parseSingleParam
         f1Name <- functionNames.mapOrFlatMap.parse(f1Name).unknownAsError
@@ -46,11 +45,17 @@ private[generic] object QueryParser {
 
   }
 
-  final case class Insert()
+  final case class Insert(
+  )
   object Insert extends QueryParser[Insert] {
 
     override def parse(term: Term, refs: RefMap, prevFunction: String)(using ParseContext, Quotes): ParseResult[(Insert, String, RefMap, Term)] =
-      ParseResult.unknown(term, "TODO")
+      for {
+        FunctionCall(f1Lhs, _, f1Function) <- ParseContext.add("function 1") { FunctionCall.parse(term) }
+        _ <- f1Lhs.parseExpr[T.Partial.InsertValues[?]] { case '{ Q.select[a](using $schema) } => ParseResult.Success(schema) }
+        _ = f1Function.params.foreach { p => report.info(p.tree.toIndentedString.toStringColorized, p.tree.pos) }
+        _ <- ParseResult.error(term, "WTF TODO")
+      } yield ???
 
   }
 
@@ -63,10 +68,7 @@ private[generic] object QueryParser {
     override def parse(term: Term, refs: RefMap, prevFunction: String)(using ParseContext, Quotes): ParseResult[(Select, String, RefMap, Term)] =
       for {
         FunctionCall(f1Lhs, f1Name, f1Function) <- ParseContext.add("function 1") { FunctionCall.parse(term) }
-        schema <- f1Lhs.asExpr match {
-          case '{ oxygen.sql.query.dsl.Q.select[a](using $schema) } => ParseResult.Success(schema)
-          case _                                                    => ParseResult.error(f1Lhs, "invalid `select` invocation")
-        }
+        schema <- f1Lhs.parseExpr[T.Select[?]] { case '{ Q.select[a](using $schema) } => ParseResult.Success(schema) }
         p1 <- f1Function.parseSingleParam
         f1Name <- functionNames.mapOrFlatMap.parse(f1Name).unknownAsError
 
@@ -104,9 +106,9 @@ private[generic] object QueryParser {
       for {
         FunctionCall(f1Lhs, f1Name, f1Function) <- ParseContext.add("function 1") { FunctionCall.parse(term) }
         FunctionCall(f2Lhs, f2Name, f2Function) <- ParseContext.add("function 2") { FunctionCall.parse(f1Lhs) }
-        schema <- f2Lhs.asExpr match {
+        schema <- f2Lhs.parseExpr[T.Partial.JoinLike] {
+          // TODO (KR) : left join
           case '{ oxygen.sql.query.dsl.Q.join[a](using $schema) } => ParseResult.Success(schema)
-          case _                                                  => ParseResult.unknown(f2Lhs, "invalid `join` invocation")
         }
         p1 <- f1Function.parseSingleParam
         p2 <- f2Function.parseSingleParam
@@ -297,7 +299,7 @@ private[generic] object QueryParser {
           _ => ParseResult.error(self, s"invalid ${TypeRepr.of[A].showCode}"),
         )
       else
-        ParseResult.unknown(self, s"not a ${TypeRepr.of[A].showCode}")
+        ParseResult.unknown(self, s"not a ${TypeRepr.of[A].showCode} (actual = ${self.tpe.showCode})")
 
   }
 

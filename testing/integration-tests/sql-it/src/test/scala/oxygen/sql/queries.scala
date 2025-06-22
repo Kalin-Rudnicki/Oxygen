@@ -33,12 +33,19 @@ object queries {
       _ <- into(inputPerson)
     } yield ()
 
-  // @compile
+  @compile
   val insert2: QueryIO[Person, UUID] =
     for {
       inputPerson <- input[Person]
       (p, into) <- insert[Person]
       _ <- into(inputPerson)
+    } yield p.id
+
+  @compile
+  val insert3: QueryIO[Person, UUID] =
+    for {
+      _ <- input[Person]
+      (p, _) <- insert[Person]
     } yield p.id
 
   //////////////////////////////////////////////////////////////////////////////////////////////////////
