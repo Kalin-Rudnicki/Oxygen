@@ -10,7 +10,7 @@ class Annotations(
   def all: List[Term] = _all
 
   def allOf[Annot: Type]: List[Expr[Annot]] =
-    all.flatMap { tree =>
+    all.flatMap { tree => // TODO (KR) : now that `<:<` is fixed, use that, no try/catch?
       try { Some(tree.asExprOf[Annot]) }
       catch { case _ => None }
     }
@@ -19,24 +19,24 @@ class Annotations(
     allOf[Annot] match
       case annot :: Nil => Some(annot)
       case Nil          => None
-      case _            => report.errorAndAbort(s"Found multiple annotations of type ${TypeRepr.of[Annot].show} for `$target`. If you are OK with this, use `allOf[?].headOption`.")
+      case _ => report.errorAndAbort(s"Found multiple annotations of type ${TypeRepr.of[Annot].show} for `$target`. If you are OK with this, use `allOf[${TypeRepr.of[Annot].show}].headOption`.")
 
   def requiredOf[Annot: Type]: Expr[Annot] =
     optionalOf[Annot].getOrElse(report.errorAndAbort(s"Missing required annotation `${TypeRepr.of[Annot].show}` for `$target`"))
 
   def allOfValue[Annot: {Type, FromExpr}]: List[Annot] =
     allOf[Annot].map { expr =>
-      expr.value.getOrElse(report.errorAndAbort(s"Found annotation `${TypeRepr.of[Annot].show}` for `$target`, but are unable to extract Expr.value\n\n${expr.show}"))
+      expr.value.getOrElse(report.errorAndAbort(s"Found annotation `${TypeRepr.of[Annot].show}` for `$target`, but is unable to extract Expr.value\n\n${expr.show}"))
     }
 
   def optionalOfValue[Annot: {Type, FromExpr}]: Option[Annot] =
     optionalOf[Annot].map { expr =>
-      expr.value.getOrElse(report.errorAndAbort(s"Found annotation `${TypeRepr.of[Annot].show}` for `$target`, but are unable to extract Expr.value\n\n${expr.show}"))
+      expr.value.getOrElse(report.errorAndAbort(s"Found annotation `${TypeRepr.of[Annot].show}` for `$target`, but is unable to extract Expr.value\n\n${expr.show}"))
     }
 
   def requiredOfValue[Annot: {Type, FromExpr}]: Annot = {
     val expr = requiredOf[Annot]
-    expr.value.getOrElse(report.errorAndAbort(s"Found annotation `${TypeRepr.of[Annot].show}` for `$target`, but are unable to extract Expr.value\n\n${expr.show}"))
+    expr.value.getOrElse(report.errorAndAbort(s"Found annotation `${TypeRepr.of[Annot].show}` for `$target`, but is unable to extract Expr.value\n\n${expr.show}"))
   }
 
 }

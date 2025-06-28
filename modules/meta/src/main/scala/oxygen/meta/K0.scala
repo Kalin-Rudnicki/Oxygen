@@ -32,7 +32,7 @@ object K0 {
 
     def annotations(using Quotes): AnnotationsTyped[A]
 
-    final def summonTypeClass[TC[_]: Type](using quotes: Quotes): Expr[TC[A]] =
+    def summonTypeClass[TC[_]: Type](using quotes: Quotes): Expr[TC[A]] =
       Implicits.search(TypeRepr.of[TC[A]]) match
         case ImplicitSearchSuccess(tree)        => tree.asExprOf[TC[A]]
         case ImplicitSearchFailure(explanation) => report.errorAndAbort(s"Error summoning ${TypeRepr.of[TC[A]].show}\n\n$explanation", pos)
@@ -49,6 +49,14 @@ object K0 {
 
       val idx: Int
       val childType: String
+
+      def parentGeneric: Generic[A]
+
+      override def summonTypeClass[TC[_]: Type](using quotes: Quotes): Expr[TC[B]] =
+        Implicits.search(TypeRepr.of[TC[B]]) match
+          case ImplicitSearchSuccess(tree)        => tree.asExprOf[TC[B]]
+          case ImplicitSearchFailure(explanation) =>
+            report.errorAndAbort(s"Error summoning ${TypeRepr.of[TC[B]].show} for $childType `$name` in parent ${parentGeneric.typeRepr.show}\n\n$explanation", pos)
 
       final def getExpr[F[_]](expressions: Expressions[F, A])(using Quotes): Expr[F[B]] =
         expressions.at[B](idx)
@@ -252,7 +260,7 @@ object K0 {
 
       final def apply[F[_]: Type as fTpe](
           valName: String => String = n => s"value_$n",
-          valType: ValType = ValType.Val,
+          valType: ValDef.ValType = ValDef.ValType.Val,
       )(
           makeVal: ChildFunction0.FExpr[F],
       ): ValDefinitions[F, A] = {
@@ -298,13 +306,13 @@ object K0 {
 
       final def summonTypeClasses[F[_]: Type](
           valName: String => String = n => s"instance_$n",
-          valType: ValType = ValType.LazyVal,
+          valType: ValDef.ValType = ValDef.ValType.LazyVal,
       ): ValDefinitions[F, A] =
         apply[F](valName = valName, valType = valType) { [b <: Bound] => (_, _) ?=> (child: Child[b]) => child.summonTypeClass[F] }
 
       final def summonTypeClassesOrDerive[F[_]: Type](
           valName: String => String = n => s"instance_$n",
-          valType: ValType = ValType.LazyVal,
+          valType: ValDef.ValType = ValDef.ValType.LazyVal,
       )(
           f: ChildFunction0.FExpr[F],
       ): ValDefinitions[F, A] =
@@ -315,7 +323,7 @@ object K0 {
         */
       def foldLeft[V: Type](
           valName: String => String = n => s"value_$n",
-          valType: ValType = ValType.Val,
+          valType: ValDef.ValType = ValDef.ValType.Val,
       )(zero: Expr[V])(
           f: ChildFunction1[K0.Const[Expr[V]], K0.Const[Expr[V]]],
       ): ValDefinitions[K0.Const[V], A] = {
@@ -371,7 +379,7 @@ object K0 {
         */
       def foldLeftDelayed[V: Type](
           valName: String => String = n => s"value_$n",
-          valType: ValType = ValType.Val,
+          valType: ValDef.ValType = ValDef.ValType.Val,
       )(zero: Expr[V])(
           f: ChildFunction1[K0.Const[Expr[V]], K0.Const[Expr[V]]],
       ): ValDefinitionsWith[K0.Const[V], A, V] = {
@@ -475,7 +483,7 @@ object K0 {
   //      ProductGeneric
   //////////////////////////////////////////////////////////////////////////////////////////////////////
 
-  sealed trait ProductGeneric[A] private extends ProductOrSumGeneric[A] { generic =>
+  sealed trait ProductGeneric[A] private extends ProductOrSumGeneric[A] { productGeneric =>
 
     override final type Bound = Any
     override final type Child[B] = Field[B]
@@ -503,6 +511,8 @@ object K0 {
 
       override val sym: Symbol = constructorValDef.symbol
 
+      override def parentGeneric: ProductGeneric[A] = productGeneric
+
       override def pos: Position = constructorValDef.pos
 
       override def annotations(using Quotes): AnnotationsTyped[B] = AnnotationsTyped(constructorValDef.symbol.annotations.all, constructorValDef.show)
@@ -517,12 +527,12 @@ object K0 {
     class Instantiate {
 
       def fieldsToInstance[S[_]: SeqOps](exprs: S[Expr[?]])(using Quotes): Expr[A] =
-        generic.fieldsToInstance(exprs)
+        productGeneric.fieldsToInstance(exprs)
 
       def id(
           f: ChildFunction0.IdExpr,
       )(using Quotes): Expr[A] =
-        generic.fieldsToInstance(ChildFunction0.run(f))
+        productGeneric.fieldsToInstance(ChildFunction0.run(f))
 
       def monad[F[_]: {ExprMonad as monad, Type}](
           f: ChildFunction0.FExpr[F],
@@ -537,11 +547,11 @@ object K0 {
               val value: Expr[F[B]] = f[B](child)
 
               tail match {
-                case Nil => monad.mapE(value) { a => generic.fieldsToInstance((acc :+ a).to[Contiguous]) }
+                case Nil => monad.mapE(value) { a => productGeneric.fieldsToInstance((acc :+ a).to[Contiguous]) }
                 case _   => monad.flatMapE(value) { a => rec(tail, acc :+ a) }
               }
             case Nil =>
-              monad.pure(generic.fieldsToInstance(acc.to[Contiguous]))
+              monad.pure(productGeneric.fieldsToInstance(acc.to[Contiguous]))
           }
 
         rec(children.toList, Growable.empty)
@@ -577,22 +587,22 @@ object K0 {
           val empty: ProductGeneric.Subset.Empty[A] =
             new ProductGeneric.Subset.Empty[A] {
               override val unitTypeRepr: TypeRepr = _unitTypeRepr
-              override val aGeneric: ProductGeneric[A] = generic
+              override val aGeneric: ProductGeneric[A] = productGeneric
             }
           empty.typedAs[SubsetT]
         case Contiguous(aField0) =>
           val _aField: Field[SubsetT] = aField0.asInstanceOf[Field[SubsetT]]
           new ProductGeneric.Subset.Single[A, SubsetT] {
-            override val aGeneric: generic.type = generic
+            override val aGeneric: productGeneric.type = productGeneric
             override val aField: aGeneric.Field[SubsetT] = _aField
           }
         case _aFields =>
           val tupleTypeRepr: TypeRepr = TypeRepr.tuplePreferTupleN(_aFields.map(_.typeRepr).toList)
           new ProductGeneric.Subset.Many[A, SubsetT] {
-            override val aGeneric: generic.type = generic
-            override val aFields: Contiguous[generic.Field[?]] = _aFields
+            override val aGeneric: productGeneric.type = productGeneric
+            override val aFields: Contiguous[productGeneric.Field[?]] = _aFields
             override val bGeneric: ProductGeneric.CaseClassGeneric[SubsetT] =
-              ProductGeneric.CaseClassGeneric.unsafeOf[SubsetT](tupleTypeRepr, tupleTypeRepr.typeSymbol, generic.derivedFromConfig)
+              ProductGeneric.CaseClassGeneric.unsafeOf[SubsetT](tupleTypeRepr, tupleTypeRepr.typeSymbol, productGeneric.derivedFromConfig)
           }
       }
     }
@@ -1019,7 +1029,7 @@ object K0 {
   //      SumGeneric
   //////////////////////////////////////////////////////////////////////////////////////////////////////
 
-  sealed trait SumGeneric[A] private extends ProductOrSumGeneric[A] { generic =>
+  sealed trait SumGeneric[A] private extends ProductOrSumGeneric[A] { sumGeneric =>
 
     override final type Bound = A
     type Gen[b] <: Generic[b]
@@ -1039,6 +1049,8 @@ object K0 {
     ) extends Entity.Child.Deferred[B, A](generic) {
 
       override val childType: String = "case"
+
+      override def parentGeneric: SumGeneric[A] = sumGeneric
 
       def caseExtractor: CaseExtractor[B, Expr[B]] =
         caseExtractor(s => s"case_$s")
@@ -1283,18 +1295,19 @@ object K0 {
   //      IdentityGeneric
   //////////////////////////////////////////////////////////////////////////////////////////////////////
 
-  trait IdentityGeneric[A] extends Generic[A] { generic =>
+  trait IdentityGeneric[A] extends Generic[A] { identityGeneric =>
     override final type Bound = A
     override type Child[B <: Bound] = IdentityChild[B]
 
     final class IdentityChild[B <: A] extends K0.Entity.Child[B, A] {
       override val idx: Int = 0
       override val childType: String = "identity"
-      override val label: String = generic.label
-      override val sym: Symbol = generic.sym
-      override val typeRepr: TypeRepr = generic.typeRepr
-      override def pos: Position = generic.pos
-      override def annotations(using Quotes): AnnotationsTyped[B] = AnnotationsTyped(generic.annotations.all, typeRepr.show)
+      override val label: String = identityGeneric.label
+      override val sym: Symbol = identityGeneric.sym
+      override val typeRepr: TypeRepr = identityGeneric.typeRepr
+      override def parentGeneric: IdentityGeneric[A] = identityGeneric
+      override def pos: Position = identityGeneric.pos
+      override def annotations(using Quotes): AnnotationsTyped[B] = AnnotationsTyped(identityGeneric.annotations.all, typeRepr.show)
     }
 
     final val child: IdentityChild[A] = new IdentityChild[A]
