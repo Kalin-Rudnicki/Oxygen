@@ -210,6 +210,16 @@ final class ValDefCompanion(using quotes: Quotes) {
     Block.companion.apply(List(valDef), body(ref))
   }
 
+  def letExpr[A: Type, B: Type](owner: Symbol, name: String, rhs: Expr[A], valType: ValDef.ValType)(body: Expr[A] => Expr[B])(using Quotes): Expr[B] =
+    ValDef
+      .let(owner, name, rhs.toTerm, valType.toFlags) { t =>
+        body(t.asExprOf[A]).toTerm
+      }
+      .asExprOf[B]
+
+  def letExpr[A: Type, B: Type](name: String, rhs: Expr[A], valType: ValDef.ValType)(body: Expr[A] => Expr[B])(using Quotes): Expr[B] =
+    letExpr[A, B](Symbol.spliceOwner, name, rhs, valType)(body)
+
 }
 
 final class TermCompanion(using quotes: Quotes) {

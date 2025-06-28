@@ -4,7 +4,11 @@ import oxygen.quoted.companion.PrinterCompanion
 import scala.quoted.*
 import scala.reflect.ClassTag
 
-extension (self: Expr[?]) {
+//////////////////////////////////////////////////////////////////////////////////////////////////////
+//      Expr
+//////////////////////////////////////////////////////////////////////////////////////////////////////
+
+extension [A](self: Expr[A]) {
 
   def toTerm(using quotes: Quotes): Term =
     Term.wrap(quotes.reflect.asTerm(self))
@@ -15,7 +19,39 @@ extension (self: Expr[?]) {
   def showAnsiCode(using Quotes): String = self.toTerm.showAnsiCode
   def showStructure(using Quotes): String = self.toTerm.showStructure
 
+  /**
+    * Attempt to convert this Expr[A] into an A.
+    * If it does not succeed, return None.
+    */
+  def evalOption(using from: FromExpr[A], quotes: Quotes): Option[A] =
+    from.unapply(self)
+
+  /**
+    * Attempt to convert this Expr[A] into an A.
+    * If it does not succeed, die.
+    */
+  def evalRequired(msg: String)(using from: FromExpr[A], quotes: Quotes): A =
+    self.evalOption.getOrElse(report.errorAndAbort(s"Unable to extract Expr, msg = $msg\nexpr:\n${self.showAnsiCode}"))
+
+  /**
+    * Attempt to convert this Expr[A] into an A.
+    * If it does not succeed, die.
+    */
+  def evalRequired(using from: FromExpr[A], quotes: Quotes): A =
+    self.evalOption.getOrElse(report.errorAndAbort(s"Unable to extract Expr.\nexpr:\n${self.showAnsiCode}"))
+
+  /**
+    * Attempt to convert this Expr[A] into an A.
+    * If it does not succeed, return a Left of the original expr.
+    */
+  def evalEither(using from: FromExpr[A], quotes: Quotes): Either[Expr[A], A] =
+    self.evalOption.toRight(self)
+
 }
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////
+//      Type
+//////////////////////////////////////////////////////////////////////////////////////////////////////
 
 extension (self: Type[?]) {
 
@@ -23,6 +59,10 @@ extension (self: Type[?]) {
     TypeRepr.fromType(self)
 
 }
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////
+//      Model
+//////////////////////////////////////////////////////////////////////////////////////////////////////
 
 extension [T <: Model](self: T) {
 

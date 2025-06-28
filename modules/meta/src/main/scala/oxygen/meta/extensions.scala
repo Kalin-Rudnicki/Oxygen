@@ -74,38 +74,6 @@ extension (self: Tree) {
 
 }
 
-extension [A](self: Expr[A]) {
-
-  /**
-    * Attempt to convert this Expr[A] into an A.
-    * If it does not succeed, return None.
-    */
-  def evalOption(using from: FromExpr[A], quotes: Quotes): Option[A] =
-    from.unapply(self)
-
-  /**
-    * Attempt to convert this Expr[A] into an A.
-    * If it does not succeed, die.
-    */
-  def evalRequired(msg: String)(using from: FromExpr[A], quotes: Quotes): A =
-    self.evalOption.getOrElse(report.errorAndAbort(s"Unable to extra Expr, msg = $msg\nexpr:\n${self.show}"))
-
-  /**
-    * Attempt to convert this Expr[A] into an A.
-    * If it does not succeed, die.
-    */
-  def evalRequired(using from: FromExpr[A], quotes: Quotes): A =
-    self.evalOption.getOrElse(report.errorAndAbort(s"Unable to extra Expr.\nexpr:\n${self.show}"))
-
-  /**
-    * Attempt to convert this Expr[A] into an A.
-    * If it does not succeed, return a Left of the original expr.
-    */
-  def evalEither(using from: FromExpr[A], quotes: Quotes): Either[Expr[A], A] =
-    self.evalOption.toRight(self)
-
-}
-
 @tailrec
 private def combineStrings(
     queue: List[StringExpr],
@@ -215,11 +183,3 @@ extension [S[_]](self: S[Expr[String]]) {
     self.surround(start, sep, end).exprMkString
 
 }
-
-extension (self: ValDef.type)
-  def letTyped[A: Type, B: Type](owner: Symbol, name: String, rhs: Expr[A], valType: ValType)(body: Expr[A] => Expr[B])(using Quotes): Expr[B] =
-    ValDef
-      .let(owner, name, rhs.toTerm, valType.toFlags) { t =>
-        body(t.asExprOf[A]).toTerm
-      }
-      .asExprOf[B]

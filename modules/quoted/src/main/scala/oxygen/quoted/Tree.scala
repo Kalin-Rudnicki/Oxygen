@@ -400,6 +400,18 @@ object ValDef {
     (name, TypeTree.wrap(tpt), rhs.map(Term.wrap(_)))
   }
 
+  // =====| Added |=====
+
+  enum ValType {
+    case Val, LazyVal, Var
+
+    def toFlags(using Quotes): Flags = this match
+      case ValType.Val     => Flags.EmptyFlags
+      case ValType.LazyVal => Flags.Lazy
+      case ValType.Var     => Flags.Mutable
+
+  }
+
 }
 
 sealed trait Term extends Statement {
