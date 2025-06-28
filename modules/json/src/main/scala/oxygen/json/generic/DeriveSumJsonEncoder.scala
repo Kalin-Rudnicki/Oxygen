@@ -10,21 +10,18 @@ final class DeriveSumJsonEncoder[A](
     extends K0.Derivable.SumDeriver[JsonEncoder, A] {
 
   private def makeEncodeJsonAST(value: Expr[A]): Expr[Json] =
-    generic.matcher.instance[Json](value) {
-      [b <: A] =>
-        (_, _) ?=>
-          (kase: generic.Case[b]) =>
+    generic.matcher.instance[Json](value) { [b <: A] => (_, _) ?=> (kase: generic.Case[b]) =>
 
-            val caseName = Expr(kase.name)
+      val caseName = Expr(kase.name)
 
-            kase.caseExtractor.withRHS { value =>
-              '{
-                Json.obj(
-                  $caseName ->
-                    ${ kase.getExpr(instances) }.encodeJsonAST($value),
-                )
-              }
-          }
+      kase.caseExtractor.withRHS { value =>
+        '{
+          Json.obj(
+            $caseName ->
+              ${ kase.getExpr(instances) }.encodeJsonAST($value),
+          )
+        }
+      }
     }
 
   override def derive: Expr[JsonEncoder[A]] =

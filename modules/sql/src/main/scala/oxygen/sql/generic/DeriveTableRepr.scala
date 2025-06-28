@@ -25,8 +25,8 @@ final class DeriveTableRepr[A: Type, K: Type](
   private def makePartial(isPK: Boolean): (TypeRepr, Expr[TableRepr.Partial[A, ?]]) = {
     type B
     val subset: K0.ProductGeneric.Subset[A, B] =
-      generic.filtered[B] {
-        [i] => (_, _) ?=> (field: generic.Field[i]) => field.annotations.optionalOfValue[primaryKey].nonEmpty == isPK
+      generic.filtered[B] { [i] => (_, _) ?=> (field: generic.Field[i]) =>
+        field.annotations.optionalOfValue[primaryKey].nonEmpty == isPK
       }
     given Type[B] = subset.bTpe
 

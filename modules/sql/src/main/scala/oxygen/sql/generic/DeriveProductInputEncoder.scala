@@ -13,23 +13,17 @@ final class DeriveProductInputEncoder[A](
     extends K0.Derivable.ProductDeriver[InputEncoder, A] {
 
   private def makeSize: Expr[Int] =
-    generic.mapChildren.foldLeftExpr[Int](Expr(0)) {
-      [i] =>
-        (_, _) ?=>
-          (field: generic.Field[i], acc: Expr[Int]) =>
-            '{
-              $acc + ${ field.getExpr(instances) }.size
-          }
+    generic.mapChildren.foldLeftExpr[Int](Expr(0)) { [i] => (_, _) ?=> (field: generic.Field[i], acc: Expr[Int]) =>
+      '{
+        $acc + ${ field.getExpr(instances) }.size
+      }
     }
 
   private def makeEncodeInner(writer: Expr[InputWriter], value: Expr[A]): Growable[Expr[Unit]] =
-    generic.mapChildren.mapExpr[Unit] {
-      [i] =>
-        (_, _) ?=>
-          (field: generic.Field[i]) =>
-            '{
-              ${ field.getExpr(instances) }.unsafeEncode($writer, ${ field.fromParent(value) })
-          }
+    generic.mapChildren.mapExpr[Unit] { [i] => (_, _) ?=> (field: generic.Field[i]) =>
+      '{
+        ${ field.getExpr(instances) }.unsafeEncode($writer, ${ field.fromParent(value) })
+      }
     }
 
   private def makeEncode(writer: Expr[InputWriter], value: Expr[A]): Expr[Unit] =

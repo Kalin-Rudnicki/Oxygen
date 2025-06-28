@@ -11,24 +11,21 @@ final class DeriveProductJsonDecoder[A](
     extends K0.Derivable.ProductDeriver[JsonDecoder, A] {
 
   private def makeDecodeJsonAST(map: Expr[Map[String, Json]]): Expr[Either[JsonError, A]] =
-    generic.instantiate.either[JsonError] {
-      [a] =>
-        (_, _) ?=>
-          (field: generic.Field[a]) =>
+    generic.instantiate.either[JsonError] { [a] => (_, _) ?=> (field: generic.Field[a]) =>
 
-            val fieldName = Expr(field.name)
+      val fieldName = Expr(field.name)
 
-            '{
-              $map.get($fieldName) match {
-                case Some(value) =>
-                  ${ field.getExpr(instances) }
-                    .decodeJsonAST(value)
-                    .leftMap(_.inField($fieldName))
-                case None =>
-                  ${ field.getExpr(instances) }.onMissingFromObject
-                    .toRight(JsonError(JsonError.Path.Field($fieldName) :: Nil, JsonError.Cause.MissingRequired))
-              }
-          }
+      '{
+        $map.get($fieldName) match {
+          case Some(value) =>
+            ${ field.getExpr(instances) }
+              .decodeJsonAST(value)
+              .leftMap(_.inField($fieldName))
+          case None =>
+            ${ field.getExpr(instances) }.onMissingFromObject
+              .toRight(JsonError(JsonError.Path.Field($fieldName) :: Nil, JsonError.Cause.MissingRequired))
+        }
+      }
     }
 
   override def derive: Expr[JsonDecoder[A]] =

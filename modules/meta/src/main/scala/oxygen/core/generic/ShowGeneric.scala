@@ -82,29 +82,26 @@ object ShowGeneric extends K0.Derivable[Show] {
 
         private def makeWriteTo(builder: Expr[mutable.StringBuilder], value: Expr[A]): Expr[Unit] =
           generic.mapChildren
-            .map[Option[Growable[StringExpr]]] {
-              [b] =>
-                (_, _) ?=>
-                  (field: generic.Field[b]) =>
-                    val valueExpr: Option[StringExpr] =
-                      (field.annotations.optionalOfValue[ShowGeneric.annotation.obfuscate], field.annotations.optionalOfValue[ShowGeneric.annotation.hide]) match {
-                        case (None, None) =>
-                          StringExpr.StrBuilder { builder => '{ ${ field.getExpr(instances) }.writeTo($builder, ${ field.fromParent(value) }) } }.some
-                        case (Some(ShowGeneric.annotation.obfuscate.map(char)), None) =>
-                          StringExpr.StrBuilder { builder => '{ $builder.append(${ field.getExpr(instances) }.show(${ field.fromParent(value) }).map { _ => ${ Expr(char) } }) } }.some
-                        case (Some(ShowGeneric.annotation.obfuscate.const(str)), None) =>
-                          StringExpr.const(str).some
-                        case (None, Some(_))    => None
-                        case (Some(_), Some(_)) => report.errorAndAbort("You can not both hide and obfuscate a field")
-                      }
+            .map[Option[Growable[StringExpr]]] { [b] => (_, _) ?=> (field: generic.Field[b]) =>
+              val valueExpr: Option[StringExpr] =
+                (field.annotations.optionalOfValue[ShowGeneric.annotation.obfuscate], field.annotations.optionalOfValue[ShowGeneric.annotation.hide]) match {
+                  case (None, None) =>
+                    StringExpr.StrBuilder { builder => '{ ${ field.getExpr(instances) }.writeTo($builder, ${ field.fromParent(value) }) } }.some
+                  case (Some(ShowGeneric.annotation.obfuscate.map(char)), None) =>
+                    StringExpr.StrBuilder { builder => '{ $builder.append(${ field.getExpr(instances) }.show(${ field.fromParent(value) }).map { _ => ${ Expr(char) } }) } }.some
+                  case (Some(ShowGeneric.annotation.obfuscate.const(str)), None) =>
+                    StringExpr.const(str).some
+                  case (None, Some(_))    => None
+                  case (Some(_), Some(_)) => report.errorAndAbort("You can not both hide and obfuscate a field")
+                }
 
-                    valueExpr.map { value =>
-                      Growable(
-                        StringExpr.const(field.annotations.optionalOfValue[annotation.fieldName].fold(field.name)(_.name)),
-                        StringExpr.const(" = "),
-                        value,
-                      )
-                  }
+              valueExpr.map { value =>
+                Growable(
+                  StringExpr.const(field.annotations.optionalOfValue[annotation.fieldName].fold(field.name)(_.name)),
+                  StringExpr.const(" = "),
+                  value,
+                )
+              }
             }
             .flatMap(identity)
             .surround(
@@ -147,13 +144,10 @@ object ShowGeneric extends K0.Derivable[Show] {
       new K0.Derivable.SumDeriver[Show, A] {
 
         private def showChild(builder: Expr[mutable.StringBuilder], value: Expr[A]): Expr[Unit] =
-          generic.matcher.instance[Unit](value) {
-            [b <: A] =>
-              (_, _) ?=>
-                (kase: generic.Case[b]) =>
-                  kase.caseExtractor.withRHS { bValue =>
-                    '{ ${ kase.getExpr(instances) }.writeTo($builder, $bValue) }
-                }
+          generic.matcher.instance[Unit](value) { [b <: A] => (_, _) ?=> (kase: generic.Case[b]) =>
+            kase.caseExtractor.withRHS { bValue =>
+              '{ ${ kase.getExpr(instances) }.writeTo($builder, $bValue) }
+            }
           }
 
         override def derive: Expr[Show[A]] =
