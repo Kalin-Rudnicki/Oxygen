@@ -7,10 +7,10 @@ import oxygen.predef.test.*
 
 object DeriveShowSpec extends OxygenSpecDefault {
 
-  @K0.annotation.showDerivation[Show]
+  // @K0.annotation.showDerivation[Show]
   final case class CaseClass1(
-      a: Int,
-      b: Option[String],
+      a: Int = 5,
+      b: Option[String] = None,
   ) derives Show
 
   // @K0.annotation.showDerivation[Show]

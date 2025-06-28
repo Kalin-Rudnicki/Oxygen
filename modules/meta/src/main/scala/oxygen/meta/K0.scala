@@ -520,8 +520,29 @@ object K0 {
 
       override def annotations(using Quotes): AnnotationsTyped[B] = AnnotationsTyped(constructorValDef.symbol.annotations.all, constructorValDef.show)
 
+      /**
+        * Go from a product type to its field.
+        * final case class Person(first: String, last: String)
+        *
+        * field.fromParent(p) -> `p.first`
+        */
       def fromParent(parent: Expr[A])(using quotes: Quotes): Expr[B] = parent.toTerm.select(fieldValDef.symbol).asExprOf[B]
       def fromParentExpr(using quotes: Quotes): Expr[A => B] = '{ (a: A) => ${ fromParent('a) } }
+
+      /**
+        * Will get the default value in a situation like `final case class Person(first: String = "F")` (returns "F").
+        * If you use `-Yretain-trees` compiler flag, you might be able to retrieve the actual expr "F".
+        * This is not guaranteed, and if the actual expr itself can not be retrieved, you will get a reference to a function that returns the default value.
+        */
+      def constructorDefault: Option[Expr[B]] = {
+        val defaultFunctionName: String = s"$$lessinit$$greater$$default$$${idx + 1}"
+        val optTerm: Option[Term] =
+          productGeneric.sym.companionModule.declaredMethod(defaultFunctionName).headOption.map { sym =>
+            sym.tree.narrowOpt[DefDef].flatMap(_.rhs).getOrElse(sym.toTerm)
+          }
+
+        optTerm.map(_.asExprOf[B])
+      }
 
     }
 

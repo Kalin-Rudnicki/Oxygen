@@ -10,6 +10,8 @@ object MacroSpec extends OxygenSpecDefault {
       assertTrue(act == exp)
     }
 
+  final case class Class1(a: Int = 5, b: Option[String] = None, c: Boolean)
+
   override def testSpec: TestSpec =
     suite("MacroSpec")(
       suite("seq")(
@@ -33,6 +35,11 @@ object MacroSpec extends OxygenSpecDefault {
             assertTrue(Macros.stringMatch("abc", "def") == "abc + def")
           },
         ),
+      ),
+      suite("default args")(
+        test("Class1") {
+          assertTrue(Macros.defaultArgs[Class1] == "[a = 5, b = None]")
+        },
       ),
     )
 

@@ -41,6 +41,7 @@ sealed trait Growable[+A] {
   final def filterNot(f: A => Boolean): Growable[A] = filter(a => !f(a))
 
   final def flatten[B](using ev: A <:< Growable[B]): Growable[B] = this.flatMap(ev(_))
+  final def flattenOpt[B](using ev: A <:< Option[B]): Growable[B] = this.flatMap(ev(_))
 
   @targetName("flatMapOption")
   final def flatMap[B](f: A => Option[B]): Growable[B] = Growable.Collect(this, f)

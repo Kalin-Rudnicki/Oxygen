@@ -1,6 +1,7 @@
 package oxygen.meta
 
 import oxygen.meta.*
+import oxygen.predef.core.*
 import oxygen.quoted.*
 import scala.quoted.*
 
@@ -20,11 +21,35 @@ object Macros {
 
     val res = mat.withNonExhaustive.matchOn(str1, str2)
 
-    report.info(res.toTerm.show(using Printer.TreeAnsiCode))
+    // report.info(res.toTerm.show(using Printer.TreeAnsiCode))
 
     res
   }
 
   inline def stringMatch(str1: String, str2: String): String = ${ stringMatchImpl('str1, 'str2) }
+
+  private def defaultArgsImpl[A: Type](using Quotes): Expr[String] = {
+    val g = K0.ProductGeneric.of[A]
+
+    g.mapChildren
+      .map {
+        [b] =>
+          (_, _) ?=>
+            (field: g.Field[b]) =>
+              field.constructorDefault.map { default =>
+                Growable(
+                  Expr(field.name),
+                  Expr(" = "),
+                  '{ $default.toString },
+                )
+            }
+      }
+      .flattenOpt
+      .surround(Growable(Expr("[")), Growable(Expr(", ")), Growable(Expr("]")))
+      .flatten
+      .exprMkString
+  }
+
+  inline def defaultArgs[A]: String = ${ defaultArgsImpl[A] }
 
 }
