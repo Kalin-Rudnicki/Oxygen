@@ -100,6 +100,9 @@ object K0 {
 
   // TODO (KR) : Have a concept like `Expressions`, but without F being restricted to `[b] =>> Expr[F[b]]`
 
+  /**
+    * Represents a set of expressions, which are accessible using [[Entity.Child.getExpr]].
+    */
   final class Expressions[F[_], A](
       private[K0] val fTpe: Type[F],
       private[K0] val aTpe: Type[A],
@@ -1101,12 +1104,26 @@ object K0 {
       )(using Quotes): Expr[Out] =
         make[[b] =>> (b, b), Out](f).withWildcard(elseCase).matchOn(expr)
 
+      def instance2[Out: Type](expr1: Expr[A], expr2: Expr[A])(
+          f: ChildFunction0[[b <: A] =>> MatchBuilder[(b, b), Out]],
+      )(
+          elseCase: Quotes ?=> Expr[Out],
+      )(using Quotes): Expr[Out] =
+        instance2('{ ($expr1, $expr2) })(f)(elseCase)
+
       def instance3[Out: Type](expr: Expr[(A, A, A)])(
           f: ChildFunction0[[b <: A] =>> MatchBuilder[(b, b, b), Out]],
       )(
           elseCase: Quotes ?=> Expr[Out],
       )(using Quotes): Expr[Out] =
         make[[b] =>> (b, b, b), Out](f).withWildcard(elseCase).matchOn(expr)
+
+      def instance3[Out: Type](expr1: Expr[A], expr2: Expr[A], expr3: Expr[A])(
+          f: ChildFunction0[[b <: A] =>> MatchBuilder[(b, b, b), Out]],
+      )(
+          elseCase: Quotes ?=> Expr[Out],
+      )(using Quotes): Expr[Out] =
+        instance3('{ ($expr1, $expr2, $expr3) })(f)(elseCase)
 
     }
 
@@ -1357,8 +1374,9 @@ object K0 {
       deriveFromGenericImpl(Generic.of[A](deriveConfig))
 
     /**
-      * Should always be `= ${ derivedImpl[A] }`.
-      * Annoying limitation with scala-3 macros that the compiler doesn't allow that to be set here, and inherited.
+      * Unfortunately, scala macros do not allow this to be implemented in [[Derivable]].
+      * Therefore, every companion object that extends [[Derivable]] must implement this function with the following body:
+      *      ${ derivedImpl[A] }
       */
     inline def derived[A]: F[A]
 
