@@ -13,7 +13,7 @@ private[generic] object singleApply {
   extension (term: Term)
     private def removeImplicitApplies(using Quotes): Term = term match {
       case Apply(fun, args) if args.nonEmpty && args.forall(_.symbol.flags.isImplicit) => fun.removeImplicitApplies
-      case _                                                                             => term
+      case _                                                                           => term
     }
 
   def unapply(term: Term)(using Quotes): Option[(Term, Term)] = term.removeImplicitApplies match

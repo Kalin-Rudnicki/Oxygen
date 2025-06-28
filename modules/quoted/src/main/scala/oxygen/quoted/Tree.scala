@@ -294,11 +294,11 @@ sealed trait ValOrDefDef extends Definition {
 
   /** The right-hand side of this `val` or `def` definition */
   final def rhs: Option[Term] = this.unwrap.rhs.map(Term.wrap(_))
-  
+
   // =====| Added |=====
 
   final def requiredRHS: Term = this.rhs.getOrElse(report.errorAndAbort("missing required RHS", pos))
-  
+
 }
 object ValOrDefDef {
 
@@ -538,11 +538,11 @@ sealed trait Ref extends Term {
   override type This <: Ref
   override val unwrap: quotes.reflect.Ref
   override def unwrapWithin(using newQuotes: Quotes): newQuotes.reflect.Ref = unwrap.asInstanceOf[newQuotes.reflect.Ref]
-  
+
   // =====| Added |=====
-  
+
   def name: String
-  
+
 }
 object Ref {
 
