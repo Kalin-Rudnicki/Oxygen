@@ -23,17 +23,6 @@ private[generic] final case class Function(
 }
 private[generic] object Function extends Parser[Term, Function] {
 
-  sealed trait Params
-  object Params {
-
-    final case class Wild(valDef: ValDef, wild: Wildcard) extends Params
-
-    final case class SingleVal(valDef: ValDef) extends Params
-
-    // TODO (KR) :
-
-  }
-
   final case class Param(
       name: String,
       tpe: TypeRepr,
@@ -50,18 +39,41 @@ private[generic] object Function extends Parser[Term, Function] {
   }
 
   sealed trait RootParam {
-    val term: Term
-    final lazy val tpe: TypeRepr = term.tpe
+
+    def valDef: ValDef
+
+    final def symbol: Symbol = valDef.symbol
+
   }
   object RootParam {
 
-    final case class Wild(term: Wildcard) extends RootParam
-    final case class Identifier(term: Ident) extends RootParam
-    final case class Tupled(term: Match, children: List[TupledParam]) extends RootParam
+    final case class Ignored(valDef: ValDef) extends RootParam
+
+    final case class Named(valDef: ValDef) extends RootParam
+
+    final case class TupleUnapply(valDef: ValDef, children: Contiguous[TupleUnapplyPart]) extends RootParam
+
+    sealed trait TupleUnapplyPart {
+
+      def tree: Tree
+
+      final def symbol: Symbol = tree.symbol
+
+    }
+    object TupleUnapplyPart {
+
+      final case class Ignored(tree: Tree) extends TupleUnapplyPart
+
+      final case class Named(name: String, tpe: TypeRepr, tree: Tree, convert: Expr[Any] => Expr[Any]) extends TupleUnapplyPart
+
+    }
 
   }
 
-  final case class TupledParam(tree: Ident, fromParent: Expr[Any] => Expr[Any])
+  // FIX-PRE-MERGE (KR) : remove
+  trait GetFromResultSet[A] {
+    def get(col: String): A
+  }
 
   def showParams(params: List[Function.Param]): String =
     s"params(${params.map { p => s"\n  ${p.name}: ${p.tpe.showCode} <${p.tree.symbol.fullName}>," }.mkString}\n) "
@@ -165,8 +177,8 @@ private[generic] object Function extends Parser[Term, Function] {
         case Some(rhs) => ParseResult.Success(rhs)
         case None      => ParseResult.error(defDef, "function doesn't have RHS !?")
       }
-      (_, _) <- ParseContext.add("resolve params") { mergeParamsAndRHS(defDef, paramClause.params, rhs) }
       _ <- ParseResult.error(defDef, "parse this")
+      (_, _) <- ParseContext.add("resolve params") { mergeParamsAndRHS(defDef, paramClause.params, rhs) }
       // (valDefs, rhs) <- ParseContext.add("core function structure") { parseDefDef(term) }
       // function <- ParseContext.add("function rhs") { parseRHS(term, valDefs, rhs) }
     } yield ???
