@@ -12,13 +12,10 @@ final class DeriveProductColumns[A](
     extends K0.Derivable.ProductDeriver[Columns, A] {
 
   private def makeColumnsInner: Growable[Expr[Contiguous[Column]]] =
-    generic.mapChildren.mapExpr[Contiguous[Column]] {
-      [i] =>
-        (_, _) ?=>
-          (field: generic.Field[i]) =>
-            import field.given
+    generic.mapChildren.mapExpr[Contiguous[Column]] { [i] => (_, _) ?=> (field: generic.Field[i]) =>
+      import field.given
 
-            '{ ${ field.getExpr(instances) }.columns }
+      '{ ${ field.getExpr(instances) }.columns }
     }
 
   private def makeColumnsExpr: Expr[Contiguous[Column]] =

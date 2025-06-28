@@ -179,20 +179,14 @@ object K0 {
       def tupled[O1[_], O2[_]](
           f1: ChildFunction0[O1],
           f2: ChildFunction0[O2],
-      ): ChildFunction0.Tupled[O1, O2] = {
-        [b <: Bound] =>
-          (_, _) ?=>
-            (child: Child[b]) =>
-              // stop fmting
-              (f1[b](child), f2[b](child))
+      ): ChildFunction0.Tupled[O1, O2] = { [b <: Bound] => (_, _) ?=> (child: Child[b]) =>
+        // stop fmting
+        (f1[b](child), f2[b](child))
       }
 
-      def getExpr[F[_]](exprs: Expressions[F, A]): ChildFunction0.FExpr[F] = {
-        [b <: Bound] =>
-          (_, _) ?=>
-            (child: Child[b]) =>
-              // stop fmting
-              child.getExpr(exprs)
+      def getExpr[F[_]](exprs: Expressions[F, A]): ChildFunction0.FExpr[F] = { [b <: Bound] => (_, _) ?=> (child: Child[b]) =>
+        // stop fmting
+        child.getExpr(exprs)
       }
 
     }
@@ -295,15 +289,14 @@ object K0 {
               build(exprs).toTerm
           }
 
-        new ValDefinitions[F, A](
-          [b] =>
-            (_, _) ?=>
-              (build: Expressions[F, A] => Expr[b]) =>
-                rec(
-                  children.toList,
-                  Growable.empty,
-                  build,
-                ).asExprOf[b],
+        new ValDefinitions[F, A]([b] =>
+          (_, _) ?=>
+            (build: Expressions[F, A] => Expr[b]) =>
+              rec(
+                children.toList,
+                Growable.empty,
+                build,
+              ).asExprOf[b],
         )
       }
 
@@ -362,16 +355,15 @@ object K0 {
               build(exprs).toTerm
           }
 
-        new ValDefinitions[K0.Const[V], A](
-          [b] =>
-            (_, _) ?=>
-              (build: Expressions[K0.Const[V], A] => Expr[b]) =>
-                rec(
-                  children.toList,
-                  zero,
-                  Growable.empty,
-                  build,
-                ).asExprOf[b],
+        new ValDefinitions[K0.Const[V], A]([b] =>
+          (_, _) ?=>
+            (build: Expressions[K0.Const[V], A] => Expr[b]) =>
+              rec(
+                children.toList,
+                zero,
+                Growable.empty,
+                build,
+              ).asExprOf[b],
         )
       }
 
@@ -418,16 +410,15 @@ object K0 {
               build(exprs, prevValue).toTerm
           }
 
-        new ValDefinitionsWith[K0.Const[V], A, V](
-          [b] =>
-            (_, _) ?=>
-              (build: (Expressions[K0.Const[V], A], Expr[V]) => Expr[b]) =>
-                rec(
-                  children.toList,
-                  zero,
-                  Growable.empty,
-                  build,
-                ).asExprOf[b],
+        new ValDefinitionsWith[K0.Const[V], A, V]([b] =>
+          (_, _) ?=>
+            (build: (Expressions[K0.Const[V], A], Expr[V]) => Expr[b]) =>
+              rec(
+                children.toList,
+                zero,
+                Growable.empty,
+                build,
+              ).asExprOf[b],
         )
       }
 
@@ -998,14 +989,11 @@ object K0 {
         override val bGeneric: ProductGeneric.CaseClassGeneric[B]
 
         override final def convert(a: Expr[A])(using Quotes): Expr[B] =
-          bGeneric.instantiate.id {
-            [b] =>
-              (_, _) ?=>
-                (bField: bGeneric.Field[b]) =>
-                  aFields
-                    .at(bField.idx)
-                    .asInstanceOf[aGeneric.Field[b]]
-                    .fromParent(a)
+          bGeneric.instantiate.id { [b] => (_, _) ?=> (bField: bGeneric.Field[b]) =>
+            aFields
+              .at(bField.idx)
+              .asInstanceOf[aGeneric.Field[b]]
+              .fromParent(a)
           }
 
         override final def convertExpressions[F[_]](expressions: Expressions[F, A])(using Quotes): Expressions[F, B] =

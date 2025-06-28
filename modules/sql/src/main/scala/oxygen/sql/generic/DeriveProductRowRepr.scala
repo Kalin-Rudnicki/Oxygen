@@ -14,34 +14,25 @@ final class DeriveProductRowRepr[A](
     extends K0.Derivable.ProductDeriver[RowRepr, A] {
 
   private def decoderInstances: K0.Expressions[ResultDecoder, A] =
-    instances.mapK[ResultDecoder] {
-      [i] =>
-        _ ?=>
-          (v: Expr[RowRepr[i]]) =>
-            '{
-              $v.decoder
-          }
+    instances.mapK[ResultDecoder] { [i] => _ ?=> (v: Expr[RowRepr[i]]) =>
+      '{
+        $v.decoder
+      }
     }
 
   private def encoderInstances: K0.Expressions[InputEncoder, A] =
-    instances.mapK[InputEncoder] {
-      [i] =>
-        _ ?=>
-          (v: Expr[RowRepr[i]]) =>
-            '{
-              $v.encoder
-          }
+    instances.mapK[InputEncoder] { [i] => _ ?=> (v: Expr[RowRepr[i]]) =>
+      '{
+        $v.encoder
+      }
     }
 
   private def makeProductSchemas: Expr[Contiguous[(String, RowRepr[?])]] =
     generic.mapChildren
-      .mapExpr[(String, RowRepr[?])] {
-        [i] =>
-          (_, _) ?=>
-            (field: generic.Field[i]) =>
-              '{
-                (${ Expr(field.name) }, ${ field.getExpr(instances) })
-            }
+      .mapExpr[(String, RowRepr[?])] { [i] => (_, _) ?=> (field: generic.Field[i]) =>
+        '{
+          (${ Expr(field.name) }, ${ field.getExpr(instances) })
+        }
       }
       .seqToExprOf[Contiguous]
 
@@ -68,20 +59,17 @@ final class DeriveProductRowRepr[A](
 object DeriveProductRowRepr {
 
   def populateFields[A: Type](using quotes: Quotes, generic: ProductGeneric[A]): K0.ValDefinitions[RowRepr, A] =
-    generic.cacheVals[RowRepr]() {
-      [i] =>
-        (_, _) ?=>
-          (field: generic.Field[i]) =>
-            val isInline: Boolean =
-              field.annotations.optionalOfValue[inlineColumnNames].nonEmpty
+    generic.cacheVals[RowRepr]() { [i] => (_, _) ?=> (field: generic.Field[i]) =>
+      val isInline: Boolean =
+        field.annotations.optionalOfValue[inlineColumnNames].nonEmpty
 
-            val columnNameExpr: Expr[String] =
-              Expr { field.annotations.optionalOfValue[columnName].fold(field.name.camelToSnake)(_.name) }
+      val columnNameExpr: Expr[String] =
+        Expr { field.annotations.optionalOfValue[columnName].fold(field.name.camelToSnake)(_.name) }
 
-            isInline match {
-              case true  => '{ ${ field.summonTypeClass[RowRepr] }.prefixedInline($columnNameExpr) }
-              case false => '{ ${ field.summonTypeClass[RowRepr] }.prefixed($columnNameExpr) }
-          }
+      isInline match {
+        case true  => '{ ${ field.summonTypeClass[RowRepr] }.prefixedInline($columnNameExpr) }
+        case false => '{ ${ field.summonTypeClass[RowRepr] }.prefixed($columnNameExpr) }
+      }
     }
 
 }

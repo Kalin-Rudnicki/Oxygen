@@ -14,18 +14,15 @@ final class DeriveSumJsonDecoder[A](
     Expr(generic.cases.map { kase => s"'${kase.name}'" }.mkString(", "))
 
   private def makeDecodeJsonAST(key: Expr[String], value: Expr[Json]): Expr[Either[JsonError, A]] =
-    generic.matcher.value[String, Either[JsonError, A]](key) {
-      [b <: A] =>
-        (_, _) ?=>
-          (kase: generic.Case[b]) =>
+    generic.matcher.value[String, Either[JsonError, A]](key) { [b <: A] => (_, _) ?=> (kase: generic.Case[b]) =>
 
-            val caseName = Expr(kase.name)
+      val caseName = Expr(kase.name)
 
-            CaseExtractor.const[String](caseName).withRHS { _ =>
-              '{
-                ${ kase.getExpr(instances) }.decodeJsonAST($value).leftMap(_.inField($key))
-              }
-          }
+      CaseExtractor.const[String](caseName).withRHS { _ =>
+        '{
+          ${ kase.getExpr(instances) }.decodeJsonAST($value).leftMap(_.inField($key))
+        }
+      }
     } {
       '{
         JsonError(JsonError.Path.Field($key) :: Nil, JsonError.Cause.DecodingFailed("Invalid key, expected one of: " + $validKeysExpr)).asLeft

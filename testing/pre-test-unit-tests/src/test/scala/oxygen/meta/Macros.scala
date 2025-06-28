@@ -32,17 +32,14 @@ object Macros {
     val g = K0.ProductGeneric.of[A]
 
     g.mapChildren
-      .map {
-        [b] =>
-          (_, _) ?=>
-            (field: g.Field[b]) =>
-              field.constructorDefault.map { default =>
-                Growable(
-                  Expr(field.name),
-                  Expr(" = "),
-                  '{ $default.toString },
-                )
-            }
+      .map { [b] => (_, _) ?=> (field: g.Field[b]) =>
+        field.constructorDefault.map { default =>
+          Growable(
+            Expr(field.name),
+            Expr(" = "),
+            '{ $default.toString },
+          )
+        }
       }
       .flattenOpt
       .surround(Growable(Expr("[")), Growable(Expr(", ")), Growable(Expr("]")))
