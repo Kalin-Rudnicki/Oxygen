@@ -62,8 +62,6 @@ object Main extends scala.App {
   val animalJson3: Json = Json.parse(""" { "Squirrel": {} } """).toOption.get
   val animalJson4: Json = Json.parse(""" { "IDK": {} } """).toOption.get
 
-  
-  
   println()
   println(s"=====| Animal |=====")
   println()
