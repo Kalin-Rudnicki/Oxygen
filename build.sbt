@@ -329,6 +329,20 @@ lazy val `it`: Project =
       `sql-it`,
     )
 
+lazy val `examples`: CrossProject =
+  crossProject(JSPlatform, JVMPlatform, NativePlatform)
+    .crossType(CrossType.Pure)
+    .in(file("examples"))
+    .settings(
+      nonPublishedProjectSettings,
+      name := "oxygen-examples",
+      description := "oxygen-examples",
+    )
+    .dependsOn(
+      `oxygen-meta` % testAndCompile,
+      `oxygen-json` % testAndCompile,
+    )
+
 lazy val `sql-it`: Project =
   project
     .in(file("testing/integration-tests/sql-it"))
