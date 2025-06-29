@@ -23,6 +23,7 @@ private[generic] final case class Function(
 }
 private[generic] object Function extends Parser[Term, Function] {
 
+  // FIX-PRE-MERGE (KR) : remove
   final case class Param(
       name: String,
       tpe: TypeRepr,
@@ -38,33 +39,87 @@ private[generic] object Function extends Parser[Term, Function] {
 
   }
 
-  sealed trait RootParam {
+  sealed trait AnyParam {
+    def tree: Tree
+  }
+
+  sealed trait AccessibleParam extends AnyParam {
+    def name: String
+    def inTpe: TypeRepr
+    def outTpe: TypeRepr
+    final lazy val sym: Symbol = tree.symbol
+
+    protected def getTerm(term: Term)(using Quotes): Term
+
+    final def getExpr[Out: Type](in: Expr[?])(using Quotes): Expr[Out] = {
+      val fInTerm: Term = in.toTerm
+      val fInTpe: TypeRepr = fInTerm.tpe
+
+      if (!(fInTpe <:< inTpe))
+        report.errorAndAbort(
+          s"""AccessibleParam.getExpr received bad input.
+             |Expected input type: ${inTpe.showAnsiCode}
+             |Actual input type:   ${fInTpe.showAnsiCode}
+             |expr:
+             |${fInTerm.showAnsiCode}""".stripMargin,
+        )
+
+      val fOutTerm: Term = getTerm(fInTerm)
+      val fOutTpe: TypeRepr = fOutTerm.tpe
+
+      if (!(outTpe <:< fOutTpe))
+        report.errorAndAbort(
+          s"""AccessibleParam.getExpr generated bad output.
+             |Expected output type: ${outTpe.showAnsiCode}
+             |Actual output type:   ${fOutTpe.showAnsiCode}
+             |expr:
+             |${fOutTerm.showAnsiCode}""".stripMargin,
+        )
+
+      fOutTerm.asExprOf[Out]
+    }
+
+  }
+
+  sealed trait RootParam { self: AnyParam =>
 
     def valDef: ValDef
-
-    final def symbol: Symbol = valDef.symbol
+    final lazy val name: String = valDef.name
+    override final lazy val tree: Tree = valDef
+    final lazy val tpe: TypeRepr = valDef.tpt.tpe.widen
+    final lazy val inTpe: TypeRepr = tpe
+    final lazy val outTpe: TypeRepr = tpe
 
   }
   object RootParam {
 
-    final case class Ignored(valDef: ValDef) extends RootParam
+    final case class Ignored(valDef: ValDef) extends RootParam, AnyParam
 
-    final case class Named(valDef: ValDef) extends RootParam
+    final case class Named(valDef: ValDef) extends RootParam, AccessibleParam {
 
-    final case class TupleUnapply(valDef: ValDef, children: List[TupleUnapplyPart]) extends RootParam
-
-    sealed trait TupleUnapplyPart {
-
-      def tree: Tree
-
-      final def symbol: Symbol = tree.symbol
+      override protected def getTerm(term: Term)(using Quotes): Term =
+        term
 
     }
-    object TupleUnapplyPart {
 
-      final case class Ignored(tree: Tree) extends TupleUnapplyPart
+    final case class TupleUnapply(valDef: ValDef, children: List[TupleUnapplyPart]) extends RootParam, AnyParam
 
-      final case class Named(name: String, tpe: TypeRepr, tree: Tree, convert: Expr[Any] => Expr[Any]) extends TupleUnapplyPart
+  }
+
+  sealed trait TupleUnapplyPart { self: AnyParam =>
+    def parentValDef: ValDef
+  }
+  object TupleUnapplyPart {
+
+    final case class Ignored(parentValDef: ValDef, tree: Tree) extends TupleUnapplyPart, AnyParam
+
+    final case class Named(parentValDef: ValDef, name: String, tpe: TypeRepr, tree: Tree, idx: Int) extends TupleUnapplyPart, AccessibleParam {
+
+      override def inTpe: TypeRepr = parentValDef.tpt.tpe.widen
+      override def outTpe: TypeRepr = tpe.widen
+
+      override protected def getTerm(term: Term)(using Quotes): Term =
+        term.select(s"_${idx + 1}")
 
     }
 
@@ -73,10 +128,7 @@ private[generic] object Function extends Parser[Term, Function] {
   def showParams(params: List[Function.Param]): String =
     s"params(${params.map { p => s"\n  ${p.name}: ${p.tpe.showCode} <${p.tree.symbol.fullName}>," }.mkString}\n) "
 
-  private def makeTupleAccess(idx: Int)(using Quotes): Expr[Any] => Expr[Any] =
-    _.toTerm.select(s"_${idx + 1}").asExpr
-
-  private def extractMatch(valDef: ValDef, mat: Match)(using Quotes, ParseContext): ParseResult[(Function.RootParam, Term)] =
+  private def extractMatch(valDef: ValDef, mat: Match)(using ParseContext): ParseResult[(Function.RootParam, Term)] =
     for {
       caseDef <- mat.cases match {
         case kase :: Nil => ParseResult.Success(kase)
@@ -91,8 +143,8 @@ private[generic] object Function extends Parser[Term, Function] {
               case _                                                                        => ParseResult.error(fun, "unapply a non-tuple")
             }
             parts <- patterns.zipWithIndex.traverse {
-              case (bind @ Bind("_", _), _)                     => ParseResult.Success(Function.RootParam.TupleUnapplyPart.Ignored(bind))
-              case (bind @ Bind(name, ident @ Ident("_")), idx) => ParseResult.success(Function.RootParam.TupleUnapplyPart.Named(name, ident.tpe, bind, makeTupleAccess(idx)))
+              case (bind @ Bind("_", _), _)                     => ParseResult.Success(Function.TupleUnapplyPart.Ignored(valDef, bind))
+              case (bind @ Bind(name, ident @ Ident("_")), idx) => ParseResult.success(Function.TupleUnapplyPart.Named(valDef, name, ident.tpe, bind, idx))
               case (pat, _)                                     => ParseResult.error(pat, "invalid case pattern")
             }
           } yield Function.RootParam.TupleUnapply(valDef, parts)
@@ -104,7 +156,7 @@ private[generic] object Function extends Parser[Term, Function] {
     if (valDef.name == "_") Function.RootParam.Ignored(valDef)
     else Function.RootParam.Named(valDef)
 
-  private def mergeParamsAndRHS(tree: Tree, params: List[ValDef], rhs: Term)(using Quotes, ParseContext): ParseResult[(List[Function.RootParam], Term)] =
+  private def mergeParamsAndRHS(tree: Tree, params: List[ValDef], rhs: Term)(using ParseContext): ParseResult[(List[Function.RootParam], Term)] =
     (params, rhs) match {
       case (valDef :: Nil, mat: Match) => extractMatch(valDef, mat).map { case (p, t) => (p :: Nil, t) }
       case (_, _: Match)               => ParseResult.error(tree, "found match RHS with non-single param")
