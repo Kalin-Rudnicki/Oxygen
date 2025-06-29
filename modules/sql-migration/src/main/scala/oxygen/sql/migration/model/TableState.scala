@@ -118,7 +118,7 @@ final case class TableState private[migration] (
 }
 object TableState {
 
-  def fromTable(repr: TableRepr[?, ?]): Either[DeriveError, TableState] = {
+  def fromTable(repr: TableRepr[?]): Either[DeriveError, TableState] = {
     val ref = TableRef(repr.schemaName, repr.tableName)
     val cols: Contiguous[Column] = repr.rowRepr.columns.columns
 
@@ -132,7 +132,7 @@ object TableState {
       ).asRight
   }
 
-  def unsafeFromTable(repr: TableRepr[?, ?]): TableState = fromTable(repr) match
+  def unsafeFromTable(repr: TableRepr[?]): TableState = fromTable(repr) match
     case Right(value) => value
     case Left(error)  => throw error
 

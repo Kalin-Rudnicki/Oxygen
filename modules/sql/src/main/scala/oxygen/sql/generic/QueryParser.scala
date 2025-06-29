@@ -61,7 +61,7 @@ private[generic] object QueryParser {
 
   final case class Select(
       param: Function.Param,
-      schema: Expr[TableRepr[?, ?]],
+      schema: Expr[TableRepr[?]],
   )
   object Select extends QueryParser[Select] {
 
@@ -98,7 +98,7 @@ private[generic] object QueryParser {
       escapingParam: Function.Param,
       onParam: Function.Param,
       on: QueryExpr,
-      schema: Expr[TableRepr[?, ?]],
+      schema: Expr[TableRepr[?]],
   )
   object Join extends QueryParser[Join] {
 

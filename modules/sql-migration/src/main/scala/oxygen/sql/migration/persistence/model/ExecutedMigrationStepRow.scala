@@ -13,5 +13,5 @@ final case class ExecutedMigrationStepRow(
     sql: Option[String],
 )
 object ExecutedMigrationStepRow {
-  given tableRepr: TableRepr[ExecutedMigrationStepRow, (Int, Int)] = TableRepr.derived
+  given tableRepr: TableRepr.AuxPK[ExecutedMigrationStepRow, (Int, Int)] = TableRepr.derived[ExecutedMigrationStepRow]
 }

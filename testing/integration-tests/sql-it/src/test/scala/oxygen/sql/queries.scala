@@ -12,25 +12,26 @@ import scala.annotation.experimental
 @experimental
 object queries {
 
+  // @oxygen.meta.K0.annotation.showDerivation[TableRepr]
   final case class Person(
       @primaryKey id: UUID,
       first: String,
       last: String,
   )
   object Person {
-    given TableRepr[Person, UUID] = TableRepr.derived
+    given TableRepr.AuxPK[Person, UUID] = TableRepr.derived[Person]
   }
 
   //////////////////////////////////////////////////////////////////////////////////////////////////////
   //      Insert
   //////////////////////////////////////////////////////////////////////////////////////////////////////
 
-  @compile
-  val insert1: Query =
+  // @compile
+  val insert1: QueryI[Person] =
     for {
-      // inputPerson <- input[Person]
+      inputPerson <- input[Person]
       (_, into) <- insert[Person]
-      // _ <- into(inputPerson)
+      _ <- into(inputPerson)
     } yield ()
 
   // @compile
@@ -90,6 +91,14 @@ object queries {
       l <- input.const("last")
       p1 <- select[Person]
       _ <- where if p1.first == f && p1.last == l
+    } yield p1
+
+  // @compile
+  val select6: QueryIO[UUID, Person] =
+    for {
+      id <- input[UUID]
+      p1 <- select[Person]
+      _ <- where if p1.tablePK == id
     } yield p1
 
   //////////////////////////////////////////////////////////////////////////////////////////////////////

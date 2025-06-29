@@ -88,7 +88,7 @@ object MigrationState {
 
   val empty: MigrationState = MigrationState(Set(SchemaRef("public")), Map.empty)
 
-  def fromTables(schemas: Contiguous[TableRepr[?, ?]]): Either[DeriveError, MigrationState] =
+  def fromTables(schemas: Contiguous[TableRepr[?]]): Either[DeriveError, MigrationState] =
     schemas.traverse(TableState.fromTable).map { tables =>
       MigrationState(tables.map(_.tableName.schema).toSet + SchemaRef("public"), tables.map(t => (t.tableName, t)).toMap)
     }

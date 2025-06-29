@@ -11,5 +11,5 @@ final case class ExecutedMigrationRow(
     completedAt: Option[Instant],
 )
 object ExecutedMigrationRow {
-  given tableRepr: TableRepr[ExecutedMigrationRow, Int] = TableRepr.derived
+  given tableRepr: TableRepr.AuxPK[ExecutedMigrationRow, Int] = TableRepr.derived[ExecutedMigrationRow]
 }

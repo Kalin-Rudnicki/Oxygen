@@ -10,7 +10,7 @@ private[generic] enum QueryReference {
 
   // FIX-PRE-MERGE (KR) : [[idx]] needs to be removed
   case Input(param: Function.Param, idx: Option[Int])
-  case Query(param: Function.Param, schema: Expr[TableRepr[?, ?]], isRoot: Boolean)
+  case Query(param: Function.Param, schema: Expr[TableRepr[?]], isRoot: Boolean)
 
   final def show: String = this match
     case QueryReference.Input(param, idx)           => param.name.greenFg.toString

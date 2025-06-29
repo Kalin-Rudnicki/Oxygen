@@ -12,14 +12,22 @@ object Q {
     def const[I](i: I): T.ConstInput[I] = macroOnly
   }
 
-  def insert[A](using t: TableRepr[A, ?]): T.Insert[A] = macroOnly
-  def select[A](using t: TableRepr[A, ?]): T.Select[A] = macroOnly
-  def update[A](using t: TableRepr[A, ?]): T.Update[A] = macroOnly
-  def delete[A](using t: TableRepr[A, ?]): T.Delete[A] = macroOnly
+  def insert[A](using t: TableRepr[A]): T.Insert[A] = macroOnly
+  def select[A](using t: TableRepr[A]): T.Select[A] = macroOnly
+  def update[A](using t: TableRepr[A]): T.Update[A] = macroOnly
+  def delete[A](using t: TableRepr[A]): T.Delete[A] = macroOnly
 
   def where: T.Partial.Where = macroOnly
-  def join[A](using t: TableRepr[A, ?]): T.Partial.Join[A] = macroOnly
-  def leftJoin[A](using t: TableRepr[A, ?]): T.Partial.LeftJoin[A] = macroOnly
+  def join[A](using t: TableRepr[A]): T.Partial.Join[A] = macroOnly
+  def leftJoin[A](using t: TableRepr[A]): T.Partial.LeftJoin[A] = macroOnly
+
+  // TODO (KR) : support auto generated natural joins
+  // def natural: Boolean = macroOnly
+
+  extension [A](self: A) {
+    def tablePK(using ev: TableRepr[A]): ev.PrimaryKeyT = ev.pk.get(self)
+    def tableNPK(using ev: TableRepr[A]): ev.NonPrimaryKeyT = ev.npk.get(self)
+  }
 
   extension [A](self: A)
     def :=(value: A): T.Partial.SetValue =

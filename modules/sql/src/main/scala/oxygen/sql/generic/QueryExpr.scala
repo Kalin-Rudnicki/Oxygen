@@ -77,26 +77,26 @@ private[generic] object QueryExpr extends Parser[RawQueryExpr, QueryExpr] {
   }
 
   sealed trait QueryLike extends Unary {
-    val tableSchema: Expr[TableRepr[?, ?]]
+    val tableSchema: Expr[TableRepr[?]]
     def rowRepr(using Quotes): Expr[RowRepr[?]]
     val isRoot: Boolean
   }
   object QueryLike {
 
-    final case class Ref(term: Term, param: Function.Param, tableSchema: Expr[TableRepr[?, ?]], isRoot: Boolean) extends QueryLike {
+    final case class Ref(term: Term, param: Function.Param, tableSchema: Expr[TableRepr[?]], isRoot: Boolean) extends QueryLike {
       def rowRepr(using Quotes): Expr[RowRepr[?]] = '{ $tableSchema.rowRepr }
     }
 
     final case class ProductField(term: Term, inner: QueryLike, field: String) extends QueryLike {
       override val param: Function.Param = inner.param
-      override val tableSchema: Expr[TableRepr[?, ?]] = inner.tableSchema
+      override val tableSchema: Expr[TableRepr[?]] = inner.tableSchema
       override val isRoot: Boolean = inner.isRoot
       def rowRepr(using Quotes): Expr[RowRepr[?]] = productSchemaField(term, field, inner.rowRepr)
     }
 
     final case class OptionGet(term: Term, inner: QueryLike) extends QueryLike {
       override val param: Function.Param = inner.param
-      override val tableSchema: Expr[TableRepr[?, ?]] = inner.tableSchema
+      override val tableSchema: Expr[TableRepr[?]] = inner.tableSchema
       override val isRoot: Boolean = inner.isRoot
       def rowRepr(using Quotes): Expr[RowRepr[?]] = optionSchemaGet(term, inner.rowRepr)
     }
