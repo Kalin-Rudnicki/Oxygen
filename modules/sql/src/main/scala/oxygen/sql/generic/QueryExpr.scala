@@ -14,14 +14,14 @@ private[generic] sealed trait QueryExpr {
   val fullTerm: Term
 
   final def show: String = this match
-    case QueryExpr.InputLike.Ref(_, param)                     => param.name.hexFg("#F71735").toString
-    case QueryExpr.InputLike.ProductFieldSelect(select, inner) => s"${inner.show}.${select.name.cyanFg}"
-    case QueryExpr.QueryLike.Ref(_, param, _, true)            => param.name.hexFg("#A81ADB").toString
-    case QueryExpr.QueryLike.Ref(_, param, _, false)           => param.name.hexFg("#540D6E").toString
-    case QueryExpr.QueryLike.ProductFieldSelect(select, inner) => s"${inner.show}.${select.name.cyanFg}"
-    case QueryExpr.QueryLike.OptionGet(_, inner)               => s"${inner.show}.${"get".blueFg}"
-    case QueryExpr.AndOr(_, lhs, op, rhs)                      => s"${lhs.showWrapAndOr} ${op.show} ${rhs.showWrapAndOr}"
-    case comp: QueryExpr.Comp                                  => s"${comp.lhs.show} ${comp.op.show} ${comp.rhs.show}"
+    case QueryExpr.InputLike.QueryRefIdent(_, queryRef)                              => queryRef.show
+    case QueryExpr.InputLike.ProductFieldSelect(select, inner)                       => s"${inner.show}.${select.name.cyanFg}"
+    case QueryExpr.QueryLike.QueryRefIdent(_, QueryReference.Query(param, _, true))  => param.name.hexFg("#A81ADB").toString
+    case QueryExpr.QueryLike.QueryRefIdent(_, QueryReference.Query(param, _, false)) => param.name.hexFg("#540D6E").toString
+    case QueryExpr.QueryLike.ProductFieldSelect(select, inner)                       => s"${inner.show}.${select.name.cyanFg}"
+    case QueryExpr.QueryLike.OptionGet(_, inner)                                     => s"${inner.show}.${"get".blueFg}"
+    case QueryExpr.AndOr(_, lhs, op, rhs)                                            => s"${lhs.showWrapAndOr} ${op.show} ${rhs.showWrapAndOr}"
+    case comp: QueryExpr.Comp                                                        => s"${comp.lhs.show} ${comp.op.show} ${comp.rhs.show}"
 
   final def isAndOr: Boolean = this match
     case _: QueryExpr.AndOr => true
@@ -41,10 +41,10 @@ private[generic] object QueryExpr extends Parser[RawQueryExpr, QueryExpr] {
 
     override def parse(expr: RawQueryExpr.Unary)(using ParseContext, Quotes): ParseResult[QueryExpr.Unary] =
       expr match {
-        case RawQueryExpr.QueryRefIdent(term, QueryReference.Query(param, schema, isRoot)) =>
-          ParseResult.Success(QueryExpr.QueryLike.Ref(term, param, schema, isRoot))
-        case RawQueryExpr.QueryRefIdent(term, QueryReference.InputParam(param)) =>
-          ParseResult.Success(QueryExpr.InputLike.Ref(term, param))
+        case RawQueryExpr.QueryRefIdent(term, queryRef: QueryReference.Query) =>
+          ParseResult.Success(QueryExpr.QueryLike.QueryRefIdent(term, queryRef))
+        case RawQueryExpr.QueryRefIdent(term, queryRef: QueryReference.InputLike) =>
+          ParseResult.Success(QueryExpr.InputLike.QueryRefIdent(term, queryRef))
         case RawQueryExpr.ProductField(select, inner) =>
           parse(inner).map {
             case inner: QueryExpr.QueryLike => QueryExpr.QueryLike.ProductFieldSelect(select, inner)
@@ -62,10 +62,11 @@ private[generic] object QueryExpr extends Parser[RawQueryExpr, QueryExpr] {
   sealed trait InputLike extends Unary, TermTransformer
   object InputLike {
 
-    final case class Ref(ident: Ident, param: Function.Param) extends InputLike {
+    final case class QueryRefIdent(ident: Ident, queryRef: QueryReference.InputLike) extends InputLike {
       override val fullTerm: Term = ident
-      override val inTpe: TypeRepr = param.inTpe
-      override val outTpe: TypeRepr = param.outTpe
+      override val param: Function.Param = queryRef.param
+      override val inTpe: TypeRepr = queryRef.param.inTpe
+      override val outTpe: TypeRepr = queryRef.param.outTpe
       override protected def convertTermInternal(term: Term)(using Quotes): Term = param.convertTerm(term)
     }
 
@@ -86,8 +87,11 @@ private[generic] object QueryExpr extends Parser[RawQueryExpr, QueryExpr] {
   }
   object QueryLike {
 
-    final case class Ref(ident: Ident, param: Function.Param, tableRepr: Expr[TableRepr[?]], isRoot: Boolean) extends QueryLike {
+    final case class QueryRefIdent(ident: Ident, queryRef: QueryReference.Query) extends QueryLike {
       override val fullTerm: Term = ident
+      override val param: Function.Param = queryRef.param
+      override val tableRepr: Expr[TableRepr[?]] = queryRef.tableRepr
+      override val isRoot: Boolean = queryRef.isRoot
       def rowRepr(using Quotes): Expr[RowRepr[?]] = '{ $tableRepr.rowRepr }
     }
 
