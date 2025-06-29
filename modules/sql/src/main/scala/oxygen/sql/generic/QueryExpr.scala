@@ -59,17 +59,15 @@ private[generic] object QueryExpr extends Parser[RawQueryExpr, QueryExpr] {
   object InputLike {
 
     final case class Ref(term: Term, param: Function.Param) extends InputLike {
-      override def inTpe: TypeRepr = param.inTpe
-      override def outTpe: TypeRepr = param.outTpe
+      override val inTpe: TypeRepr = param.inTpe
+      override val outTpe: TypeRepr = param.outTpe
       override protected def convertTermInternal(term: Term)(using Quotes): Term = param.convertTerm(term)
     }
 
     final case class ProductFieldSelect(term: Term, inner: InputLike, selectSym: Symbol, selectReturnType: TypeRepr) extends InputLike {
       override val param: Function.Param = inner.param
-      val selectName: String = selectSym.name
-
-      override def inTpe: TypeRepr = inner.inTpe
-      override def outTpe: TypeRepr = selectReturnType
+      override val inTpe: TypeRepr = inner.inTpe
+      override val outTpe: TypeRepr = selectReturnType
       override protected def convertTermInternal(term: Term)(using Quotes): Term = term.select(selectSym)
     }
 
@@ -112,9 +110,9 @@ private[generic] object QueryExpr extends Parser[RawQueryExpr, QueryExpr] {
     val rhs: Unary
   }
   object Comp {
-    final case class Case1(term: Term, lhs: QueryLike, op: BinOp.Comp, rhs: QueryLike) extends Comp
-    final case class Case2(term: Term, lhs: QueryLike, op: BinOp.Comp, rhs: InputLike) extends Comp
-    final case class Case3(term: Term, lhs: InputLike, op: BinOp.Comp, rhs: QueryLike) extends Comp
+    final case class QueryQuery(term: Term, lhs: QueryLike, op: BinOp.Comp, rhs: QueryLike) extends Comp
+    final case class QueryInput(term: Term, lhs: QueryLike, op: BinOp.Comp, rhs: InputLike) extends Comp
+    final case class InputQuery(term: Term, lhs: InputLike, op: BinOp.Comp, rhs: QueryLike) extends Comp
   }
 
   override def parse(expr: RawQueryExpr)(using ParseContext, Quotes): ParseResult[QueryExpr] =
@@ -134,9 +132,9 @@ private[generic] object QueryExpr extends Parser[RawQueryExpr, QueryExpr] {
           lhs <- Unary.parse(lhs)
           rhs <- Unary.parse(rhs)
           expr <- (lhs, rhs) match {
-            case (lhs: QueryLike, rhs: QueryLike) => ParseResult.Success(Comp.Case1(term, lhs, op, rhs))
-            case (lhs: QueryLike, rhs: InputLike) => ParseResult.Success(Comp.Case2(term, lhs, op, rhs))
-            case (lhs: InputLike, rhs: QueryLike) => ParseResult.Success(Comp.Case3(term, lhs, op, rhs))
+            case (lhs: QueryLike, rhs: QueryLike) => ParseResult.Success(Comp.QueryQuery(term, lhs, op, rhs))
+            case (lhs: QueryLike, rhs: InputLike) => ParseResult.Success(Comp.QueryInput(term, lhs, op, rhs))
+            case (lhs: InputLike, rhs: QueryLike) => ParseResult.Success(Comp.InputQuery(term, lhs, op, rhs))
             case (_: InputLike, _: InputLike)     => ParseResult.error(term, "can not compare 2 inputs")
           }
         } yield expr
@@ -147,18 +145,18 @@ private[generic] object QueryExpr extends Parser[RawQueryExpr, QueryExpr] {
         } yield QueryExpr.AndOr(term, lhs, op, rhs)
     }
 
-  private def productSchemaField(term: Term, field: String, schema: Expr[RowRepr[?]])(using Quotes): Expr[RowRepr[?]] = {
+  private def productSchemaField(term: Term, field: String, rowRepr: Expr[RowRepr[?]])(using Quotes): Expr[RowRepr[?]] = {
     type T
     given Type[T] = term.tpe.widen.asTypeOf
 
-    '{ $schema.unsafeChild[T](${ Expr(field) }) }
+    '{ $rowRepr.unsafeChild[T](${ Expr(field) }) }
   }
 
-  private def optionSchemaGet(term: Term, schema: Expr[RowRepr[?]])(using Quotes): Expr[RowRepr[?]] = {
+  private def optionSchemaGet(term: Term, rowRepr: Expr[RowRepr[?]])(using Quotes): Expr[RowRepr[?]] = {
     type T
     given Type[T] = term.tpe.widen.asTypeOf
 
-    '{ $schema.unsafeRequired[T] }
+    '{ $rowRepr.unsafeRequired[T] }
   }
 
 }

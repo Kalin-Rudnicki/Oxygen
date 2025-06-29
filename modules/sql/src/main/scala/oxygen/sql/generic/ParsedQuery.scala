@@ -5,8 +5,7 @@ import scala.quoted.*
 
 private[sql] sealed trait ParsedQuery {
 
-  def toTerm(using Quotes): Term =
-    report.errorAndAbort("TODO : ParsedQuery.toTerm")
+  def toTerm(using Quotes): Term
 
 }
 private[sql] object ParsedQuery extends Parser[Term, ParsedQuery] {
@@ -16,7 +15,12 @@ private[sql] object ParsedQuery extends Parser[Term, ParsedQuery] {
       insert: QueryParser.Insert,
       into: QueryParser.Into,
       ret: QueryParser.Returning,
-  ) extends ParsedQuery
+  ) extends ParsedQuery {
+
+    override def toTerm(using Quotes): Term =
+      report.errorAndAbort("TODO : ParsedQuery.InsertQuery.toTerm")
+
+  }
 
   final case class SelectQuery(
       inputs: List[QueryParser.Input],
@@ -24,7 +28,12 @@ private[sql] object ParsedQuery extends Parser[Term, ParsedQuery] {
       joins: List[QueryParser.Join],
       where: Option[QueryParser.Where],
       ret: QueryParser.Returning,
-  ) extends ParsedQuery
+  ) extends ParsedQuery {
+
+    override def toTerm(using Quotes): Term =
+      report.errorAndAbort("TODO : ParsedQuery.SelectQuery.toTerm")
+
+  }
 
   final case class UpdateQuery(
       inputs: List[QueryParser.Input],
@@ -33,7 +42,12 @@ private[sql] object ParsedQuery extends Parser[Term, ParsedQuery] {
       where: Option[QueryParser.Where],
       set: QueryParser.Set,
       ret: QueryParser.Returning,
-  ) extends ParsedQuery
+  ) extends ParsedQuery {
+
+    override def toTerm(using Quotes): Term =
+      report.errorAndAbort("TODO : ParsedQuery.UpdateQuery.toTerm")
+
+  }
 
   final case class DeleteQuery(
       inputs: List[QueryParser.Input],
@@ -41,7 +55,12 @@ private[sql] object ParsedQuery extends Parser[Term, ParsedQuery] {
       joins: List[QueryParser.Join],
       where: Option[QueryParser.Where],
       ret: QueryParser.Returning,
-  ) extends ParsedQuery
+  ) extends ParsedQuery {
+
+    override def toTerm(using Quotes): Term =
+      report.errorAndAbort("TODO : ParsedQuery.DeleteQuery.toTerm")
+
+  }
 
   override def parse(input: Term)(using ParseContext, Quotes): ParseResult[ParsedQuery] =
     QueryParser.finished.parse(input).map {

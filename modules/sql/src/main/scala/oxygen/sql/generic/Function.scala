@@ -11,8 +11,9 @@ private[generic] final case class Function(
 ) {
 
   def parseEmptyParams(using ParseContext): ParseResult.Known[Unit] = params match
-    case Nil => ParseResult.Success(())
-    case _   => ParseResult.error(body, s"expected single function param, but got ${params.size} - ${params.map(_.name).mkString(", ")}") // TODO (KR) : whole function pos
+    case Nil                                    => ParseResult.Success(())
+    case (_: Function.RootParam.Ignored) :: Nil => ParseResult.Success(())
+    case _                                      => ParseResult.error(body, s"expected single function param, but got\n$this") // TODO (KR) : whole function pos
 
   def parseParam1(using ParseContext): ParseResult.Known[Function.Param] = params match
     case (p1: Function.RootParam.Named) :: Nil => ParseResult.Success(p1)
