@@ -8,13 +8,12 @@ private[generic] enum QueryReference {
 
   val param: Function.Param
 
-  // FIX-PRE-MERGE (KR) : [[idx]] needs to be removed
-  case Input(param: Function.Param, idx: Option[Int])
-  case Query(param: Function.Param, schema: Expr[TableRepr[?]], isRoot: Boolean)
+  case Input(param: Function.Param)
+  case Query(param: Function.Param, tableRepr: Expr[TableRepr[?]], isRoot: Boolean)
 
   final def show: String = this match
-    case QueryReference.Input(param, idx)           => param.name.greenFg.toString
-    case QueryReference.Query(param, schema, true)  => param.name.hexFg("#7EB77F").toString
-    case QueryReference.Query(param, schema, false) => param.name.hexFg("#FFADC6").toString
+    case QueryReference.Input(param)           => param.name.greenFg.toString
+    case QueryReference.Query(param, _, true)  => param.name.hexFg("#7EB77F").toString
+    case QueryReference.Query(param, _, false) => param.name.hexFg("#FFADC6").toString
 
 }

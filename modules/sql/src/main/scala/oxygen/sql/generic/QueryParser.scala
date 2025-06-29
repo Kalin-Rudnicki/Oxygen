@@ -35,7 +35,7 @@ private[generic] object QueryParser {
         p1 <- f1Function.parseSingleParam
         f1Name <- functionNames.mapOrFlatMap.parse(f1Name).unknownAsError
 
-        newRefs = refs.add(p1.tree.symbol -> QueryReference.Input(p1, None))
+        newRefs = refs.add(p1.tree.symbol -> QueryReference.Input(p1))
         input = expr match {
           case Some(term) => Const(term, p1)
           case None       => Param(p1)

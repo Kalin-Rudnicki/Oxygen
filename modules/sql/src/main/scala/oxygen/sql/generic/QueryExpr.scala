@@ -1,7 +1,6 @@
 package oxygen.sql.generic
 
 import oxygen.predef.color.given
-import oxygen.predef.core.*
 import oxygen.quoted.*
 import oxygen.sql.schema.*
 import scala.quoted.*
@@ -11,14 +10,14 @@ private[generic] sealed trait QueryExpr {
   val term: Term
 
   final def show: String = this match
-    case QueryExpr.InputLike.Ref(_, param, _)                 => param.name.hexFg("#F71735").toString
-    case QueryExpr.InputLike.ProductField(_, inner, field, _) => s"${inner.show}.${field.cyanFg}"
-    case QueryExpr.QueryLike.Ref(_, param, _, true)           => param.name.hexFg("#A81ADB").toString
-    case QueryExpr.QueryLike.Ref(_, param, _, false)          => param.name.hexFg("#540D6E").toString
-    case QueryExpr.QueryLike.ProductField(_, inner, field)    => s"${inner.show}.${field.cyanFg}"
-    case QueryExpr.QueryLike.OptionGet(_, inner)              => s"${inner.show}.${"get".blueFg}"
-    case QueryExpr.AndOr(_, lhs, op, rhs)                     => s"${lhs.showWrapAndOr} ${op.show} ${rhs.showWrapAndOr}"
-    case comp: QueryExpr.Comp                                 => s"${comp.lhs.show} ${comp.op.show} ${comp.rhs.show}"
+    case QueryExpr.InputLike.Ref(_, param)                              => param.name.hexFg("#F71735").toString
+    case QueryExpr.InputLike.ProductFieldSelect(_, inner, field, _)     => s"${inner.show}.${field.name.cyanFg}"
+    case QueryExpr.QueryLike.Ref(_, param, _, true)                     => param.name.hexFg("#A81ADB").toString
+    case QueryExpr.QueryLike.Ref(_, param, _, false)                    => param.name.hexFg("#540D6E").toString
+    case QueryExpr.QueryLike.ProductFieldSelect(_, inner, selectSym, _) => s"${inner.show}.${selectSym.name.cyanFg}"
+    case QueryExpr.QueryLike.OptionGet(_, inner)                        => s"${inner.show}.${"get".blueFg}"
+    case QueryExpr.AndOr(_, lhs, op, rhs)                               => s"${lhs.showWrapAndOr} ${op.show} ${rhs.showWrapAndOr}"
+    case comp: QueryExpr.Comp                                           => s"${comp.lhs.show} ${comp.op.show} ${comp.rhs.show}"
 
   final def isAndOr: Boolean = this match
     case _: QueryExpr.AndOr => true
@@ -40,12 +39,12 @@ private[generic] object QueryExpr extends Parser[RawQueryExpr, QueryExpr] {
       expr match {
         case RawQueryExpr.Ref(term, QueryReference.Query(param, schema, isRoot)) =>
           ParseResult.Success(QueryExpr.QueryLike.Ref(term, param, schema, isRoot))
-        case RawQueryExpr.Ref(term, QueryReference.Input(param, idx)) =>
-          ParseResult.Success(QueryExpr.InputLike.Ref(term, param, idx))
-        case RawQueryExpr.ProductField(term, ref, field, access) =>
+        case RawQueryExpr.Ref(term, QueryReference.Input(param)) =>
+          ParseResult.Success(QueryExpr.InputLike.Ref(term, param))
+        case RawQueryExpr.ProductField(term, ref, selectSym, selectReturnType) =>
           parse(ref).map {
-            case ref: QueryExpr.QueryLike => QueryExpr.QueryLike.ProductField(term, ref, field)
-            case ref: QueryExpr.InputLike => QueryExpr.InputLike.ProductField(term, ref, field, access)
+            case ref: QueryExpr.QueryLike => QueryExpr.QueryLike.ProductFieldSelect(term, ref, selectSym, selectReturnType)
+            case ref: QueryExpr.InputLike => QueryExpr.InputLike.ProductFieldSelect(term, ref, selectSym, selectReturnType)
           }
         case RawQueryExpr.OptionGet(term, ref) =>
           parse(ref).flatMap {
@@ -56,47 +55,47 @@ private[generic] object QueryExpr extends Parser[RawQueryExpr, QueryExpr] {
 
   }
 
-  sealed trait InputLike extends Unary {
-    val idx: Option[Int]
-    def fromInput(using Quotes): Option[Expr[Any] => Expr[Any]]
-  }
+  sealed trait InputLike extends Unary, TermTransformer
   object InputLike {
 
-    final case class Ref(term: Term, param: Function.Param, idx: Option[Int]) extends InputLike {
-      override def fromInput(using Quotes): Option[Expr[Any] => Expr[Any]] = param.fromInput
+    final case class Ref(term: Term, param: Function.Param) extends InputLike {
+      override def inTpe: TypeRepr = param.inTpe
+      override def outTpe: TypeRepr = param.outTpe
+      override def convertTerm(term: Term)(using Quotes): Term = param.convertTerm(term)
     }
 
-    final case class ProductField(term: Term, inner: InputLike, field: String, access: Expr[Any] => Expr[Any]) extends InputLike {
+    final case class ProductFieldSelect(term: Term, inner: InputLike, selectSym: Symbol, selectReturnType: TypeRepr) extends InputLike {
       override val param: Function.Param = inner.param
-      override val idx: Option[Int] = inner.idx
-      override def fromInput(using Quotes): Option[Expr[Any] => Expr[Any]] = inner.fromInput match
-        case Some(innerF) => Some { i => access(innerF(i)) }
-        case None         => access.some
+      val selectName: String = selectSym.name
+
+      override def inTpe: TypeRepr = inner.inTpe
+      override def outTpe: TypeRepr = selectReturnType
+      override def convertTerm(term: Term)(using Quotes): Term = term.select(selectSym)
     }
 
   }
 
   sealed trait QueryLike extends Unary {
-    val tableSchema: Expr[TableRepr[?]]
+    val tableRepr: Expr[TableRepr[?]]
     def rowRepr(using Quotes): Expr[RowRepr[?]]
     val isRoot: Boolean
   }
   object QueryLike {
 
-    final case class Ref(term: Term, param: Function.Param, tableSchema: Expr[TableRepr[?]], isRoot: Boolean) extends QueryLike {
-      def rowRepr(using Quotes): Expr[RowRepr[?]] = '{ $tableSchema.rowRepr }
+    final case class Ref(term: Term, param: Function.Param, tableRepr: Expr[TableRepr[?]], isRoot: Boolean) extends QueryLike {
+      def rowRepr(using Quotes): Expr[RowRepr[?]] = '{ $tableRepr.rowRepr }
     }
 
-    final case class ProductField(term: Term, inner: QueryLike, field: String) extends QueryLike {
+    final case class ProductFieldSelect(term: Term, inner: QueryLike, selectSym: Symbol, selectReturnType: TypeRepr) extends QueryLike {
       override val param: Function.Param = inner.param
-      override val tableSchema: Expr[TableRepr[?]] = inner.tableSchema
+      override val tableRepr: Expr[TableRepr[?]] = inner.tableRepr
       override val isRoot: Boolean = inner.isRoot
-      def rowRepr(using Quotes): Expr[RowRepr[?]] = productSchemaField(term, field, inner.rowRepr)
+      def rowRepr(using Quotes): Expr[RowRepr[?]] = productSchemaField(term, selectSym.name, inner.rowRepr)
     }
 
     final case class OptionGet(term: Term, inner: QueryLike) extends QueryLike {
       override val param: Function.Param = inner.param
-      override val tableSchema: Expr[TableRepr[?]] = inner.tableSchema
+      override val tableRepr: Expr[TableRepr[?]] = inner.tableRepr
       override val isRoot: Boolean = inner.isRoot
       def rowRepr(using Quotes): Expr[RowRepr[?]] = optionSchemaGet(term, inner.rowRepr)
     }

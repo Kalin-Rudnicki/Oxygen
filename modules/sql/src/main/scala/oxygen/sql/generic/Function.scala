@@ -6,7 +6,7 @@ import scala.quoted.*
 
 private[generic] final case class Function(
     rootTree: Tree,
-    params: List[Function.Param],
+    params: List[Function.RootParam],
     body: Term,
 ) {
 
@@ -15,73 +15,39 @@ private[generic] final case class Function(
     case _   => ParseResult.error(body, s"expected single function param, but got ${params.size} - ${params.map(_.name).mkString(", ")}") // TODO (KR) : whole function pos
 
   def parseSingleParam(using ParseContext): ParseResult.Known[Function.Param] = params match
-    case p :: Nil => ParseResult.Success(p)
-    case _        => ParseResult.error(body, s"expected single function param, but got ${params.size} - ${params.map(_.name).mkString(", ")}") // TODO (KR) : whole function pos
+    case (p: Function.RootParam.Named) :: Nil => ParseResult.Success(p)
+    case _ => ParseResult.error(body, s"expected single function param, but got ${params.size} - ${params.map(_.name).mkString(", ")}") // TODO (KR) : whole function pos
 
-  def showParams: String = Function.showParams(params)
+  def toIndentedString: IndentedString =
+    IndentedString.section("Function:")(
+      Function.showParams(params),
+    )
+
+  override def toString: String =
+    toIndentedString.toStringColorized
 
 }
 private[generic] object Function extends Parser[Term, Function] {
 
-  // FIX-PRE-MERGE (KR) : remove
-  final case class Param(
-      name: String,
-      tpe: TypeRepr,
-      tree: Tree,
-      fromInput: Option[Expr[Any] => Expr[Any]],
-  ) {
-
-    def toIndentedString: IndentedString =
-      IndentedString.section("Param:")(
-        s"name: $name",
-        s"type: ${tpe.showCode}",
-      )
-
-  }
-
+  /**
+    * Represents any kind of function param, whether it can be referenced/used, or not.
+    */
   sealed trait AnyParam {
     def tree: Tree
+
+    def toIndentedString: IndentedString
+    override final def toString: String = toIndentedString.toStringColorized
   }
 
-  sealed trait AccessibleParam extends AnyParam {
+  /**
+    * Represents a function param that can be referenced and used.
+    */
+  sealed trait Param extends AnyParam, TermTransformer {
     def name: String
-    def inTpe: TypeRepr
-    def outTpe: TypeRepr
     final lazy val sym: Symbol = tree.symbol
-
-    protected def getTerm(term: Term)(using Quotes): Term
-
-    final def getExpr[Out: Type](in: Expr[?])(using Quotes): Expr[Out] = {
-      val fInTerm: Term = in.toTerm
-      val fInTpe: TypeRepr = fInTerm.tpe
-
-      if (!(fInTpe <:< inTpe))
-        report.errorAndAbort(
-          s"""AccessibleParam.getExpr received bad input.
-             |Expected input type: ${inTpe.showAnsiCode}
-             |Actual input type:   ${fInTpe.showAnsiCode}
-             |expr:
-             |${fInTerm.showAnsiCode}""".stripMargin,
-        )
-
-      val fOutTerm: Term = getTerm(fInTerm)
-      val fOutTpe: TypeRepr = fOutTerm.tpe
-
-      if (!(outTpe <:< fOutTpe))
-        report.errorAndAbort(
-          s"""AccessibleParam.getExpr generated bad output.
-             |Expected output type: ${outTpe.showAnsiCode}
-             |Actual output type:   ${fOutTpe.showAnsiCode}
-             |expr:
-             |${fOutTerm.showAnsiCode}""".stripMargin,
-        )
-
-      fOutTerm.asExprOf[Out]
-    }
-
   }
 
-  sealed trait RootParam { self: AnyParam =>
+  sealed trait RootParam extends AnyParam {
 
     def valDef: ValDef
     final lazy val name: String = valDef.name
@@ -90,15 +56,25 @@ private[generic] object Function extends Parser[Term, Function] {
     final lazy val inTpe: TypeRepr = tpe
     final lazy val outTpe: TypeRepr = tpe
 
+    override final def toIndentedString: IndentedString =
+      this match {
+        case RootParam.Ignored(_) =>
+          IndentedString.keyValueSection("RootParam.Ignored")("tpe: " -> tpe.showAnsiCode)
+        case RootParam.Named(_) =>
+          IndentedString.keyValueSection("RootParam.Named")("name: " -> name, "tpe: " -> tpe.showAnsiCode)
+        case RootParam.TupleUnapply(_, children) =>
+          val childrenIdt: IndentedString = IndentedString.inline(children.map(_.toIndentedString)*)
+          IndentedString.keyValueSection("RootParam.Ignored")("name: " -> name, "tpe: " -> tpe.showAnsiCode, "children: " -> childrenIdt)
+      }
+
   }
   object RootParam {
 
     final case class Ignored(valDef: ValDef) extends RootParam, AnyParam
 
-    final case class Named(valDef: ValDef) extends RootParam, AccessibleParam {
+    final case class Named(valDef: ValDef) extends RootParam, Param {
 
-      override protected def getTerm(term: Term)(using Quotes): Term =
-        term
+      override def convertTerm(term: Term)(using Quotes): Term = term
 
     }
 
@@ -106,27 +82,35 @@ private[generic] object Function extends Parser[Term, Function] {
 
   }
 
-  sealed trait TupleUnapplyPart { self: AnyParam =>
+  sealed trait TupleUnapplyPart extends AnyParam {
     def parentValDef: ValDef
+
+    override final def toIndentedString: IndentedString =
+      this match {
+        case TupleUnapplyPart.Ignored(_, _, idx) =>
+          IndentedString.keyValueSection("TupleUnapplyPart.Ignored")("idx: " -> idx.toString)
+        case TupleUnapplyPart.Named(_, name, tpe, _, idx) =>
+          IndentedString.keyValueSection("TupleUnapplyPart.Ignored")("name: " -> name, "tpe: " -> tpe.showAnsiCode, "idx: " -> idx.toString)
+      }
+
   }
   object TupleUnapplyPart {
 
-    final case class Ignored(parentValDef: ValDef, tree: Tree) extends TupleUnapplyPart, AnyParam
+    final case class Ignored(parentValDef: ValDef, tree: Tree, idx: Int) extends TupleUnapplyPart, AnyParam
 
-    final case class Named(parentValDef: ValDef, name: String, tpe: TypeRepr, tree: Tree, idx: Int) extends TupleUnapplyPart, AccessibleParam {
+    final case class Named(parentValDef: ValDef, name: String, tpe: TypeRepr, tree: Tree, idx: Int) extends TupleUnapplyPart, Param {
 
       override def inTpe: TypeRepr = parentValDef.tpt.tpe.widen
       override def outTpe: TypeRepr = tpe.widen
 
-      override protected def getTerm(term: Term)(using Quotes): Term =
-        term.select(s"_${idx + 1}")
+      override def convertTerm(term: Term)(using Quotes): Term = term.select(s"_${idx + 1}")
 
     }
 
   }
 
-  def showParams(params: List[Function.Param]): String =
-    s"params(${params.map { p => s"\n  ${p.name}: ${p.tpe.showCode} <${p.tree.symbol.fullName}>," }.mkString}\n) "
+  def showParams(params: List[Function.RootParam]): IndentedString =
+    IndentedString.section("params:")(params.map(_.toIndentedString)*)
 
   private def extractMatch(valDef: ValDef, mat: Match)(using ParseContext): ParseResult[(Function.RootParam, Term)] =
     for {
@@ -143,9 +127,9 @@ private[generic] object Function extends Parser[Term, Function] {
               case _                                                                        => ParseResult.error(fun, "unapply a non-tuple")
             }
             parts <- patterns.zipWithIndex.traverse {
-              case (bind @ Bind("_", _), _)                     => ParseResult.Success(Function.TupleUnapplyPart.Ignored(valDef, bind))
+              case (bind @ Bind("_", _), idx)                   => ParseResult.Success(Function.TupleUnapplyPart.Ignored(valDef, bind, idx))
               case (bind @ Bind(name, ident @ Ident("_")), idx) => ParseResult.success(Function.TupleUnapplyPart.Named(valDef, name, ident.tpe, bind, idx))
-              case (pat, _)                                     => ParseResult.error(pat, "invalid case pattern")
+              case (pat, idx)                                   => ParseResult.error(pat, s"invalid case pattern @ idx=$idx")
             }
           } yield Function.RootParam.TupleUnapply(valDef, parts)
         case _ => ParseResult.error(caseDef, "unable to parse match case")

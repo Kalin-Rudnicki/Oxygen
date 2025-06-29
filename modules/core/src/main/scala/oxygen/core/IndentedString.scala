@@ -137,9 +137,16 @@ object IndentedString {
   def section(header: String)(body: IndentedString*): IndentedString =
     IndentedString.inline(header, IndentedString.indented(body*))
 
-  def keyValue(key: String, value: String): IndentedString =
-    if (value.contains('\n')) IndentedString.section(key)(value)
-    else s"$key$value"
+  def keyValue(key: String, value: String | IndentedString): IndentedString =
+    value match {
+      case value: String if !value.contains('\n')             => s"$key$value"
+      case IndentedString.Str(value) if !value.contains('\n') => s"$key$value"
+      case value: String                                      => IndentedString.section(key)(value)
+      case value: IndentedString                              => IndentedString.section(key)(value)
+    }
+
+  def keyValueSection(header: String)(keyValues: (String, String | IndentedString)*): IndentedString =
+    IndentedString.section(header)(keyValues.map(keyValue(_, _)))
 
   def fromAny(any: Any)(show: PartialFunction[Matchable, IndentedString]): IndentedString = fromAny(any, show.lift)
   def fromAny(any: Any): IndentedString = fromAny(any, _ => None)

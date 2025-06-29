@@ -15,7 +15,7 @@ private[generic] sealed trait RawQueryExpr {
 
   final def show: String = this match {
     case RawQueryExpr.Ref(_, ref)                                   => ref.show
-    case RawQueryExpr.ProductField(_, ref, field, _)                => s"${ref.show}.${field.magentaFg}"
+    case RawQueryExpr.ProductField(_, ref, selectSym, _)            => s"${ref.show}.${selectSym.name.magentaFg}"
     case RawQueryExpr.OptionGet(_, ref)                             => s"${ref.show}.${"get".hexFg("#35A7FF")}"
     case bin: RawQueryExpr.Binary if bin.lhs.isBin || bin.rhs.isBin => s"(${bin.lhs.show}) ${bin.op.show} (${bin.rhs.show})"
     case bin: RawQueryExpr.Binary                                   => s"${bin.lhs.show} ${bin.op.show} ${bin.rhs.show}"
@@ -36,7 +36,7 @@ private[generic] object RawQueryExpr extends Parser[(Term, RefMap), RawQueryExpr
   }
 
   final case class Ref(term: Term, ref: QueryReference) extends RawQueryExpr.Unary
-  final case class ProductField(term: Term, ref: RawQueryExpr.Unary, field: String, access: Expr[Any] => Expr[Any]) extends RawQueryExpr.Unary
+  final case class ProductField(term: Term, ref: RawQueryExpr.Unary, selectSym: Symbol, selectReturnType: TypeRepr) extends RawQueryExpr.Unary
   final case class OptionGet(term: Term, ref: RawQueryExpr.Unary) extends RawQueryExpr.Unary
 
   final case class Binary(term: Term, lhs: RawQueryExpr, op: BinOp, rhs: RawQueryExpr) extends RawQueryExpr
@@ -50,25 +50,26 @@ private[generic] object RawQueryExpr extends Parser[(Term, RefMap), RawQueryExpr
 
   }
 
-  private object parseProductField extends Parser[Select, (Term, String, Expr[Any] => Expr[Any])] {
+  private object parseProductField extends Parser[Select, (Term, Symbol, TypeRepr)] {
 
-    override def parse(term: Select)(using ParseContext, Quotes): ParseResult[(Term, String, Expr[Any] => Expr[Any])] =
+    override def parse(term: Select)(using ParseContext, Quotes): ParseResult[(Term, Symbol, TypeRepr)] =
       term match {
         case Select(lhs, funct) =>
+          val lhsTpe: TypeRepr = lhs.tpe.widen
           type T
-          given Type[T] = lhs.tpe.widen.asTypeOf
+          given Type[T] = lhsTpe.asTypeOf
 
           // TODO (KR) : consider requiring an `extends Column.Product`
 
           for {
             gen <-
-              if (TypeRepr.of[T].typeTypeCase.nonEmpty) ParseResult.Success(K0.ProductGeneric.of[T](K0.Derivable.Config()))
-              else ParseResult.unknown(lhs, "no product generic")
-            field <- gen.fields.iterator.find(_.name == funct) match {
+              if (lhsTpe.typeTypeCase.nonEmpty) ParseResult.Success(K0.ProductGeneric.of[T](K0.Derivable.Config()))
+              else ParseResult.unknown(lhs, s"not a product type (${lhsTpe.showAnsiCode})")
+            _ <- gen.fields.iterator.find(_.name == funct) match {
               case Some(field) => ParseResult.Success(field)
               case None        => ParseResult.error(term, s"not a product field: $funct")
             }
-          } yield (lhs, funct, field.fromParent.asInstanceOf[Expr[Any] => Expr[Any]])
+          } yield (lhs, term.symbol, term.tpe)
       }
 
   }
@@ -97,9 +98,9 @@ private[generic] object RawQueryExpr extends Parser[(Term, RefMap), RawQueryExpr
         } yield OptionGet(rootTerm, expr)
       case parseProductField.optional(res) =>
         for {
-          (term, field, access) <- res
+          (term, selectSym, selectReturnType) <- res
           expr <- Unary.parse((term, refs))
-        } yield ProductField(rootTerm, expr, field, access)
+        } yield ProductField(rootTerm, expr, selectSym, selectReturnType)
       case singleApply(select @ Select(lhs, op), rhs) =>
         for {
           op <- op match
