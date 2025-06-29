@@ -41,21 +41,24 @@ private[generic] object RawQueryExpr extends Parser[(Term, RefMap), RawQueryExpr
 
   /**
     * An [[Ident]] which points at the given [[QueryReference]].
-    * val a: _ = ???
+    * val a: ? = ???
     * `a`
     */
   final case class QueryRefIdent(ident: Ident, queryRef: QueryReference) extends RawQueryExpr.Unary {
     override val fullTerm: Term = ident
   }
-  object QueryRefIdent extends Parser[(Ident, RefMap), QueryRefIdent] {
+  object QueryRefIdent extends Parser[(Term, RefMap), QueryRefIdent] {
 
-    override def parse(input: (Ident, RefMap))(using ParseContext, Quotes): ParseResult[QueryRefIdent] = {
-      val (ident, refs) = input
-      refs.get(ident.symbol) match {
-        case Some(ref) => ParseResult.Success(QueryRefIdent(ident, ref))
-        case None      => ParseResult.error(ident, "not an input or query param")
+    override def parse(input: (Term, RefMap))(using ParseContext, Quotes): ParseResult[QueryRefIdent] =
+      input match {
+        case (ident: Ident, refs) =>
+          refs.get(ident.symbol) match {
+            case Some(ref) => ParseResult.Success(QueryRefIdent(ident, ref))
+            case None      => ParseResult.error(ident, "not an input or query param")
+          }
+        case (term, _) =>
+          ParseResult.unknown(term, "not a QueryRefIdent")
       }
-    }
 
   }
 
@@ -68,42 +71,50 @@ private[generic] object RawQueryExpr extends Parser[(Term, RefMap), RawQueryExpr
   final case class ProductField(select: Select, inner: RawQueryExpr.Unary) extends RawQueryExpr.Unary {
     override val fullTerm: Term = select
   }
-  object ProductField extends Parser[(Select, RefMap), ProductField] {
+  object ProductField extends Parser[(Term, RefMap), ProductField] {
 
-    override def parse(input: (Select, RefMap))(using ParseContext, Quotes): ParseResult[ProductField] = {
-      val (term, refs) = input
-      val lhs = term.qualifier
-      val funct = term.name
-      val lhsTpe: TypeRepr = lhs.tpe.widen
-      type T
-      given Type[T] = lhsTpe.asTypeOf
+    override def parse(input: (Term, RefMap))(using ParseContext, Quotes): ParseResult[ProductField] =
+      input match {
+        case (term @ Select(lhs, _), _) if lhs.tpe <:< TypeRepr.of[Option[?]] =>
+          ParseResult.unknown(term, "can not parse Option select to product select")
+        case (term @ Select(lhs, funct), refs) =>
+          val lhsTpe: TypeRepr = lhs.tpe.widen
+          type T
+          given Type[T] = lhsTpe.asTypeOf
 
-      // TODO (KR) : consider requiring an `extends Column.Product`
+          // TODO (KR) : consider requiring an `extends Column.Product`
 
-      for {
-        gen <-
-          if (lhsTpe.typeTypeCase.nonEmpty) ParseResult.Success(K0.ProductGeneric.of[T](K0.Derivable.Config()))
-          else ParseResult.unknown(lhs, s"not a product type (${lhsTpe.showAnsiCode})")
-        _ <- gen.fields.iterator.find(_.name == funct) match {
-          case Some(field) => ParseResult.Success(field)
-          case None        => ParseResult.error(term, s"not a product field: $funct")
-        }
-        parsedLHS <- Unary.parse((lhs, refs))
-      } yield ProductField(term, parsedLHS)
-    }
+          for {
+            gen <-
+              if (lhsTpe.typeTypeCase.nonEmpty) ParseResult.Success(K0.ProductGeneric.of[T](K0.Derivable.Config()))
+              else ParseResult.unknown(lhs, s"not a product type (${lhsTpe.showAnsiCode})")
+            _ <- gen.fields.iterator.find(_.name == funct) match {
+              case Some(field) => ParseResult.Success(field)
+              case None        => ParseResult.error(term, s"not a product field: $funct")
+            }
+            parsedLHS <- Unary.parse((lhs, refs))
+          } yield ProductField(term, parsedLHS)
+        case (term, _) =>
+          ParseResult.unknown(term, "not a product select")
+      }
+
   }
 
+  /**
+    * An Option.get.
+    * val a: Option[?] = ???
+    * `a.get`
+    */
   final case class OptionGet(select: Select, inner: RawQueryExpr.Unary) extends RawQueryExpr.Unary {
     override val fullTerm: Term = select
   }
-  object OptionGet extends Parser[(Select, RefMap), OptionGet] {
+  object OptionGet extends Parser[(Term, RefMap), OptionGet] {
 
-    override def parse(input: (Select, RefMap))(using ParseContext, Quotes): ParseResult[OptionGet] = {
-      val (term, refs) = input
-      term match
-        case Select(lhs, "get") if lhs.tpe <:< TypeRepr.of[Option[?]] => Unary.parse((lhs, refs)).map(OptionGet(term, _))
-        case Select(lhs, funct) if lhs.tpe <:< TypeRepr.of[Option[?]] => ParseResult.error(term, s"invalid function call on Option: $funct")
-        case _                                                        => ParseResult.unknown(term, "LHS is not an Option")
+    override def parse(input: (Term, RefMap))(using ParseContext, Quotes): ParseResult[OptionGet] = {
+      input match
+        case (term @ Select(lhs, "get"), refs) if lhs.tpe <:< TypeRepr.of[Option[?]] => Unary.parse((lhs, refs)).map(OptionGet(term, _))
+        case (term @ Select(lhs, funct), _) if lhs.tpe <:< TypeRepr.of[Option[?]]    => ParseResult.error(term, s"invalid function call on Option: $funct")
+        case (term, _)                                                               => ParseResult.unknown(term, "not an option.get")
     }
 
   }
