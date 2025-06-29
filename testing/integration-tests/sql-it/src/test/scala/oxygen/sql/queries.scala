@@ -59,7 +59,7 @@ object queries {
       p1 <- select[Person]
     } yield p1
 
-  // @compile
+  @compile
   val select2: QueryIO[String, Person] =
     for {
       f <- input[String]

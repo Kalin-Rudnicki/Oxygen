@@ -8,10 +8,8 @@ private[generic] trait TermTransformer {
   def inTpe: TypeRepr
   def outTpe: TypeRepr
 
-  def convertTerm(term: Term)(using Quotes): Term
-
-  final def getExpr[Out: Type](in: Expr[?])(using Quotes): Expr[Out] = {
-    val fInTerm: Term = in.toTerm
+  protected def convertTermInternal(term: Term)(using Quotes): Term
+  final def convertTerm(fInTerm: Term)(using Quotes): Term = {
     val fInTpe: TypeRepr = fInTerm.tpe
 
     if (!(fInTpe <:< inTpe))
@@ -35,7 +33,10 @@ private[generic] trait TermTransformer {
              |${fOutTerm.showAnsiCode}""".stripMargin,
       )
 
-    fOutTerm.asExprOf[Out]
+    fOutTerm
   }
+
+  final def getExpr[Out: Type](in: Expr[?])(using Quotes): Expr[Out] =
+    convertTerm(in.toTerm).asExprOf[Out]
 
 }

@@ -14,9 +14,13 @@ private[generic] final case class Function(
     case Nil => ParseResult.Success(())
     case _   => ParseResult.error(body, s"expected single function param, but got ${params.size} - ${params.map(_.name).mkString(", ")}") // TODO (KR) : whole function pos
 
-  def parseSingleParam(using ParseContext): ParseResult.Known[Function.Param] = params match
-    case (p: Function.RootParam.Named) :: Nil => ParseResult.Success(p)
-    case _ => ParseResult.error(body, s"expected single function param, but got ${params.size} - ${params.map(_.name).mkString(", ")}") // TODO (KR) : whole function pos
+  def parseParam1(using ParseContext): ParseResult.Known[Function.Param] = params match
+    case (p1: Function.RootParam.Named) :: Nil => ParseResult.Success(p1)
+    case _                                     => ParseResult.error(body, s"expected 1 root function param, but got\n$this") // TODO (KR) : whole function pos
+
+  def parseParam2(using ParseContext): ParseResult.Known[(Function.Param, Function.Param)] = params match
+    case (p1: Function.RootParam.Named) :: (p2: Function.RootParam.Named) :: Nil => ParseResult.Success((p1, p2))
+    case _                                                                       => ParseResult.error(body, s"expected 2 root function params, but got\n$this") // TODO (KR) : whole function pos
 
   def toIndentedString: IndentedString =
     IndentedString.section("Function:")(
@@ -28,6 +32,10 @@ private[generic] final case class Function(
 
 }
 private[generic] object Function extends Parser[Term, Function] {
+
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
+  //      Param
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
 
   /**
     * Represents any kind of function param, whether it can be referenced/used, or not.
@@ -74,7 +82,7 @@ private[generic] object Function extends Parser[Term, Function] {
 
     final case class Named(valDef: ValDef) extends RootParam, Param {
 
-      override def convertTerm(term: Term)(using Quotes): Term = term
+      override protected def convertTermInternal(term: Term)(using Quotes): Term = term
 
     }
 
@@ -103,7 +111,7 @@ private[generic] object Function extends Parser[Term, Function] {
       override def inTpe: TypeRepr = parentValDef.tpt.tpe.widen
       override def outTpe: TypeRepr = tpe.widen
 
-      override def convertTerm(term: Term)(using Quotes): Term = term.select(s"_${idx + 1}")
+      override protected def convertTermInternal(term: Term)(using Quotes): Term = term.select(s"_${idx + 1}")
 
     }
 
@@ -111,6 +119,10 @@ private[generic] object Function extends Parser[Term, Function] {
 
   def showParams(params: List[Function.RootParam]): IndentedString =
     IndentedString.section("params:")(params.map(_.toIndentedString)*)
+
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
+  //      Parsing
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
 
   private def extractMatch(valDef: ValDef, mat: Match)(using ParseContext): ParseResult[(Function.RootParam, Term)] =
     for {
@@ -165,10 +177,7 @@ private[generic] object Function extends Parser[Term, Function] {
         case Some(rhs) => ParseResult.Success(rhs)
         case None      => ParseResult.error(defDef, "function doesn't have RHS !?")
       }
-      (_, _) <- ParseContext.add("resolve params") { mergeParamsAndRHS(defDef, paramClause.params, rhs) }
-      _ <- ParseResult.error(defDef, "parse this")
-      // (valDefs, rhs) <- ParseContext.add("core function structure") { parseDefDef(term) }
-      // function <- ParseContext.add("function rhs") { parseRHS(term, valDefs, rhs) }
-    } yield ???
+      (params, rhs) <- ParseContext.add("resolve params") { mergeParamsAndRHS(defDef, paramClause.params, rhs) }
+    } yield Function(defDef, params, rhs)
 
 }

@@ -61,7 +61,7 @@ private[generic] object QueryExpr extends Parser[RawQueryExpr, QueryExpr] {
     final case class Ref(term: Term, param: Function.Param) extends InputLike {
       override def inTpe: TypeRepr = param.inTpe
       override def outTpe: TypeRepr = param.outTpe
-      override def convertTerm(term: Term)(using Quotes): Term = param.convertTerm(term)
+      override protected def convertTermInternal(term: Term)(using Quotes): Term = param.convertTerm(term)
     }
 
     final case class ProductFieldSelect(term: Term, inner: InputLike, selectSym: Symbol, selectReturnType: TypeRepr) extends InputLike {
@@ -70,7 +70,7 @@ private[generic] object QueryExpr extends Parser[RawQueryExpr, QueryExpr] {
 
       override def inTpe: TypeRepr = inner.inTpe
       override def outTpe: TypeRepr = selectReturnType
-      override def convertTerm(term: Term)(using Quotes): Term = term.select(selectSym)
+      override protected def convertTermInternal(term: Term)(using Quotes): Term = term.select(selectSym)
     }
 
   }

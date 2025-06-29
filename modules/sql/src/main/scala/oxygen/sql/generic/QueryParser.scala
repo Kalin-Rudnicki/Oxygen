@@ -32,7 +32,7 @@ private[generic] object QueryParser {
           case '{ Q.input.apply[a] }            => ParseResult.Success(None)
           case '{ Q.input.const[a](${ expr }) } => ParseResult.Success(expr.toTerm.some)
         }
-        p1 <- f1Function.parseSingleParam
+        p1 <- f1Function.parseParam1
         f1Name <- functionNames.mapOrFlatMap.parse(f1Name).unknownAsError
 
         newRefs = refs.add(p1.tree.symbol -> QueryReference.Input(p1))
@@ -69,7 +69,7 @@ private[generic] object QueryParser {
       for {
         FunctionCall(f1Lhs, f1Name, f1Function) <- ParseContext.add("function 1") { FunctionCall.parse(term) }
         schema <- f1Lhs.parseExpr[T.Select[?]] { case '{ Q.select[a](using $schema) } => ParseResult.Success(schema) }
-        p1 <- f1Function.parseSingleParam
+        p1 <- f1Function.parseParam1
         f1Name <- functionNames.mapOrFlatMap.parse(f1Name).unknownAsError
 
         newRefs = refs.add(p1.tree.symbol -> QueryReference.Query(p1, schema, true))
@@ -110,8 +110,8 @@ private[generic] object QueryParser {
           // TODO (KR) : left join
           case '{ oxygen.sql.query.dsl.Q.join[a](using $schema) } => ParseResult.Success(schema)
         }
-        p1 <- f1Function.parseSingleParam
-        p2 <- f2Function.parseSingleParam
+        p1 <- f1Function.parseParam1
+        p2 <- f2Function.parseParam1
         f1Name <- functionNames.mapOrFlatMap.parse(f1Name).unknownAsError
         _ <- functionNames.withFilter.parse(f2Name).unknownAsError
 
