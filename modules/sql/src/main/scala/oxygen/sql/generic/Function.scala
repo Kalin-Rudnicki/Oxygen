@@ -51,7 +51,7 @@ private[generic] object Function extends Parser[Term, Function] {
 
     final case class Named(valDef: ValDef) extends RootParam
 
-    final case class TupleUnapply(valDef: ValDef, children: Contiguous[TupleUnapplyPart]) extends RootParam
+    final case class TupleUnapply(valDef: ValDef, children: List[TupleUnapplyPart]) extends RootParam
 
     sealed trait TupleUnapplyPart {
 
@@ -70,93 +70,45 @@ private[generic] object Function extends Parser[Term, Function] {
 
   }
 
-  // FIX-PRE-MERGE (KR) : remove
-  trait GetFromResultSet[A] {
-    def get(col: String): A
-  }
-
   def showParams(params: List[Function.Param]): String =
     s"params(${params.map { p => s"\n  ${p.name}: ${p.tpe.showCode} <${p.tree.symbol.fullName}>," }.mkString}\n) "
 
-  // FIX-PRE-MERGE (KR) : remove
-  /*
-  private def makeTupleAccess(size: Int, idx: Int)(using Quotes): Expr[Any] => Expr[Any] = {
-    val selectSym: Symbol = Symbol.tupleClass(size).fieldMember(s"_${idx + 1}")
-    _.toTerm.select(selectSym).asExpr
-  }
+  private def makeTupleAccess(idx: Int)(using Quotes): Expr[Any] => Expr[Any] =
+    _.toTerm.select(s"_${idx + 1}").asExpr
 
-  private def parseDefDef(term: Term)(using ParseContext): ParseResult[(List[ValDef], Term)] =
+  private def extractMatch(valDef: ValDef, mat: Match)(using Quotes, ParseContext): ParseResult[(Function.RootParam, Term)] =
     for {
-      defDef <- term match {
-        case Block((defDef: DefDef) :: Nil, Closure(_, _)) => ParseResult.Success(defDef)
-        case _                                             => ParseResult.unknown(term, "not a block with a closure")
-      }
-
-      params <- defDef.paramss match {
-        case (head: TermParamClause) :: Nil => ParseResult.Success(head)
-        case params                         => ParseResult.error(defDef, s"Expected DefDef to have single param group, but had (${params.size})")
-      }
-      valDefs = params.params
-
-      rhs <- defDef.rhs match {
-        case Some(rhs) => ParseResult.Success(rhs)
-        case None      => ParseResult.error(defDef, "DefDef does not have RHS")
-      }
-    } yield (valDefs, rhs)
-
-  private def parseRHSCaseDef(caseDef: CaseDef)(using ParseContext, Quotes): ParseResult[Function] =
-    caseDef.pattern match {
-      case Unapply(fun, Nil, patterns) =>
-        for {
-          _ <- fun match {
-            case TypeApply(Select(Ident(name), "unapply"), _) if name.startsWith("Tuple") => ParseResult.Success(())
-            case _                                                                        => ParseResult.error(fun, "unapply a non-tuple")
-          }
-          params <- patterns.zipWithIndex.traverse {
-            case (bind @ Bind("_", _), _)                     => ParseResult.error(bind, "ignored tuple args currently not supported")
-            case (bind @ Bind(name, ident @ Ident("_")), idx) => ParseResult.success(Param(name, ident.tpe, bind, makeTupleAccess(patterns.size, idx).some))
-            case (pat, _)                                     => ParseResult.error(pat, "invalid case pattern")
-          }
-        } yield Function(caseDef, params, caseDef.rhs)
-      case Ident("_") => ParseResult.Success(Function(caseDef, Nil, caseDef.rhs))
-      case _          => ParseResult.error(caseDef, "unable to parse match case")
-    }
-
-  private def parseRHSMatch(valDef: ValDef, mat: Match)(using ParseContext, Quotes): ParseResult[Function] =
-    for {
-      _ <- ParseResult.validate(mat.scrutinee.symbol == valDef.symbol)(mat, "function match doesnt reference input?")
       caseDef <- mat.cases match {
-        case caseDef :: Nil => ParseResult.Success(caseDef)
-        case cases          => ParseResult.error(mat, s"match has non-single case (${cases.size})")
+        case kase :: Nil => ParseResult.Success(kase)
+        case _           => ParseResult.error(mat, s"expected single case-def, but got ${mat.cases.size}")
       }
-      function <- parseRHSCaseDef(caseDef)
-    } yield function
+      param <- caseDef.pattern match {
+        case Ident("_")                  => ParseResult.Success(Function.RootParam.Ignored(valDef))
+        case Unapply(fun, Nil, patterns) =>
+          for {
+            _ <- fun match {
+              case TypeApply(Select(Ident(name), "unapply"), _) if name.startsWith("Tuple") => ParseResult.Success(())
+              case _                                                                        => ParseResult.error(fun, "unapply a non-tuple")
+            }
+            parts <- patterns.zipWithIndex.traverse {
+              case (bind @ Bind("_", _), _)                     => ParseResult.Success(Function.RootParam.TupleUnapplyPart.Ignored(bind))
+              case (bind @ Bind(name, ident @ Ident("_")), idx) => ParseResult.success(Function.RootParam.TupleUnapplyPart.Named(name, ident.tpe, bind, makeTupleAccess(idx)))
+              case (pat, _)                                     => ParseResult.error(pat, "invalid case pattern")
+            }
+          } yield Function.RootParam.TupleUnapply(valDef, parts)
+        case _ => ParseResult.error(caseDef, "unable to parse match case")
+      }
+    } yield (param, caseDef.rhs)
 
-  private def parseRHS(root: Term, valDefs: List[ValDef], rhs: Term)(using ParseContext, Quotes): ParseResult[Function] =
-    rhs match {
-      case mat: Match => parseRHSMatch(valDef, mat)
-      case _          => ParseResult.Success(Function(root, Param(valDef.name, valDef.tpt.tpe, valDef, None) :: Nil, rhs))
-    }
-   */
+  private def convertNormalParam(valDef: ValDef): Function.RootParam =
+    if (valDef.name == "_") Function.RootParam.Ignored(valDef)
+    else Function.RootParam.Named(valDef)
 
-  //           _ <-   : ...
-  //           a <-   : ...
-  //      (a, b) <-   : ...
-  // case (a, b) <-   : ...
-
-  private def extractMatch(valDef: ValDef, mat: Match)(using ParseContext): ParseResult[(Function.Param, Term)] =
-    ??? // FIX-PRE-MERGE (KR) :
-
-  private def convertNormalParam(valDef: ValDef)(using ParseContext): ParseResult[Function.Param] =
-    ??? // FIX-PRE-MERGE (KR) :
-
-  // FIX-PRE-MERGE (KR) :
-  @scala.annotation.nowarn
-  private def mergeParamsAndRHS(tree: Tree, params: List[ValDef], rhs: Term)(using ParseContext): ParseResult[(List[Function.Param], Term)] =
+  private def mergeParamsAndRHS(tree: Tree, params: List[ValDef], rhs: Term)(using Quotes, ParseContext): ParseResult[(List[Function.RootParam], Term)] =
     (params, rhs) match {
       case (valDef :: Nil, mat: Match) => extractMatch(valDef, mat).map { case (p, t) => (p :: Nil, t) }
       case (_, _: Match)               => ParseResult.error(tree, "found match RHS with non-single param")
-      case (valDefs, rhs)              => valDefs.traverse(convertNormalParam(_)).map((_, rhs))
+      case (valDefs, rhs)              => ParseResult.Success((valDefs.map(convertNormalParam), rhs))
     }
 
   override def parse(term: Term)(using ParseContext, Quotes): ParseResult[Function] =
@@ -177,8 +129,8 @@ private[generic] object Function extends Parser[Term, Function] {
         case Some(rhs) => ParseResult.Success(rhs)
         case None      => ParseResult.error(defDef, "function doesn't have RHS !?")
       }
-      _ <- ParseResult.error(defDef, "parse this")
       (_, _) <- ParseContext.add("resolve params") { mergeParamsAndRHS(defDef, paramClause.params, rhs) }
+      _ <- ParseResult.error(defDef, "parse this")
       // (valDefs, rhs) <- ParseContext.add("core function structure") { parseDefDef(term) }
       // function <- ParseContext.add("function rhs") { parseRHS(term, valDefs, rhs) }
     } yield ???
