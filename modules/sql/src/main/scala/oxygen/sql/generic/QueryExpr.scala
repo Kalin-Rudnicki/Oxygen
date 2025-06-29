@@ -7,17 +7,21 @@ import scala.quoted.*
 
 private[generic] sealed trait QueryExpr {
 
-  val term: Term
+  /**
+    * Represents the full term of this [[RawQueryExpr]].
+    * Whether that is a single identifier, or a combination of Exprs.
+    */
+  val fullTerm: Term
 
   final def show: String = this match
-    case QueryExpr.InputLike.Ref(_, param)                              => param.name.hexFg("#F71735").toString
-    case QueryExpr.InputLike.ProductFieldSelect(_, inner, field, _)     => s"${inner.show}.${field.name.cyanFg}"
-    case QueryExpr.QueryLike.Ref(_, param, _, true)                     => param.name.hexFg("#A81ADB").toString
-    case QueryExpr.QueryLike.Ref(_, param, _, false)                    => param.name.hexFg("#540D6E").toString
-    case QueryExpr.QueryLike.ProductFieldSelect(_, inner, selectSym, _) => s"${inner.show}.${selectSym.name.cyanFg}"
-    case QueryExpr.QueryLike.OptionGet(_, inner)                        => s"${inner.show}.${"get".blueFg}"
-    case QueryExpr.AndOr(_, lhs, op, rhs)                               => s"${lhs.showWrapAndOr} ${op.show} ${rhs.showWrapAndOr}"
-    case comp: QueryExpr.Comp                                           => s"${comp.lhs.show} ${comp.op.show} ${comp.rhs.show}"
+    case QueryExpr.InputLike.Ref(_, param)                     => param.name.hexFg("#F71735").toString
+    case QueryExpr.InputLike.ProductFieldSelect(select, inner) => s"${inner.show}.${select.name.cyanFg}"
+    case QueryExpr.QueryLike.Ref(_, param, _, true)            => param.name.hexFg("#A81ADB").toString
+    case QueryExpr.QueryLike.Ref(_, param, _, false)           => param.name.hexFg("#540D6E").toString
+    case QueryExpr.QueryLike.ProductFieldSelect(select, inner) => s"${inner.show}.${select.name.cyanFg}"
+    case QueryExpr.QueryLike.OptionGet(_, inner)               => s"${inner.show}.${"get".blueFg}"
+    case QueryExpr.AndOr(_, lhs, op, rhs)                      => s"${lhs.showWrapAndOr} ${op.show} ${rhs.showWrapAndOr}"
+    case comp: QueryExpr.Comp                                  => s"${comp.lhs.show} ${comp.op.show} ${comp.rhs.show}"
 
   final def isAndOr: Boolean = this match
     case _: QueryExpr.AndOr => true
@@ -37,19 +41,19 @@ private[generic] object QueryExpr extends Parser[RawQueryExpr, QueryExpr] {
 
     override def parse(expr: RawQueryExpr.Unary)(using ParseContext, Quotes): ParseResult[QueryExpr.Unary] =
       expr match {
-        case RawQueryExpr.Ref(term, QueryReference.Query(param, schema, isRoot)) =>
+        case RawQueryExpr.QueryRefIdent(term, QueryReference.Query(param, schema, isRoot)) =>
           ParseResult.Success(QueryExpr.QueryLike.Ref(term, param, schema, isRoot))
-        case RawQueryExpr.Ref(term, QueryReference.Input(param)) =>
+        case RawQueryExpr.QueryRefIdent(term, QueryReference.InputParam(param)) =>
           ParseResult.Success(QueryExpr.InputLike.Ref(term, param))
-        case RawQueryExpr.ProductField(term, ref, selectSym, selectReturnType) =>
-          parse(ref).map {
-            case ref: QueryExpr.QueryLike => QueryExpr.QueryLike.ProductFieldSelect(term, ref, selectSym, selectReturnType)
-            case ref: QueryExpr.InputLike => QueryExpr.InputLike.ProductFieldSelect(term, ref, selectSym, selectReturnType)
+        case RawQueryExpr.ProductField(select, inner) =>
+          parse(inner).map {
+            case inner: QueryExpr.QueryLike => QueryExpr.QueryLike.ProductFieldSelect(select, inner)
+            case inner: QueryExpr.InputLike => QueryExpr.InputLike.ProductFieldSelect(select, inner)
           }
-        case RawQueryExpr.OptionGet(term, ref) =>
-          parse(ref).flatMap {
-            case ref: QueryExpr.QueryLike => ParseResult.Success(QueryExpr.QueryLike.OptionGet(term, ref))
-            case _: QueryExpr.InputLike   => ParseResult.error(term, "not supported: `Option.get` on input")
+        case RawQueryExpr.OptionGet(select, inner) =>
+          parse(inner).flatMap {
+            case inner: QueryExpr.QueryLike => ParseResult.Success(QueryExpr.QueryLike.OptionGet(select, inner))
+            case _: QueryExpr.InputLike     => ParseResult.error(select, "not supported: `Option.get` on input")
           }
       }
 
@@ -58,17 +62,19 @@ private[generic] object QueryExpr extends Parser[RawQueryExpr, QueryExpr] {
   sealed trait InputLike extends Unary, TermTransformer
   object InputLike {
 
-    final case class Ref(term: Term, param: Function.Param) extends InputLike {
+    final case class Ref(ident: Ident, param: Function.Param) extends InputLike {
+      override val fullTerm: Term = ident
       override val inTpe: TypeRepr = param.inTpe
       override val outTpe: TypeRepr = param.outTpe
       override protected def convertTermInternal(term: Term)(using Quotes): Term = param.convertTerm(term)
     }
 
-    final case class ProductFieldSelect(term: Term, inner: InputLike, selectSym: Symbol, selectReturnType: TypeRepr) extends InputLike {
+    final case class ProductFieldSelect(select: Select, inner: InputLike) extends InputLike {
+      override val fullTerm: Term = select
       override val param: Function.Param = inner.param
       override val inTpe: TypeRepr = inner.inTpe
-      override val outTpe: TypeRepr = selectReturnType
-      override protected def convertTermInternal(term: Term)(using Quotes): Term = term.select(selectSym)
+      override val outTpe: TypeRepr = select.tpe.widen
+      override protected def convertTermInternal(term: Term)(using Quotes): Term = term.select(select.symbol)
     }
 
   }
@@ -80,29 +86,32 @@ private[generic] object QueryExpr extends Parser[RawQueryExpr, QueryExpr] {
   }
   object QueryLike {
 
-    final case class Ref(term: Term, param: Function.Param, tableRepr: Expr[TableRepr[?]], isRoot: Boolean) extends QueryLike {
+    final case class Ref(ident: Ident, param: Function.Param, tableRepr: Expr[TableRepr[?]], isRoot: Boolean) extends QueryLike {
+      override val fullTerm: Term = ident
       def rowRepr(using Quotes): Expr[RowRepr[?]] = '{ $tableRepr.rowRepr }
     }
 
-    final case class ProductFieldSelect(term: Term, inner: QueryLike, selectSym: Symbol, selectReturnType: TypeRepr) extends QueryLike {
+    final case class ProductFieldSelect(select: Select, inner: QueryLike) extends QueryLike {
+      override val fullTerm: Term = select
       override val param: Function.Param = inner.param
       override val tableRepr: Expr[TableRepr[?]] = inner.tableRepr
       override val isRoot: Boolean = inner.isRoot
-      def rowRepr(using Quotes): Expr[RowRepr[?]] = productSchemaField(term, selectSym.name, inner.rowRepr)
+      def rowRepr(using Quotes): Expr[RowRepr[?]] = productSchemaField(select, select.symbol.name, inner.rowRepr)
     }
 
-    final case class OptionGet(term: Term, inner: QueryLike) extends QueryLike {
+    final case class OptionGet(select: Select, inner: QueryLike) extends QueryLike {
+      override val fullTerm: Term = select
       override val param: Function.Param = inner.param
       override val tableRepr: Expr[TableRepr[?]] = inner.tableRepr
       override val isRoot: Boolean = inner.isRoot
-      def rowRepr(using Quotes): Expr[RowRepr[?]] = optionSchemaGet(term, inner.rowRepr)
+      def rowRepr(using Quotes): Expr[RowRepr[?]] = optionSchemaGet(select, inner.rowRepr)
     }
 
   }
 
   sealed trait Binary extends QueryExpr
 
-  final case class AndOr(term: Term, lhs: QueryExpr, op: BinOp.AndOr, rhs: QueryExpr) extends QueryExpr.Binary
+  final case class AndOr(fullTerm: Term, lhs: QueryExpr, op: BinOp.AndOr, rhs: QueryExpr) extends QueryExpr.Binary
 
   sealed trait Comp extends Binary {
     val lhs: Unary
@@ -110,9 +119,9 @@ private[generic] object QueryExpr extends Parser[RawQueryExpr, QueryExpr] {
     val rhs: Unary
   }
   object Comp {
-    final case class QueryQuery(term: Term, lhs: QueryLike, op: BinOp.Comp, rhs: QueryLike) extends Comp
-    final case class QueryInput(term: Term, lhs: QueryLike, op: BinOp.Comp, rhs: InputLike) extends Comp
-    final case class InputQuery(term: Term, lhs: InputLike, op: BinOp.Comp, rhs: QueryLike) extends Comp
+    final case class QueryQuery(fullTerm: Term, lhs: QueryLike, op: BinOp.Comp, rhs: QueryLike) extends Comp
+    final case class QueryInput(fullTerm: Term, lhs: QueryLike, op: BinOp.Comp, rhs: InputLike) extends Comp
+    final case class InputQuery(fullTerm: Term, lhs: InputLike, op: BinOp.Comp, rhs: QueryLike) extends Comp
   }
 
   override def parse(expr: RawQueryExpr)(using ParseContext, Quotes): ParseResult[QueryExpr] =

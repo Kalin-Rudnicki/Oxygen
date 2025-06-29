@@ -19,27 +19,20 @@ private[generic] object QueryParser {
   //      Parts
   //////////////////////////////////////////////////////////////////////////////////////////////////////
 
-  sealed trait Input
+  final case class Input(queryRef: QueryReference.InputLike)
   object Input extends QueryParser[Input] {
-
-    final case class Param(param: Function.Param) extends Input
-    final case class Const(term: Term, param: Function.Param) extends Input
 
     override def parse(term: Term, refs: RefMap, prevFunction: String)(using ParseContext, Quotes): ParseResult[(Input, String, RefMap, Term)] =
       for {
         FunctionCall(f1Lhs, f1Name, f1Function) <- ParseContext.add("function 1") { FunctionCall.parse(term) }
-        expr <- f1Lhs.parseExpr[T.InputLike] {
-          case '{ Q.input.apply[a] }            => ParseResult.Success(None)
-          case '{ Q.input.const[a](${ expr }) } => ParseResult.Success(expr.toTerm.some)
-        }
         p1 <- f1Function.parseParam1
+        input <- f1Lhs.parseExpr[T.InputLike] {
+          case '{ Q.input.apply[a] }            => ParseResult.Success(Input(QueryReference.InputParam(p1)))
+          case '{ Q.input.const[a](${ expr }) } => ParseResult.Success(Input(QueryReference.ConstInput(p1, expr.toTerm)))
+        }
         f1Name <- functionNames.mapOrFlatMap.parse(f1Name).unknownAsError
 
-        newRefs = refs.add(p1.tree.symbol -> QueryReference.Input(p1))
-        input = expr match {
-          case Some(term) => Const(term, p1)
-          case None       => Param(p1)
-        }
+        newRefs = refs.add(p1.sym -> QueryReference.InputParam(p1))
 
       } yield (input, f1Name, newRefs, f1Function.body)
 
