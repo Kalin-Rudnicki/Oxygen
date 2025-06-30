@@ -101,7 +101,7 @@ object queries {
       _ <- where if p1.tablePK == id
     } yield p1
 
-  @compile
+  // @compile
   val select7: QueryIO[UUID, (Person, Person)] =
     for {
       id <- input[UUID]
@@ -118,6 +118,15 @@ object queries {
       p2 <- leftJoin[Person] if p2.last == p1.last
       _ <- where if p1.tablePK == id
     } yield (p1, p2)
+
+  // @compile
+  val select9: QueryIO[UUID, Person] =
+    for {
+      id <- input[UUID]
+      p1 <- select[Person]
+      p2 <- join[Person] if p2.tableNPK == p1.tableNPK
+      _ <- where if p1.tablePK == id
+    } yield p2
 
   //////////////////////////////////////////////////////////////////////////////////////////////////////
   //      Update
@@ -154,6 +163,28 @@ object queries {
       (p, set) <- update[Person]
       _ <- set(_.first := f)
     } yield p.id
+
+  // @compile
+  val update5: QueryI[Person] =
+    for {
+      i <- input[Person]
+      (p, set) <- update[Person]
+      _ <- where if p.tablePK == i.tablePK
+      _ <- set(_.tableNPK := i.tableNPK)
+    } yield ()
+
+  /*
+  inline def updateTable[A](using inline tableRepr: TableRepr[A]): QueryI[A] =
+    for {
+      i <- input[A]
+      (p, set) <- update[A]
+      _ <- where if p.tablePK == i.tablePK
+      _ <- set(_.tableNPK := i.tableNPK)
+    } yield ()
+
+  @compile
+  val update6: QueryI[Person] = updateTable[Person]
+   */
 
   //////////////////////////////////////////////////////////////////////////////////////////////////////
   //      Delete

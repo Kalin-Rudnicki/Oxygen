@@ -21,6 +21,8 @@ private[generic] sealed trait RawQueryExpr {
     case RawQueryExpr.QueryRefIdent(_, ref)                         => ref.show
     case RawQueryExpr.ProductField(select, inner)                   => s"${inner.show}.${select.name.magentaFg}"
     case RawQueryExpr.OptionGet(_, inner)                           => s"${inner.show}.${"get".hexFg("#35A7FF")}"
+    case RawQueryExpr.SelectPrimaryKey(_, inner, _)                 => s"${inner.show}.${"tablePK".hexFg("#35A7FF")}"
+    case RawQueryExpr.SelectNonPrimaryKey(_, inner, _)              => s"${inner.show}.${"tableNPK".hexFg("#35A7FF")}"
     case bin: RawQueryExpr.Binary if bin.lhs.isBin || bin.rhs.isBin => s"(${bin.lhs.show}) ${bin.op.show} (${bin.rhs.show})"
     case bin: RawQueryExpr.Binary                                   => s"${bin.lhs.show} ${bin.op.show} ${bin.rhs.show}"
   }
@@ -114,6 +116,32 @@ private[generic] object RawQueryExpr extends Parser[(Term, RefMap), RawQueryExpr
 
   }
 
+  final case class SelectPrimaryKey(apply: Apply, inner: RawQueryExpr.Unary, givenTableRepr: Term) extends RawQueryExpr.Unary {
+    override val fullTerm: Term = apply
+  }
+  object SelectPrimaryKey extends Parser[(Term, RefMap), SelectPrimaryKey] {
+
+    override def parse(input: (Term, RefMap))(using ParseContext, Quotes): ParseResult[SelectPrimaryKey] =
+      input match {
+        case (apply @ Apply(Apply(TypeApply(Ident("tablePK"), _ :: Nil), lhs :: Nil), givenTableRepr :: Nil), refs) => Unary.parse((lhs, refs)).map(SelectPrimaryKey(apply, _, givenTableRepr))
+        case (term, _)                                                                                              => ParseResult.unknown(term, "not a primary-key select")
+      }
+
+  }
+
+  final case class SelectNonPrimaryKey(apply: Apply, inner: RawQueryExpr.Unary, givenTableRepr: Term) extends RawQueryExpr.Unary {
+    override val fullTerm: Term = apply
+  }
+  object SelectNonPrimaryKey extends Parser[(Term, RefMap), SelectNonPrimaryKey] {
+
+    override def parse(input: (Term, RefMap))(using ParseContext, Quotes): ParseResult[SelectNonPrimaryKey] =
+      input match {
+        case (apply @ Apply(Apply(TypeApply(Ident("tableNPK"), _ :: Nil), lhs :: Nil), givenTableRepr :: Nil), refs) => Unary.parse((lhs, refs)).map(SelectNonPrimaryKey(apply, _, givenTableRepr))
+        case (term, _)                                                                                               => ParseResult.unknown(term, "not a non-primary-key select")
+      }
+
+  }
+
   final case class Binary(fullTerm: Term, lhs: RawQueryExpr, op: BinOp, rhs: RawQueryExpr) extends RawQueryExpr
   object Binary extends Parser[(Term, RefMap), RawQueryExpr.Binary] {
 
@@ -143,10 +171,12 @@ private[generic] object RawQueryExpr extends Parser[(Term, RefMap), RawQueryExpr
   }
 
   override def parse(input: (Term, RefMap))(using ParseContext, Quotes): ParseResult[RawQueryExpr] = input match
-    case QueryRefIdent.optional(res) => res
-    case OptionGet.optional(res)     => res
-    case ProductField.optional(res)  => res
-    case Binary.optional(res)        => res
-    case (rootTerm, _)               => ParseResult.unknown(rootTerm, "not a query expr?")
+    case QueryRefIdent.optional(res)       => res
+    case SelectPrimaryKey.optional(res)    => res
+    case SelectNonPrimaryKey.optional(res) => res
+    case OptionGet.optional(res)           => res
+    case ProductField.optional(res)        => res
+    case Binary.optional(res)              => res
+    case (rootTerm, _)                     => ParseResult.unknown(rootTerm, "not a query expr?")
 
 }

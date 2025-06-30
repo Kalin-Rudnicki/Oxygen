@@ -13,13 +13,17 @@ private[generic] sealed trait QueryExpr {
     */
   val fullTerm: Term
 
-  final def show: String = this match
+  final def show(using Quotes): String = this match
     case QueryExpr.InputLike.QueryRefIdent(_, queryRef)                              => queryRef.show
     case QueryExpr.InputLike.ProductFieldSelect(select, inner)                       => s"${inner.show}.${select.name.cyanFg}"
+    case QueryExpr.InputLike.SelectPrimaryKey(_, inner, _)                           => s"${inner.show}.${"tablePK".hexFg("#35A7FF")}"
+    case QueryExpr.InputLike.SelectNonPrimaryKey(_, inner, _)                        => s"${inner.show}.${"tableNPK".hexFg("#35A7FF")}"
     case QueryExpr.QueryLike.QueryRefIdent(_, QueryReference.Query(param, _, true))  => param.name.hexFg("#A81ADB").toString
     case QueryExpr.QueryLike.QueryRefIdent(_, QueryReference.Query(param, _, false)) => param.name.hexFg("#540D6E").toString
     case QueryExpr.QueryLike.ProductFieldSelect(select, inner)                       => s"${inner.show}.${select.name.cyanFg}"
     case QueryExpr.QueryLike.OptionGet(_, inner)                                     => s"${inner.show}.${"get".blueFg}"
+    case sel @ QueryExpr.QueryLike.SelectPrimaryKey(_, inner, _)                     => s"${inner.show}.${"tablePK".hexFg("#35A7FF")}(using ${sel.rowRepr.showAnsiCode})"
+    case sel @ QueryExpr.QueryLike.SelectNonPrimaryKey(_, inner, _)                  => s"${inner.show}.${"tableNPK".hexFg("#35A7FF")}(using ${sel.rowRepr.showAnsiCode})"
     case QueryExpr.AndOr(_, lhs, op, rhs)                                            => s"${lhs.showWrapAndOr} ${op.show} ${rhs.showWrapAndOr}"
     case comp: QueryExpr.Comp                                                        => s"${comp.lhs.show} ${comp.op.show} ${comp.rhs.show}"
 
@@ -27,7 +31,7 @@ private[generic] sealed trait QueryExpr {
     case _: QueryExpr.AndOr => true
     case _                  => false
 
-  final def showWrapAndOr: String = this match
+  final def showWrapAndOr(using Quotes): String = this match
     case _: QueryExpr.AndOr => s"($show)"
     case _                  => show
 
@@ -35,8 +39,9 @@ private[generic] sealed trait QueryExpr {
 private[generic] object QueryExpr extends Parser[RawQueryExpr, QueryExpr] {
 
   sealed trait Unary extends QueryExpr {
-    val param: Function.Param
     val rootIdent: Ident
+    val queryRef: QueryReference
+    final lazy val param: Function.Param = queryRef.param
   }
   object Unary extends Parser[RawQueryExpr.Unary, QueryExpr.Unary] {
 
@@ -47,72 +52,131 @@ private[generic] object QueryExpr extends Parser[RawQueryExpr, QueryExpr] {
         case RawQueryExpr.QueryRefIdent(term, queryRef: QueryReference.InputLike) =>
           ParseResult.Success(QueryExpr.InputLike.QueryRefIdent(term, queryRef))
         case RawQueryExpr.ProductField(select, inner) =>
-          parse(inner).map {
-            case inner: QueryExpr.QueryLike => QueryExpr.QueryLike.ProductFieldSelect(select, inner)
-            case inner: QueryExpr.InputLike => QueryExpr.InputLike.ProductFieldSelect(select, inner)
+          parse(inner).flatMap {
+            case inner: QueryExpr.QueryLike.CanSelect    => ParseResult.Success(QueryExpr.QueryLike.ProductFieldSelect(select, inner))
+            case inner: QueryExpr.InputLike.CanSelect    => ParseResult.Success(QueryExpr.InputLike.ProductFieldSelect(select, inner))
+            case inner: QueryExpr.QueryLike.CanNotSelect => ParseResult.error(inner.fullTerm, "select not allowed")
+            case inner: QueryExpr.InputLike.CanNotSelect => ParseResult.error(inner.fullTerm, "select not allowed")
           }
         case RawQueryExpr.OptionGet(select, inner) =>
           parse(inner).flatMap {
-            case inner: QueryExpr.QueryLike => ParseResult.Success(QueryExpr.QueryLike.OptionGet(select, inner))
-            case _: QueryExpr.InputLike     => ParseResult.error(select, "not supported: `Option.get` on input")
+            case inner: QueryExpr.QueryLike.CanSelect    => ParseResult.Success(QueryExpr.QueryLike.OptionGet(select, inner))
+            case inner: QueryExpr.QueryLike.CanNotSelect => ParseResult.error(inner.fullTerm, "select not allowed")
+            case _: QueryExpr.InputLike                  => ParseResult.error(select, "not supported: `Option.get` on input")
+          }
+        case RawQueryExpr.SelectPrimaryKey(apply, inner, givenTableRepr) =>
+          parse(inner).flatMap {
+            case inner: QueryExpr.QueryLike.CanSelect    => ParseResult.Success(QueryExpr.QueryLike.SelectPrimaryKey(apply, inner, givenTableRepr))
+            case inner: QueryExpr.InputLike.CanSelect    => ParseResult.Success(QueryExpr.InputLike.SelectPrimaryKey(apply, inner, givenTableRepr))
+            case inner: QueryExpr.QueryLike.CanNotSelect => ParseResult.error(inner.fullTerm, "select not allowed")
+            case inner: QueryExpr.InputLike.CanNotSelect => ParseResult.error(inner.fullTerm, "select not allowed")
+          }
+        case RawQueryExpr.SelectNonPrimaryKey(apply, inner, givenTableRepr) =>
+          parse(inner).flatMap {
+            case inner: QueryExpr.QueryLike.CanSelect    => ParseResult.Success(QueryExpr.QueryLike.SelectNonPrimaryKey(apply, inner, givenTableRepr))
+            case inner: QueryExpr.InputLike.CanSelect    => ParseResult.Success(QueryExpr.InputLike.SelectNonPrimaryKey(apply, inner, givenTableRepr))
+            case inner: QueryExpr.QueryLike.CanNotSelect => ParseResult.error(inner.fullTerm, "select not allowed")
+            case inner: QueryExpr.InputLike.CanNotSelect => ParseResult.error(inner.fullTerm, "select not allowed")
           }
       }
 
   }
 
-  sealed trait InputLike extends Unary, TermTransformer
+  sealed trait InputLike extends Unary, TermTransformer {
+    override val queryRef: QueryReference.InputLike
+  }
   object InputLike {
 
-    final case class QueryRefIdent(ident: Ident, queryRef: QueryReference.InputLike) extends InputLike, TermTransformer.Defer {
+    sealed trait CanSelect extends InputLike
+    sealed trait CanNotSelect extends InputLike
+
+    final case class QueryRefIdent(ident: Ident, queryRef: QueryReference.InputLike) extends CanSelect, TermTransformer.Defer {
       override val fullTerm: Term = ident
       override val rootIdent: Ident = ident
-      override val param: Function.Param = queryRef.param
       override protected def defer: TermTransformer = queryRef
     }
 
-    final case class ProductFieldSelect(select: Select, inner: InputLike) extends InputLike {
+    final case class ProductFieldSelect(select: Select, inner: CanSelect) extends CanSelect {
       override val fullTerm: Term = select
       override val rootIdent: Ident = inner.rootIdent
-      override val param: Function.Param = inner.param
+      override val queryRef: QueryReference.InputLike = inner.queryRef
       override val inTpe: TypeRepr = inner.inTpe
       override val outTpe: TypeRepr = select.tpe.widen
       override protected def convertTermInternal(term: Term)(using Quotes): Term = term.select(select.symbol)
     }
 
+    final case class SelectPrimaryKey(apply: Apply, inner: CanSelect, givenTableRepr: Term) extends CanNotSelect {
+      override val fullTerm: Term = apply
+      override val rootIdent: Ident = inner.rootIdent
+      override val queryRef: QueryReference.InputLike = inner.queryRef
+      override def inTpe: TypeRepr = inner.inTpe
+      override def outTpe: TypeRepr = apply.tpe.widen
+      override protected def convertTermInternal(term: Term)(using Quotes): Term = givenTableRepr.select("pk").select("get").appliedTo(term)
+    }
+
+    final case class SelectNonPrimaryKey(apply: Apply, inner: CanSelect, givenTableRepr: Term) extends CanNotSelect {
+      override val fullTerm: Term = apply
+      override val rootIdent: Ident = inner.rootIdent
+      override val queryRef: QueryReference.InputLike = inner.queryRef
+      override def inTpe: TypeRepr = inner.inTpe
+      override def outTpe: TypeRepr = apply.tpe.widen
+      override protected def convertTermInternal(term: Term)(using Quotes): Term = givenTableRepr.select("npk").select("get").appliedTo(term)
+    }
+
   }
 
   sealed trait QueryLike extends Unary {
-    val tableRepr: Expr[TableRepr[?]]
     def rowRepr(using Quotes): Expr[RowRepr[?]]
-    val isRoot: Boolean
+    override val queryRef: QueryReference.Query
+    final lazy val tableRepr: Expr[TableRepr[?]] = queryRef.tableRepr
+    final lazy val isRoot: Boolean = queryRef.isRoot
   }
   object QueryLike {
 
-    final case class QueryRefIdent(ident: Ident, queryRef: QueryReference.Query) extends QueryLike {
+    sealed trait CanSelect extends QueryLike
+    sealed trait CanNotSelect extends QueryLike
+
+    final case class QueryRefIdent(ident: Ident, queryRef: QueryReference.Query) extends CanSelect {
       override val fullTerm: Term = ident
       override val rootIdent: Ident = ident
-      override val param: Function.Param = queryRef.param
-      override val tableRepr: Expr[TableRepr[?]] = queryRef.tableRepr
-      override val isRoot: Boolean = queryRef.isRoot
       def rowRepr(using Quotes): Expr[RowRepr[?]] = '{ $tableRepr.rowRepr }
     }
 
-    final case class ProductFieldSelect(select: Select, inner: QueryLike) extends QueryLike {
+    final case class ProductFieldSelect(select: Select, inner: CanSelect) extends CanSelect {
       override val fullTerm: Term = select
       override val rootIdent: Ident = inner.rootIdent
-      override val param: Function.Param = inner.param
-      override val tableRepr: Expr[TableRepr[?]] = inner.tableRepr
-      override val isRoot: Boolean = inner.isRoot
+      override val queryRef: QueryReference.Query = inner.queryRef
       def rowRepr(using Quotes): Expr[RowRepr[?]] = productSchemaField(select, select.symbol.name, inner.rowRepr)
     }
 
-    final case class OptionGet(select: Select, inner: QueryLike) extends QueryLike {
+    final case class OptionGet(select: Select, inner: CanSelect) extends CanSelect {
       override val fullTerm: Term = select
       override val rootIdent: Ident = inner.rootIdent
-      override val param: Function.Param = inner.param
-      override val tableRepr: Expr[TableRepr[?]] = inner.tableRepr
-      override val isRoot: Boolean = inner.isRoot
+      override val queryRef: QueryReference.Query = inner.queryRef
       def rowRepr(using Quotes): Expr[RowRepr[?]] = optionSchemaGet(select, inner.rowRepr)
+    }
+
+    final case class SelectPrimaryKey(apply: Apply, inner: CanSelect, givenTableRepr: Term) extends CanNotSelect {
+      override val fullTerm: Term = apply
+      override val rootIdent: Ident = inner.rootIdent
+      override val queryRef: QueryReference.Query = inner.queryRef
+      override def rowRepr(using Quotes): Expr[RowRepr[?]] = {
+        type T
+        given Type[T] = fullTerm.tpe.asTypeOf
+        givenTableRepr.select("pk").select("rowRepr").asExprOf[RowRepr[T]]
+      }
+
+    }
+
+    final case class SelectNonPrimaryKey(apply: Apply, inner: CanSelect, givenTableRepr: Term) extends CanNotSelect {
+      override val fullTerm: Term = apply
+      override val rootIdent: Ident = inner.rootIdent
+      override val queryRef: QueryReference.Query = inner.queryRef
+      override def rowRepr(using Quotes): Expr[RowRepr[?]] = {
+        type T
+        given Type[T] = fullTerm.tpe.asTypeOf
+        givenTableRepr.select("npk").select("rowRepr").asExprOf[RowRepr[T]]
+      }
     }
 
   }
