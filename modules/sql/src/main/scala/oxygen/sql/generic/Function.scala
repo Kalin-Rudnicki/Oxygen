@@ -1,5 +1,6 @@
 package oxygen.sql.generic
 
+import oxygen.meta.*
 import oxygen.predef.core.*
 import oxygen.quoted.*
 import scala.quoted.*
@@ -13,19 +14,28 @@ private[generic] final case class Function(
   def parseEmptyParams(using ParseContext): ParseResult.Known[Unit] = params match
     case Nil                                    => ParseResult.Success(())
     case (_: Function.RootParam.Ignored) :: Nil => ParseResult.Success(())
-    case _                                      => ParseResult.error(body, s"expected single function param, but got\n$this") // TODO (KR) : whole function pos
+    case _                                      => ParseResult.error(body, s"expected single function param, but got\n${Function.showParams(params)}") // TODO (KR) : whole function pos
 
   def parseParam1(using ParseContext): ParseResult.Known[Function.Param] = params match
     case (p1: Function.RootParam.Named) :: Nil => ParseResult.Success(p1)
-    case _                                     => ParseResult.error(body, s"expected 1 root function param, but got\n$this") // TODO (KR) : whole function pos
+    case _                                     => ParseResult.error(body, s"expected 1 root function param, but got\n${Function.showParams(params)}") // TODO (KR) : whole function pos
 
   def parseParam2(using ParseContext): ParseResult.Known[(Function.Param, Function.Param)] = params match
     case (p1: Function.RootParam.Named) :: (p2: Function.RootParam.Named) :: Nil => ParseResult.Success((p1, p2))
-    case _                                                                       => ParseResult.error(body, s"expected 2 root function params, but got\n$this") // TODO (KR) : whole function pos
+    case _ => ParseResult.error(body, s"expected 2 root function params, but got\n${Function.showParams(params)}") // TODO (KR) : whole function pos
+
+  def parseParam2Opt(using ParseContext): ParseResult.Known[(Option[Function.Param], Function.Param)] = params match
+    case (p1: Function.RootParam.Named) :: (p2: Function.RootParam.Named) :: Nil  => ParseResult.Success((p1.some, p2))
+    case (_: Function.RootParam.Ignored) :: (p2: Function.RootParam.Named) :: Nil => ParseResult.Success((None, p2))
+    case _ => ParseResult.error(body, s"expected 2 root function params, but got\n${Function.showParams(params)}") // TODO (KR) : whole function pos
 
   def toIndentedString: IndentedString =
     IndentedString.section("Function:")(
       Function.showParams(params),
+      IndentedString.section("body:")(
+        IndentedString.section("(expr):")(body.showAnsiCode),
+        IndentedString.section("(term):")(body.toIndentedString),
+      ),
     )
 
   override def toString: String =

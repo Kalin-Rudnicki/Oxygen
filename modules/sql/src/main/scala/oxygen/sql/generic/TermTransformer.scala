@@ -39,4 +39,29 @@ private[generic] trait TermTransformer {
   final def getExpr[Out: Type](in: Expr[?])(using Quotes): Expr[Out] =
     convertTerm(in.toTerm).asExprOf[Out]
 
+  final def >>>(that: TermTransformer): TermTransformer =
+    TermTransformer.AndThen(this, that)
+
+}
+object TermTransformer {
+
+  final case class AndThen(a: TermTransformer, b: TermTransformer) extends TermTransformer {
+    override def inTpe: TypeRepr = a.inTpe
+    override def outTpe: TypeRepr = b.outTpe
+    override protected def convertTermInternal(term: Term)(using Quotes): Term = b.convertTerm(a.convertTerm(term))
+  }
+
+  trait Defer extends TermTransformer {
+    protected def defer: TermTransformer
+
+    override final lazy val inTpe: TypeRepr = defer.inTpe
+    override final lazy val outTpe: TypeRepr = defer.outTpe
+    override protected final def convertTermInternal(term: Term)(using Quotes): Term = defer.convertTermInternal(term)
+  }
+
+  trait DeferToParam extends Defer {
+    val param: Function.Param
+    override protected final def defer: TermTransformer = param
+  }
+
 }

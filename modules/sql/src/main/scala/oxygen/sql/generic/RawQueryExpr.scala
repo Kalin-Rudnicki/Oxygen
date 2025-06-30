@@ -51,13 +51,8 @@ private[generic] object RawQueryExpr extends Parser[(Term, RefMap), RawQueryExpr
 
     override def parse(input: (Term, RefMap))(using ParseContext, Quotes): ParseResult[QueryRefIdent] =
       input match {
-        case (ident: Ident, refs) =>
-          refs.get(ident.symbol) match {
-            case Some(ref) => ParseResult.Success(QueryRefIdent(ident, ref))
-            case None      => ParseResult.error(ident, "not an input or query param")
-          }
-        case (term, _) =>
-          ParseResult.unknown(term, "not a QueryRefIdent")
+        case (ident: Ident, refs) => refs.get(ident).map(QueryRefIdent(ident, _))
+        case (term, _)            => ParseResult.unknown(term, "not a QueryRefIdent")
       }
 
   }

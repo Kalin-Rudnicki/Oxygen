@@ -1,6 +1,5 @@
 package oxygen.sql.generic
 
-import oxygen.meta.*
 import oxygen.predef.core.*
 import oxygen.quoted.*
 import oxygen.sql.query.dsl.{Q, T}
@@ -19,70 +18,79 @@ private[generic] object QueryParser {
   //      Parts
   //////////////////////////////////////////////////////////////////////////////////////////////////////
 
-  final case class Input(queryRef: QueryReference.InputLike)
+  final case class Input(
+      queryRef: QueryReference.InputLike,
+  )
   object Input extends QueryParser[Input] {
 
-    override def parse(term: Term, refs: RefMap, prevFunction: String)(using ParseContext, Quotes): ParseResult[(Input, String, RefMap, Term)] =
+    override def parse(term: Term, refs: RefMap, prevFunction: String)(using ParseContext, Quotes): ParseResult[(Input, String, RefMap, Term)] = {
       for {
-        FunctionCall(f1Lhs, f1Name, f1Function) <- ParseContext.add("function 1") { FunctionCall.parse(term) }
-        p1 <- f1Function.parseParam1
-        input <- f1Lhs.parseExpr[T.InputLike] {
-          case '{ Q.input.apply[a] }            => ParseResult.Success(Input(QueryReference.InputParam(p1)))
-          case '{ Q.input.const[a](${ expr }) } => ParseResult.Success(Input(QueryReference.ConstInput(p1, expr.toTerm)))
+        (fc1, input) <- FunctionCall.parseTyped[T.InputLike](term, "function 1").parseLhsAndFunct {
+          case ('{ Q.input.apply[a] }, fc1)            => fc1.funct.parseParam1.map { p1 => Input(QueryReference.InputParam(p1)) }
+          case ('{ Q.input.const[a](${ expr }) }, fc1) => fc1.funct.parseParam1.map { p1 => Input(QueryReference.ConstInput(p1, expr.toTerm, TypeRepr.of[Any])) }
         }
-        f1Name <- functionNames.mapOrFlatMap.parse(f1Name).unknownAsError
+        f1Name <- functionNames.mapOrFlatMap.parse(fc1.nameRef).unknownAsError
 
-        newRefs = refs.add(p1.sym -> QueryReference.InputParam(p1))
+        newRefs = refs.add(input.queryRef)
 
-      } yield (input, f1Name, newRefs, f1Function.body)
+      } yield (input, f1Name, newRefs, fc1.funct.body)
 
-  }
-
-  final case class Insert(
-  )
-  object Insert extends QueryParser[Insert] {
-
-    override def parse(term: Term, refs: RefMap, prevFunction: String)(using ParseContext, Quotes): ParseResult[(Insert, String, RefMap, Term)] =
-      for {
-        FunctionCall(f1Lhs, _, f1Function) <- ParseContext.add("function 1") { FunctionCall.parse(term) }
-        _ <- f1Lhs.parseExpr[T.Partial.InsertValues[?]] { case '{ Q.select[a](using $schema) } => ParseResult.Success(schema) }
-        _ = f1Function.params.foreach { p => report.info(p.tree.toIndentedString.toStringColorized, p.tree.pos) }
-        _ <- ParseResult.error(term, "WTF TODO")
-      } yield ???
+    }
 
   }
 
-  final case class Select(
+  final case class InsertQ(
       param: Function.Param,
-      schema: Expr[TableRepr[?]],
+      tableRepr: Expr[TableRepr[?]],
+      intoParam: Function.Param,
   )
-  object Select extends QueryParser[Select] {
+  object InsertQ extends QueryParser[InsertQ] {
 
-    override def parse(term: Term, refs: RefMap, prevFunction: String)(using ParseContext, Quotes): ParseResult[(Select, String, RefMap, Term)] =
+    override def parse(term: Term, refs: RefMap, prevFunction: String)(using ParseContext, Quotes): ParseResult[(InsertQ, String, RefMap, Term)] =
       for {
-        FunctionCall(f1Lhs, f1Name, f1Function) <- ParseContext.add("function 1") { FunctionCall.parse(term) }
-        schema <- f1Lhs.parseExpr[T.Select[?]] { case '{ Q.select[a](using $schema) } => ParseResult.Success(schema) }
-        p1 <- f1Function.parseParam1
-        f1Name <- functionNames.mapOrFlatMap.parse(f1Name).unknownAsError
+        (fc1, tableRepr) <- FunctionCall.parseTyped[T.Insert[?]](term, "function 1").parseLhs { case '{ Q.insert[a](using $tableRepr) } => ParseResult.Success(tableRepr) }
+        (p1, p2) <- fc1.funct.parseParam2
+        f1Name <- functionNames.mapOrFlatMap.parse(fc1.nameRef).unknownAsError
 
-        newRefs = refs.add(p1.tree.symbol -> QueryReference.Query(p1, schema, true))
+        newRefs = refs.add(
+          QueryReference.Query(p1, tableRepr, true),
+          // TODO (KR) : figure out how to represent `into`
+        )
 
-      } yield (Select(p1, schema), f1Name, newRefs, f1Function.body)
+      } yield (InsertQ(p1, tableRepr, p2), f1Name, newRefs, fc1.funct.body)
 
   }
 
-  final case class Update()
-  object Update extends QueryParser[Update] {
+  final case class SelectQ(
+      param: Function.Param,
+      tableRepr: Expr[TableRepr[?]],
+  )
+  object SelectQ extends QueryParser[SelectQ] {
 
-    override def parse(term: Term, refs: RefMap, prevFunction: String)(using ParseContext, Quotes): ParseResult[(Update, String, RefMap, Term)] =
+    override def parse(term: Term, refs: RefMap, prevFunction: String)(using ParseContext, Quotes): ParseResult[(SelectQ, String, RefMap, Term)] =
+      for {
+        (fc1, tableRepr) <- FunctionCall.parseTyped[T.Select[?]](term, "function 1").parseLhs { case '{ Q.select[a](using $tableRepr) } => ParseResult.Success(tableRepr) }
+        p1 <- fc1.funct.parseParam1
+        f1Name <- functionNames.mapOrFlatMap.parse(fc1.nameRef).unknownAsError
+
+        newRefs = refs.add(QueryReference.Query(p1, tableRepr, true))
+
+      } yield (SelectQ(p1, tableRepr), f1Name, newRefs, fc1.funct.body)
+
+  }
+
+  final case class UpdateQ()
+  object UpdateQ extends QueryParser[UpdateQ] {
+
+    override def parse(term: Term, refs: RefMap, prevFunction: String)(using ParseContext, Quotes): ParseResult[(UpdateQ, String, RefMap, Term)] =
       ParseResult.unknown(term, "TODO")
 
   }
 
-  final case class Delete()
-  object Delete extends QueryParser[Delete] {
+  final case class DeleteQ()
+  object DeleteQ extends QueryParser[DeleteQ] {
 
-    override def parse(term: Term, refs: RefMap, prevFunction: String)(using ParseContext, Quotes): ParseResult[(Delete, String, RefMap, Term)] =
+    override def parse(term: Term, refs: RefMap, prevFunction: String)(using ParseContext, Quotes): ParseResult[(DeleteQ, String, RefMap, Term)] =
       ParseResult.unknown(term, "TODO")
 
   }
@@ -91,32 +99,31 @@ private[generic] object QueryParser {
       escapingParam: Function.Param,
       onParam: Function.Param,
       on: QueryExpr,
-      schema: Expr[TableRepr[?]],
+      tableRepr: Expr[TableRepr[?]],
   )
   object Join extends QueryParser[Join] {
 
     override def parse(term: Term, refs: RefMap, prevFunction: String)(using ParseContext, Quotes): ParseResult[(Join, String, RefMap, Term)] =
       for {
-        FunctionCall(f1Lhs, f1Name, f1Function) <- ParseContext.add("function 1") { FunctionCall.parse(term) }
-        FunctionCall(f2Lhs, f2Name, f2Function) <- ParseContext.add("function 2") { FunctionCall.parse(f1Lhs) }
-        schema <- f2Lhs.parseExpr[T.Partial.JoinLike] {
+        fc1 <- FunctionCall.parseTyped[T.Join[?]](term, "function 1").ignore
+        p1 <- fc1.funct.parseParam1
+        f1Name <- functionNames.mapOrFlatMap.parse(fc1.nameRef).unknownAsError
+        (fc2, tableRepr) <- FunctionCall.parseTyped[T.Partial.JoinLike](fc1.funct.body, "function 2").parseLhs {
           // TODO (KR) : left join
-          case '{ oxygen.sql.query.dsl.Q.join[a](using $schema) } => ParseResult.Success(schema)
+          case '{ oxygen.sql.query.dsl.Q.join[a](using $tableRepr) } => ParseResult.Success(tableRepr)
         }
-        p1 <- f1Function.parseParam1
-        p2 <- f2Function.parseParam1
-        f1Name <- functionNames.mapOrFlatMap.parse(f1Name).unknownAsError
-        _ <- functionNames.withFilter.parse(f2Name).unknownAsError
+        p2 <- fc2.funct.parseParam1
+        _ <- functionNames.withFilter.parse(fc2.nameRef).unknownAsError
 
         newRefs = refs.add(
-          p1.tree.symbol -> QueryReference.Query(p1, schema, false),
-          p2.tree.symbol -> QueryReference.Query(p2, schema, false),
+          QueryReference.Query(p1, tableRepr, false),
+          QueryReference.Query(p2, tableRepr, false),
         )
 
-        onExpr <- RawQueryExpr.parse((f2Function.body.simplify, newRefs)).unknownAsError
+        onExpr <- RawQueryExpr.parse((fc2.funct.body.simplify, newRefs)).unknownAsError
         onExpr <- QueryExpr.parse(onExpr)
 
-      } yield (Join(p1, p2, onExpr, schema), f1Name, newRefs, f1Function.body)
+      } yield (Join(p1, p2, onExpr, tableRepr), f1Name, newRefs, fc1.funct.body)
 
   }
 
@@ -127,26 +134,37 @@ private[generic] object QueryParser {
 
     override def parse(term: Term, refs: RefMap, prevFunction: String)(using ParseContext, Quotes): ParseResult[(Where, String, RefMap, Term)] =
       for {
-        FunctionCall(f1Lhs, f1Name, f1Function) <- ParseContext.add("function 1") { FunctionCall.parse(term) }
-        FunctionCall(f2Lhs, f2Name, f2Function) <- ParseContext.add("function 2") { FunctionCall.parse(f1Lhs) }
-        _ <- f2Lhs.parseExpr[T.Partial.Where] { case '{ Q.where } => ParseResult.Success(()) }
-        _ <- f1Function.parseEmptyParams
-        _ <- f2Function.parseEmptyParams
-        f1Name <- functionNames.mapOrFlatMap.parse(f1Name).unknownAsError
-        _ <- functionNames.withFilter.parse(f2Name).unknownAsError
+        fc1 <- FunctionCall.parseTyped[T.Where](term, "function 1").ignore
+        _ <- fc1.funct.parseEmptyParams
+        f1Name <- functionNames.mapOrFlatMap.parse(fc1.nameRef).unknownAsError
+        fc2 <- FunctionCall.parseTyped[T.Partial.Where](fc1.funct.body, "function 2").filterLhs { case '{ Q.where } => }
+        _ <- fc2.funct.parseEmptyParams
+        _ <- functionNames.withFilter.parse(fc2.nameRef).unknownAsError
 
-        whereExpr <- RawQueryExpr.parse((f2Function.body.simplify, refs)).unknownAsError
+        whereExpr <- RawQueryExpr.parse((fc2.funct.body.simplify, refs)).unknownAsError
         whereExpr <- QueryExpr.parse(whereExpr)
 
-      } yield (Where(whereExpr), f1Name, refs, f1Function.body)
+      } yield (Where(whereExpr), f1Name, refs, fc1.funct.body)
 
   }
 
-  final case class Into()
+  final case class Into(
+      queryRef: QueryReference.InputLike,
+  )
   object Into extends QueryParser[Into] {
 
     override def parse(term: Term, refs: RefMap, prevFunction: String)(using ParseContext, Quotes): ParseResult[(Into, String, RefMap, Term)] =
-      ParseResult.unknown(term, "TODO")
+      for {
+        fc1 <- FunctionCall.parseTyped[T.InsertValues](term, "function 1").ignore
+        (_, valueIdent) <- fc1.lhs match { // TODO (KR) : validate `intoIdent`
+          case Apply(Select(intoIdent: Ident, "apply"), (valueIdent: Ident) :: Nil) => ParseResult.Success((intoIdent, valueIdent))
+          case _                                                                    => ParseResult.error(fc1.lhs, "does not look like `into(value)`")
+        }
+        _ <- fc1.funct.parseEmptyParams
+        f1Name <- functionNames.mapOrFlatMap.parse(fc1.nameRef).unknownAsError
+
+        queryRef <- refs.getInput(valueIdent)
+      } yield (Into(queryRef), f1Name, refs, fc1.funct.body)
 
   }
 
@@ -181,25 +199,25 @@ private[generic] object QueryParser {
   enum PartialQuery {
 
     case InsertQuery(
-        insert: Insert,
+        insert: InsertQ,
         into: Into,
     )
 
     case SelectQuery(
-        select: Select,
+        select: SelectQ,
         joins: List[Join],
         where: Option[Where],
     )
 
     case UpdateQuery(
-        update: Update,
+        update: UpdateQ,
         joins: List[Join],
         where: Option[Where],
         set: Set,
     )
 
     case DeleteQuery(
-        delete: Delete,
+        delete: DeleteQ,
         joins: List[Join],
         where: Option[Where],
     )
@@ -208,20 +226,20 @@ private[generic] object QueryParser {
 
   val partialInsert: QueryParser[PartialQuery.InsertQuery] =
     (
-      Insert.withContext("Insert") >>>
+      InsertQ.withContext("Insert") >>>
         Into.withContext("Into")
     ).withContext("Insert Query").map { PartialQuery.InsertQuery.apply }
 
   val partialSelect: QueryParser[PartialQuery.SelectQuery] =
     (
-      Select.withContext("Select") >>>
+      SelectQ.withContext("Select") >>>
         Join.many.withContext("Join") >>>
         Where.maybe.withContext("Where")
     ).withContext("Select Query").map { PartialQuery.SelectQuery.apply }
 
   val partialUpdate: QueryParser[PartialQuery.UpdateQuery] =
     (
-      Update.withContext("Update") >>>
+      UpdateQ.withContext("Update") >>>
         Join.many.withContext("Join") >>>
         Where.maybe.withContext("Where") >>>
         Set.withContext("Set")
@@ -229,7 +247,7 @@ private[generic] object QueryParser {
 
   val partialDelete: QueryParser[PartialQuery.DeleteQuery] =
     (
-      Delete.withContext("Delete") >>>
+      DeleteQ.withContext("Delete") >>>
         Join.many.withContext("Join") >>>
         Where.maybe.withContext("Where")
     ).withContext("Delete Query").map { PartialQuery.DeleteQuery.apply }
@@ -278,27 +296,6 @@ private[generic] object QueryParser {
       WithContext(self, ctx)
 
   }
-
-  //////////////////////////////////////////////////////////////////////////////////////////////////////
-  //      Helpers
-  //////////////////////////////////////////////////////////////////////////////////////////////////////
-
-  private final class PartiallyAppliedParse[A: Type](self: Term) {
-
-    def apply[B](pf: PartialFunction[Expr[A], ParseResult[B]])(using ParseContext, Quotes): ParseResult[B] =
-      if (self.tpe <:< TypeRepr.of[A])
-        pf.applyOrElse(
-          self.asExprOf[A],
-          _ => ParseResult.error(self, s"invalid ${TypeRepr.of[A].showCode}"),
-        )
-      else
-        ParseResult.unknown(self, s"not a ${TypeRepr.of[A].showCode} (actual = ${self.tpe.showCode})")
-
-  }
-
-  extension (self: Term)
-    private def parseExpr[A: Type]: PartiallyAppliedParse[A] =
-      PartiallyAppliedParse[A](self)
 
   //////////////////////////////////////////////////////////////////////////////////////////////////////
   //      Combinators

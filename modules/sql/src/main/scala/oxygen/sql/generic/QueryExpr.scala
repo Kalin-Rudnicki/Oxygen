@@ -62,12 +62,10 @@ private[generic] object QueryExpr extends Parser[RawQueryExpr, QueryExpr] {
   sealed trait InputLike extends Unary, TermTransformer
   object InputLike {
 
-    final case class QueryRefIdent(ident: Ident, queryRef: QueryReference.InputLike) extends InputLike {
+    final case class QueryRefIdent(ident: Ident, queryRef: QueryReference.InputLike) extends InputLike, TermTransformer.Defer {
       override val fullTerm: Term = ident
       override val param: Function.Param = queryRef.param
-      override val inTpe: TypeRepr = queryRef.param.inTpe
-      override val outTpe: TypeRepr = queryRef.param.outTpe
-      override protected def convertTermInternal(term: Term)(using Quotes): Term = param.convertTerm(term)
+      override protected def defer: TermTransformer = queryRef
     }
 
     final case class ProductFieldSelect(select: Select, inner: InputLike) extends InputLike {

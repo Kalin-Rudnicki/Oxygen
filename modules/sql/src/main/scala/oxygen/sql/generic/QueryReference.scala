@@ -10,44 +10,24 @@ private[generic] sealed trait QueryReference {
   val param: Function.Param
 
   final def show: String = this match
-    case QueryReference.InputParam(param)      => param.name.greenFg.toString
-    case QueryReference.ConstInput(param, _)   => s"const(${param.name.greenFg})" // TODO (KR) : show differently?
-    case QueryReference.Query(param, _, true)  => param.name.hexFg("#7EB77F").toString
-    case QueryReference.Query(param, _, false) => param.name.hexFg("#FFADC6").toString
+    case QueryReference.InputParam(param)          => param.name.greenFg.toString
+    case QueryReference.ConstInput(param, term, _) => s"const(${param.name.greenFg} = ${term.showAnsiCode})"
+    case QueryReference.Query(param, _, true)      => param.name.hexFg("#7EB77F").toString
+    case QueryReference.Query(param, _, false)     => param.name.hexFg("#FFADC6").toString
 
 }
 private[generic] object QueryReference {
 
-  sealed trait InputLike extends QueryReference {
-
+  sealed trait InputLike extends QueryReference, TermTransformer {
     val param: Function.Param
-
-    trait InputTransformer extends TermTransformer {
-      override final def outTpe: TypeRepr = param.outTpe
-    }
-
-    def inputTransformer(inputTpe: TypeRepr, idx: Int)(using Quotes): InputTransformer
-
   }
 
-  final case class InputParam(param: Function.Param) extends InputLike {
+  final case class InputParam(param: Function.Param) extends InputLike, TermTransformer.DeferToParam
 
-    override def inputTransformer(inputTpe: TypeRepr, idx: Int)(using Quotes): InputTransformer =
-      new InputTransformer {
-        override def inTpe: TypeRepr = inputTpe
-        override protected def convertTermInternal(term: Term)(using Quotes): Term = term.select(s"_${idx + 1}")
-      }
-
-  }
-
-  final case class ConstInput(param: Function.Param, term: Term) extends InputLike { self =>
-
-    override def inputTransformer(inputTpe: TypeRepr, idx: Int)(using Quotes): InputTransformer =
-      new InputTransformer {
-        override def inTpe: TypeRepr = TypeRepr.of[Any]
-        override protected def convertTermInternal(term: Term)(using Quotes): Term = self.term
-      }
-
+  final case class ConstInput(param: Function.Param, term: Term, anyTpe: TypeRepr) extends InputLike {
+    override def inTpe: TypeRepr = anyTpe
+    override def outTpe: TypeRepr = term.tpe.widen
+    override protected def convertTermInternal(term: Term)(using Quotes): Term = this.term
   }
 
   final case class Query(param: Function.Param, tableRepr: Expr[TableRepr[?]], isRoot: Boolean) extends QueryReference

@@ -12,7 +12,7 @@ private[sql] object ParsedQuery extends Parser[Term, ParsedQuery] {
 
   final case class InsertQuery(
       inputs: List[QueryParser.Input],
-      insert: QueryParser.Insert,
+      insert: QueryParser.InsertQ,
       into: QueryParser.Into,
       ret: QueryParser.Returning,
   ) extends ParsedQuery {
@@ -24,7 +24,7 @@ private[sql] object ParsedQuery extends Parser[Term, ParsedQuery] {
 
   final case class SelectQuery(
       inputs: List[QueryParser.Input],
-      select: QueryParser.Select,
+      select: QueryParser.SelectQ,
       joins: List[QueryParser.Join],
       where: Option[QueryParser.Where],
       ret: QueryParser.Returning,
@@ -37,7 +37,7 @@ private[sql] object ParsedQuery extends Parser[Term, ParsedQuery] {
 
   final case class UpdateQuery(
       inputs: List[QueryParser.Input],
-      update: QueryParser.Update,
+      update: QueryParser.UpdateQ,
       joins: List[QueryParser.Join],
       where: Option[QueryParser.Where],
       set: QueryParser.Set,
@@ -51,7 +51,7 @@ private[sql] object ParsedQuery extends Parser[Term, ParsedQuery] {
 
   final case class DeleteQuery(
       inputs: List[QueryParser.Input],
-      delete: QueryParser.Delete,
+      delete: QueryParser.DeleteQ,
       joins: List[QueryParser.Join],
       where: Option[QueryParser.Where],
       ret: QueryParser.Returning,

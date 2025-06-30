@@ -105,11 +105,11 @@ object queries {
   //      Update
   //////////////////////////////////////////////////////////////////////////////////////////////////////
 
-  // @compile
+  @compile
   val update1: Query =
     for {
       f <- input.const("first")
-      (_, set) <- update[Person]
+      (p, set) <- update[Person]
       _ <- set(_.first := f)
     } yield ()
 
