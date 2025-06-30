@@ -79,11 +79,25 @@ private[generic] object QueryParser {
 
   }
 
-  final case class UpdateQ()
+  final case class UpdateQ(
+      param: Function.Param,
+      tableRepr: Expr[TableRepr[?]],
+      setParam: Function.Param,
+  )
   object UpdateQ extends QueryParser[UpdateQ] {
 
     override def parse(term: Term, refs: RefMap, prevFunction: String)(using ParseContext, Quotes): ParseResult[(UpdateQ, String, RefMap, Term)] =
-      ParseResult.unknown(term, "TODO")
+      for {
+        (fc1, tableRepr) <- FunctionCall.parseTyped[T.Update[?]](term, "function 1").parseLhs { case '{ Q.update[a](using $tableRepr) } => ParseResult.Success(tableRepr) }
+        (p1, p2) <- fc1.funct.parseParam2
+        f1Name <- functionNames.mapOrFlatMap.parse(fc1.nameRef).unknownAsError
+
+        newRefs = refs.add(
+          QueryReference.Query(p1, tableRepr, true),
+          // TODO (KR) : figure out how to represent `set`
+        )
+
+      } yield (UpdateQ(p1, tableRepr, p2), f1Name, newRefs, fc1.funct.body)
 
   }
 
@@ -156,23 +170,55 @@ private[generic] object QueryParser {
     override def parse(term: Term, refs: RefMap, prevFunction: String)(using ParseContext, Quotes): ParseResult[(Into, String, RefMap, Term)] =
       for {
         fc1 <- FunctionCall.parseTyped[T.InsertValues](term, "function 1").ignore
-        (_, valueIdent) <- fc1.lhs match { // TODO (KR) : validate `intoIdent`
-          case Apply(Select(intoIdent: Ident, "apply"), (valueIdent: Ident) :: Nil) => ParseResult.Success((intoIdent, valueIdent))
-          case _                                                                    => ParseResult.error(fc1.lhs, "does not look like `into(value)`")
-        }
         _ <- fc1.funct.parseEmptyParams
         f1Name <- functionNames.mapOrFlatMap.parse(fc1.nameRef).unknownAsError
+        (_, valueIdent) <- fc1.lhs match { // TODO (KR) : validate `intoIdent`
+          case Apply(Select(intoIdent: Ident, "apply"), (valueIdent: Ident) :: Nil) => ParseResult.Success((intoIdent, valueIdent))
+          case _                                                                    => ParseResult.error(fc1.lhs, "does not look like `into(...)`")
+        }
 
         queryRef <- refs.getInput(valueIdent)
       } yield (Into(queryRef), f1Name, refs, fc1.funct.body)
 
   }
 
-  final case class Set()
+  final case class Set(
+      parts: NonEmptyList[Set.SetPart],
+  )
   object Set extends QueryParser[Set] {
 
+    final case class SetPart(
+    )
+
+    @scala.annotation.nowarn // FIX-PRE-MERGE (KR) : remove
+    private def parseSetPart(term: Term, refs: RefMap)(using ParseContext, Quotes): ParseResult[SetPart] =
+      for {
+        fun <- Function.parse(term).unknownAsError
+        p1 <- fun.parseParam1
+        (lhs, rhs) <- fun.body match {
+          case Apply(Apply(TypeApply(Ident(":="), _ :: Nil), lhs :: Nil), rhs :: Nil) => ParseResult.Success((lhs, rhs))
+          case _                                                                      => ParseResult.error(fun.body, "invalid set part")
+        }
+
+        // refsWithParam = refs.add(QueryReference.Query())
+        // _ <- RawQueryExpr.parse()
+
+        _ <- ParseResult.error(lhs, p1.name)
+      } yield ???
+
+    @scala.annotation.nowarn // FIX-PRE-MERGE (KR) : remove
     override def parse(term: Term, refs: RefMap, prevFunction: String)(using ParseContext, Quotes): ParseResult[(Set, String, RefMap, Term)] =
-      ParseResult.unknown(term, "TODO")
+      for {
+        fc1 <- FunctionCall.parseTyped[T.UpdateSet](term, "function 1").ignore
+        _ <- fc1.funct.parseEmptyParams
+        f1Name <- functionNames.mapOrFlatMap.parse(fc1.nameRef).unknownAsError
+        (_, setTerms) <- fc1.lhs match { // TODO (KR) : validate `setIdent`
+          case Apply(Select(setIdent: Ident, "apply"), set0 :: Repeated.ignoreTyped(setN, _) :: Nil) => ParseResult.Success((setIdent, NonEmptyList(set0, setN)))
+          case _                                                                                     => ParseResult.error(fc1.lhs, "does not look like `set(...)`")
+        }
+
+        parts <- setTerms.traverse(parseSetPart(_, refs))
+      } yield ??? // TODO (KR) :
 
   }
 

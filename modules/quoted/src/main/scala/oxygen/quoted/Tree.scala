@@ -1112,6 +1112,15 @@ object Repeated {
     (elems.map(Term.wrap(_)), TypeTree.wrap(tpt))
   }
 
+  object ignoreTyped {
+
+    def unapply(term: Term): Option[(List[Term], TypeTree)] = term match
+      case Typed(term: Repeated, _) => Some(Repeated.unapply(term))
+      case term: Repeated           => Some(Repeated.unapply(term))
+      case _                        => None
+
+  }
+
 }
 
 final class Inlined(val quotes: Quotes)(val unwrap: quotes.reflect.Inlined) extends Term {

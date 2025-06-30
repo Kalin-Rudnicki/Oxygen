@@ -104,7 +104,7 @@ object T {
     }
 
     final class UpdateSet[A] private {
-      def apply(sets: (A => SetValue)*): T.UpdateSet = macroOnly
+      def apply(set0: A => SetValue, setN: (A => SetValue)*): T.UpdateSet = macroOnly
     }
 
   }

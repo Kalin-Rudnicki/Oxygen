@@ -110,7 +110,10 @@ object queries {
     for {
       f <- input.const("first")
       (p, set) <- update[Person]
-      _ <- set(_.first := f)
+      _ <- set(
+        _.first := f,
+        _.first.length := f,
+      )
     } yield ()
 
   // @compile
