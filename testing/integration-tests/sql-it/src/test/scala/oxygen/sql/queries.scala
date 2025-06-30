@@ -30,7 +30,7 @@ object queries {
   val insert1: QueryI[Person] =
     for {
       inputPerson <- input[Person]
-      (_, into) <- insert[Person]
+      (p, into) <- insert[Person]
       _ <- into(inputPerson)
     } yield ()
 
@@ -212,7 +212,7 @@ object queries {
       _ <- where if p.id == i
     } yield p
 
-  // @compile
+  @compile
   val delete4: QueryIO[UUID, Person] =
     for {
       i <- input[UUID]

@@ -12,7 +12,7 @@ final class compile extends MacroAnnotation {
   private def transform(definition: Definition)(using Quotes): Definition = {
     val valDef: ValDef = definition.narrow[ValDef]
     val rhs: Term = valDef.requiredRHS
-    val newRHS: Term = ParseContext.root("compile") { ParsedQuery.parse(rhs) }.toTerm
+    val newRHS: Term = ParsedQuery.compile(rhs)
 
     report.info(newRHS.showAnsiCode)
 

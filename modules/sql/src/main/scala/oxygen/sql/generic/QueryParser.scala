@@ -20,7 +20,13 @@ private[generic] object QueryParser {
 
   final case class Input(
       queryRef: QueryReference.InputLike,
-  )
+  ) {
+
+    def show: String =
+      s"""
+         |  [INPUT] ${queryRef.show}: ${queryRef.param.tpe.showAnsiCode}""".stripMargin
+
+  }
   object Input extends QueryParser[Input] {
 
     override def parse(term: Term, refs: RefMap, prevFunction: String)(using ParseContext, Quotes): ParseResult[(Input, String, RefMap, Term)] = {
@@ -40,10 +46,15 @@ private[generic] object QueryParser {
   }
 
   final case class InsertQ(
-      param: Function.Param,
+      queryRef: QueryReference.Query,
       tableRepr: Expr[TableRepr[?]],
       intoParam: Function.Param,
-  )
+  ) {
+
+    def show: String =
+      s"${queryRef.param.tpe.showAnsiCode} ${queryRef.show}"
+
+  }
   object InsertQ extends QueryParser[InsertQ] {
 
     override def parse(term: Term, refs: RefMap, prevFunction: String)(using ParseContext, Quotes): ParseResult[(InsertQ, String, RefMap, Term)] =
@@ -52,19 +63,25 @@ private[generic] object QueryParser {
         (p1, p2) <- fc1.funct.parseParam2
         f1Name <- functionNames.mapOrFlatMap.parse(fc1.nameRef).unknownAsError
 
+        queryRef = QueryReference.Query(p1, tableRepr, true)
         newRefs = refs.add(
-          QueryReference.Query(p1, tableRepr, true),
+          queryRef,
           // TODO (KR) : figure out how to represent `into`
         )
 
-      } yield (InsertQ(p1, tableRepr, p2), f1Name, newRefs, fc1.funct.body)
+      } yield (InsertQ(queryRef, tableRepr, p2), f1Name, newRefs, fc1.funct.body)
 
   }
 
   final case class SelectQ(
-      param: Function.Param,
+      queryRef: QueryReference.Query,
       tableRepr: Expr[TableRepr[?]],
-  )
+  ) {
+
+    def show: String =
+      s"FROM ${queryRef.param.tpe.showAnsiCode} ${queryRef.show}"
+
+  }
   object SelectQ extends QueryParser[SelectQ] {
 
     override def parse(term: Term, refs: RefMap, prevFunction: String)(using ParseContext, Quotes): ParseResult[(SelectQ, String, RefMap, Term)] =
@@ -73,17 +90,23 @@ private[generic] object QueryParser {
         p1 <- fc1.funct.parseParam1
         f1Name <- functionNames.mapOrFlatMap.parse(fc1.nameRef).unknownAsError
 
-        newRefs = refs.add(QueryReference.Query(p1, tableRepr, true))
+        queryRef = QueryReference.Query(p1, tableRepr, true)
+        newRefs = refs.add(queryRef)
 
-      } yield (SelectQ(p1, tableRepr), f1Name, newRefs, fc1.funct.body)
+      } yield (SelectQ(queryRef, tableRepr), f1Name, newRefs, fc1.funct.body)
 
   }
 
   final case class UpdateQ(
-      param: Function.Param,
+      queryRef: QueryReference.Query,
       tableRepr: Expr[TableRepr[?]],
       setParam: Function.Param,
-  )
+  ) {
+
+    def show: String =
+      s"${queryRef.param.tpe.showAnsiCode} ${queryRef.show}"
+
+  }
   object UpdateQ extends QueryParser[UpdateQ] {
 
     override def parse(term: Term, refs: RefMap, prevFunction: String)(using ParseContext, Quotes): ParseResult[(UpdateQ, String, RefMap, Term)] =
@@ -92,19 +115,25 @@ private[generic] object QueryParser {
         (p1, p2) <- fc1.funct.parseParam2
         f1Name <- functionNames.mapOrFlatMap.parse(fc1.nameRef).unknownAsError
 
+        queryRef = QueryReference.Query(p1, tableRepr, true)
         newRefs = refs.add(
-          QueryReference.Query(p1, tableRepr, true),
+          queryRef,
           // TODO (KR) : figure out how to represent `set`
         )
 
-      } yield (UpdateQ(p1, tableRepr, p2), f1Name, newRefs, fc1.funct.body)
+      } yield (UpdateQ(queryRef, tableRepr, p2), f1Name, newRefs, fc1.funct.body)
 
   }
 
   final case class DeleteQ(
-      param: Function.Param,
+      queryRef: QueryReference.Query,
       tableRepr: Expr[TableRepr[?]],
-  )
+  ) {
+
+    def show: String =
+      s"${queryRef.param.tpe.showAnsiCode} ${queryRef.show}"
+
+  }
   object DeleteQ extends QueryParser[DeleteQ] {
 
     override def parse(term: Term, refs: RefMap, prevFunction: String)(using ParseContext, Quotes): ParseResult[(DeleteQ, String, RefMap, Term)] =
@@ -113,18 +142,26 @@ private[generic] object QueryParser {
         p1 <- fc1.funct.parseParam1
         f1Name <- functionNames.mapOrFlatMap.parse(fc1.nameRef).unknownAsError
 
-        newRefs = refs.add(QueryReference.Query(p1, tableRepr, true))
+        queryRef = QueryReference.Query(p1, tableRepr, true)
+        newRefs = refs.add(queryRef)
 
-      } yield (DeleteQ(p1, tableRepr), f1Name, newRefs, fc1.funct.body)
+      } yield (DeleteQ(queryRef, tableRepr), f1Name, newRefs, fc1.funct.body)
 
   }
 
   final case class Join(
-      escapingParam: Function.Param,
-      onParam: Function.Param,
+      escapingParam: QueryReference.Query,
+      onParam: QueryReference.Query,
       on: QueryExpr,
       tableRepr: Expr[TableRepr[?]],
-  )
+  ) {
+
+    def show(using Quotes): String =
+      s"""
+         |    Join ${onParam.param.tpe.showAnsiCode} ${onParam.show}
+         |      ON ${on.show}""".stripMargin
+
+  }
   object Join extends QueryParser[Join] {
 
     override def parse(term: Term, refs: RefMap, prevFunction: String)(using ParseContext, Quotes): ParseResult[(Join, String, RefMap, Term)] =
@@ -142,21 +179,29 @@ private[generic] object QueryParser {
         p2 <- fc2.funct.parseParam1
         _ <- functionNames.withFilter.parse(fc2.nameRef).unknownAsError
 
+        escapingParam = QueryReference.Query(p1, tableRepr, false)
+        onParam = QueryReference.Query(p2, tableRepr, false)
         newRefs = refs.add(
-          QueryReference.Query(p1, tableRepr, false),
-          QueryReference.Query(p2, tableRepr, false),
+          escapingParam,
+          onParam,
         )
 
         onExpr <- RawQueryExpr.parse((fc2.funct.body.simplify, newRefs)).unknownAsError
         onExpr <- QueryExpr.parse(onExpr)
 
-      } yield (Join(p1, p2, onExpr, tableRepr), f1Name, newRefs, fc1.funct.body)
+      } yield (Join(escapingParam, onParam, onExpr, tableRepr), f1Name, newRefs, fc1.funct.body)
 
   }
 
   final case class Where(
       where: QueryExpr,
-  )
+  ) {
+
+    def show(using Quotes): String =
+      s"""
+         |    WHERE ${where.show}""".stripMargin
+
+  }
   object Where extends QueryParser[Where] {
 
     override def parse(term: Term, refs: RefMap, prevFunction: String)(using ParseContext, Quotes): ParseResult[(Where, String, RefMap, Term)] = {
@@ -198,13 +243,22 @@ private[generic] object QueryParser {
 
   final case class Set(
       parts: NonEmptyList[Set.SetPart],
-  )
+  ) {
+
+    def show(using Quotes): String =
+      s"    SET ${parts.head.show}${parts.tail.map { p => s"\n        ${p.show}" }.mkString}"
+
+  }
   object Set extends QueryParser[Set] {
 
     final case class SetPart(
         lhsExpr: QueryExpr.QueryLike,
         rhsExpr: QueryExpr.Unary,
-    )
+    ) {
+
+      def show(using Quotes): String = s"${lhsExpr.show} := ${rhsExpr.show}"
+
+    }
 
     private def parseSetPart(term: Term, refs: RefMap, rootQueryRef: QueryReference.Query)(using ParseContext, Quotes): ParseResult[SetPart] =
       for {
@@ -219,12 +273,12 @@ private[generic] object QueryParser {
         widenedLhsTpe = lhs.tpe.widen
         widenedRhsTpe = rhs.tpe.widen
 
-        refsWithParam = refs.add(QueryReference.Query(p1, rootQueryRef.tableRepr, rootQueryRef.isRoot))
+        refsWithParam = refs.addAlias(p1, rootQueryRef.param)
         lhsExpr <- RawQueryExpr.Unary.parse((lhs, refsWithParam)).unknownAsError
         lhsExpr <- QueryExpr.Unary.parse(lhsExpr).unknownAsError
         lhsExpr <- lhsExpr match {
-          case lhsExpr: QueryExpr.QueryLike if lhsExpr.param.sym == p1.sym => ParseResult.Success(lhsExpr)
-          case _                                                           => ParseResult.error(lhsExpr.rootIdent, "root of set lhs is not the update table?")
+          case lhsExpr: QueryExpr.QueryLike if lhsExpr.param.sym == rootQueryRef.param.sym => ParseResult.Success(lhsExpr)
+          case _                                                                           => ParseResult.error(lhsExpr.rootIdent, "root of set lhs is not the update table?")
         }
 
         rhsExpr <- RawQueryExpr.Unary.parse((rhs, refs)).unknownAsError
@@ -249,7 +303,14 @@ private[generic] object QueryParser {
 
   }
 
-  final case class Returning(tree: Tree, exprs: List[QueryExpr])
+  final case class Returning(tree: Tree, exprs: List[QueryExpr]) {
+
+    def showOpt(using Quotes): Option[String] = exprs match
+      case Nil         => None
+      case expr :: Nil => expr.show.some
+      case exprs       => exprs.map(_.show).mkString(", ").some
+
+  }
   object Returning extends Parser[(Term, RefMap), Returning] {
 
     override def parse(input: (Term, RefMap))(using ParseContext, Quotes): ParseResult[Returning] =

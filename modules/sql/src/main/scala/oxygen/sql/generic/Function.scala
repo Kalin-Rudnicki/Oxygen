@@ -63,6 +63,7 @@ private[generic] object Function extends Parser[Term, Function] {
     */
   sealed trait Param extends AnyParam, TermTransformer {
     def name: String
+    def tpe: TypeRepr
     final lazy val sym: Symbol = tree.symbol
   }
 
@@ -117,10 +118,11 @@ private[generic] object Function extends Parser[Term, Function] {
 
     final case class Ignored(parentValDef: ValDef, tree: Tree, idx: Int) extends TupleUnapplyPart, AnyParam
 
-    final case class Named(parentValDef: ValDef, name: String, tpe: TypeRepr, tree: Tree, idx: Int) extends TupleUnapplyPart, Param {
+    final case class Named(parentValDef: ValDef, name: String, treeTpe: TypeRepr, tree: Tree, idx: Int) extends TupleUnapplyPart, Param {
 
+      override val tpe: TypeRepr = treeTpe.widen
       override def inTpe: TypeRepr = parentValDef.tpt.tpe.widen
-      override def outTpe: TypeRepr = tpe.widen
+      override def outTpe: TypeRepr = treeTpe
 
       override protected def convertTermInternal(term: Term)(using Quotes): Term = term.select(s"_${idx + 1}")
 

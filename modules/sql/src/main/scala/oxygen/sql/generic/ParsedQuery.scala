@@ -3,9 +3,21 @@ package oxygen.sql.generic
 import oxygen.quoted.*
 import scala.quoted.*
 
-private[sql] sealed trait ParsedQuery {
+private[sql] sealed trait ParsedQuery extends Product {
 
-  def toTerm(using Quotes): Term
+  val inputs: List[QueryParser.Input]
+  val ret: QueryParser.Returning
+
+  def show(using Quotes): String
+
+  protected final def showInputs: String =
+    if (inputs.nonEmpty) inputs.map(_.show).mkString("inputs:", "", "\n")
+    else "<no inputs>\n"
+
+  protected final def showReturning(using Quotes): String =
+    ret.showOpt.map { ret => s"\n    RETURNING $ret" }.mkString
+
+  def toTerm(using ParseContext, Quotes): ParseResult[Term]
 
 }
 private[sql] object ParsedQuery extends Parser[Term, ParsedQuery] {
@@ -17,8 +29,14 @@ private[sql] object ParsedQuery extends Parser[Term, ParsedQuery] {
       ret: QueryParser.Returning,
   ) extends ParsedQuery {
 
-    override def toTerm(using Quotes): Term =
-      report.errorAndAbort("TODO : ParsedQuery.InsertQuery.toTerm")
+    override def show(using Quotes): String =
+      s"""$showInputs
+         |INSERT INTO ${insert.show}
+         |    VALUES ${into.queryRef.show}$showReturning
+         |""".stripMargin
+
+    override def toTerm(using ParseContext, Quotes): ParseResult[Term] =
+      ParseResult.error(Position.ofMacroExpansion, "TODO")
 
   }
 
@@ -30,8 +48,14 @@ private[sql] object ParsedQuery extends Parser[Term, ParsedQuery] {
       ret: QueryParser.Returning,
   ) extends ParsedQuery {
 
-    override def toTerm(using Quotes): Term =
-      report.errorAndAbort("TODO : ParsedQuery.SelectQuery.toTerm")
+    override def show(using Quotes): String =
+      s"""$showInputs
+         |SELECT ${ret.showOpt.getOrElse("<ERROR>")}
+         |    ${select.show}${joins.map(_.show).mkString}${where.map(_.show).mkString}
+         |""".stripMargin
+
+    override def toTerm(using ParseContext, Quotes): ParseResult[Term] =
+      ParseResult.error(Position.ofMacroExpansion, "TODO")
 
   }
 
@@ -44,8 +68,14 @@ private[sql] object ParsedQuery extends Parser[Term, ParsedQuery] {
       ret: QueryParser.Returning,
   ) extends ParsedQuery {
 
-    override def toTerm(using Quotes): Term =
-      report.errorAndAbort("TODO : ParsedQuery.UpdateQuery.toTerm")
+    override def show(using Quotes): String =
+      s"""$showInputs
+         |UPDATE ${update.show}${joins.map(_.show).mkString}${where.map(_.show).mkString}
+         |${set.show}$showReturning
+         |""".stripMargin
+
+    override def toTerm(using ParseContext, Quotes): ParseResult[Term] =
+      ParseResult.error(Position.ofMacroExpansion, "TODO")
 
   }
 
@@ -57,8 +87,13 @@ private[sql] object ParsedQuery extends Parser[Term, ParsedQuery] {
       ret: QueryParser.Returning,
   ) extends ParsedQuery {
 
-    override def toTerm(using Quotes): Term =
-      report.errorAndAbort("TODO : ParsedQuery.DeleteQuery.toTerm")
+    override def show(using Quotes): String =
+      s"""$showInputs
+         |DELETE FROM ${delete.show}${joins.map(_.show).mkString}${where.map(_.show).mkString}$showReturning
+         |""".stripMargin
+
+    override def toTerm(using ParseContext, Quotes): ParseResult[Term] =
+      ParseResult.error(Position.ofMacroExpansion, "TODO")
 
   }
 
@@ -72,6 +107,15 @@ private[sql] object ParsedQuery extends Parser[Term, ParsedQuery] {
         ParsedQuery.UpdateQuery(inputs, update, joins, where, set, ret)
       case (inputs, QueryParser.PartialQuery.DeleteQuery(delete, joins, where), ret) =>
         ParsedQuery.DeleteQuery(inputs, delete, joins, where, ret)
+    }
+
+  def compile(input: Term)(using Quotes): Term =
+    ParseContext.root("compile") {
+      for {
+        parsed <- ParseContext.add("parse") { ParsedQuery.parse(input) }
+        _ = report.info(parsed.show)
+        res <- ParseContext.add(s"${parsed.productPrefix}.toTerm") { parsed.toTerm }
+      } yield res
     }
 
 }
