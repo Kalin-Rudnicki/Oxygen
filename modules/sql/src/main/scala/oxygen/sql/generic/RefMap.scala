@@ -27,6 +27,12 @@ private[generic] final class RefMap private (map: Map[Symbol, QueryReference]) {
       case None                                 => ParseResult.error(ident, "ident does not belong to an input/query param")
     }
 
+  def getRootQueryRef(errorPos: Tree)(using ParseContext): ParseResult[QueryReference.Query] =
+    map.valuesIterator.collect { case ref: QueryReference.Query if ref.isRoot => ref }.toList match
+      case ref :: Nil => ParseResult.Success(ref)
+      case Nil        => ParseResult.error(errorPos, "no root param found?")
+      case _          => ParseResult.error(errorPos, "many root params found?")
+
 }
 private object RefMap {
   val empty: RefMap = new RefMap(Map.empty)

@@ -101,19 +101,34 @@ object queries {
       _ <- where if p1.tablePK == id
     } yield p1
 
+  @compile
+  val select7: QueryIO[UUID, (Person, Person)] =
+    for {
+      id <- input[UUID]
+      p1 <- select[Person]
+      p2 <- join[Person] if p2.last == p1.last
+      _ <- where if p1.tablePK == id
+    } yield (p1, p2)
+
+  // @compile
+  val select8: QueryIO[UUID, (Person, Option[Person])] =
+    for {
+      id <- input[UUID]
+      p1 <- select[Person]
+      p2 <- leftJoin[Person] if p2.last == p1.last
+      _ <- where if p1.tablePK == id
+    } yield (p1, p2)
+
   //////////////////////////////////////////////////////////////////////////////////////////////////////
   //      Update
   //////////////////////////////////////////////////////////////////////////////////////////////////////
 
-  @compile
+  // @compile
   val update1: Query =
     for {
       f <- input.const("first")
-      (p, set) <- update[Person]
-      _ <- set(
-        _.first := f,
-        _.first.length := f,
-      )
+      (_, set) <- update[Person]
+      _ <- set(_.first := f)
     } yield ()
 
   // @compile

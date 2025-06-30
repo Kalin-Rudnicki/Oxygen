@@ -101,11 +101,21 @@ private[generic] object QueryParser {
 
   }
 
-  final case class DeleteQ()
+  final case class DeleteQ(
+      param: Function.Param,
+      tableRepr: Expr[TableRepr[?]],
+  )
   object DeleteQ extends QueryParser[DeleteQ] {
 
     override def parse(term: Term, refs: RefMap, prevFunction: String)(using ParseContext, Quotes): ParseResult[(DeleteQ, String, RefMap, Term)] =
-      ParseResult.unknown(term, "TODO")
+      for {
+        (fc1, tableRepr) <- FunctionCall.parseTyped[T.Delete[?]](term, "function 1").parseLhs { case '{ Q.delete[a](using $tableRepr) } => ParseResult.Success(tableRepr) }
+        p1 <- fc1.funct.parseParam1
+        f1Name <- functionNames.mapOrFlatMap.parse(fc1.nameRef).unknownAsError
+
+        newRefs = refs.add(QueryReference.Query(p1, tableRepr, true))
+
+      } yield (DeleteQ(p1, tableRepr), f1Name, newRefs, fc1.funct.body)
 
   }
 
@@ -122,10 +132,13 @@ private[generic] object QueryParser {
         fc1 <- FunctionCall.parseTyped[T.Join[?]](term, "function 1").ignore
         p1 <- fc1.funct.parseParam1
         f1Name <- functionNames.mapOrFlatMap.parse(fc1.nameRef).unknownAsError
-        (fc2, tableRepr) <- FunctionCall.parseTyped[T.Partial.JoinLike](fc1.funct.body, "function 2").parseLhs {
-          // TODO (KR) : left join
-          case '{ oxygen.sql.query.dsl.Q.join[a](using $tableRepr) } => ParseResult.Success(tableRepr)
-        }
+        (fc2, tableRepr) <- FunctionCall
+          .parseTyped[T.Partial.JoinLike](fc1.lhs, "function 2")
+          .parseLhs {
+            // TODO (KR) : left join
+            case '{ oxygen.sql.query.dsl.Q.join[a](using $tableRepr) } => ParseResult.Success(tableRepr)
+          }
+          .unknownAsError
         p2 <- fc2.funct.parseParam1
         _ <- functionNames.withFilter.parse(fc2.nameRef).unknownAsError
 
@@ -146,19 +159,20 @@ private[generic] object QueryParser {
   )
   object Where extends QueryParser[Where] {
 
-    override def parse(term: Term, refs: RefMap, prevFunction: String)(using ParseContext, Quotes): ParseResult[(Where, String, RefMap, Term)] =
+    override def parse(term: Term, refs: RefMap, prevFunction: String)(using ParseContext, Quotes): ParseResult[(Where, String, RefMap, Term)] = {
       for {
         fc1 <- FunctionCall.parseTyped[T.Where](term, "function 1").ignore
         _ <- fc1.funct.parseEmptyParams
         f1Name <- functionNames.mapOrFlatMap.parse(fc1.nameRef).unknownAsError
-        fc2 <- FunctionCall.parseTyped[T.Partial.Where](fc1.funct.body, "function 2").filterLhs { case '{ Q.where } => }
+        fc2 <- FunctionCall.parseTyped[T.Partial.Where](fc1.lhs, "function 2").filterLhs { case '{ Q.where } => }.unknownAsError
         _ <- fc2.funct.parseEmptyParams
         _ <- functionNames.withFilter.parse(fc2.nameRef).unknownAsError
 
         whereExpr <- RawQueryExpr.parse((fc2.funct.body.simplify, refs)).unknownAsError
-        whereExpr <- QueryExpr.parse(whereExpr)
+        whereExpr <- QueryExpr.parse(whereExpr).unknownAsError
 
       } yield (Where(whereExpr), f1Name, refs, fc1.funct.body)
+    }
 
   }
 
@@ -188,10 +202,11 @@ private[generic] object QueryParser {
   object Set extends QueryParser[Set] {
 
     final case class SetPart(
+        lhsExpr: QueryExpr.QueryLike,
+        rhsExpr: QueryExpr.Unary,
     )
 
-    @scala.annotation.nowarn // FIX-PRE-MERGE (KR) : remove
-    private def parseSetPart(term: Term, refs: RefMap)(using ParseContext, Quotes): ParseResult[SetPart] =
+    private def parseSetPart(term: Term, refs: RefMap, rootQueryRef: QueryReference.Query)(using ParseContext, Quotes): ParseResult[SetPart] =
       for {
         fun <- Function.parse(term).unknownAsError
         p1 <- fun.parseParam1
@@ -200,13 +215,24 @@ private[generic] object QueryParser {
           case _                                                                      => ParseResult.error(fun.body, "invalid set part")
         }
 
-        // refsWithParam = refs.add(QueryReference.Query())
-        // _ <- RawQueryExpr.parse()
+        _ <- ParseResult.validate(p1.outTpe =:= rootQueryRef.param.outTpe)(p1.tree, "set param does not match type of update table?")
+        widenedLhsTpe = lhs.tpe.widen
+        widenedRhsTpe = rhs.tpe.widen
 
-        _ <- ParseResult.error(lhs, p1.name)
-      } yield ???
+        refsWithParam = refs.add(QueryReference.Query(p1, rootQueryRef.tableRepr, rootQueryRef.isRoot))
+        lhsExpr <- RawQueryExpr.Unary.parse((lhs, refsWithParam)).unknownAsError
+        lhsExpr <- QueryExpr.Unary.parse(lhsExpr).unknownAsError
+        lhsExpr <- lhsExpr match {
+          case lhsExpr: QueryExpr.QueryLike if lhsExpr.param.sym == p1.sym => ParseResult.Success(lhsExpr)
+          case _                                                           => ParseResult.error(lhsExpr.rootIdent, "root of set lhs is not the update table?")
+        }
 
-    @scala.annotation.nowarn // FIX-PRE-MERGE (KR) : remove
+        rhsExpr <- RawQueryExpr.Unary.parse((rhs, refs)).unknownAsError
+        rhsExpr <- QueryExpr.Unary.parse(rhsExpr).unknownAsError
+
+        _ <- ParseResult.validate(widenedLhsTpe <:< widenedRhsTpe)(fun.body, s"set types do not match:  ${widenedLhsTpe.showAnsiCode} := ${widenedRhsTpe.showAnsiCode}")
+      } yield SetPart(lhsExpr, rhsExpr)
+
     override def parse(term: Term, refs: RefMap, prevFunction: String)(using ParseContext, Quotes): ParseResult[(Set, String, RefMap, Term)] =
       for {
         fc1 <- FunctionCall.parseTyped[T.UpdateSet](term, "function 1").ignore
@@ -217,8 +243,9 @@ private[generic] object QueryParser {
           case _                                                                                     => ParseResult.error(fc1.lhs, "does not look like `set(...)`")
         }
 
-        parts <- setTerms.traverse(parseSetPart(_, refs))
-      } yield ??? // TODO (KR) :
+        rootQueryRef <- refs.getRootQueryRef(fc1.lhs)
+        parts <- setTerms.traverse(parseSetPart(_, refs, rootQueryRef))
+      } yield (Set(parts), f1Name, refs, fc1.funct.body)
 
   }
 
@@ -322,7 +349,7 @@ private[generic] object QueryParser {
           for {
             (aValue, aFunct, aRefs, aTerm) <- self.parse(input, RefMap.empty, "<init>")
             ret <- ParseContext.add("Returning") {
-              ParseResult.validate(aFunct == "map")(aTerm, s"expected final `map`, not $aFunct").flatMap { _ =>
+              ParseResult.validate(aFunct == "map")(aTerm, s"expected final `map`, not $aFunct\n\nparsed:\n$aValue").flatMap { _ =>
                 Returning.parse((aTerm, aRefs))
               }
             }

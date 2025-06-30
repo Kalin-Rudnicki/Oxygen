@@ -36,6 +36,7 @@ private[generic] object QueryExpr extends Parser[RawQueryExpr, QueryExpr] {
 
   sealed trait Unary extends QueryExpr {
     val param: Function.Param
+    val rootIdent: Ident
   }
   object Unary extends Parser[RawQueryExpr.Unary, QueryExpr.Unary] {
 
@@ -64,12 +65,14 @@ private[generic] object QueryExpr extends Parser[RawQueryExpr, QueryExpr] {
 
     final case class QueryRefIdent(ident: Ident, queryRef: QueryReference.InputLike) extends InputLike, TermTransformer.Defer {
       override val fullTerm: Term = ident
+      override val rootIdent: Ident = ident
       override val param: Function.Param = queryRef.param
       override protected def defer: TermTransformer = queryRef
     }
 
     final case class ProductFieldSelect(select: Select, inner: InputLike) extends InputLike {
       override val fullTerm: Term = select
+      override val rootIdent: Ident = inner.rootIdent
       override val param: Function.Param = inner.param
       override val inTpe: TypeRepr = inner.inTpe
       override val outTpe: TypeRepr = select.tpe.widen
@@ -87,6 +90,7 @@ private[generic] object QueryExpr extends Parser[RawQueryExpr, QueryExpr] {
 
     final case class QueryRefIdent(ident: Ident, queryRef: QueryReference.Query) extends QueryLike {
       override val fullTerm: Term = ident
+      override val rootIdent: Ident = ident
       override val param: Function.Param = queryRef.param
       override val tableRepr: Expr[TableRepr[?]] = queryRef.tableRepr
       override val isRoot: Boolean = queryRef.isRoot
@@ -95,6 +99,7 @@ private[generic] object QueryExpr extends Parser[RawQueryExpr, QueryExpr] {
 
     final case class ProductFieldSelect(select: Select, inner: QueryLike) extends QueryLike {
       override val fullTerm: Term = select
+      override val rootIdent: Ident = inner.rootIdent
       override val param: Function.Param = inner.param
       override val tableRepr: Expr[TableRepr[?]] = inner.tableRepr
       override val isRoot: Boolean = inner.isRoot
@@ -103,6 +108,7 @@ private[generic] object QueryExpr extends Parser[RawQueryExpr, QueryExpr] {
 
     final case class OptionGet(select: Select, inner: QueryLike) extends QueryLike {
       override val fullTerm: Term = select
+      override val rootIdent: Ident = inner.rootIdent
       override val param: Function.Param = inner.param
       override val tableRepr: Expr[TableRepr[?]] = inner.tableRepr
       override val isRoot: Boolean = inner.isRoot
