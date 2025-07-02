@@ -1,5 +1,6 @@
 package oxygen.sql.generic
 
+import oxygen.core.typeclass.Zip3
 import oxygen.predef.core.*
 import oxygen.quoted.*
 import oxygen.sql.query.dsl.{Q, T}
@@ -160,6 +161,9 @@ private[generic] object QueryParser {
       s"""
          |    Join ${onParam.param.tpe.showAnsiCode} ${onParam.show}
          |      ON ${on.show}""".stripMargin
+
+    def queryRefs: Growable[QueryReference] =
+      escapingParam +: onParam +: on.queryRefs
 
   }
   object Join extends QueryParser[Join] {
@@ -389,7 +393,7 @@ private[generic] object QueryParser {
   val partialQuery: QueryParser[PartialQuery] =
     partialInsert || partialSelect || partialUpdate || partialDelete
 
-  val finished: Parser[Term, (List[Input], PartialQuery, Returning)] =
+  val finished: Parser[Term, (List[Input], PartialQuery, Returning, RefMap)] =
     (Input.many.withContext("Input") >>> partialQuery).withReturning
 
   //////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -404,7 +408,7 @@ private[generic] object QueryParser {
     def ||[B >: A](that: QueryParser[B]): QueryParser[B] =
       Or(self, that)
 
-    def withReturning(using zip: Zip[A, Returning]): Parser[Term, zip.Out] =
+    def withReturning(using zip: Zip3[A, Returning, RefMap]): Parser[Term, zip.Out] =
       new Parser[Term, zip.Out] {
         override def parse(input: Term)(using ParseContext, Quotes): ParseResult[zip.Out] =
           for {
@@ -414,7 +418,7 @@ private[generic] object QueryParser {
                 Returning.parse((aTerm, aRefs))
               }
             }
-          } yield zip.zip(aValue, ret)
+          } yield zip.zip(aValue, ret, aRefs)
       }
 
     def map[B](f: A => B): QueryParser[B] =

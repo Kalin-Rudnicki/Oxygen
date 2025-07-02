@@ -91,6 +91,11 @@ object InputEncoder extends K0.Derivable[InputEncoder] {
 
   }
 
+  final case class Const[A](inner: InputEncoder[A], const: A) extends InputEncoder[Any] {
+    override val size: Int = inner.size
+    override def unsafeEncode(writer: InputWriter, value: Any): Unit = inner.unsafeEncode(writer, const)
+  }
+
   case object Empty extends InputEncoder[Any] {
     override val size: Int = 0
     override def unsafeEncode(writer: InputWriter, value: Any): Unit = ()

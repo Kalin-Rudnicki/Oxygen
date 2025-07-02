@@ -1,5 +1,6 @@
 package oxygen.sql.generic
 
+import oxygen.core.syntax.functor.*
 import oxygen.meta.*
 import oxygen.predef.core.*
 import oxygen.quoted.*
@@ -28,6 +29,7 @@ private[generic] object GeneratedSql {
   def const(str: String)(using Quotes): GeneratedSql = single(Expr(str))
 
   def option(sql: Option[GeneratedSql]): GeneratedSql = sql.getOrElse(empty)
+  def many[S[_]: SeqOps](sqls: S[GeneratedSql]): GeneratedSql = GeneratedSql(Growable.many(sqls).flatMap(_.sqls))
   def seq(sqls: Seq[GeneratedSql]): GeneratedSql = GeneratedSql(Growable.many(sqls).flatMap(_.sqls))
   def nel(sqls: NonEmptyList[GeneratedSql]): GeneratedSql = seq(sqls.toList)
   def of(sqls: (String | GeneratedSql)*)(using Quotes): GeneratedSql =
@@ -63,35 +65,34 @@ private[generic] final case class GeneratedInputEncoder(inputs: Growable[Generat
 private[generic] object GeneratedInputEncoder {
 
   final case class Elem(
-      typeRepr: TypeRepr,
-      fromInput: Option[Expr[Any] => Expr[Any]],
       encoder: Expr[InputEncoder[?]],
   ) {
 
     def buildExpr[I: Type](using Quotes): Expr[InputEncoder[I]] =
-      fromInput match {
-        case Some(fromInput) =>
-          type MyI
-          given Type[MyI] = typeRepr.asTypeOf
-          val typedEncoder: Expr[InputEncoder[MyI]] = encoder.asExprOf[InputEncoder[MyI]]
-
-          val f: Expr[I => MyI] =
-            '{ (i: I) => ${ fromInput('i).asExprOf[MyI] } }
-
-          '{ $typedEncoder.contramap[I]($f) }
-        case None =>
-          encoder.asExprOf[InputEncoder[I]]
-      }
+      encoder.asExprOf[InputEncoder[I]]
 
   }
 
   val empty: GeneratedInputEncoder = GeneratedInputEncoder(Growable.empty)
-  def single(typeRepr: TypeRepr, fromInput: Option[Expr[Any] => Expr[Any]], encoder: Expr[InputEncoder[?]]): GeneratedInputEncoder =
-    GeneratedInputEncoder(Growable.single(Elem(typeRepr, fromInput, encoder)))
+  def single(encoder: Expr[InputEncoder[?]]): GeneratedInputEncoder = GeneratedInputEncoder(Growable.single(Elem(encoder)))
   def option(opt: Option[GeneratedInputEncoder]): GeneratedInputEncoder = opt.getOrElse(empty)
   def seq(seq: Seq[GeneratedInputEncoder]): GeneratedInputEncoder = GeneratedInputEncoder(Growable.many(seq).flatMap(_.inputs))
+  def many[S[_]: SeqOps](seq: S[GeneratedInputEncoder]): GeneratedInputEncoder = GeneratedInputEncoder(Growable.many(seq).flatMap(_.inputs))
   def nel(nel: NonEmptyList[GeneratedInputEncoder]): GeneratedInputEncoder = seq(nel.toList)
 
+}
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////
+//      GeneratedFragment
+//////////////////////////////////////////////////////////////////////////////////////////////////////
+
+private[generic] final case class GeneratedFragment(sql: GeneratedSql, encoder: GeneratedInputEncoder) {
+  def ++(that: GeneratedFragment): GeneratedFragment = GeneratedFragment(this.sql ++ that.sql, this.encoder ++ that.encoder)
+}
+object GeneratedFragment {
+  def sql(str: String)(using Quotes): GeneratedFragment = GeneratedFragment(GeneratedSql.const(str), GeneratedInputEncoder.empty)
+  def many[S[_]: SeqOps](seq: S[GeneratedFragment]): GeneratedFragment = GeneratedFragment(GeneratedSql.many(seq.map(_.sql)), GeneratedInputEncoder.many(seq.map(_.encoder)))
+  def of(frags: GeneratedFragment*): GeneratedFragment = GeneratedFragment.many(frags)
 }
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////

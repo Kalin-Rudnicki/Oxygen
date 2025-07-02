@@ -1,6 +1,7 @@
 package oxygen.sql.generic
 
 import oxygen.predef.color.given
+import oxygen.predef.core.*
 import oxygen.quoted.*
 import oxygen.sql.schema.*
 import scala.quoted.*
@@ -12,6 +13,7 @@ private[generic] sealed trait QueryExpr {
     * Whether that is a single identifier, or a combination of Exprs.
     */
   val fullTerm: Term
+  def queryRefs: Growable[QueryReference]
 
   final def show(using Quotes): String = this match
     case QueryExpr.InputLike.QueryRefIdent(_, queryRef)                              => queryRef.show
@@ -41,6 +43,7 @@ private[generic] object QueryExpr extends Parser[RawQueryExpr, QueryExpr] {
   sealed trait Unary extends QueryExpr {
     val rootIdent: Ident
     val queryRef: QueryReference
+    override final def queryRefs: Growable[QueryReference] = Growable.single(queryRef)
     final lazy val param: Function.Param = queryRef.param
   }
   object Unary extends Parser[RawQueryExpr.Unary, QueryExpr.Unary] {
@@ -181,9 +184,13 @@ private[generic] object QueryExpr extends Parser[RawQueryExpr, QueryExpr] {
 
   }
 
-  sealed trait Binary extends QueryExpr
+  sealed trait Binary extends QueryExpr {
+    val lhs: QueryExpr
+    val rhs: QueryExpr
+    override final def queryRefs: Growable[QueryReference] = lhs.queryRefs ++ rhs.queryRefs
+  }
 
-  final case class AndOr(fullTerm: Term, lhs: QueryExpr, op: BinOp.AndOr, rhs: QueryExpr) extends QueryExpr.Binary
+  final case class AndOr(fullTerm: Term, lhs: QueryExpr, op: BinOp.AndOr, rhs: QueryExpr) extends Binary
 
   sealed trait Comp extends Binary {
     val lhs: Unary

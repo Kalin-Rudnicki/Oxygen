@@ -1,9 +1,12 @@
 package oxygen.sql.generic
 
+import oxygen.predef.core.*
 import oxygen.quoted.*
 
 private[generic] final class RefMap private (map: Map[Symbol, QueryReference]) {
 
+  def allQueryRefs: Growable[QueryReference] = Growable.many(map.values)
+  
   def add(elems: QueryReference*): RefMap = new RefMap(map ++ elems.map { qr => qr.param.sym -> qr }.toMap)
   def addAlias(from: Function.Param, to: Function.Param): RefMap = new RefMap(map ++ map.get(to.sym).map { (from.sym, _) }.iterator.toMap)
   def addList(elems: List[QueryReference]): RefMap = new RefMap(map ++ elems.map { qr => qr.param.sym -> qr }.toMap)

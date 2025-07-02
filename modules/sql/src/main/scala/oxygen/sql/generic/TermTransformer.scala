@@ -39,11 +39,20 @@ private[generic] trait TermTransformer {
   final def getExpr[Out: Type](in: Expr[?])(using Quotes): Expr[Out] =
     convertTerm(in.toTerm).asExprOf[Out]
 
-  final def >>>(that: TermTransformer): TermTransformer =
-    TermTransformer.AndThen(this, that)
+  final def >>>(that: TermTransformer): TermTransformer = (this, that) match
+    case (_: TermTransformer.Id, _) => that
+    case (_, _: TermTransformer.Id) => this
+    case _                          => TermTransformer.AndThen(this, that)
 
 }
 object TermTransformer {
+
+  trait Id extends TermTransformer {
+    def tpe: TypeRepr
+    override final def inTpe: TypeRepr = tpe
+    override final def outTpe: TypeRepr = tpe
+    override protected final def convertTermInternal(term: Term)(using Quotes): Term = term
+  }
 
   final case class AndThen(a: TermTransformer, b: TermTransformer) extends TermTransformer {
     override def inTpe: TypeRepr = a.inTpe

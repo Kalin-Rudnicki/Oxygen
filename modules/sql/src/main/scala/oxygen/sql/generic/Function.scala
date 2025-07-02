@@ -73,8 +73,6 @@ private[generic] object Function extends Parser[Term, Function] {
     final lazy val name: String = valDef.name
     override final lazy val tree: Tree = valDef
     final lazy val tpe: TypeRepr = valDef.tpt.tpe.widen
-    final lazy val inTpe: TypeRepr = tpe
-    final lazy val outTpe: TypeRepr = tpe
 
     override final def toIndentedString: IndentedString =
       this match {
@@ -92,11 +90,7 @@ private[generic] object Function extends Parser[Term, Function] {
 
     final case class Ignored(valDef: ValDef) extends RootParam, AnyParam
 
-    final case class Named(valDef: ValDef) extends RootParam, Param {
-
-      override protected def convertTermInternal(term: Term)(using Quotes): Term = term
-
-    }
+    final case class Named(valDef: ValDef) extends RootParam, Param, TermTransformer.Id
 
     final case class TupleUnapply(valDef: ValDef, children: List[TupleUnapplyPart]) extends RootParam, AnyParam
 

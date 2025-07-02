@@ -47,7 +47,7 @@ object Database {
     ZLayer.scoped { ZIO.serviceWithZIO[DbConfig](make(_)) }
 
   val healthCheck: RIO[Database, Unit] =
-    QueryO[Int](QueryContext("HealthCheck", "SELECT 1", QueryContext.QueryType.Select), RowRepr.int.decoder)
+    QueryO[Int](QueryContext("HealthCheck", "SELECT 1", QueryContext.QueryType.Select), None, RowRepr.int.decoder)
       .execute()
       .single
       .flatMap {

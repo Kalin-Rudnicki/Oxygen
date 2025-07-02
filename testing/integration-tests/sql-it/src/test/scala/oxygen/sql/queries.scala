@@ -84,7 +84,7 @@ object queries {
       _ <- where if p1.first == f
     } yield p1
 
-  // @compile
+  @compile
   val select5: QueryIO[String, Person] =
     for {
       f <- input[String]
@@ -212,7 +212,7 @@ object queries {
       _ <- where if p.id == i
     } yield p
 
-  @compile
+  // @compile
   val delete4: QueryIO[UUID, Person] =
     for {
       i <- input[UUID]

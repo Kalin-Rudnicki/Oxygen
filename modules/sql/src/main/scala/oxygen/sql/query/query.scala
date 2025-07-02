@@ -23,6 +23,7 @@ sealed trait QueryLike {
 
 final class Query(
     val ctx: QueryContext,
+    encoder: Option[InputEncoder[Any]],
 ) extends QueryLike { self =>
 
   def apply(): QueryResult.Update[QueryError] = execute()
@@ -32,7 +33,9 @@ final class Query(
       ZIO.scoped {
         for {
           ps <- PreparedStatement.prepare(ctx)
-          updated <- ps.executeUpdate
+          updated <- encoder match
+            case None          => ps.executeUpdate
+            case Some(encoder) => ps.executeUpdate(encoder, ())
         } yield updated
       },
     )
@@ -41,7 +44,7 @@ final class Query(
 object Query {
 
   def simple(queryName: String, queryType: QueryContext.QueryType)(sql: String): Query =
-    Query(QueryContext(queryName, sql, queryType))
+    Query(QueryContext(queryName, sql, queryType), None)
 
 }
 
@@ -127,6 +130,7 @@ object QueryI {
 
 final class QueryO[O](
     val ctx: QueryContext,
+    encoder: Option[InputEncoder[Any]],
     decoder: ResultDecoder[O],
 ) extends QueryLike { self =>
 
@@ -136,12 +140,14 @@ final class QueryO[O](
       ctx,
       for {
         ps <- ZStream.fromZIO { PreparedStatement.prepare(ctx) }
-        o <- ps.executeQuery(decoder)
+        o <- encoder match
+          case None          => ps.executeQuery(decoder)
+          case Some(encoder) => ps.executeQuery(encoder, (), decoder)
       } yield o,
     )
 
-  def map[O2](f: O => O2): QueryO[O2] = QueryO[O2](self.ctx, self.decoder.map(f))
-  def mapOrFail[O2](f: O => Either[String, O2]): QueryO[O2] = QueryO[O2](self.ctx, self.decoder.mapOrFail(f))
+  def map[O2](f: O => O2): QueryO[O2] = QueryO[O2](self.ctx, self.encoder, self.decoder.map(f))
+  def mapOrFail[O2](f: O => Either[String, O2]): QueryO[O2] = QueryO[O2](self.ctx, self.encoder, self.decoder.mapOrFail(f))
 
 }
 object QueryO {
@@ -149,7 +155,7 @@ object QueryO {
   def simple[O](queryName: String, queryType: QueryContext.QueryType)(
       decoder: ResultDecoder[O],
   )(sql: String): QueryO[O] =
-    QueryO(QueryContext(queryName, sql, queryType), decoder)
+    QueryO(QueryContext(queryName, sql, queryType), None, decoder)
 
 }
 
