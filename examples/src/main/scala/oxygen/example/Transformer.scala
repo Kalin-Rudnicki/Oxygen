@@ -1,13 +1,12 @@
 package oxygen.example
 
 import oxygen.core.syntax.functor.*
-import oxygen.meta.K0.*
 import oxygen.predef.core.*
 import oxygen.quoted.*
 import scala.quoted.*
 
-trait Transformer[A, B] {
-  def transform(a: A): B
+trait Transformer[From, To] {
+  def transform(from: From): To
 }
 object Transformer extends TransformerLowPriority.LowPriority1 {
 
@@ -16,41 +15,14 @@ object Transformer extends TransformerLowPriority.LowPriority1 {
 
   @scala.annotation.nowarn
   private def derivedImpl[From: Type, To: Type](using Quotes): Expr[Transformer[From, To]] = {
-    val fromGen: ProductGeneric[From] = ProductGeneric.of[From]
-    val toGen: ProductGeneric[To] = ProductGeneric.of[To]
 
-    val fromFieldMap: Map[String, fromGen.Field[?]] = fromGen.fields.map { a => (a.name, a) }.toMap
-
-    def transformField[_From: Type, _To: Type](fromField: fromGen.Field[_From], toField: toGen.Field[_To])(expr: Expr[_From]): Expr[_To] = {
-      val transformer: Expr[Transformer[_From, _To]] =
-        Expr.summon[Transformer[_From, _To]].getOrElse(report.errorAndAbort(s"No transformer for ${TypeRepr.of[_From].showAnsiCode} -> ${TypeRepr.of[_To].showAnsiCode}", toField.pos))
-
-      '{ $transformer.transform($expr) }
-    }
-
-    def transformParent(): Any =
-      toGen.fields.map { (toField0: toGen.Field[?]) =>
-        type _From
-        type _To
-        val toField: toGen.Field[_To] = toField0.typedAs[_To]
-        given Type[_To] = toField.tpe
-
-        val fromField: fromGen.Field[_From] =
-          fromFieldMap
-            .getOrElse(
-              toField.name,
-              report.errorAndAbort(s"Unable to transform ${TypeRepr.of[From].widen.showAnsiCode} -> ${TypeRepr.of[To].widen.showAnsiCode}\nmissing field: ${toField.name}", toField.pos),
-            )
-            .typedAs[_From]
-        given Type[_From] = fromField.tpe
-
-        ()
-      }
+    def transformImpl(from: Expr[From]): Expr[To] =
+      '{ ??? }
 
     val res: Expr[Transformer[From, To]] =
       '{
         new Transformer[From, To] {
-          override def transform(a: From): To = ???
+          override def transform(from: From): To = ${ transformImpl('from) }
         }
       }
 
