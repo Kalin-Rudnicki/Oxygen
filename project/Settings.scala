@@ -2,7 +2,6 @@
 
 import sbt.*
 import sbt.Keys.*
-import xerial.sbt.Sonatype.SonatypeKeys.{sonatypeCredentialHost, sonatypeRepository}
 
 object Settings {
 
@@ -45,8 +44,6 @@ object Settings {
           url = url(s"https://github.com/$GithubUsername"),
         ),
       ),
-      sonatypeCredentialHost := "s01.oss.sonatype.org",
-      sonatypeRepository := "https://s01.oss.sonatype.org/service/local",
     )
 
 }
