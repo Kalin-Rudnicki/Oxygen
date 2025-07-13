@@ -9,7 +9,8 @@ object MacroUtil {
     val tpeFromType: TypeRepr = TypeRepr.of[A]
     val tpeFromTerm: TypeRepr = expr.toTerm.tpe
     report.info(
-      s"""=====| TypeRepr.of[A] |=====
+      s"""
+         |=====| TypeRepr.of[A] |=====
          |                   type: ${tpeFromType.showAnsiCode}
          |             type.widen: ${tpeFromType.widen.showAnsiCode}
          |           type.dealias: ${tpeFromType.dealias.showAnsiCode}
@@ -22,7 +23,8 @@ object MacroUtil {
          |type.dealiasKeepOpaques: ${tpeFromTerm.dealiasKeepOpaques.showAnsiCode}
          |
          |=====| Expr |=====
-         |${expr.showAnsiCode}""".stripMargin,
+         |${expr.showAnsiCode}
+         |""".stripMargin,
       pos,
     )
     expr
