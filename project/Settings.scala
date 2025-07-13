@@ -2,6 +2,7 @@
 
 import sbt.*
 import sbt.Keys.*
+import scala.sys.process.*
 
 object Settings {
 
@@ -17,7 +18,7 @@ object Settings {
   val testAndCompile = "test->test;compile->compile"
   val testToTest = "test->test"
 
-  private val settingsForAll: Seq[Def.Setting[_]] =
+  private def settingsForAll: Seq[Def.Setting[_]] =
     Seq(
       scalaVersion := Scala_3,
       organization := Dependencies.kalinRudnicki.organization,
@@ -25,14 +26,24 @@ object Settings {
       name := { throw new RuntimeException("You must define a project name!!!") },
       description := { throw new RuntimeException("You must define a project description!!!") },
       testFrameworks := Seq(new TestFramework("zio.test.sbt.ZTestFramework")),
+      version := { // TODO (KR) : I hate doing this, but one/both of the git plugins seems to be bricked. Remove if they figure their shit out.
+        (for {
+          gitDesc <-
+            try { Some(List("git", "describe", "--tags", "--exact-match").!!.trim) }
+            catch { case _: Throwable => None }
+          tagV <-
+            if (gitDesc.matches("^[0-9]+\\..*$")) Some(gitDesc)
+            else None
+        } yield tagV).getOrElse(version.value)
+      },
     )
 
-  val nonPublishedProjectSettings: Seq[Def.Setting[_]] =
+  def nonPublishedProjectSettings: Seq[Def.Setting[_]] =
     settingsForAll ++ Seq(
       publish / skip := true,
     )
 
-  val publishedProjectSettings: Seq[Def.Setting[_]] =
+  def publishedProjectSettings: Seq[Def.Setting[_]] =
     settingsForAll ++ Seq(
       licenses := List("MIT" -> new URL("https://opensource.org/licenses/MIT")),
       homepage := Some(url(s"https://github.com/$GithubUsername/$GithubProject")),
