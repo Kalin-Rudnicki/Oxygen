@@ -64,7 +64,7 @@ lazy val `oxygen-modules-jvm`: Project =
       `oxygen-quoted`.jvm,
       `oxygen-sql`,
       `oxygen-sql-migration`,
-      `oxygen-web-model`.jvm,
+      `oxygen-http-model`.jvm,
       `oxygen-zio`.jvm,
 
       // Testing
@@ -91,7 +91,7 @@ lazy val `oxygen-modules-js`: Project =
       `oxygen-json`.js,
       `oxygen-meta`.js,
       `oxygen-quoted`.js,
-      `oxygen-web-model`.js,
+      `oxygen-http-model`.js,
       `oxygen-zio`.js,
 
       // Testing
@@ -117,7 +117,7 @@ lazy val `oxygen-modules-native`: Project =
       `oxygen-json`.native,
       `oxygen-meta`.native,
       `oxygen-quoted`.native,
-      `oxygen-web-model`.native,
+      `oxygen-http-model`.native,
       `oxygen-zio`.native,
 
       // Testing
@@ -236,14 +236,14 @@ lazy val `oxygen-sql-migration`: Project =
       `oxygen-sql` % testAndCompile,
     )
 
-lazy val `oxygen-web-model`: CrossProject =
+lazy val `oxygen-http-model`: CrossProject =
   crossProject(JSPlatform, JVMPlatform, NativePlatform)
     .crossType(CrossType.Pure)
-    .in(file("modules/web-model"))
+    .in(file("modules/http-model"))
     .settings(
       publishedProjectSettings,
-      name := "oxygen-web-model",
-      description := "Adds standard models representing the web.",
+      name := "oxygen-http-model",
+      description := "Adds standard models for HTTP.",
     )
     .dependsOn(
       `oxygen-core` % testAndCompile,

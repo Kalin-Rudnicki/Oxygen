@@ -29,8 +29,19 @@ object Settings {
       version := { // TODO (KR) : I hate doing this, but one/both of the git plugins seems to be bricked. Remove if they figure their shit out.
         (for {
           gitDesc <-
-            try { Some(List("git", "describe", "--tags", "--exact-match").!!.trim) }
-            catch { case _: Throwable => None }
+            try {
+              Some(
+                List("git", "describe", "--tags", "--exact-match")
+                  .!!(
+                    new ProcessLogger {
+                      override def out(s: => String): Unit = ()
+                      override def err(s: => String): Unit = ()
+                      override def buffer[T](f: => T): T = f
+                    },
+                  )
+                  .trim,
+              )
+            } catch { case _: Throwable => None }
           tagV <-
             if (gitDesc.matches("^[0-9]+\\..*$")) Some(gitDesc)
             else None
