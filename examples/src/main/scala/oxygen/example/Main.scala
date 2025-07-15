@@ -1,6 +1,6 @@
 package oxygen.example
 
-import java.time.Instant
+import java.time.{Duration, Instant}
 
 object ApiModels {
 
@@ -16,8 +16,13 @@ object ApiModels {
       first: String,
       last: String,
       age: Int,
-      notes: Seq[Note],
-  )
+      notes: List[Note],
+  ) {
+
+    override def toString: String =
+      s"$first $last (${id.id})${notes.map { n => s"\n    - [${n.timestamp}] $n" }.mkString}"
+
+  }
 
 }
 
@@ -36,7 +41,7 @@ object DomainModels {
       first: String,
       last: String,
       age: Int,
-      notes: List[Note],
+      notes: Vector[Note],
   )
 
 }
@@ -47,6 +52,25 @@ object Main extends scala.App {
   given Transformer[DomainModels.Note, ApiModels.Note] = Transformer.derived
   given Transformer[DomainModels.User, ApiModels.User] = Transformer.derived
 
-  println(Vector("a", "b", "c").transformTo[List[String]])
+  val user1: DomainModels.User =
+    DomainModels.User(
+      DomainModels.UserId(1L),
+      "f",
+      "l",
+      1,
+      Vector(
+        DomainModels.Note(10L, "n1", Instant.EPOCH),
+        DomainModels.Note(11L, "n2", Instant.EPOCH.plus(Duration.ofDays(1))),
+        DomainModels.Note(12L, "n3", Instant.EPOCH.plus(Duration.ofDays(2))),
+      ),
+    )
+
+  println()
+  println("domain:")
+  println(user1)
+  println()
+  println("api:")
+  println(user1.transformTo[ApiModels.User])
+  println()
 
 }
