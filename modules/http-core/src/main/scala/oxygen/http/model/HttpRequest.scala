@@ -1,0 +1,19 @@
+package oxygen.http.model
+
+import oxygen.predef.core.*
+
+final case class HttpRequest(
+    method: HttpMethod,
+    paths: Contiguous[String],
+    queryParams: QueryParams,
+    headers: Headers,
+    body: HttpBody,
+) {
+
+  def queryParam(key: String): List[String] = queryParams.queryParam(key)
+  def header(key: String): List[String] = headers.header(key)
+
+  def addHeaders(headers: Headers): HttpRequest =
+    copy(headers = this.headers ++ headers)
+
+}

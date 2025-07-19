@@ -69,4 +69,8 @@ object Settings {
       ),
     )
 
+  def addCrossDirectory(path: String): Def.Setting[_] =
+    (Compile / unmanagedSourceDirectories) +=
+      baseDirectory.value / ".." / path / "src" / "main" / "scala"
+
 }

@@ -146,6 +146,9 @@ final class Contiguous[+A] private[collection] (private val array: Array[A @unch
   def distinct: Contiguous[A] = new Contiguous[A](array.distinct)
   def distinctBy[B](f: A => B): Contiguous[A] = new Contiguous[A](array.distinctBy(f))
 
+  inline def contains(value: A @uncheckedVariance): Boolean = array.contains(value)
+  inline def exists(cond: A => Boolean): Boolean = array.exists(cond)
+
   inline def foldLeft[B](z: B)(op: (B, A) => B): B = array.foldLeft(z)(op)
   inline def foldRight[B](z: B)(op: (A, B) => B): B = array.foldRight(z)(op)
 
@@ -203,6 +206,16 @@ final class Contiguous[+A] private[collection] (private val array: Array[A @unch
     }
 
     new Contiguous[C](newArray)
+  }
+
+  /**
+    * The 2 Contiguous you are zipping must be the same exact length, or this will throw.
+    */
+  def zipExact[B](that: Contiguous[B]): Contiguous[(A, B)] = {
+    if (this.length != that.length)
+      throw new RuntimeException(s"Failed to zip(Contiguous[length = ${this.length}], Contiguous[length = ${that.length}])")
+
+    new Contiguous[(A, B)](this.array.zip(that.array))
   }
 
   /**

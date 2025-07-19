@@ -14,7 +14,7 @@ object TestContainerConfig {
   val default: TestContainerConfig =
     TestContainerConfig(
       minPort = 6000,
-      maxPort = 7000,
+      maxPort = 9000,
       maxRandomPortAttempts = 100,
       healthCheckSchedule = Schedule.fibonacci(100.millis).withTimeout(15.seconds),
     )

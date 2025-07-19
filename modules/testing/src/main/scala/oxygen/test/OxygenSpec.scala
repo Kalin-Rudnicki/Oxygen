@@ -27,7 +27,8 @@ abstract class OxygenSpec[_R] extends ZIOSpecDefault {
 
   def withDefaultAspects: Boolean = true
 
-  // NOTE : aspect priority: defaultTestAspects > OxygenSpec.defaultTestAspects > testAspects
+  // NOTE : aspect priority: rootTestAspects(OxygenSpec.defaultTestAspects(testAspects(_)))
+  //      : *Aspects = Chunk(a, b, c) -> c(b(a(_)))
 
   def testAspects: Chunk[TestSpecAspect] = Chunk.empty
   def rootTestAspects: Chunk[RootTestAspect] = Chunk.empty

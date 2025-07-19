@@ -179,7 +179,11 @@ object Logger {
             sb.append(t)
           }
 
-        def writeCause(cause: Cause[Any], stackless: Boolean): Unit =
+        def writeCause(
+            cause: Cause[Any],
+            stackless: Boolean,
+            writeInterrupt: Boolean,
+        ): Unit =
           cause match {
             case Cause.Empty =>
               ()
@@ -198,22 +202,24 @@ object Logger {
               if (ignoreStackless || !stackless)
                 writeTrace(trace)
               printCauseChain(value.getCause)
-            case Cause.Interrupt(fiberId, trace) =>
+            case Cause.Interrupt(fiberId, trace) if writeInterrupt =>
               sb.append("\n[CAUSE]: <Interrupt> : ")
               sb.append(fiberId.threadName)
               if (ignoreStackless || !stackless)
                 writeTrace(trace)
+            case Cause.Interrupt(_, _) =>
+              ()
             case Cause.Stackless(cause, _stackless) =>
-              writeCause(cause, stackless || _stackless)
+              writeCause(cause, stackless || _stackless, writeInterrupt)
             case Cause.Then(left, right) =>
-              writeCause(left, stackless)
-              writeCause(right, stackless)
+              writeCause(left, stackless, writeInterrupt)
+              writeCause(right, stackless, writeInterrupt)
             case Cause.Both(left, right) =>
-              writeCause(left, stackless)
-              writeCause(right, stackless)
+              writeCause(left, stackless, writeInterrupt)
+              writeCause(right, stackless, writeInterrupt)
           }
 
-        writeCause(cause, false)
+        writeCause(cause, false, cause.failureOption.isEmpty && cause.dieOption.isEmpty)
 
         sb.result()
     }

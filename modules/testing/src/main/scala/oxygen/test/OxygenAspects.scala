@@ -2,7 +2,7 @@ package oxygen.test
 
 import oxygen.core.collection.Growable
 import oxygen.zio.*
-import oxygen.zio.logging.LogConfig
+import oxygen.zio.logging.{LogConfig, RichLogLevel}
 import oxygen.zio.syntax.log.*
 import zio.*
 import zio.compat.logOps
@@ -35,8 +35,23 @@ object OxygenAspects {
   def usingConfig(config: LogConfig): TestAspectAtLeastR[Any] =
     LogConfig.usingConfig(config).toTestAspectGlobal
 
-  def withMinLogLevel(level: LogLevel): TestAspectAtLeastR[Any] =
-    logOps.withMinLogLevel(level).toTestAspectGlobal
+  object withMinLogLevel {
+
+    def apply(level: LogLevel): TestAspectAtLeastR[Any] = logOps.withMinLogLevel(level).toTestAspectGlobal
+    def apply(level: RichLogLevel): TestAspectAtLeastR[Any] = withMinLogLevel(level.level)
+
+    def all: TestAspectAtLeastR[Any] = withMinLogLevel(LogLevel.All)
+    def fatal: TestAspectAtLeastR[Any] = withMinLogLevel(LogLevel.Fatal)
+    def error: TestAspectAtLeastR[Any] = withMinLogLevel(LogLevel.Error)
+    def warning: TestAspectAtLeastR[Any] = withMinLogLevel(LogLevel.Warning)
+    def important: TestAspectAtLeastR[Any] = withMinLogLevel(RichLogLevel.Important)
+    def info: TestAspectAtLeastR[Any] = withMinLogLevel(LogLevel.Info)
+    def detailed: TestAspectAtLeastR[Any] = withMinLogLevel(RichLogLevel.Detailed)
+    def debug: TestAspectAtLeastR[Any] = withMinLogLevel(LogLevel.Debug)
+    def trace: TestAspectAtLeastR[Any] = withMinLogLevel(LogLevel.Trace)
+    def none: TestAspectAtLeastR[Any] = withMinLogLevel(LogLevel.None)
+
+  }
 
   val silentLogging: TestAspectAtLeastR[Any] =
     withMinLogLevel(LogLevel.None)

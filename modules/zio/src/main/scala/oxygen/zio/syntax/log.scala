@@ -52,8 +52,8 @@ object log {
       FiberRef.currentLogAnnotations.modification.update(_ ++ annotations)
 
     def withLogSpan(label: String): FiberRefModification =
-      FiberRef.currentLogSpan.modification.updateUIO { spans =>
-        Clock.instant.map { now => LogSpan(label, now.toEpochMilli) :: spans }
+      FiberRef.currentLogSpan.modification.update { spans =>
+        LogSpan(label, java.lang.System.currentTimeMillis()) :: spans
       }
 
     def withLogSpans(spans: List[LogSpan]): FiberRefModification =
