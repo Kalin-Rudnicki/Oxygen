@@ -13,8 +13,8 @@ abstract class OxygenContractSpec[_R](implName: String, contract: Contract[_R]) 
       case _                             => None
     }
 
-  override def testSpec: TestSpec = {
-    val built = suite(implName)(contract.testSpec)
+  override final def testSpec: TestSpec = {
+    val built = contract.testSpec
     modifyCase(built).getOrElse { suite(implName)(built) }
   }
 

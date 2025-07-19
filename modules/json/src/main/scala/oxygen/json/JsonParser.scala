@@ -9,7 +9,7 @@ private[json] final class JsonParser private (string: String) {
   private var idx: Int = 0
 
   private inline def fail(): Nothing =
-    throw new JsonError(Nil, JsonError.Cause.InvalidJson(idx))
+    throw new JsonError(Nil, JsonError.Cause.InvalidJson(idx, None))
 
   private inline def expectChar(char: Char): Unit =
     if (arr(idx) == char) idx += 1
@@ -220,8 +220,9 @@ object JsonParser {
 
       json.asRight
     } catch {
-      case jsonError: JsonError => jsonError.asLeft
-      case _: Throwable         => JsonError(Nil, JsonError.Cause.InvalidJson(-1)).asLeft
+      case jsonError: JsonError         => jsonError.asLeft
+      case _: IndexOutOfBoundsException => JsonError(Nil, JsonError.Cause.InvalidJson(string.length, None)).asLeft
+      case e: Throwable                 => JsonError(Nil, JsonError.Cause.InvalidJson(-1, e.some)).asLeft
     }
 
 }

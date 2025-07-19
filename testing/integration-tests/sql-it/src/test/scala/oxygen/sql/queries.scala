@@ -1,12 +1,15 @@
 package oxygen.sql
 
 import java.util.UUID
-import oxygen.core.collection.Contiguous
+import oxygen.predef.core.*
 import oxygen.sql.query.*
 import oxygen.sql.query.dsl.*
 import oxygen.sql.query.dsl.Q.*
 import oxygen.sql.schema.*
+import oxygen.test.Generators
+import oxygen.test.Generators.syntax.*
 import scala.annotation.experimental
+import zio.*
 
 // @oxygen.meta.K0.annotation.showDerivation[TableRepr]
 final case class Person(
@@ -16,7 +19,24 @@ final case class Person(
     last: String,
     age: Int,
 )
-object Person extends TableCompanion[Person, UUID](TableRepr.derived[Person])
+object Person extends TableCompanion[Person, UUID](TableRepr.derived[Person]) {
+
+  private val randomName: UIO[String] = Generators.capitalizedString()
+
+  def generate(groupId: UUID)(
+      id: Specified[UUID] = Specified.WasNotSpecified,
+      first: Specified[String] = Specified.WasNotSpecified,
+      last: Specified[String] = Specified.WasNotSpecified,
+      age: Specified[Int] = Specified.WasNotSpecified,
+  ): UIO[Person] =
+    for {
+      id <- id.orGen { Random.nextUUID }
+      first <- first.orGen { randomName }
+      last <- last.orGen { randomName }
+      age <- age.orGen { Random.nextIntBetween(0, 100) }
+    } yield Person(id, groupId, first, last, age)
+
+}
 
 @experimental
 object queries {

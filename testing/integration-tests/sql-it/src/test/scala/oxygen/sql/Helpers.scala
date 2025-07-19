@@ -1,8 +1,8 @@
 package oxygen.sql
 
 import oxygen.predef.zio.*
+import oxygen.sql.test.PostgresTestContainer
 import oxygen.test.container.*
-import oxygen.test.container.sql.PostgresTestContainer
 
 object Helpers {
 

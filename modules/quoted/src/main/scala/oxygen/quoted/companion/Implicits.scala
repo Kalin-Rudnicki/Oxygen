@@ -39,6 +39,16 @@ final class ImplicitsCompanion(using quotes: Quotes) {
     search(TypeRepr.of[A]) match
       case ImplicitSearchSuccess(tree)        => tree.asExprOf[A]
       case ImplicitSearchFailure(explanation) => report.errorAndAbort(explanation)
+  def searchRequired[A: Type](pos: Position): Expr[A] =
+    search(TypeRepr.of[A]) match
+      case ImplicitSearchSuccess(tree)        => tree.asExprOf[A]
+      case ImplicitSearchFailure(explanation) => report.errorAndAbort(explanation, pos)
+
+  // ImplicitSearchFailure yielding some severely useless messages...
+  def searchRequiredIgnoreMessage[A: Type]: Expr[A] =
+    Expr.summon[A].getOrElse { report.errorAndAbort(s"No given instance found for ${TypeRepr.of[A].showAnsiCode}") }
+  def searchRequiredIgnoreMessage[A: Type](pos: Position): Expr[A] =
+    Expr.summon[A].getOrElse { report.errorAndAbort(s"No given instance found for ${TypeRepr.of[A].showAnsiCode}", pos) }
 
   def searchIgnoringOption[A: Type](ignored: Symbol*): Option[Expr[A]] =
     searchIgnoring(TypeRepr.of[A])(ignored*) match

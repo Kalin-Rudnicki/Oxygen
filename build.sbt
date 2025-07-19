@@ -64,13 +64,17 @@ lazy val `oxygen-modules-jvm`: Project =
       `oxygen-quoted`.jvm,
       `oxygen-sql`,
       `oxygen-sql-migration`,
-      `oxygen-http-model`.jvm,
+      `oxygen-http-client`.jvm,
+      `oxygen-http-core`.jvm,
+      `oxygen-http-server`.jvm,
       `oxygen-zio`.jvm,
 
       // Testing
       `oxygen-test`.jvm,
       `oxygen-test-container`,
-      `oxygen-test-container-sql`,
+      `oxygen-sql-test`,
+      // TODO (KR) : add
+      // `oxygen-http-test`.jvm,
 
       // Internal
       `ut`.jvm,
@@ -92,7 +96,7 @@ lazy val `oxygen-modules-js`: Project =
       `oxygen-json`.js,
       `oxygen-meta`.js,
       `oxygen-quoted`.js,
-      `oxygen-http-model`.js,
+      `oxygen-http-core`.js,
       `oxygen-zio`.js,
 
       // Testing
@@ -118,7 +122,7 @@ lazy val `oxygen-modules-native`: Project =
       `oxygen-json`.native,
       `oxygen-meta`.native,
       `oxygen-quoted`.native,
-      `oxygen-http-model`.native,
+      `oxygen-http-core`.native,
       `oxygen-zio`.native,
 
       // Testing
@@ -136,10 +140,13 @@ lazy val `oxygen-core`: CrossProject =
   crossProject(JSPlatform, JVMPlatform, NativePlatform)
     .crossType(CrossType.Pure)
     .in(file("modules/core"))
+    .enablePlugins(BuildInfoPlugin)
     .settings(
       publishedProjectSettings,
       name := "oxygen-core",
       description := "Basic utilities beneficial for any scala user.",
+      buildInfoKeys := Seq[BuildInfoKey](version),
+      buildInfoPackage := "oxygen.core",
     )
 
 lazy val `oxygen-cli`: CrossProject =
@@ -236,17 +243,49 @@ lazy val `oxygen-sql-migration`: Project =
       `oxygen-sql` % testAndCompile,
     )
 
-lazy val `oxygen-http-model`: CrossProject =
+lazy val `oxygen-http-core`: CrossProject =
   crossProject(JSPlatform, JVMPlatform, NativePlatform)
     .crossType(CrossType.Pure)
-    .in(file("modules/http-model"))
+    .in(file("modules/http-core"))
     .settings(
       publishedProjectSettings,
-      name := "oxygen-http-model",
-      description := "Adds standard models for HTTP.",
+      name := "oxygen-http-core",
+      description := "HTTP concepts shared between server and client.",
     )
     .dependsOn(
-      `oxygen-core` % testAndCompile,
+      `oxygen-zio` % testAndCompile,
+      `oxygen-test` % Test,
+    )
+
+lazy val `oxygen-http-server`: CrossProject =
+  // crossProject(JSPlatform, JVMPlatform, NativePlatform)
+  crossProject(JVMPlatform) // only publish JVM, for now
+    .crossType(CrossType.Pure)
+    .in(file("modules/http-server"))
+    .settings(
+      publishedProjectSettings,
+      name := "oxygen-http-server",
+      description := "ZIO-based HTTP server for scala.",
+    )
+    .dependsOn(
+      `oxygen-http-core` % testAndCompile,
+      `oxygen-zio` % testAndCompile,
+      `oxygen-test` % Test,
+    )
+
+lazy val `oxygen-http-client`: CrossProject =
+  // crossProject(JSPlatform, JVMPlatform, NativePlatform)
+  crossProject(JVMPlatform) // only publish JVM, for now
+    .crossType(CrossType.Pure)
+    .in(file("modules/http-client"))
+    .settings(
+      publishedProjectSettings,
+      name := "oxygen-http-client",
+      description := "ZIO-based HTTP client for scala.",
+    )
+    .dependsOn(
+      `oxygen-http-core` % testAndCompile,
+      `oxygen-zio` % testAndCompile,
       `oxygen-test` % Test,
     )
 
@@ -298,21 +337,40 @@ lazy val `oxygen-test-container`: Project =
     )
     .dependsOn(
       `oxygen-zio`.jvm % testAndCompile,
-      `oxygen-test`.jvm % Test,
+      `oxygen-test`.jvm % testAndCompile,
     )
 
-lazy val `oxygen-test-container-sql`: Project =
+lazy val `oxygen-sql-test`: Project =
   project
-    .in(file("modules/test-container-sql"))
+    .in(file("modules/sql-test"))
     .settings(
       publishedProjectSettings,
-      name := "oxygen-test-container-sql",
-      description := "SQL Test container for ZIO.",
+      name := "oxygen-sql-test",
+      description := "Test utils for oxygen-sql.",
     )
     .dependsOn(
       `oxygen-test-container` % testAndCompile,
       `oxygen-sql` % testAndCompile,
     )
+
+// TODO (KR) : add this when there is something to put here
+/*
+lazy val `oxygen-http-test`: CrossProject =
+  // crossProject(JSPlatform, JVMPlatform, NativePlatform)
+  crossProject(JVMPlatform) // only publish JVM, for now
+    .crossType(CrossType.Pure)
+    .in(file("modules/http-test"))
+    .settings(
+      publishedProjectSettings,
+      name := "oxygen-http-test",
+      description := "Test utils for oxygen-http-*.",
+    )
+    .dependsOn(
+      `oxygen-http-client` % testAndCompile,
+      `oxygen-http-server` % testAndCompile,
+      `oxygen-test` % testAndCompile,
+    )
+ */
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////
 //      Internal
@@ -328,6 +386,7 @@ lazy val `it`: Project =
     )
     .aggregate(
       `sql-it`,
+      `http-it`,
     )
 
 lazy val `sql-it`: Project =
@@ -337,10 +396,30 @@ lazy val `sql-it`: Project =
       nonPublishedProjectSettings,
       name := "sql-it",
       description := "sql-it",
+      Test / testOptions += Tests.Argument(
+        TestFramework("zio.test.sbt.ZTestFramework"),
+        "-ignore-tags",
+        "performance",
+      ),
     )
     .dependsOn(
       `oxygen-sql-migration` % testAndCompile,
-      `oxygen-test-container-sql` % testAndCompile,
+      `oxygen-sql-test` % testAndCompile,
+    )
+
+lazy val `http-it`: Project =
+  project
+    .in(file("testing/integration-tests/http-it"))
+    .settings(
+      nonPublishedProjectSettings,
+      name := "http-it",
+      description := "http-it",
+    )
+    .dependsOn(
+      // TODO (KR) : replace
+      // `oxygen-http-test`
+      `oxygen-http-client`.jvm % testAndCompile,
+      `oxygen-http-server`.jvm % testAndCompile,
     )
 
 lazy val `ut`: CrossProject =

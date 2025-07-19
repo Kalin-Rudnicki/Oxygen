@@ -72,6 +72,8 @@ final class QueryI[I](
       },
     )
 
+  // TODO (KR) : add some sort of hierarchy here... `object batched { def of, def seq, def stream }`
+
   def batched[S[_]: SeqOps](inputs: S[I]): QueryResult.BatchUpdate[QueryError] =
     QueryResult.BatchUpdate[QueryError](
       ctx,
