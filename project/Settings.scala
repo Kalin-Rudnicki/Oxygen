@@ -24,6 +24,7 @@ object Settings {
       organization := Dependencies.kalinRudnicki.organization,
       scalacOptions ++= Seq("-source:future", "-Ycheck-all-patmat", "-Wunused:all", "-Werror", "-language:implicitConversions", "-deprecation", "-feature"),
       name := { throw new RuntimeException("You must define a project name!!!") },
+      usePipelining := false,
       description := { throw new RuntimeException("You must define a project description!!!") },
       testFrameworks := Seq(new TestFramework("zio.test.sbt.ZTestFramework")),
       version := { // TODO (KR) : I hate doing this, but one/both of the git plugins seems to be bricked. Remove if they figure their shit out.

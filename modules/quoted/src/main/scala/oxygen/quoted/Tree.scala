@@ -502,6 +502,12 @@ sealed trait Term extends Statement {
     case Block(Nil, term)    => term.removeInline
     case _                   => this
 
+  final def removeInlineAndTyped: Term = this match
+    case Inlined(_, _, term) => term.removeInlineAndTyped
+    case Block(Nil, term)    => term.removeInlineAndTyped
+    case Typed(term, _)      => term.removeInlineAndTyped
+    case _                   => this
+
 }
 object Term {
 

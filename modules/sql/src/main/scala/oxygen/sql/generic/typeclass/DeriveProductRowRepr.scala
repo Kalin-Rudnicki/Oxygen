@@ -1,6 +1,6 @@
 package oxygen.sql.generic.typeclass
 
-import oxygen.meta.*
+import oxygen.meta.{*, given}
 import oxygen.meta.K0.ProductGeneric
 import oxygen.predef.core.*
 import oxygen.quoted.*

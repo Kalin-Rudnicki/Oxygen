@@ -1,7 +1,7 @@
 package oxygen.json.generic
 
 import oxygen.json.*
-import oxygen.meta.*
+import oxygen.meta.{*, given}
 import oxygen.predef.core.*
 import scala.quoted.*
 

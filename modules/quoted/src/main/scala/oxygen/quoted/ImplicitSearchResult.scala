@@ -47,11 +47,12 @@ sealed trait ImplicitSearchFailure extends ImplicitSearchResult {
 }
 object ImplicitSearchFailure {
 
-  def wrap(using quotes: Quotes)(unwrap: quotes.reflect.ImplicitSearchFailure): ImplicitSearchFailure = unwrap match
-    case unwrap: quotes.reflect.DivergingImplicit   => DivergingImplicit.wrap(unwrap)
-    case unwrap: quotes.reflect.NoMatchingImplicits => NoMatchingImplicits.wrap(unwrap)
-    case unwrap: quotes.reflect.AmbiguousImplicits  => AmbiguousImplicits.wrap(unwrap)
-    case _                                          => throw UnknownCase("ImplicitSearchFailure", unwrap)
+  def wrap(using quotes: Quotes)(unwrap: quotes.reflect.ImplicitSearchFailure): ImplicitSearchFailure =
+    unwrap match
+      case unwrap: quotes.reflect.DivergingImplicit   => DivergingImplicit.wrap(unwrap)
+      case unwrap: quotes.reflect.NoMatchingImplicits => NoMatchingImplicits.wrap(unwrap)
+      case unwrap: quotes.reflect.AmbiguousImplicits  => AmbiguousImplicits.wrap(unwrap)
+      case _                                          => GenericImplicitSearchFailure.wrap(unwrap)
 
   def unapply(x: ImplicitSearchFailure): Some[String] =
     Some(x.explanation)
@@ -88,5 +89,16 @@ object AmbiguousImplicits {
 
   def wrap(using quotes: Quotes)(unwrap: quotes.reflect.AmbiguousImplicits): AmbiguousImplicits =
     new AmbiguousImplicits(quotes)(unwrap)
+
+}
+
+final class GenericImplicitSearchFailure(val quotes: Quotes)(val unwrap: quotes.reflect.ImplicitSearchFailure) extends ImplicitSearchFailure {
+  override type This <: ImplicitSearchFailure
+  override def unwrapWithin(using newQuotes: Quotes): newQuotes.reflect.ImplicitSearchFailure = unwrap.asInstanceOf[newQuotes.reflect.ImplicitSearchFailure]
+}
+object GenericImplicitSearchFailure {
+
+  def wrap(using quotes: Quotes)(unwrap: quotes.reflect.ImplicitSearchFailure): GenericImplicitSearchFailure =
+    new GenericImplicitSearchFailure(quotes)(unwrap)
 
 }
