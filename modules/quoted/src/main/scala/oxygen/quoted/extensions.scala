@@ -60,6 +60,22 @@ extension (self: Type[?]) {
 
 }
 
+extension (self: Type.type) {
+
+  def unwrap1[T[_], T1](using Type[T[T1]], Quotes): (Type[T], Type[T1]) = TypeRepr.of[T[T1]] match
+    case AppliedType(tRepr, List(t1Repr)) => (tRepr.asTypeOf[T], t1Repr.asTypeOf[T1])
+    case repr                             => report.errorAndAbort(s"Unable to extract T[T1] type param for: ${repr.showAnsiCode}")
+
+  def unwrap2[T[_, _], T1, T2](using Type[T[T1, T2]], Quotes): (Type[T], Type[T1], Type[T2]) = TypeRepr.of[T[T1, T2]] match
+    case AppliedType(tRepr, List(t1Repr, t2Repr)) => (tRepr.asTypeOf[T], t1Repr.asTypeOf[T1], t2Repr.asTypeOf[T2])
+    case repr                                     => report.errorAndAbort(s"Unable to extract T[T1, T2] type params for: ${repr.showAnsiCode}")
+
+  def unwrap3[T[_, _, _], T1, T2, T3](using Type[T[T1, T2, T3]], Quotes): (Type[T], Type[T1], Type[T2], Type[T3]) = TypeRepr.of[T[T1, T2, T3]] match
+    case AppliedType(tRepr, List(t1Repr, t2Repr, t3Repr)) => (tRepr.asTypeOf[T], t1Repr.asTypeOf[T1], t2Repr.asTypeOf[T2], t3Repr.asTypeOf[T3])
+    case repr                                             => report.errorAndAbort(s"Unable to extract T[T1, T2, T3] type params for: ${repr.showAnsiCode}")
+
+}
+
 //////////////////////////////////////////////////////////////////////////////////////////////////////
 //      Model
 //////////////////////////////////////////////////////////////////////////////////////////////////////

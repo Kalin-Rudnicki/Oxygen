@@ -49,4 +49,56 @@ object Macros {
 
   inline def defaultArgs[A]: String = ${ defaultArgsImpl[A] }
 
+  // @K0.annotation.showDerivation[ToExprT]
+  final case class InnerExample(c: Char) derives ToExprT, FromExprT
+
+  // @K0.annotation.showDerivation[FromExprT]
+  final case class ProductToExprExample(a: String, b: Boolean, c: Option[InnerExample]) derives ToExprT, FromExprT
+
+  private def productToExprExampleImpl(aExpr: Expr[String], bExpr: Expr[Boolean], cExpr: Expr[Char])(using Quotes): Expr[ProductToExprExample] = {
+    val a: String = aExpr.evalRequired
+    val b: Boolean = bExpr.evalRequired
+    val c: Char = cExpr.evalRequired
+    val inst: ProductToExprExample = ProductToExprExample(a, b, InnerExample(c).some)
+    Expr { inst }
+  }
+
+  inline def productToExprExample(a: String, b: Boolean, c: Char): ProductToExprExample = ${ productToExprExampleImpl('a, 'b, 'c) }
+
+  // @K0.annotation.showDerivation[FromExprT]
+  enum SumToExprExample derives ToExprT, FromExprT {
+    case Case1(a: String, b: Option[Boolean], c: InnerExample)
+    case Case2(c: Int)
+    case Case3
+  }
+
+  private def sumToExprExampleImpl(aExpr: Expr[String], bExpr: Expr[Boolean], cExpr: Expr[Char], dExpr: Expr[Int])(using Quotes): Expr[(SumToExprExample, SumToExprExample, SumToExprExample)] = {
+    val a: String = aExpr.evalRequired
+    val b: Boolean = bExpr.evalRequired
+    val c: Char = cExpr.evalRequired
+    val d: Int = dExpr.evalRequired
+    val inst1: SumToExprExample = SumToExprExample.Case1(a, b.some, InnerExample(c))
+    val inst2: SumToExprExample = SumToExprExample.Case2(d)
+    val inst3: SumToExprExample = SumToExprExample.Case3
+    Expr { (inst1, inst2, inst3) }
+  }
+
+  inline def sumToExprExample(a: String, b: Boolean, c: Char, d: Int): (SumToExprExample, SumToExprExample, SumToExprExample) = ${ sumToExprExampleImpl('a, 'b, 'c, 'd) }
+
+  private def productRoundTripImpl(tmp1: Expr[ProductToExprExample])(using Quotes): Expr[ProductToExprExample] = {
+    val tmp2: ProductToExprExample = tmp1.evalRequired
+    val tmp3: Expr[ProductToExprExample] = Expr(tmp2)
+    tmp3
+  }
+
+  inline def productRoundTrip(inline a: ProductToExprExample): ProductToExprExample = ${ productRoundTripImpl('a) }
+
+  private def sumRoundTripImpl(tmp1: Expr[SumToExprExample])(using Quotes): Expr[SumToExprExample] = {
+    val tmp2: SumToExprExample = tmp1.evalRequired
+    val tmp3: Expr[SumToExprExample] = Expr(tmp2)
+    tmp3
+  }
+
+  inline def sumRoundTrip(inline a: SumToExprExample): SumToExprExample = ${ sumRoundTripImpl('a) }
+
 }

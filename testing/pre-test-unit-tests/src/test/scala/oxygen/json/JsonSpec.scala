@@ -47,7 +47,7 @@ object JsonSpec extends OxygenSpecDefault {
     final case class Case2(b: Boolean) extends Sum2
   }
 
-  @oxygen.meta.K0.annotation.showDerivation[JsonDecoder]
+  // @oxygen.meta.K0.annotation.showDerivation[JsonDecoder]
   @jsonDiscriminator("type")
   sealed trait Sum3 derives JsonCodec
   object Sum3 {

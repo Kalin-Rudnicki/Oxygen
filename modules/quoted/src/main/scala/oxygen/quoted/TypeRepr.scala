@@ -181,7 +181,7 @@ sealed trait TypeRepr extends Model {
     case or: OrType => or.left.orChildren ++ or.right.orChildren
     case _          => Set(this)
 
-  final def asTypeOf[A]: Type[A] =
+  final def asTypeOf[A <: AnyKind]: Type[A] =
     this.asType.asInstanceOf[Type[A]]
 
   final def typeOrTermSymbol: Symbol = if (this.isSingleton) this.termSymbol else this.typeSymbol

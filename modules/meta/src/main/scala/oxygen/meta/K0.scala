@@ -476,8 +476,8 @@ object K0 {
 
     def apply[A: Generic as g]: Generic[A] = g
 
-    def of[A: Type](using Quotes): Generic[A] = Generic.of[A](Derivable.Config())
-    def of[A: Type](config: Derivable.Config)(using Quotes): Generic[A] = {
+    def of[A](using Type[A], Quotes): ProductOrSumGeneric[A] = Generic.of[A](Derivable.Config())
+    def of[A](config: Derivable.Config)(using Type[A], Quotes): ProductOrSumGeneric[A] = {
       val repr: TypeRepr = TypeRepr.of[A]
       val sym: Symbol = repr.typeOrTermSymbol
       sym.typeType match {
@@ -1052,8 +1052,8 @@ object K0 {
         case None => report.errorAndAbort(s"Not a product type: ${repr.show}")
       }
 
-    def of[A: Type](using Quotes): ProductGeneric[A] = ProductGeneric.of[A](Derivable.Config())
-    def of[A: Type](config: Derivable.Config)(using Quotes): ProductGeneric[A] =
+    def of[A](using Type[A], Quotes): ProductGeneric[A] = ProductGeneric.of[A](Derivable.Config())
+    def of[A](config: Derivable.Config)(using Type[A], Quotes): ProductGeneric[A] =
       Generic.of[A](config) match
         case g: ProductGeneric[A] => g
         case _                    => report.errorAndAbort(s"Not a product type: ${TypeRepr.of[A].show}", TypeRepr.of[A].typeOrTermSymbol.pos)
@@ -1075,7 +1075,7 @@ object K0 {
   sealed trait SumGeneric[A] private extends ProductOrSumGeneric[A] { sumGeneric =>
 
     override final type ChildBound = A
-    type Gen[b] <: Generic[b]
+    type Gen[b] <: ProductOrSumGeneric[b]
     override type SelfType[A2] <: SumGeneric[A2]
     override final type Child[B <: A] = Case[B]
 
@@ -1236,7 +1236,7 @@ object K0 {
     }
 
     trait NestedGeneric[A] extends SumGeneric[A] {
-      override final type Gen[b] = Generic[b]
+      override final type Gen[b] = ProductOrSumGeneric[b]
       override final type SelfType[A2] = NestedGeneric[A2]
     }
 
@@ -1251,7 +1251,7 @@ object K0 {
           case UnrollStrategy.Unroll => true
           case UnrollStrategy.Nested => isRoot
 
-      def childGenericsRec(isRoot: Boolean, sym: Symbol): Growable[Generic[? <: A]] =
+      def childGenericsRec(isRoot: Boolean, sym: Symbol): Growable[ProductOrSumGeneric[? <: A]] =
         sym.typeType match {
           case Some(_: TypeType.Case.Class) =>
             val classDef: ClassDef = sym.tree.narrow[ClassDef]
@@ -1294,10 +1294,10 @@ object K0 {
           case None => report.errorAndAbort(s"Type ${sym.name} is not a product or sum type", sym.pos)
         }
 
-      val childGenerics: Contiguous[Generic[? <: A]] =
+      val childGenerics: Contiguous[ProductOrSumGeneric[? <: A]] =
         childGenericsRec(true, _typeSym).toContiguous.sorted(using config.defaultOrdinalStrategy.ord)
 
-      val filteredGenerics: Either[Contiguous[Generic[? <: A]], Either[Contiguous[ProductGeneric[? <: A]], Contiguous[ProductGeneric.CaseObjectGeneric[? <: A]]]] =
+      val filteredGenerics: Either[Contiguous[ProductOrSumGeneric[? <: A]], Either[Contiguous[ProductGeneric[? <: A]], Contiguous[ProductGeneric.CaseObjectGeneric[? <: A]]]] =
         childGenerics
           .traverse {
             case g: ProductGeneric[? <: A] => g.some
@@ -1347,8 +1347,8 @@ object K0 {
       }
     }
 
-    def of[A: Type](using Quotes): SumGeneric[A] = SumGeneric.of[A](Derivable.Config())
-    def of[A: Type](config: Derivable.Config)(using Quotes): SumGeneric[A] =
+    def of[A](using Type[A], Quotes): SumGeneric[A] = SumGeneric.of[A](Derivable.Config())
+    def of[A](config: Derivable.Config)(using Type[A], Quotes): SumGeneric[A] =
       Generic.of[A](config) match
         case g: SumGeneric[A] => g
         case _                => report.errorAndAbort(s"Not a sum type: ${TypeRepr.of[A].show}", TypeRepr.of[A].typeOrTermSymbol.pos)
@@ -1399,7 +1399,7 @@ object K0 {
     private[K0] final def productDeriverInternal[A](using Quotes, Type[F], Type[A], ProductGeneric[A], Derivable[F]): Derivable.ProductDeriver[F, A] = productDeriver[A]
     private[K0] final def sumDeriverInternal[A](using Quotes, Type[F], Type[A], SumGeneric[A], Derivable[F]): Derivable.SumDeriver[F, A] = sumDeriver[A]
 
-    private[meta] final def deriveFromGenericImpl[A](g: Generic[A])(using Quotes, Type[F], Type[A]): Expr[F[A]] = {
+    private[meta] final def deriveFromGenericImpl[A](g: ProductOrSumGeneric[A])(using Quotes, Type[F], Type[A]): Expr[F[A]] = {
       given Derivable[F] = this
       val res: Expr[F[A]] = g match {
         case g: ProductGeneric[A] =>
@@ -1408,13 +1408,9 @@ object K0 {
         case g: SumGeneric[A] =>
           given SumGeneric[A] = g
           sumDeriver[A].derive
-        case _: IdentityGeneric[A] =>
-          report.errorAndAbort("It is not possible to derive an IdentityGeneric[?]")
       }
 
-      g.annotations.optionalOf[annotation.showDerivation[F]].foreach { annot =>
-        report.info(s"derivation for ${TypeRepr.of[F[A]].show}:\n\n${res.showAnsiCode}", annot.toTerm.pos)
-      }
+      K0.annotation.showSpecific[F, F[A]](g.annotations, res)
 
       res
     }
@@ -1563,6 +1559,19 @@ object K0 {
 
   object annotation {
 
+    private def specificPos[F[_]: Type](a: Annotations)(using Quotes): Option[Position] = a.optionalOf[annotation.showDerivation[F]].map(_.toTerm.pos)
+    private def generalPos(a: Annotations)(using Quotes): Option[Position] = a.optionalOf[annotation.showAllDerivation].map(_.toTerm.pos)
+
+    def showSpecific[F[_]: Type, T: Type](a: Annotations, expr: Expr[?])(using Quotes): Unit =
+      specificPos[F](a).orElse(generalPos(a)).foreach { showPos =>
+        report.info(s"derivation for ${TypeRepr.of[T].showAnsiCode}:\n\n${expr.showAnsiCode}", showPos)
+      }
+    def showGeneral[T: Type](a: Annotations, expr: Expr[?])(using Quotes): Unit =
+      generalPos(a).foreach { showPos =>
+        report.info(s"derivation for ${TypeRepr.of[T].showAnsiCode}:\n\n${expr.showAnsiCode}", showPos)
+      }
+
+    final class showAllDerivation extends Annotation
     final class showDerivation[F[_]] extends Annotation
 
   }
