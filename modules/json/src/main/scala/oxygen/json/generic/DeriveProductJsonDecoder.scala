@@ -13,17 +13,17 @@ final class DeriveProductJsonDecoder[A](
   private def makeDecodeJsonAST(map: Expr[Map[String, Json]]): Expr[Either[JsonError, A]] =
     generic.instantiate.either[JsonError] { [a] => (_, _) ?=> (field: generic.Field[a]) =>
 
-      val fieldName = Expr(field.name)
+      val fieldNameExpr = Expr(field.annotations.optionalOfValue[jsonField].fold(field.name)(_.name))
 
       '{
-        $map.get($fieldName) match {
+        $map.get($fieldNameExpr) match {
           case Some(value) =>
             ${ field.getExpr(instances) }
               .decodeJsonAST(value)
-              .leftMap(_.inField($fieldName))
+              .leftMap(_.inField($fieldNameExpr))
           case None =>
             ${ field.getExpr(instances) }.onMissingFromObject
-              .toRight(JsonError(JsonError.Path.Field($fieldName) :: Nil, JsonError.Cause.MissingRequired))
+              .toRight(JsonError(JsonError.Path.Field($fieldNameExpr) :: Nil, JsonError.Cause.MissingRequired))
         }
       }
     }

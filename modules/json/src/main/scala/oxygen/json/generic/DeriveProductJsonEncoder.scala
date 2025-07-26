@@ -14,11 +14,11 @@ final class DeriveProductJsonEncoder[A](
     val fields: Growable[Expr[Option[(String, Json)]]] =
       generic.mapChildren.mapExpr[Option[(String, Json)]] { [a] => (_, _) ?=> (field: generic.Field[a]) =>
 
-        val fieldName = Expr(field.name)
+        val fieldNameExpr = Expr(field.annotations.optionalOfValue[jsonField].fold(field.name)(_.name))
 
         '{
           Option.when(${ field.getExpr(instances) }.addToObject(${ field.fromParent(value) })) {
-            $fieldName ->
+            $fieldNameExpr ->
               ${ field.getExpr(instances) }.encodeJsonAST(${ field.fromParent(value) })
           }
         }
