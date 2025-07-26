@@ -1473,6 +1473,21 @@ object K0 {
       def withInstances[F[_], A](f: Quotes ?=> Expressions[F, A] => ProductDeriver[F, A])(using Quotes, Type[F], Type[A], ProductGeneric[A]) =
         new WithInstances[F, A](f)
 
+      final class WithDisjointInstances[ParentF[_], ChildF[_], A](f: Quotes ?=> Expressions[ChildF, A] => ProductDeriver[ParentF, A])(using
+          Quotes,
+          Type[ParentF],
+          Type[ChildF],
+          Type[A],
+          ProductGeneric[A],
+      ) extends ProductDeriver[ParentF, A] {
+
+        override def derive: Expr[ParentF[A]] = generic.cacheVals.summonTypeClasses[ChildF]().defineAndUse { f(_).derive }
+
+      }
+
+      def withDisjointInstances[ParentF[_], ChildF[_], A](f: Quotes ?=> Expressions[ChildF, A] => ProductDeriver[ParentF, A])(using Quotes, Type[ParentF], Type[ChildF], Type[A], ProductGeneric[A]) =
+        new WithDisjointInstances[ParentF, ChildF, A](f)
+
       final class Impl[F[_], A](value: () => Expr[F[A]])(using Quotes, Type[F], Type[A], ProductGeneric[A]) extends ProductDeriver[F, A] {
         override def derive: Expr[F[A]] = value()
       }

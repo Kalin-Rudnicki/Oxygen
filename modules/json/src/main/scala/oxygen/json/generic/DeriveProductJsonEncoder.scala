@@ -7,10 +7,10 @@ import scala.quoted.*
 
 final class DeriveProductJsonEncoder[A](
     instances: K0.Expressions[JsonEncoder, A],
-)(using Quotes, Type[JsonEncoder], Type[A], K0.ProductGeneric[A])
-    extends K0.Derivable.ProductDeriver[JsonEncoder, A] {
+)(using Quotes, Type[JsonEncoder.ObjectEncoder], Type[A], K0.ProductGeneric[A])
+    extends K0.Derivable.ProductDeriver[JsonEncoder.ObjectEncoder, A] {
 
-  private def makeEncodeJsonAST(value: Expr[A]): Expr[Json] = {
+  private def makeEncodeJsonAST(value: Expr[A]): Expr[Json.Obj] = {
     val fields: Growable[Expr[Option[(String, Json)]]] =
       generic.mapChildren.mapExpr[Option[(String, Json)]] { [a] => (_, _) ?=> (field: generic.Field[a]) =>
 
@@ -27,10 +27,10 @@ final class DeriveProductJsonEncoder[A](
     '{ Json.Obj(${ fields.to[Contiguous].seqToExpr }.flattenIterable) }
   }
 
-  override def derive: Expr[JsonEncoder[A]] =
+  override def derive: Expr[JsonEncoder.ObjectEncoder[A]] =
     '{
-      new JsonEncoder[A] {
-        override def encodeJsonAST(value: A): Json = ${ makeEncodeJsonAST('value) }
+      new JsonEncoder.ObjectEncoder[A] {
+        override def encodeJsonAST(value: A): Json.Obj = ${ makeEncodeJsonAST('value) }
       }
     }
 

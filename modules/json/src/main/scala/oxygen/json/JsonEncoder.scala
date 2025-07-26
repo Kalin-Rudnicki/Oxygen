@@ -28,13 +28,17 @@ trait JsonEncoder[A] {
     JsonEncoder.MapJsonOutput(this, json => f.lift(json).getOrElse(json))
 
 }
-object JsonEncoder extends K0.Derivable[JsonEncoder], JsonEncoderLowPriority.LowPriority1 {
+object JsonEncoder extends K0.Derivable[JsonEncoder.ObjectEncoder], JsonEncoderLowPriority.LowPriority1 {
 
   inline def apply[A](using ev: JsonEncoder[A]): JsonEncoder[A] = ev
 
   //////////////////////////////////////////////////////////////////////////////////////////////////////
   //      Instances
   //////////////////////////////////////////////////////////////////////////////////////////////////////
+
+  trait ObjectEncoder[A] extends JsonEncoder[A] {
+    override def encodeJsonAST(value: A): Json.Obj
+  }
 
   final class AnyJsonEncoder[A <: Json] extends JsonEncoder[A] {
     override def encodeJsonAST(value: A): Json =
@@ -196,13 +200,25 @@ object JsonEncoder extends K0.Derivable[JsonEncoder], JsonEncoderLowPriority.Low
   //      Generic
   //////////////////////////////////////////////////////////////////////////////////////////////////////
 
-  override protected def productDeriver[A](using Quotes, Type[JsonEncoder], Type[A], K0.ProductGeneric[A], K0.Derivable[JsonEncoder]): K0.Derivable.ProductDeriver[JsonEncoder, A] =
-    K0.Derivable.ProductDeriver.withInstances { DeriveProductJsonEncoder[A](_) }
+  override protected def productDeriver[A](using
+      Quotes,
+      Type[JsonEncoder.ObjectEncoder],
+      Type[A],
+      K0.ProductGeneric[A],
+      K0.Derivable[JsonEncoder.ObjectEncoder],
+  ): K0.Derivable.ProductDeriver[JsonEncoder.ObjectEncoder, A] =
+    K0.Derivable.ProductDeriver.withDisjointInstances[JsonEncoder.ObjectEncoder, JsonEncoder, A] { DeriveProductJsonEncoder[A](_) }
 
-  override protected def sumDeriver[A](using Quotes, Type[JsonEncoder], Type[A], K0.SumGeneric[A], K0.Derivable[JsonEncoder]): K0.Derivable.SumDeriver[JsonEncoder, A] =
+  override protected def sumDeriver[A](using
+      Quotes,
+      Type[JsonEncoder.ObjectEncoder],
+      Type[A],
+      K0.SumGeneric[A],
+      K0.Derivable[JsonEncoder.ObjectEncoder],
+  ): K0.Derivable.SumDeriver[JsonEncoder.ObjectEncoder, A] =
     K0.Derivable.SumDeriver.withInstances { DeriveSumJsonEncoder[A](_) }
 
-  override inline def derived[A]: JsonEncoder[A] = ${ derivedImpl[A] }
+  override inline def derived[A]: JsonEncoder.ObjectEncoder[A] = ${ derivedImpl[A] }
 
 }
 

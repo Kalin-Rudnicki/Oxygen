@@ -7,8 +7,8 @@ import scala.quoted.*
 
 final class DeriveProductJsonDecoder[A](
     instances: K0.Expressions[JsonDecoder, A],
-)(using Quotes, Type[JsonDecoder], Type[A], K0.ProductGeneric[A])
-    extends K0.Derivable.ProductDeriver[JsonDecoder, A] {
+)(using Quotes, Type[JsonDecoder.ObjectDecoder], Type[A], K0.ProductGeneric[A])
+    extends K0.Derivable.ProductDeriver[JsonDecoder.ObjectDecoder, A] {
 
   private def makeDecodeJsonAST(map: Expr[Map[String, Json]]): Expr[Either[JsonError, A]] =
     generic.instantiate.either[JsonError] { [a] => (_, _) ?=> (field: generic.Field[a]) =>
@@ -28,13 +28,10 @@ final class DeriveProductJsonDecoder[A](
       }
     }
 
-  override def derive: Expr[JsonDecoder[A]] =
+  override def derive: Expr[JsonDecoder.ObjectDecoder[A]] =
     '{
-      new JsonDecoder[A] {
-        override def decodeJsonAST(ast: Json): Either[JsonError, A] = ast match {
-          case obj: Json.Obj => ${ makeDecodeJsonAST('{ obj.valueMap }) }
-          case _             => JsonError(Nil, JsonError.Cause.InvalidType(Json.Type.Object, ast.tpe)).asLeft
-        }
+      new JsonDecoder.ObjectDecoder[A] {
+        override def decodeJsonObjectAST(obj: Json.Obj): Either[JsonError, A] = ${ makeDecodeJsonAST('{ obj.valueMap }) }
       }
     }
 
