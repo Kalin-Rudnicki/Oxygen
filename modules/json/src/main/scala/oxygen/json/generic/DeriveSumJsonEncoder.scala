@@ -5,21 +5,17 @@ import oxygen.meta.*
 import scala.quoted.*
 
 final class DeriveSumJsonEncoder[A](
-    instances: K0.Expressions[JsonEncoder, A],
-)(using Quotes, Type[JsonEncoder], Type[A], K0.SumGeneric[A])
-    extends K0.Derivable.SumDeriver[JsonEncoder, A] {
+    instances: K0.Expressions[JsonEncoder.ObjectEncoder, A],
+)(using Quotes, Type[JsonEncoder.ObjectEncoder], Type[A], K0.SumGeneric[A])
+    extends K0.Derivable.SumDeriver[JsonEncoder.ObjectEncoder, A] {
 
-  private def unsafeAddDiscriminator(discrimKey: Expr[String], discrimValue: Expr[String], json: Expr[Json]): Expr[Json] =
+  private def addDiscriminator(discrimKey: Expr[String], discrimValue: Expr[String], json: Expr[Json.Obj]): Expr[Json.Obj] =
     '{
-      val tmp: Json = $json
-      tmp match {
-        case Json.Obj(value) => Json.Obj(($discrimKey, Json.Str($discrimValue)) +: value)
-        case _               => throw new RuntimeException(s"Unable to add discriminator, child is not an object: $tmp")
-      }
+      Json.Obj(($discrimKey, Json.Str($discrimValue)) +: $json.value)
     }
 
-  private def makeEncodeJsonAST(value: Expr[A]): Expr[Json] =
-    generic.matcher.instance[Json](value) { [b <: A] => (_, _) ?=> (kase: generic.Case[b]) =>
+  private def makeEncodeJsonAST(value: Expr[A]): Expr[Json.Obj] =
+    generic.matcher.instance[Json.Obj](value) { [b <: A] => (_, _) ?=> (kase: generic.Case[b]) =>
 
       val caseNameExpr = Expr(kase.annotations.optionalOfValue[jsonType].fold(kase.name)(_.name))
 
@@ -33,13 +29,13 @@ final class DeriveSumJsonEncoder[A](
       }
     }
 
-  private def makeEncodeJsonAST(value: Expr[A], discrimKey: Expr[String]): Expr[Json] =
-    generic.matcher.instance[Json](value) { [b <: A] => (_, _) ?=> (kase: generic.Case[b]) =>
+  private def makeEncodeJsonAST(value: Expr[A], discrimKey: Expr[String]): Expr[Json.Obj] =
+    generic.matcher.instance[Json.Obj](value) { [b <: A] => (_, _) ?=> (kase: generic.Case[b]) =>
 
       val caseNameExpr = Expr(kase.annotations.optionalOfValue[jsonType].fold(kase.name)(_.name))
 
       kase.caseExtractor.withRHS { value =>
-        unsafeAddDiscriminator(
+        addDiscriminator(
           discrimKey,
           caseNameExpr,
           '{ ${ kase.getExpr(instances) }.encodeJsonAST($value) },
@@ -47,18 +43,18 @@ final class DeriveSumJsonEncoder[A](
       }
     }
 
-  override def derive: Expr[JsonEncoder[A]] =
+  override def derive: Expr[JsonEncoder.ObjectEncoder[A]] =
     generic.annotations.optionalOfValue[jsonDiscriminator] match {
       case Some(discrim) =>
         '{
-          new JsonEncoder[A] {
-            override def encodeJsonAST(value: A): Json = ${ makeEncodeJsonAST('value, Expr(discrim.name)) }
+          new JsonEncoder.ObjectEncoder[A] {
+            override def encodeJsonAST(value: A): Json.Obj = ${ makeEncodeJsonAST('value, Expr(discrim.name)) }
           }
         }
       case None =>
         '{
-          new JsonEncoder[A] {
-            override def encodeJsonAST(value: A): Json = ${ makeEncodeJsonAST('value) }
+          new JsonEncoder.ObjectEncoder[A] {
+            override def encodeJsonAST(value: A): Json.Obj = ${ makeEncodeJsonAST('value) }
           }
         }
     }
