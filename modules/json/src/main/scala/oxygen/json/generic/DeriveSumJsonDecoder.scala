@@ -11,14 +11,21 @@ final class DeriveSumJsonDecoder[A](
     extends K0.Derivable.SumDeriver[JsonDecoder, A] {
 
   private val validKeysExpr: Expr[String] =
-    Expr(generic.cases.map { kase => s"'${kase.name}'" }.mkString(", "))
+    Expr(
+      generic.cases
+        .map { kase =>
+          val name = kase.annotations.optionalOfValue[jsonType].fold(kase.name)(_.name)
+          s"'$name'"
+        }
+        .mkString(", "),
+    )
 
   private def makeDecodeJsonAST(key: Expr[String], value: Expr[Json]): Expr[Either[JsonError, A]] =
     generic.matcher.value[String, Either[JsonError, A]](key) { [b <: A] => (_, _) ?=> (kase: generic.Case[b]) =>
 
-      val caseName = Expr(kase.name)
+      val caseNameExpr = Expr(kase.annotations.optionalOfValue[jsonType].fold(kase.name)(_.name))
 
-      CaseExtractor.const[String](caseName).withRHS { _ =>
+      CaseExtractor.const[String](caseNameExpr).withRHS { _ =>
         '{
           ${ kase.getExpr(instances) }.decodeJsonAST($value).leftMap(_.inField($key))
         }
@@ -29,7 +36,7 @@ final class DeriveSumJsonDecoder[A](
       }
     }
 
-  override def derive: Expr[JsonDecoder[A]] =
+  private def deriveNoDiscriminator: Expr[JsonDecoder[A]] =
     '{
       new JsonDecoder[A] {
         override def decodeJsonAST(ast: Json): Either[JsonError, A] = ast match {
@@ -41,6 +48,45 @@ final class DeriveSumJsonDecoder[A](
           case _ => JsonError(Nil, JsonError.Cause.InvalidType(Json.Type.Object, ast.tpe)).asLeft
         }
       }
+    }
+
+  private def matchOnStr(key: Expr[String], obj: Expr[Json.Obj]): Expr[Either[JsonError, A]] =
+    generic.matcher.value[String, Either[JsonError, A]](key) { [b <: A] => (_, _) ?=> (kase: generic.Case[b]) =>
+
+      val caseNameExpr = Expr(kase.annotations.optionalOfValue[jsonType].fold(kase.name)(_.name))
+
+      CaseExtractor.const[String](caseNameExpr).withRHS { _ =>
+        '{
+          ${ kase.getExpr(instances) }.decodeJsonAST($obj).leftMap(_.inField($key))
+        }
+      }
+    } {
+      '{
+        JsonError(JsonError.Path.Field($key) :: Nil, JsonError.Cause.DecodingFailed("Invalid key, expected one of: " + $validKeysExpr)).asLeft
+      }
+    }
+
+  private def deriveWithDiscriminator(discrim: String): Expr[JsonDecoder[A]] = {
+    val discrimExpr = Expr(discrim)
+    '{
+      new JsonDecoder[A] {
+        override def decodeJsonAST(ast: Json): Either[JsonError, A] = ast match {
+          case obj: Json.Obj =>
+            obj.valueMap.get($discrimExpr) match {
+              case Some(Json.Str(parsedDiscrim)) => ${ matchOnStr('parsedDiscrim, 'obj) }
+              case Some(json)                    => JsonError(JsonError.Path.Field($discrimExpr) :: Nil, JsonError.Cause.InvalidType(Json.Type.String, json.tpe)).asLeft
+              case None                          => JsonError(JsonError.Path.Field($discrimExpr) :: Nil, JsonError.Cause.MissingRequired).asLeft
+            }
+          case _ => JsonError(Nil, JsonError.Cause.InvalidType(Json.Type.Object, ast.tpe)).asLeft
+        }
+      }
+    }
+  }
+
+  override def derive: Expr[JsonDecoder[A]] =
+    generic.annotations.optionalOfValue[jsonDiscriminator] match {
+      case Some(discrim) => deriveWithDiscriminator(discrim.name)
+      case None          => deriveNoDiscriminator
     }
 
 }

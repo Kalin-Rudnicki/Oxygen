@@ -28,11 +28,32 @@ object JsonSpec extends OxygenSpecDefault {
       inner: Specified[Product2],
   ) derives JsonCodec
 
+  final case class Product3(
+      @jsonField("f1") a: Int,
+      @jsonField("f2") b: String,
+  ) derives JsonCodec
+
   enum Sum1 derives JsonCodec {
     case S(s: String)
     case B(b: Boolean)
     case I(i: Option[Int])
     case P(p: Product1)
+  }
+
+  sealed trait Sum2 derives JsonCodec
+  object Sum2 {
+    @jsonType("c1")
+    final case class Case1(@jsonField("f1") a: Int) extends Sum2
+    final case class Case2(b: Boolean) extends Sum2
+  }
+
+  @oxygen.meta.K0.annotation.showDerivation[JsonDecoder]
+  @jsonDiscriminator("type")
+  sealed trait Sum3 derives JsonCodec
+  object Sum3 {
+    @jsonType("c1")
+    final case class Case1(@jsonField("f1") a: Int) extends Sum3
+    final case class Case2(b: Boolean) extends Sum3
   }
 
   override def testSpec: TestSpec =
@@ -65,12 +86,23 @@ object JsonSpec extends OxygenSpecDefault {
           directRoundTripTest("""{"name":"A","inner":{"name":"B"}}""")(Product2("A", Product2("B", Specified.WasNotSpecified))),
           directRoundTripTest("""{"name":"A","inner":{"name":"B","inner":{"name":"C"}}}""")(Product2("A", Product2("B", Product2("C", Specified.WasNotSpecified)))),
         ),
+        suite("Product3")(
+          directRoundTripTest("""{"f1":1,"f2":"hi"}""")(Product3(1, "hi")),
+        ),
         suite("Sum1")(
           directRoundTripTest("""{"S":{"s":"ABC"}}""")(Sum1.S("ABC")),
           directRoundTripTest("""{"B":{"b":true}}""")(Sum1.B(true)),
           directRoundTripTest("""{"I":{"i":123}}""")(Sum1.I(123.some)),
           directRoundTripTest("""{"I":{}}""")(Sum1.I(None)),
           directRoundTripTest("""{"P":{"p":{"s":"ABC","b":false}}}""")(Sum1.P(Product1("ABC", false, None))),
+        ),
+        suite("Sum2")(
+          directRoundTripTest[Sum2]("""{"c1":{"f1":1}}""")(Sum2.Case1(1)),
+          directRoundTripTest[Sum2]("""{"Case2":{"b":true}}""")(Sum2.Case2(true)),
+        ),
+        suite("Sum3")(
+          directRoundTripTest[Sum3]("""{"type":"c1","f1":1}""")(Sum3.Case1(1)),
+          directRoundTripTest[Sum3]("""{"type":"Case2","b":true}""")(Sum3.Case2(true)),
         ),
       ),
     )
