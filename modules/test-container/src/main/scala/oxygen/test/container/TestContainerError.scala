@@ -1,8 +1,11 @@
 package oxygen.test.container
 
 sealed trait TestContainerError extends Throwable {
-  // TODO (KR) : improve
-  override final def getMessage: String = toString
+  override final def getMessage: String = this match
+    case TestContainerError.UnableToAcquirePort(config)                               => s"Unable to acquire port, config=$config"
+    case TestContainerError.UnableToStartContainer(config, container, cause)          => s"Unable to start container, config=$config, container=$container, cause=$cause"
+    case TestContainerError.UnableToStopContainer(config, container, cause)           => s"Unable to stop container, config=$config, container=$container, cause=$cause"
+    case TestContainerError.NeverBecameHealthy(config, container, healthCheck, cause) => s"Never became healthy, healthCheck=$healthCheck, config=$config, container=$container, cause=$cause"
 }
 object TestContainerError {
   final case class UnableToAcquirePort(config: TestContainerConfig) extends TestContainerError
