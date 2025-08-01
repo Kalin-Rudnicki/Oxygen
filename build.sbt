@@ -70,6 +70,7 @@ lazy val `oxygen-modules-jvm`: Project =
       // Testing
       `oxygen-test`.jvm,
       `oxygen-test-container`,
+      `oxygen-test-container-sql`,
 
       // Internal
       `ut`.jvm,
