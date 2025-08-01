@@ -305,8 +305,8 @@ lazy val `oxygen-test-container-sql`: Project =
     .in(file("modules/test-container-sql"))
     .settings(
       publishedProjectSettings,
-      name := "oxygen-test-container",
-      description := "Test containers for ZIO.",
+      name := "oxygen-test-container-sql",
+      description := "SQL Test container for ZIO.",
     )
     .dependsOn(
       `oxygen-test-container` % testAndCompile,
