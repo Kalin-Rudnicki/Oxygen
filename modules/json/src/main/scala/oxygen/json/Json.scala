@@ -171,7 +171,7 @@ object Json {
         sb.append(newIndent)
         Json.Str(k).writePretty(sb, newIndent)
         sb.append(": ")
-        v.writeCompact(sb)
+        v.writePretty(sb)
       }
       sb.append(indent)
       sb.append('}')
