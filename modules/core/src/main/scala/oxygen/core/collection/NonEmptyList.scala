@@ -100,7 +100,7 @@ final case class NonEmptyList[+A](head: A, tail: List[A]) extends PartialFunctio
 
   override def hashCode(): Int = toList.hashCode()
 
-  override def toString: String = s"NonEmptyList($head, ${tail.mkString(", ")})"
+  override def toString: String = s"NonEmptyList(${toList.mkString(", ")})"
 
 }
 object NonEmptyList {
