@@ -7,18 +7,19 @@ import oxygen.test.container.*
 
 object PostgresTestContainer {
 
-  val layer: ZLayer[TestContainerService & DbConfig.Pool & DbConfig.Logging, TestContainerError, DbConfig] =
+  val layer: ZLayer[TestContainerService & DbConfig.Pool & DbConfig.Logging & DbConfig.Execution, TestContainerError, DbConfig] =
     TestContainerService.containerLayer {
       for {
         pool <- ZIO.service[DbConfig.Pool]
         logging <- ZIO.service[DbConfig.Logging]
+        execution <- ZIO.service[DbConfig.Execution]
 
         port <- TestContainerService.acquirePort
         username <- TestContainerService.randomAlphaString(10)
         password <- TestContainerService.randomAlphaString(10)
         database <- TestContainerService.randomAlphaString(10)
 
-        dbConfig = DbConfig(DbConfig.Target(database, "localhost", port), DbConfig.Credentials(username, password).some, pool, logging)
+        dbConfig = DbConfig(DbConfig.Target(database, "localhost", port), DbConfig.Credentials(username, password).some, pool, logging, execution)
         container =
           TestContainer
             .make("postgres", "postgres", "latest")

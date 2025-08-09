@@ -11,7 +11,7 @@ object QueryResult {
 
   final class Returning[E, A] private[sql] (
       ctx: QueryContext,
-      effect: ZStream[Database & Scope, E, A],
+      effect: ZStream[Database, E, A],
   ) {
 
     // =====| Error Mapping |=====
@@ -51,11 +51,11 @@ object QueryResult {
     def option(using ev: QueryError <:< E): ZIO[Database, E, Option[A]] =
       optionOrElse { actualSize => ev(QueryError(ctx, QueryError.InvalidResultSetSize(QueryError.InvalidResultSetSize.ExpectedSize.Optional, actualSize))) }
 
-    def to[S[_]: SeqOps as ops]: ZIO[Database, E, S[A]] = ZIO.scoped { stream.run(Sinks.seq[S, A]) }
+    def to[S[_]: SeqOps as ops]: ZIO[Database, E, S[A]] = stream.run(Sinks.seq[S, A])
     def chunk: ZIO[Database, E, Chunk[A]] = to[Chunk]
     def contiguous: ZIO[Database, E, Contiguous[A]] = to[Contiguous]
 
-    def stream: ZStream[Database & Scope, E, A] =
+    def stream: ZStream[Database, E, A] =
       effect
 
   }
