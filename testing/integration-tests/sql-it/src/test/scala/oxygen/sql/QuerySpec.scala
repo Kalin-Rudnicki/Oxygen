@@ -11,6 +11,8 @@ import zio.*
 @experimental
 object QuerySpec extends OxygenSpec[Database] {
 
+  // override def defaultLogLevel: LogLevel = LogLevel.Trace
+
   extension [A](self: Specified[A])
     private def orGen(eff: => UIO[A]): UIO[A] = self match
       case Specified.WasSpecified(value) => ZIO.succeed(value)

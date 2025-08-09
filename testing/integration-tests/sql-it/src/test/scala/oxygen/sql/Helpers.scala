@@ -14,8 +14,9 @@ object Helpers {
 
   val databaseLayer: ZLayer[TestContainerService, TestContainerError, Database] =
     ZLayer.makeSome[TestContainerService, Database](
-      ZLayer.succeed(DbConfig.Pool(10, 20, 5.minutes)),
+      ZLayer.succeed(DbConfig.Pool(8, 16, 5.minutes)),
       ZLayer.succeed(DbConfig.Logging(LogLevel.Trace, true)),
+      ZLayer.succeed(DbConfig.Execution.default),
       PostgresTestContainer.layer,
       Database.layer,
     )

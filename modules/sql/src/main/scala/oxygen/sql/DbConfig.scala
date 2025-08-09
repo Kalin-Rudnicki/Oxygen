@@ -1,6 +1,7 @@
 package oxygen.sql
 
 import oxygen.json.JsonCodec
+import oxygen.predef.core.*
 import oxygen.zio.instances.given
 import zio.*
 
@@ -9,6 +10,7 @@ final case class DbConfig(
     credentials: Option[DbConfig.Credentials],
     pool: DbConfig.Pool,
     logging: DbConfig.Logging,
+    execution: DbConfig.Execution,
 ) derives JsonCodec
 object DbConfig {
 
@@ -35,5 +37,23 @@ object DbConfig {
       queryLogLevel: LogLevel,
       logSql: Boolean,
   ) derives JsonCodec
+
+  /**
+    * @param bufferChunkSize Size of the chunk to read from JDBC result set
+    * @param bufferNumChunks Optional buffering of chunks.
+    */
+  final case class Execution(
+      bufferChunkSize: NonEmptyList[Int],
+      bufferNumChunks: Option[Int],
+  ) derives JsonCodec
+  object Execution {
+
+    val default: Execution =
+      Execution(
+        bufferChunkSize = NonEmptyList.of(16, 64, 64, 256),
+        bufferNumChunks = 2.some,
+      )
+
+  }
 
 }

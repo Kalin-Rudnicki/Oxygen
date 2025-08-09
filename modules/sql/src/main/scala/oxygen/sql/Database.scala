@@ -8,7 +8,7 @@ import oxygen.sql.schema.*
 import zio.{Semaphore, ZPool}
 import zio.stream.*
 
-final class Database(config: DbConfig, ref: FiberRef[Database.ConnectionState]) {
+final class Database(private val config: DbConfig, ref: FiberRef[Database.ConnectionState]) {
 
   def use[R, E, A](effect: ZIO[R & Database, E, A]): ZIO[R, E, A] =
     effect.provideSomeEnvironment(_.add(this))
@@ -54,6 +54,9 @@ object Database {
         case 1   => ZIO.unit
         case res => ZIO.fail(new RuntimeException(s"Healthcheck returned something other than `1` : $res"))
       }
+
+  private[sql] val executionConfig: URIO[Database, DbConfig.Execution] =
+    ZIO.serviceWith[Database](_.config.execution)
 
   //////////////////////////////////////////////////////////////////////////////////////////////////////
   //      Connection State

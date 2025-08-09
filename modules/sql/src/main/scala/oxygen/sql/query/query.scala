@@ -144,7 +144,7 @@ final class QueryO[O](
     QueryResult.Returning[QueryError, O](
       ctx,
       for {
-        ps <- ZStream.fromZIO { PreparedStatement.prepare(ctx) }
+        ps <- ZStream.scoped { PreparedStatement.prepare(ctx) }
         o <- encoder match
           case None          => ps.executeQuery(decoder)
           case Some(encoder) => ps.executeQuery(encoder, (), decoder)
@@ -181,7 +181,7 @@ final class QueryIO[I, O](
     QueryResult.Returning[QueryError, O](
       ctx,
       for {
-        ps <- ZStream.fromZIO { PreparedStatement.prepare(ctx) }
+        ps <- ZStream.scoped { PreparedStatement.prepare(ctx) }
         o <- ps.executeQuery(encoder, input, decoder)
       } yield o,
     )
