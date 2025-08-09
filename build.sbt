@@ -216,7 +216,6 @@ lazy val `oxygen-sql`: Project =
       name := "oxygen-sql",
       description := "SQL library for scala.",
       libraryDependencies ++= Seq(
-        zio.organization %% zio.streams % zio.coreVersion,
         postgres.organization % postgres.postgres % postgres.version,
       ),
     )
@@ -261,6 +260,7 @@ lazy val `oxygen-zio`: CrossProject =
       description := "Opinionated library of basic utilities to integrate with the `zio` ecosystem.",
       libraryDependencies ++= Seq(
         zio.organization %%% zio.zio % zio.coreVersion,
+        zio.organization %%% zio.streams % zio.coreVersion,
       ),
     )
     .dependsOn(
