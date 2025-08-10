@@ -48,7 +48,7 @@ lazy val `oxygen-modules`: Project =
 
 lazy val `oxygen-modules-jvm`: Project =
   project
-    .in(file("aggregates/.jvm"))
+    .in(file("modules/aggregates/.jvm"))
     .settings(
       nonPublishedProjectSettings,
       name := "oxygen-modules-jvm",
@@ -82,7 +82,7 @@ lazy val `oxygen-modules-jvm`: Project =
 
 lazy val `oxygen-modules-js`: Project =
   project
-    .in(file("aggregates/.js"))
+    .in(file("modules/aggregates/.js"))
     .settings(
       nonPublishedProjectSettings,
       name := "oxygen-modules-js",
@@ -108,7 +108,7 @@ lazy val `oxygen-modules-js`: Project =
 
 lazy val `oxygen-modules-native`: Project =
   project
-    .in(file("aggregates/.native"))
+    .in(file("modules/aggregates/.native"))
     .settings(
       nonPublishedProjectSettings,
       name := "oxygen-modules-native",
@@ -139,7 +139,7 @@ lazy val `oxygen-modules-native`: Project =
 lazy val `oxygen-core`: CrossProject =
   crossProject(JSPlatform, JVMPlatform, NativePlatform)
     .crossType(CrossType.Pure)
-    .in(file("modules/core"))
+    .in(file("modules/general/core"))
     .enablePlugins(BuildInfoPlugin)
     .settings(
       publishedProjectSettings,
@@ -152,7 +152,7 @@ lazy val `oxygen-core`: CrossProject =
 lazy val `oxygen-cli`: CrossProject =
   crossProject(JSPlatform, JVMPlatform, NativePlatform)
     .crossType(CrossType.Pure)
-    .in(file("modules/cli"))
+    .in(file("modules/general/cli"))
     .settings(
       publishedProjectSettings,
       name := "oxygen-cli",
@@ -166,7 +166,7 @@ lazy val `oxygen-cli`: CrossProject =
 lazy val `oxygen-executable`: CrossProject =
   crossProject(JSPlatform, JVMPlatform, NativePlatform)
     .crossType(CrossType.Pure)
-    .in(file("modules/executable"))
+    .in(file("modules/general/executable"))
     .settings(
       publishedProjectSettings,
       name := "oxygen-executable",
@@ -181,7 +181,7 @@ lazy val `oxygen-executable`: CrossProject =
 lazy val `oxygen-json`: CrossProject =
   crossProject(JSPlatform, JVMPlatform, NativePlatform)
     .crossType(CrossType.Pure)
-    .in(file("modules/json"))
+    .in(file("modules/general/json"))
     .settings(
       publishedProjectSettings,
       name := "oxygen-json",
@@ -194,7 +194,7 @@ lazy val `oxygen-json`: CrossProject =
 lazy val `oxygen-meta`: CrossProject =
   crossProject(JSPlatform, JVMPlatform, NativePlatform)
     .crossType(CrossType.Pure)
-    .in(file("modules/meta"))
+    .in(file("modules/general/meta"))
     .settings(
       publishedProjectSettings,
       name := "oxygen-meta",
@@ -208,7 +208,7 @@ lazy val `oxygen-meta`: CrossProject =
 lazy val `oxygen-quoted`: CrossProject =
   crossProject(JSPlatform, JVMPlatform, NativePlatform)
     .crossType(CrossType.Pure)
-    .in(file("modules/quoted"))
+    .in(file("modules/general/quoted"))
     .settings(
       publishedProjectSettings,
       name := "oxygen-quoted",
@@ -217,7 +217,7 @@ lazy val `oxygen-quoted`: CrossProject =
 
 lazy val `oxygen-sql`: Project =
   project
-    .in(file("modules/sql"))
+    .in(file("modules/sql/core"))
     .settings(
       publishedProjectSettings,
       name := "oxygen-sql",
@@ -233,7 +233,7 @@ lazy val `oxygen-sql`: Project =
 
 lazy val `oxygen-sql-migration`: Project =
   project
-    .in(file("modules/sql-migration"))
+    .in(file("modules/sql/migration"))
     .settings(
       publishedProjectSettings,
       name := "oxygen-sql-migration",
@@ -246,7 +246,7 @@ lazy val `oxygen-sql-migration`: Project =
 lazy val `oxygen-http-core`: CrossProject =
   crossProject(JSPlatform, JVMPlatform, NativePlatform)
     .crossType(CrossType.Pure)
-    .in(file("modules/http-core"))
+    .in(file("modules/http/core"))
     .settings(
       publishedProjectSettings,
       name := "oxygen-http-core",
@@ -261,7 +261,7 @@ lazy val `oxygen-http-server`: CrossProject =
   // crossProject(JSPlatform, JVMPlatform, NativePlatform)
   crossProject(JVMPlatform) // only publish JVM, for now
     .crossType(CrossType.Pure)
-    .in(file("modules/http-server"))
+    .in(file("modules/http/server"))
     .settings(
       publishedProjectSettings,
       name := "oxygen-http-server",
@@ -277,7 +277,7 @@ lazy val `oxygen-http-client`: CrossProject =
   // crossProject(JSPlatform, JVMPlatform, NativePlatform)
   crossProject(JVMPlatform) // only publish JVM, for now
     .crossType(CrossType.Pure)
-    .in(file("modules/http-client"))
+    .in(file("modules/http/client"))
     .settings(
       publishedProjectSettings,
       name := "oxygen-http-client",
@@ -292,7 +292,7 @@ lazy val `oxygen-http-client`: CrossProject =
 lazy val `oxygen-zio`: CrossProject =
   crossProject(JSPlatform, JVMPlatform, NativePlatform)
     .crossType(CrossType.Pure)
-    .in(file("modules/zio"))
+    .in(file("modules/general/zio"))
     .settings(
       publishedProjectSettings,
       name := "oxygen-zio",
@@ -313,7 +313,7 @@ lazy val `oxygen-zio`: CrossProject =
 lazy val `oxygen-test`: CrossProject =
   crossProject(JSPlatform, JVMPlatform, NativePlatform)
     .crossType(CrossType.Pure)
-    .in(file("modules/testing"))
+    .in(file("modules/general/test-utils"))
     .settings(
       publishedProjectSettings,
       name := "oxygen-test",
@@ -329,7 +329,7 @@ lazy val `oxygen-test`: CrossProject =
 
 lazy val `oxygen-test-container`: Project =
   project
-    .in(file("modules/test-container"))
+    .in(file("modules/general/test-container"))
     .settings(
       publishedProjectSettings,
       name := "oxygen-test-container",
@@ -342,7 +342,7 @@ lazy val `oxygen-test-container`: Project =
 
 lazy val `oxygen-sql-test`: Project =
   project
-    .in(file("modules/sql-test"))
+    .in(file("modules/sql/test-utils"))
     .settings(
       publishedProjectSettings,
       name := "oxygen-sql-test",
@@ -378,7 +378,7 @@ lazy val `oxygen-http-test`: CrossProject =
 
 lazy val `it`: Project =
   project
-    .in(file("testing/integration-tests"))
+    .in(file("modules/aggregates/it-test"))
     .settings(
       nonPublishedProjectSettings,
       name := "oxygen-it",
@@ -391,7 +391,7 @@ lazy val `it`: Project =
 
 lazy val `sql-it`: Project =
   project
-    .in(file("testing/integration-tests/sql-it"))
+    .in(file("modules/sql/it-test"))
     .settings(
       nonPublishedProjectSettings,
       name := "sql-it",
@@ -409,7 +409,7 @@ lazy val `sql-it`: Project =
 
 lazy val `http-it`: Project =
   project
-    .in(file("testing/integration-tests/http-it"))
+    .in(file("modules/http/it-test"))
     .settings(
       nonPublishedProjectSettings,
       name := "http-it",
@@ -425,7 +425,7 @@ lazy val `http-it`: Project =
 lazy val `ut`: CrossProject =
   crossProject(JSPlatform, JVMPlatform, NativePlatform)
     .crossType(CrossType.Pure)
-    .in(file("testing/pre-test-unit-tests"))
+    .in(file("modules/tests/pre-test-unit-tests"))
     .settings(
       nonPublishedProjectSettings,
       name := "oxygen-core",
