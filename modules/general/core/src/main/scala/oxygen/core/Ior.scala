@@ -51,4 +51,17 @@ object Ior {
 
   }
 
+  def zipMapIterator[K, V1, V2](a: Map[K, V1], b: Map[K, V2]): Iterator[(K, Ior[V1, V2])] =
+    (a.keysIterator ++ b.keysIterator).map { k =>
+      (a.get(k), b.get(k)) match {
+        case (Some(v1), Some(v2)) => (k, Ior.Both(v1, v2))
+        case (Some(v1), None)     => (k, Ior.Left(v1))
+        case (None, Some(v2))     => (k, Ior.Right(v2))
+        case (None, None)         => throw new RuntimeException("wtf? key doesn't exist in either map?") // not possible
+      }
+    }
+
+  def zipMap[K, V1, V2](a: Map[K, V1], b: Map[K, V2]): Map[K, Ior[V1, V2]] =
+    zipMapIterator(a, b).toMap
+
 }
