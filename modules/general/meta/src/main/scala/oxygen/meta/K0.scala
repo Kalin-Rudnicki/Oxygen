@@ -7,6 +7,7 @@ import oxygen.predef.core.*
 import oxygen.quoted.*
 import scala.annotation.Annotation
 import scala.quoted.*
+import scala.reflect.ClassTag
 
 object K0 {
 
@@ -1249,15 +1250,15 @@ object K0 {
           case gen: SumGeneric.EnumGeneric[A] => gen
           case gen                            => report.errorAndAbort(s"internal defect : EnumGeneric.of did not return an EnumGeneric:\n$gen")
 
-      private def extractSum[A: Type](using Quotes): Contiguous[ProductGeneric[? <: A]] =
-        SumGeneric.FlatGeneric.of[A].children.map(_.generic)
+      private def extractSum[A: Type](using Quotes): ArraySeq[ProductGeneric[? <: A]] =
+        SumGeneric.FlatGeneric.of[A].children.map(_.generic).toArraySeq
 
-      private def extract[A: Type](validateNumCaseClasses: Int => Boolean, expectedSize: String)(using Quotes): Expr[Contiguous[A]] = {
+      private def extract[A: Type](validateNumCaseClasses: Int => Boolean, expectedSize: String)(using Quotes): Expr[ArraySeq[A]] = {
         val typeRepr: TypeRepr = TypeRepr.of[A].dealias
-        val children: Contiguous[ProductGeneric[? <: A]] =
+        val children: ArraySeq[ProductGeneric[? <: A]] =
           typeRepr match {
             case or: OrType =>
-              Contiguous.from(or.orChildren).map { t =>
+              ArraySeq.from(or.orChildren).map { t =>
                 type B <: A
                 ProductGeneric.unsafeOf[B](t, t.typeOrTermSymbol, Derivable.Config())
               }
@@ -1277,9 +1278,10 @@ object K0 {
           report.errorAndAbort(s"Invalid number of case classes detected for parent ${typeRepr.showAnsiCode}, expected $expectedSize, but found ${caseClasses.length}:$showCaseClasses")
         }
 
-        val values: Contiguous[Expr[A]] = caseObjects.map { _.instantiate.instance }
+        val values: ArraySeq[Expr[A]] = caseObjects.map { _.instantiate.instance }
 
-        '{ ${ values.seqToExpr }.distinct }
+        val ctExpr: Expr[ClassTag[A]] = Implicits.searchRequiredIgnoreMessage[ClassTag[A]]
+        '{ ArraySeq.apply[A](${ Expr.ofSeq(values) }*)(using $ctExpr).distinct }
       }
 
       object deriveEnum {
@@ -1288,8 +1290,8 @@ object K0 {
           * Expects a strict enum, all case object children.
           */
         object strictEnum {
-          private def valuesImpl[A: Type](using Quotes): Expr[Contiguous[A]] = extract[A](_ == 0, "exactly 0")
-          inline def values[A]: Contiguous[A] = ${ valuesImpl[A] }
+          private def valuesImpl[A: Type](using Quotes): Expr[ArraySeq[A]] = extract[A](_ == 0, "exactly 0")
+          inline def values[A]: ArraySeq[A] = ${ valuesImpl[A] }
           inline def map[A, B](f: A => B): Map[B, A] = values[A].map { a => (f(a), a) }.toMap
         }
 
@@ -1298,8 +1300,8 @@ object K0 {
           * Useful for an enum with a representation for Other(_).
           */
         object ignoreSingleCaseClass {
-          private def valuesImpl[A: Type](using Quotes): Expr[Contiguous[A]] = extract[A](_ == 1, "exactly 1")
-          inline def values[A]: Contiguous[A] = ${ valuesImpl[A] }
+          private def valuesImpl[A: Type](using Quotes): Expr[ArraySeq[A]] = extract[A](_ == 1, "exactly 1")
+          inline def values[A]: ArraySeq[A] = ${ valuesImpl[A] }
           inline def map[A, B](f: A => B): Map[B, A] = values[A].map { a => (f(a), a) }.toMap
         }
 
@@ -1307,8 +1309,8 @@ object K0 {
           * Expects case object children, with more than 1 case class.
           */
         object ignoreManyCaseClasses {
-          private def valuesImpl[A: Type](using Quotes): Expr[Contiguous[A]] = extract[A](_ > 1, "more than 1")
-          inline def values[A]: Contiguous[A] = ${ valuesImpl[A] }
+          private def valuesImpl[A: Type](using Quotes): Expr[ArraySeq[A]] = extract[A](_ > 1, "more than 1")
+          inline def values[A]: ArraySeq[A] = ${ valuesImpl[A] }
           inline def map[A, B](f: A => B): Map[B, A] = values[A].map { a => (f(a), a) }.toMap
         }
 
@@ -1316,8 +1318,8 @@ object K0 {
           * Expects case object children, and does not care about the number of case class children.
           */
         object lax {
-          private def valuesImpl[A: Type](using Quotes): Expr[Contiguous[A]] = extract[A](_ => true, "???")
-          inline def values[A]: Contiguous[A] = ${ valuesImpl[A] }
+          private def valuesImpl[A: Type](using Quotes): Expr[ArraySeq[A]] = extract[A](_ => true, "???")
+          inline def values[A]: ArraySeq[A] = ${ valuesImpl[A] }
           inline def map[A, B](f: A => B): Map[B, A] = values[A].map { a => (f(a), a) }.toMap
         }
 
