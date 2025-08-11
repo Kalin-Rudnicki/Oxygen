@@ -6,4 +6,5 @@ object core {
   export oxygen.core.idToSpecified
   export oxygen.core.syntax.common.*
   export oxygen.core.typeclass.{SeqOps, Show, StringCodec, StringDecoder, StringEncoder, Zip}
+  export scala.collection.immutable.ArraySeq
 }
