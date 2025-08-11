@@ -61,7 +61,7 @@ object IsolationAspectSpec extends OxygenSpec[Database] {
   override def testAspects: Chunk[IsolationAspectSpec.TestSpecAspect] = Chunk(TestAspect.nondeterministic, TestAspect.withLiveClock)
 
   override def layerProvider: LayerProvider[R] =
-    LayerProvider.provideShared[R](
+    LayerProvider.provideShared[Env](
       Helpers.testContainerLayer,
       Helpers.databaseLayer,
       MigrationService.layer,

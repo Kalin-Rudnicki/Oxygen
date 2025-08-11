@@ -4,7 +4,8 @@ import oxygen.predef.core.*
 import oxygen.sql.error.*
 import oxygen.sql.query.dsl.CompileMacros
 import oxygen.sql.schema.*
-import zio.ZIO
+import oxygen.zio.instances.given
+import zio.{Chunk, ZIO}
 import zio.stream.ZStream
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -31,6 +32,7 @@ final class Query(
   def execute(): QueryResult.Update[QueryError] =
     QueryResult.Update[QueryError](
       ctx,
+      None,
       ZIO.scoped {
         for {
           ps <- PreparedStatement.prepare(ctx)
@@ -44,8 +46,8 @@ final class Query(
 }
 object Query {
 
-  def simple(queryName: String, queryType: QueryContext.QueryType)(sql: String): Query =
-    Query(QueryContext(queryName, sql, queryType), None)
+  def simple(queryName: String, queryType: QueryContext.QueryType, constParams: (String, String)*)(sql: String): Query =
+    Query(QueryContext(queryName, sql, queryType, constParams = constParams), None)
 
   inline def compile(inline queryName: String)(inline query: Query): Query = ${ CompileMacros.query('queryName, 'query, '{ false }) }
 
@@ -64,6 +66,7 @@ final class QueryI[I](
   def execute(input: I): QueryResult.Update[QueryError] =
     QueryResult.Update[QueryError](
       ctx,
+      None,
       ZIO.scoped {
         for {
           ps <- PreparedStatement.prepare(ctx)
@@ -74,16 +77,21 @@ final class QueryI[I](
 
   // TODO (KR) : add some sort of hierarchy here... `object batched { def of, def seq, def stream }`
 
-  def batched[S[_]: SeqOps](inputs: S[I]): QueryResult.BatchUpdate[QueryError] =
+  def batched[S[_]: SeqOps](inputs: S[I]): QueryResult.BatchUpdate[QueryError] = {
+    val chunk = inputs.into[Chunk]
+
     QueryResult.BatchUpdate[QueryError](
       ctx,
+      chunk.length,
       ZIO.scoped {
         for {
           ps <- PreparedStatement.prepare(ctx)
-          updated <- ps.executeBatchUpdate(encoder, inputs)
+          updated <- ps.executeBatchUpdate(encoder, chunk)
         } yield updated
       },
     )
+  }
+
   def all(inputs: I*): QueryResult.BatchUpdate[QueryError] =
     batched(inputs)
 
@@ -122,10 +130,10 @@ final class QueryI[I](
 }
 object QueryI {
 
-  def simple[I](queryName: String, queryType: QueryContext.QueryType)(
+  def simple[I](queryName: String, queryType: QueryContext.QueryType, constParams: (String, String)*)(
       encoder: InputEncoder[I],
   )(sql: String): QueryI[I] =
-    QueryI(QueryContext(queryName, sql, queryType), encoder)
+    QueryI(QueryContext(queryName, sql, queryType, constParams = constParams), encoder)
 
   inline def compile[I](inline queryName: String)(inline query: QueryI[I]): QueryI[I] = ${ CompileMacros.queryI('queryName, 'query, '{ false }) }
 
@@ -159,10 +167,10 @@ final class QueryO[O](
 }
 object QueryO {
 
-  def simple[O](queryName: String, queryType: QueryContext.QueryType)(
+  def simple[O](queryName: String, queryType: QueryContext.QueryType, constParams: (String, String)*)(
       decoder: ResultDecoder[O],
   )(sql: String): QueryO[O] =
-    QueryO(QueryContext(queryName, sql, queryType), None, decoder)
+    QueryO(QueryContext(queryName, sql, queryType, constParams = constParams), None, decoder)
 
   inline def compile[O](inline queryName: String)(inline query: QueryO[O]): QueryO[O] = ${ CompileMacros.queryO('queryName, 'query, '{ false }) }
 
@@ -225,11 +233,11 @@ final class QueryIO[I, O](
 }
 object QueryIO {
 
-  def simple[I, O](queryName: String, queryType: QueryContext.QueryType)(
+  def simple[I, O](queryName: String, queryType: QueryContext.QueryType, constParams: (String, String)*)(
       encoder: InputEncoder[I],
       decoder: ResultDecoder[O],
   )(sql: String): QueryIO[I, O] =
-    QueryIO(QueryContext(queryName, sql, queryType), encoder, decoder)
+    QueryIO(QueryContext(queryName, sql, queryType, constParams = constParams), encoder, decoder)
 
   inline def compile[I, O](inline queryName: String)(inline query: QueryIO[I, O]): QueryIO[I, O] = ${ CompileMacros.queryIO('queryName, 'query, '{ false }) }
 

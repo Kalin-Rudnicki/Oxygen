@@ -100,7 +100,7 @@ object MigrationSpec extends OxygenSpec[Database & MigrationService] {
   // deliberately not shared.
   // this is expensive, but all these tests should really run against their own fresh database
   override def layerProvider: LayerProvider[R] =
-    LayerProvider.providePerTest[R](
+    LayerProvider.providePerTest[Env](
       Helpers.databaseLayer,
       Helpers.testContainerLayer,
       MigrationService.layer,

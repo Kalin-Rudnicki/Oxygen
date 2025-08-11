@@ -32,17 +32,17 @@ object QueryResult {
 
     def singleOrElse[E2 >: E](error: => E2): ZIO[Database, E2, A] = singleOrElse[E2] { _ => error }
     def singleOrElse[E2 >: E](error: Int => E2): ZIO[Database, E2, A] =
-      to[List].flatMap {
+      this.to[List].flatMap {
         case row :: Nil => ZIO.succeed(row)
         case rows       => ZIO.fail(error(rows.size))
       }
 
     def single(using ev: QueryError <:< E): ZIO[Database, E, A] =
-      singleOrElse { actualSize => ev(QueryError(ctx, QueryError.InvalidResultSetSize(QueryError.InvalidResultSetSize.ExpectedSize.Single, actualSize))) }
+      this.singleOrElse { actualSize => ev(QueryError(ctx, QueryError.InvalidResultSetSize(QueryError.InvalidResultSetSize.ExpectedSize.Single, actualSize))) }
 
     def optionOrElse[E2 >: E](error: => E2): ZIO[Database, E2, Option[A]] = optionOrElse[E2] { _ => error }
     def optionOrElse[E2 >: E](error: Int => E2): ZIO[Database, E2, Option[A]] =
-      to[List].flatMap {
+      this.to[List].flatMap {
         case row :: Nil => ZIO.some(row)
         case Nil        => ZIO.none
         case rows       => ZIO.fail(error(rows.size))
@@ -51,10 +51,15 @@ object QueryResult {
     def option(using ev: QueryError <:< E): ZIO[Database, E, Option[A]] =
       optionOrElse { actualSize => ev(QueryError(ctx, QueryError.InvalidResultSetSize(QueryError.InvalidResultSetSize.ExpectedSize.Optional, actualSize))) }
 
-    def to[S[_]: SeqOps as ops]: ZIO[Database, E, S[A]] = stream.run(Sinks.seq[S, A])
-    def chunk: ZIO[Database, E, Chunk[A]] = to[Chunk]
-    def contiguous: ZIO[Database, E, Contiguous[A]] = to[Contiguous]
+    def chunk: ZIO[Database, E, Chunk[A]] = this.to[Chunk]
+    def contiguous: ZIO[Database, E, Contiguous[A]] = this.to[Contiguous]
 
+    // =====| Root Result Functions |=====
+
+    def to[S[_]: SeqOps as ops]: ZIO[Database, E, S[A]] =
+      this.effect.run(Sinks.seq[S, A]) @@ ctx.metrics.track(QueryContext.ExecutionType.Query)
+
+    // TODO (KR) : support stream metrics
     def stream: ZStream[Database, E, A] =
       effect
 
@@ -62,24 +67,25 @@ object QueryResult {
 
   final class Update[E] private[sql] (
       ctx: QueryContext,
+      batchSize: Option[Int],
       effect: ZIO[Database, E, Int],
   ) {
 
     // =====| Error Mapping |=====
 
     def orDie(using ev1: E IsSubtypeOfError Throwable, ev2: CanFail[E]): Update[Nothing] =
-      Update(ctx, effect.orDie)
+      Update(ctx, batchSize, effect.orDie)
 
     def orDieWith(f: E => Throwable)(using ev1: CanFail[E]): Update[Nothing] =
-      Update(ctx, effect.orDieWith(f))
+      Update(ctx, batchSize, effect.orDieWith(f))
 
     def mapError[E2](f: E => E2): Update[E2] =
-      Update(ctx, effect.mapError(f))
+      Update(ctx, batchSize, effect.mapError(f))
 
     // =====| Results |=====
 
     def updated: ZIO[Database, E, Int] =
-      effect
+      effect @@ ctx.metrics.track(batchSize.fold(QueryContext.ExecutionType.Update)(QueryContext.ExecutionType.AggregatedBatchUpdate(_)))
 
     def unit: ZIO[Database, E, Unit] =
       updated.unit
@@ -90,24 +96,25 @@ object QueryResult {
 
   final class BatchUpdate[E] private[sql] (
       ctx: QueryContext,
+      batchSize: Int,
       effect: ZIO[Database, E, Contiguous[Int]],
   ) {
 
     // =====| Error Mapping |=====
 
     def orDie(using ev1: E IsSubtypeOfError Throwable, ev2: CanFail[E]): BatchUpdate[Nothing] =
-      BatchUpdate(ctx, effect.orDie)
+      BatchUpdate(ctx, batchSize, effect.orDie)
 
     def orDieWith(f: E => Throwable)(using ev1: CanFail[E]): BatchUpdate[Nothing] =
-      BatchUpdate(ctx, effect.orDieWith(f))
+      BatchUpdate(ctx, batchSize, effect.orDieWith(f))
 
     def mapError[E2](f: E => E2): BatchUpdate[E2] =
-      BatchUpdate(ctx, effect.mapError(f))
+      BatchUpdate(ctx, batchSize, effect.mapError(f))
 
     // =====| Results |=====
 
     def updated: ZIO[Database, E, Contiguous[Int]] =
-      effect
+      effect @@ ctx.metrics.track(QueryContext.ExecutionType.JdbcBatchUpdate(batchSize))
 
     def totalUpdated: ZIO[Database, E, Int] =
       updated.map(_.sum)

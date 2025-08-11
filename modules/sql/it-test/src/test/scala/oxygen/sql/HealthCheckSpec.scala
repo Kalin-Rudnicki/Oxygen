@@ -13,7 +13,7 @@ object HealthCheckSpec extends OxygenSpec[TestContainerService] {
     )
 
   override def layerProvider: LayerProvider[R] =
-    LayerProvider.provideShared[R](
+    LayerProvider.provideShared[Env](
       Helpers.testContainerLayer,
     )
 

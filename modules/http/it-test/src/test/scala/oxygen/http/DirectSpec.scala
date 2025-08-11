@@ -9,7 +9,7 @@ object DirectSpec extends OxygenContractSpec[UserApi]("DirectSpec", UserApiContr
   // override def defaultLogLevel: LogLevel = LogLevel.Info
 
   override def layerProvider: LayerProvider[R] =
-    LayerProvider.providePerTest[R](
+    LayerProvider.providePerTest[Env](
       UserApiImpl.layer,
     )
 

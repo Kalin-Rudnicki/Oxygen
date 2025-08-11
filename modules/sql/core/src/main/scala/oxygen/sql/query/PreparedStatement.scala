@@ -24,7 +24,7 @@ private[sql] final class PreparedStatement private (
     writeInput(inputEncoder, input) *>
       executeUpdate
 
-  def executeBatchUpdate[S[_]: SeqOps, I](inputEncoder: InputEncoder[I], inputs: S[I]): IO[QueryError, Contiguous[Int]] =
+  def executeBatchUpdate[I](inputEncoder: InputEncoder[I], inputs: Chunk[I]): IO[QueryError, Contiguous[Int]] =
     writeInputs(inputEncoder, inputs) *>
       attemptExecute { rawPS.executeBatch() }.map(Contiguous.fromArray)
 
@@ -53,8 +53,8 @@ private[sql] final class PreparedStatement private (
   private def writeInput[I](inputEncoder: InputEncoder[I], input: I): IO[QueryError, Unit] =
     attemptJava("write inputs") { inputEncoder.unsafeEncode(writer, input) }
 
-  private def writeInputs[S[_]: SeqOps, I](inputEncoder: InputEncoder[I], inputs: S[I]): IO[QueryError, Unit] =
-    inputs.foreachZIO { input =>
+  private def writeInputs[I](inputEncoder: InputEncoder[I], inputs: Chunk[I]): IO[QueryError, Unit] =
+    ZIO.foreachDiscard(inputs) { input =>
       writeInput(inputEncoder, input) *>
         attemptJava("put batch") { writer.putBatch() }
     }

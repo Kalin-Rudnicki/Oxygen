@@ -12,37 +12,37 @@ object MigrationQueries {
       case AlterSchema.CreateSchema(schemaRef) =>
         MigrationQueries.createSchema(schemaRef, false)
       case AlterSchema.RenameSchema(schemaRef, newName) =>
-        Query.simple(s"Rename schema : $schemaRef -> $newName", QueryContext.QueryType.Migrate)(
+        Query.simple("Rename schema", QueryContext.QueryType.Migrate)(
           s"ALTER SCHEMA $schemaRef RENAME TO $newName",
         )
       case AlterSchema.DropSchema(schemaRef) =>
-        Query.simple(s"Drop Schema : $schemaRef", QueryContext.QueryType.Migrate)(
+        Query.simple("Drop Schema", QueryContext.QueryType.Migrate)(
           s"DROP SCHEMA $schemaRef",
         )
       case AlterTable.CreateTable(table) =>
         MigrationQueries.createTable(table, false)
       case AlterTable.RenameTable(tableRef, newName) =>
-        Query.simple(s"Rename Table : $tableRef -> $newName", QueryContext.QueryType.Migrate)(
+        Query.simple("Rename Table", QueryContext.QueryType.Migrate)(
           s"ALTER TABLE $tableRef RENAME TO $newName",
         )
       case AlterTable.DropTable(tableRef) =>
-        Query.simple(s"Drop Table : $tableRef", QueryContext.QueryType.Migrate)(
+        Query.simple("Drop Table", QueryContext.QueryType.Migrate)(
           s"DROP TABLE $tableRef",
         )
       case AlterColumn.CreateColumn(tableRef, column) =>
-        Query.simple(s"Add Column : $tableRef.${column.name}", QueryContext.QueryType.Migrate)(
+        Query.simple("Add Column", QueryContext.QueryType.Migrate, "schema.table" -> tableRef.toString, "schema.column" -> column.name)(
           s"ALTER TABLE $tableRef ADD COLUMN ${column.toSql}",
         )
       case AlterColumn.DropColumn(columnRef) =>
-        Query.simple(s"Drop Column : $columnRef", QueryContext.QueryType.Migrate)(
+        Query.simple("Drop Column", QueryContext.QueryType.Migrate)(
           s"ALTER TABLE ${columnRef.table} DROP COLUMN ${columnRef.columnName}",
         )
       case AlterColumn.RenameColumn(columnRef, newName) =>
-        Query.simple(s"Rename Column : $columnRef -> $newName", QueryContext.QueryType.Migrate)(
+        Query.simple("Rename Column", QueryContext.QueryType.Migrate)(
           s"ALTER TABLE ${columnRef.table} RENAME COLUMN ${columnRef.columnName} TO $newName",
         )
       case AlterColumn.SetNullable(columnRef, nullable) =>
-        Query.simple(s"Set Nullability : $columnRef, nullable = $nullable", QueryContext.QueryType.Migrate)(
+        Query.simple("Set Nullability", QueryContext.QueryType.Migrate)(
           s"ALTER TABLE ${columnRef.table} ALTER COLUMN ${columnRef.columnName} ${if (nullable) "SET" else "DROP"} NOT NULL",
         )
     }
@@ -52,7 +52,7 @@ object MigrationQueries {
   //////////////////////////////////////////////////////////////////////////////////////////////////////
 
   def createSchema(schema: EntityRef.SchemaRef, ifDNE: Boolean): Query =
-    Query.simple(s"Create Schema : $schema", QueryContext.QueryType.Migrate)(
+    Query.simple("Create Schema", QueryContext.QueryType.Migrate)(
       s"CREATE SCHEMA${ifDNEStr(ifDNE)} $schema",
     )
 
@@ -63,7 +63,7 @@ object MigrationQueries {
       if (table.primaryKeyColumns.nonEmpty) s",\n\n    PRIMARY KEY (${table.primaryKeyColumns.map(_.name).mkString(", ")})"
       else ""
 
-    Query.simple(s"Create Table : ${table.tableName}", QueryContext.QueryType.Migrate)(
+    Query.simple("Create Table", QueryContext.QueryType.Migrate)(
       s"CREATE TABLE${ifDNEStr(ifDNE)} ${table.tableName}(${columnLines.mkString(", ")}$pkLine\n)",
     )
   }

@@ -27,7 +27,7 @@ object ViaHttpSpec extends OxygenContractSpec[UserApi]("ViaHttpSpec", UserApiCon
     )
 
   override def layerProvider: LayerProvider[R] =
-    LayerProvider.providePerTest[R](
+    LayerProvider.providePerTest[Env](
       ZLayer { Random.RandomLive.nextIntBetween(6000, 7000) },
       serverLayer,
       clientLayer,
