@@ -1224,6 +1224,14 @@ object K0 {
       override type Gen[b] <: ProductGeneric[b]
       override type SelfType[A2] <: FlatGeneric[A2]
     }
+    object FlatGeneric {
+
+      def of[A](using Type[A], Quotes): SumGeneric.FlatGeneric[A] =
+        SumGeneric.of[A](Derivable.Config(defaultUnrollStrategy = SumGeneric.UnrollStrategy.Unroll)) match
+          case gen: SumGeneric.FlatGeneric[A] => gen
+          case gen                            => report.errorAndAbort(s"internal defect : FlatGeneric.of did not return a FlagGeneric:\n$gen")
+
+    }
 
     private[SumGeneric] trait FlatNonEnumGeneric[A] extends FlatGeneric[A] {
       override final type Gen[b] = ProductGeneric[b]
@@ -1234,10 +1242,88 @@ object K0 {
       override final type Gen[b] = ProductGeneric.CaseObjectGeneric[b]
       override final type SelfType[A2] = EnumGeneric[A2]
     }
+    object EnumGeneric {
+
+      def of[A](using Type[A], Quotes): SumGeneric.EnumGeneric[A] =
+        SumGeneric.of[A](Derivable.Config(defaultUnrollStrategy = SumGeneric.UnrollStrategy.Unroll)) match
+          case gen: SumGeneric.EnumGeneric[A] => gen
+          case gen                            => report.errorAndAbort(s"internal defect : EnumGeneric.of did not return an EnumGeneric:\n$gen")
+
+      private def extract[A: Type](validateNumCaseClasses: Int => Boolean, expectedSize: String)(using Quotes): Expr[Contiguous[A]] = {
+        val gen: SumGeneric.FlatGeneric[A] = SumGeneric.FlatGeneric.of[A]
+
+        val (caseObjects, caseClasses) = gen.children.partitionMap {
+          case gen.Case(_, caseObject: ProductGeneric.CaseObjectGeneric[? <: A]) => caseObject.asLeft
+          case gen.Case(_, caseClass: ProductGeneric.CaseClassGeneric[? <: A])   => caseClass.asRight
+        }
+
+        if (caseObjects.isEmpty)
+          report.errorAndAbort(s"No case objects returned for parent ${gen.typeRepr.showAnsiCode}")
+
+        if (!validateNumCaseClasses(caseClasses.length)) {
+          val showCaseClasses = caseClasses.map { ccg => s"\n  - ${ccg.typeRepr.showAnsiCode}" }.mkString
+          report.errorAndAbort(s"Invalid number of case classes detected for parent ${gen.typeRepr.showAnsiCode}, expected $expectedSize, but found ${caseClasses.length}:$showCaseClasses")
+        }
+
+        val values: Contiguous[Expr[A]] = caseObjects.map { _.instantiate.instance }
+
+        '{ ${ values.seqToExpr }.distinct }
+      }
+
+      object deriveEnum {
+
+        /**
+          * Expects a strict enum, all case object children.
+          */
+        object strictEnum {
+          private def valuesImpl[A: Type](using Quotes): Expr[Contiguous[A]] = extract[A](_ == 0, "exactly 0")
+          inline def values[A]: Contiguous[A] = ${ valuesImpl[A] }
+          inline def map[A, B](f: A => B): Map[B, A] = values[A].map { a => (f(a), a) }.toMap
+        }
+
+        /**
+          * Expects all case object children, except exactly 1 case class.
+          * Useful for an enum with a representation for Other(_).
+          */
+        object ignoreSingleCaseClass {
+          private def valuesImpl[A: Type](using Quotes): Expr[Contiguous[A]] = extract[A](_ == 1, "exactly 1")
+          inline def values[A]: Contiguous[A] = ${ valuesImpl[A] }
+          inline def map[A, B](f: A => B): Map[B, A] = values[A].map { a => (f(a), a) }.toMap
+        }
+
+        /**
+          * Expects case object children, with more than 1 case class.
+          */
+        object ignoreManyCaseClasses {
+          private def valuesImpl[A: Type](using Quotes): Expr[Contiguous[A]] = extract[A](_ > 1, "more than 1")
+          inline def values[A]: Contiguous[A] = ${ valuesImpl[A] }
+          inline def map[A, B](f: A => B): Map[B, A] = values[A].map { a => (f(a), a) }.toMap
+        }
+
+        /**
+          * Expects case object children, and does not care about the number of case class children.
+          */
+        object lax {
+          private def valuesImpl[A: Type](using Quotes): Expr[Contiguous[A]] = extract[A](_ => true, "???")
+          inline def values[A]: Contiguous[A] = ${ valuesImpl[A] }
+          inline def map[A, B](f: A => B): Map[B, A] = values[A].map { a => (f(a), a) }.toMap
+        }
+
+      }
+
+    }
 
     trait NestedGeneric[A] extends SumGeneric[A] {
       override final type Gen[b] = ProductOrSumGeneric[b]
       override final type SelfType[A2] = NestedGeneric[A2]
+    }
+    object NestedGeneric {
+
+      def of[A](using Type[A], Quotes): SumGeneric.NestedGeneric[A] =
+        SumGeneric.of[A](Derivable.Config(defaultUnrollStrategy = SumGeneric.UnrollStrategy.Nested)) match
+          case gen: SumGeneric.NestedGeneric[A] => gen
+          case gen                              => report.errorAndAbort(s"internal defect : NestedGeneric.of did not return a NestedGeneric:\n$gen")
+
     }
 
     private[K0] def unsafeOf[A](
