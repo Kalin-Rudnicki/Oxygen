@@ -27,6 +27,8 @@ object MacroSpec extends OxygenSpecDefault {
     final case class Other(s: String) extends Sum2
   }
 
+  type Sum3 = Sum1.Case1.type | Sum2.Case1.type
+
   override def testSpec: TestSpec =
     suite("MacroSpec")(
       suite("seq")(
@@ -67,6 +69,12 @@ object MacroSpec extends OxygenSpecDefault {
           assertTrue(
             K0.SumGeneric.EnumGeneric.deriveEnum.ignoreSingleCaseClass.values[Sum2].toSet ==
               Set(Sum2.Case1, Sum2.Case2, Sum2.Case3),
+          )
+        },
+        test("Sum3") {
+          assertTrue(
+            K0.SumGeneric.EnumGeneric.deriveEnum.strictEnum.values[Sum3].toSet ==
+              Set(Sum1.Case1, Sum2.Case1),
           )
         },
       ),
