@@ -1249,20 +1249,32 @@ object K0 {
           case gen: SumGeneric.EnumGeneric[A] => gen
           case gen                            => report.errorAndAbort(s"internal defect : EnumGeneric.of did not return an EnumGeneric:\n$gen")
 
-      private def extract[A: Type](validateNumCaseClasses: Int => Boolean, expectedSize: String)(using Quotes): Expr[Contiguous[A]] = {
-        val gen: SumGeneric.FlatGeneric[A] = SumGeneric.FlatGeneric.of[A]
+      private def extractSum[A: Type](using Quotes): Contiguous[ProductGeneric[? <: A]] =
+        SumGeneric.FlatGeneric.of[A].children.map(_.generic)
 
-        val (caseObjects, caseClasses) = gen.children.partitionMap {
-          case gen.Case(_, caseObject: ProductGeneric.CaseObjectGeneric[? <: A]) => caseObject.asLeft
-          case gen.Case(_, caseClass: ProductGeneric.CaseClassGeneric[? <: A])   => caseClass.asRight
+      private def extract[A: Type](validateNumCaseClasses: Int => Boolean, expectedSize: String)(using Quotes): Expr[Contiguous[A]] = {
+        val typeRepr: TypeRepr = TypeRepr.of[A].dealias
+        val children: Contiguous[ProductGeneric[? <: A]] =
+          typeRepr match {
+            case or: OrType =>
+              Contiguous.from(or.orChildren).map { t =>
+                type B <: A
+                ProductGeneric.unsafeOf[B](t, t.typeOrTermSymbol, Derivable.Config())
+              }
+            case _ => extractSum[A]
+          }
+
+        val (caseObjects, caseClasses) = children.partitionMap {
+          case caseObject: ProductGeneric.CaseObjectGeneric[? <: A] => caseObject.asLeft
+          case caseClass: ProductGeneric.CaseClassGeneric[? <: A]   => caseClass.asRight
         }
 
         if (caseObjects.isEmpty)
-          report.errorAndAbort(s"No case objects returned for parent ${gen.typeRepr.showAnsiCode}")
+          report.errorAndAbort(s"No case objects returned for parent ${typeRepr.showAnsiCode}")
 
         if (!validateNumCaseClasses(caseClasses.length)) {
           val showCaseClasses = caseClasses.map { ccg => s"\n  - ${ccg.typeRepr.showAnsiCode}" }.mkString
-          report.errorAndAbort(s"Invalid number of case classes detected for parent ${gen.typeRepr.showAnsiCode}, expected $expectedSize, but found ${caseClasses.length}:$showCaseClasses")
+          report.errorAndAbort(s"Invalid number of case classes detected for parent ${typeRepr.showAnsiCode}, expected $expectedSize, but found ${caseClasses.length}:$showCaseClasses")
         }
 
         val values: Contiguous[Expr[A]] = caseObjects.map { _.instantiate.instance }
