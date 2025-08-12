@@ -904,8 +904,8 @@ object K0 {
             aInstances: Expressions[F, A],
         )(using quotes: Quotes): Expr[F[B]] = {
           def deriveWithInstances(generic: ProductGeneric[B]): Expr[F[B]] =
-            derivable
-              .productDeriverInternal[B](using quotes, fTpe, bTpe, generic, derivable)
+            derivable.deriveInternal
+              .productDeriver[B](using quotes, fTpe, bTpe, generic, derivable)
               .deriveWithInstances(convertExpressions(aInstances))
 
           self match
@@ -923,8 +923,8 @@ object K0 {
             emptyInstance: => Expr[F[Unit]],
         )(using quotes: Quotes): Expr[F[B]] = {
           def deriveWithInstances(generic: ProductGeneric[B]): Expr[F[B]] =
-            derivable
-              .productDeriverInternal[B](using quotes, fTpe, bTpe, generic, derivable)
+            derivable.deriveInternal
+              .productDeriver[B](using quotes, fTpe, bTpe, generic, derivable)
               .deriveWithInstances(convertExpressions(aInstances))
 
           self match
@@ -1486,7 +1486,7 @@ object K0 {
   //      Derivable
   //////////////////////////////////////////////////////////////////////////////////////////////////////
 
-  trait Derivable[F[_]] {
+  trait Derivable[F[_]] { der =>
 
     // TODO (KR) : support this:
     //           : type ProductF[A] <: F[A]
@@ -1495,9 +1495,6 @@ object K0 {
     protected val deriveConfig: Derivable.Config = Derivable.Config()
     protected def productDeriver[A](using Quotes, Type[F], Type[A], ProductGeneric[A], Derivable[F]): Derivable.ProductDeriver[F, A]
     protected def sumDeriver[A](using Quotes, Type[F], Type[A], SumGeneric[A], Derivable[F]): Derivable.SumDeriver[F, A]
-
-    private[K0] final def productDeriverInternal[A](using Quotes, Type[F], Type[A], ProductGeneric[A], Derivable[F]): Derivable.ProductDeriver[F, A] = productDeriver[A]
-    private[K0] final def sumDeriverInternal[A](using Quotes, Type[F], Type[A], SumGeneric[A], Derivable[F]): Derivable.SumDeriver[F, A] = sumDeriver[A]
 
     private[meta] final def deriveFromGenericImpl[A](g: ProductOrSumGeneric[A])(using Quotes, Type[F], Type[A]): Expr[F[A]] = {
       given Derivable[F] = this
@@ -1517,6 +1514,11 @@ object K0 {
 
     protected final def derivedImpl[A](using Quotes, Type[F], Type[A]): Expr[F[A]] =
       deriveFromGenericImpl(Generic.of[A](deriveConfig))
+
+    object deriveInternal {
+      def productDeriver[A](using Quotes, Type[F], Type[A], ProductGeneric[A], Derivable[F]): Derivable.ProductDeriver[F, A] = der.productDeriver[A]
+      def sumDeriver[A](using Quotes, Type[F], Type[A], SumGeneric[A], Derivable[F]): Derivable.SumDeriver[F, A] = der.sumDeriver[A]
+    }
 
     /**
       * Unfortunately, scala macros do not allow this to be implemented in [[Derivable]].
