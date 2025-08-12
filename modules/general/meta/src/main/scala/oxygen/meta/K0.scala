@@ -1284,17 +1284,24 @@ object K0 {
           case gen: SumGeneric.EnumGeneric[A] => gen
           case gen                            => report.errorAndAbort(s"internal defect : EnumGeneric.of did not return an EnumGeneric:\n$gen")
 
-      private def extractSum[A: Type](using Quotes): ArraySeq[ProductGeneric[? <: A]] =
-        SumGeneric.FlatGeneric.of[A].children.map(_.generic).toArraySeq
+      private def extractSum[A: Type](using Quotes): ArraySeq[ProductGeneric[? <: A]] = {
+        def unroll(g: ProductOrSumGeneric[? <: A]): ArraySeq[ProductGeneric[? <: A]] = g match
+          case generic: ProductGeneric[? <: A] => ArraySeq(generic)
+          case generic: FlatGeneric[? <: A]    => generic.children.map(_.generic).toArraySeq
+          case generic: NestedGeneric[? <: A]  => generic.children.toArraySeq.flatMap(g => unroll(g.generic))
+
+        unroll(Generic.of[A])
+      }
 
       private def extract[A: Type](validateNumCaseClasses: Int => Boolean, expectedSize: String)(using Quotes): Expr[ArraySeq[A]] = {
         val typeRepr: TypeRepr = TypeRepr.of[A].dealias
         val children: ArraySeq[ProductGeneric[? <: A]] =
           typeRepr match {
             case or: OrType =>
-              ArraySeq.from(or.orChildren).map { t =>
+              ArraySeq.from(or.orChildren).flatMap { t =>
                 type B <: A
-                ProductGeneric.unsafeOf[B](t, t.typeOrTermSymbol, Derivable.Config())
+                given Type[B] = t.asTypeOf
+                extractSum[B]
               }
             case _ => extractSum[A]
           }
