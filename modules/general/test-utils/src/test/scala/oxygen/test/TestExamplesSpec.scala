@@ -6,6 +6,11 @@ object TestExamplesSpec extends OxygenSpecDefault {
 
   val gen1: Generator[Int] = Generator.finite(1, 2, 3)
   val gen2: Generator[Int] = Generator.Rand(Random.nextIntBetween(10, 20))
+  val gen3: Generator[(MyEnum1, MyEnum1)] =
+    for {
+      a <- Generator[MyEnum1]
+      b <- Generator[MyEnum1]
+    } yield (a, b)
 
   enum MyEnum1 derives Generator { case A, B, C }
 
@@ -26,6 +31,23 @@ object TestExamplesSpec extends OxygenSpecDefault {
           b.length == 10,
           (b.toSet &~ Set(1, 2, 3)).isEmpty,
           c.toSet == Set(1.some, 2.some, 3.some, None),
+        )
+      },
+      test("flatMap") {
+        for {
+          a <- gen3.genExhaustiveOrSized
+        } yield assertTrue(
+          a.toSet == Set(
+            (MyEnum1.A, MyEnum1.A),
+            (MyEnum1.A, MyEnum1.B),
+            (MyEnum1.A, MyEnum1.C),
+            (MyEnum1.B, MyEnum1.A),
+            (MyEnum1.B, MyEnum1.B),
+            (MyEnum1.B, MyEnum1.C),
+            (MyEnum1.C, MyEnum1.A),
+            (MyEnum1.C, MyEnum1.B),
+            (MyEnum1.C, MyEnum1.C),
+          ),
         )
       },
       test("gen") {
