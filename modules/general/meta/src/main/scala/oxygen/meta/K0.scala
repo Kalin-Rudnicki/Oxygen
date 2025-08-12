@@ -549,7 +549,7 @@ object K0 {
         idx: Int,
         typeRepr: TypeRepr,
         constructorValDef: ValDef,
-        fieldValDef: ValDef,
+        fieldSym: Symbol,
     ) extends Entity.Child[Any, B, A] {
 
       override type SelfType[A2] = Field[A2]
@@ -560,13 +560,15 @@ object K0 {
 
       override val sym: Symbol = constructorValDef.symbol
 
+      def fieldDef: ValOrDefDef = fieldSym.tree.narrow[ValOrDefDef]
+
       override def parentGeneric: ProductGeneric[A] = productGeneric
 
       override def pos: Position = constructorValDef.pos
 
       override def annotations(using Quotes): AnnotationsTyped[B] = AnnotationsTyped(constructorValDef.symbol.annotations.all, constructorValDef.show)
 
-      def fromParentTerm(parent: Term): Term = parent.select(fieldValDef.symbol)
+      def fromParentTerm(parent: Term): Term = parent.select(fieldSym)
 
       /**
         * Go from a product type to its field.
@@ -752,10 +754,9 @@ object K0 {
             case _                                                    => report.errorAndAbort("Invalid case class structure. Expected single param group.")
 
         val constructorVals: List[ValDef] = constructorTerms.params
-        val fieldVals: List[ValDef] =
-          _typeSym.caseFields.map(_.tree.narrow[ValDef]("case field not a val def?"))
+        val fieldSyms: List[Symbol] = _typeSym.caseFields
 
-        if (constructorVals.size != fieldVals.size)
+        if (constructorVals.size != fieldSyms.size)
           report.errorAndAbort("Primary constructor size differs from case fields size?")
 
         val typeArgs: List[TypeRepr] = _typeRepr.dealias match
@@ -776,14 +777,18 @@ object K0 {
               identity
           }
 
-        val fieldTuple: Contiguous[(Int, TypeRepr, ValDef, ValDef)] =
-          Contiguous.from(constructorVals.zip(fieldVals)).zipWithIndex.map { case ((constructorVal, fieldVal), idx) =>
-            if (constructorVal.name != fieldVal.name)
+        val fieldTuple: Contiguous[(Int, TypeRepr, ValDef, Symbol)] =
+          Contiguous.from(constructorVals.zip(fieldSyms)).zipWithIndex.map { case ((constructorVal, fieldSym), idx) =>
+            if (constructorVal.name != fieldSym.name)
               report.errorAndAbort("vals are not in same order?")
 
-            val typeRepr: TypeRepr = alterRepr(fieldVal.tpt.tpe)
+            // TODO (KR) : this is because of the stupid -Yretain-trees bug
+            val baseTypeRepr: TypeRepr =
+              try { fieldSym.tree.narrow[ValOrDefDef].tpt.tpe }
+              catch { case _: Throwable => constructorVal.tpt.tpe }
+            val typeRepr: TypeRepr = alterRepr(baseTypeRepr)
 
-            (idx, typeRepr, constructorVal, fieldVal)
+            (idx, typeRepr, constructorVal, fieldSym)
           }
 
         val constructorAwaitingArgs: Term = {
@@ -803,12 +808,12 @@ object K0 {
           override val derivedFromConfig: Derivable.Config = config
 
           override val fields: Contiguous[Field[?]] =
-            fieldTuple.map { case (idx, typeRepr, constructorVal, fieldVal) =>
+            fieldTuple.map { case (idx, typeRepr, constructorVal, fieldSym) =>
               Field(
                 idx = idx,
                 typeRepr = typeRepr,
                 constructorValDef = constructorVal,
-                fieldValDef = fieldVal,
+                fieldSym = fieldSym,
               )
             }
 
@@ -885,7 +890,7 @@ object K0 {
               idx = gField.idx,
               typeRepr = gField.typeRepr,
               constructorValDef = gField.constructorValDef,
-              fieldValDef = gField.fieldValDef,
+              fieldSym = gField.fieldSym,
             )
 
           override def fieldsToInstance1(expr: Expr[B])(using Quotes): Expr[A] =
