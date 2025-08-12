@@ -29,6 +29,10 @@ object MacroSpec extends OxygenSpecDefault {
 
   type Sum3 = Sum1.Case1.type | Sum2.Case1.type
 
+  type Sum4 = Sum1 | Sum2
+
+  type Sum5 = Sum1.Case1.type
+
   override def testSpec: TestSpec =
     suite("MacroSpec")(
       suite("seq")(
@@ -75,6 +79,18 @@ object MacroSpec extends OxygenSpecDefault {
           assertTrue(
             K0.SumGeneric.EnumGeneric.deriveEnum.strictEnum.values[Sum3].toSet ==
               Set(Sum1.Case1, Sum2.Case1),
+          )
+        },
+        test("Sum4") {
+          assertTrue(
+            K0.SumGeneric.EnumGeneric.deriveEnum.ignoreSingleCaseClass.values[Sum4].toSet ==
+              Set(Sum1.Case1, Sum1.Case2, Sum1.Case3, Sum2.Case1, Sum2.Case2, Sum2.Case3),
+          )
+        },
+        test("Sum5") {
+          assertTrue(
+            K0.SumGeneric.EnumGeneric.deriveEnum.strictEnum.values[Sum5].toSet ==
+              Set(Sum1.Case1),
           )
         },
       ),
