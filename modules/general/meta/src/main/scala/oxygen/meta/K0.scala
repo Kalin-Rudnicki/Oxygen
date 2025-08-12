@@ -51,9 +51,22 @@ object K0 {
     final def typedAs[TypeName <: SelfBound]: SelfType[TypeName] = this.asInstanceOf[SelfType[TypeName]]
 
     def summonTypeClass[TC[_]: Type](using quotes: Quotes): Expr[TC[A]] =
-      Implicits.search(TypeRepr.of[TC[A]]) match
+      Implicits.search(TypeRepr.of[TC[A]]) match {
         case ImplicitSearchSuccess(tree)        => tree.asExprOf[TC[A]]
-        case ImplicitSearchFailure(explanation) => report.errorAndAbort(s"Error summoning ${TypeRepr.of[TC[A]].show}\n\n$explanation", pos)
+        case ImplicitSearchFailure(explanation) =>
+          val tcBase = TypeRepr.of[TC]
+          val tcTpe = tcBase.narrowOpt[LambdaType].fold(tcBase)(_.resType)
+
+          report.errorAndAbort(
+            s"""Error summoning typeclass: ${TypeRepr.of[TC[A]].showAnsiCode}
+               |  type:      ${typeRepr.showAnsiCode}
+               |  typeclass: ${tcTpe.showAnsiCode}
+               |
+               |  explanation (note that the compiler often gives somewhat useless explanations here, it seems to not be passing along some additional context):
+               |    ${explanation.replaceAll("\n", "\n    ")}""".stripMargin,
+            pos,
+          )
+      }
 
     final def summonTypeClassOrDerive[TC[_]: Type](f: => Type[A] ?=> Expr[TC[A]])(using quotes: Quotes): Expr[TC[A]] =
       Implicits.search(TypeRepr.of[TC[A]]) match
@@ -73,10 +86,24 @@ object K0 {
       def parentGeneric: Generic[A]
 
       override def summonTypeClass[TC[_]: Type](using quotes: Quotes): Expr[TC[B]] =
-        Implicits.search(TypeRepr.of[TC[B]]) match
+        Implicits.search(TypeRepr.of[TC[B]]) match {
           case ImplicitSearchSuccess(tree)        => tree.asExprOf[TC[B]]
           case ImplicitSearchFailure(explanation) =>
-            report.errorAndAbort(s"Error summoning ${TypeRepr.of[TC[B]].show} for $childType `$name` in parent ${parentGeneric.typeRepr.show}\n\n$explanation", pos)
+            val tcBase = TypeRepr.of[TC]
+            val tcTpe = tcBase.narrowOpt[LambdaType].fold(tcBase)(_.resType)
+
+            report.errorAndAbort(
+              s"""Error summoning typeclass: ${TypeRepr.of[TC[B]].showAnsiCode}
+                 |  ${(childType + ":").alignLeft(12)} $name
+                 |  ${(childType + "-type:").alignLeft(12)} ${typeRepr.showAnsiCode}
+                 |  typeclass:   ${tcTpe.showAnsiCode}
+                 |  parent-type: ${parentGeneric.typeRepr.showAnsiCode}
+                 |
+                 |  explanation (note that the compiler often gives somewhat useless explanations here, it seems to not be passing along some additional context):
+                 |    ${explanation.replaceAll("\n", "\n    ")}""".stripMargin,
+              pos,
+            )
+        }
 
       final def getExpr[F[_]](expressions: Expressions[F, A])(using Quotes): Expr[F[B]] =
         expressions.at[B](idx)
@@ -454,6 +481,8 @@ object K0 {
 
       def map[Out](f: ChildFunction0[K0.Const[Out]])(using Quotes): Growable[Out] = ChildFunction0.run(f)
       def mapExpr[Out](f: ChildFunction0[K0.Const[Expr[Out]]])(using Quotes): Growable[Expr[Out]] = map[Expr[Out]](f)
+
+      def mapToSeqExpr[S[_]: {SeqOps, Type}, Out: Type](f: ChildFunction0[K0.Const[Expr[Out]]])(using Quotes): Expr[S[Out]] = mapExpr[Out](f).seqToExprOf[S]
 
       def flatMap[S[_]: SeqOps, Out](f: ChildFunction0[K0.Const[S[Out]]])(using Quotes): Growable[Out] = map(f).flatMap { inner => Growable.many(inner: S[Out]) }
       def flatMapExpr[S[_]: SeqOps, Out](f: ChildFunction0[K0.Const[S[Expr[Out]]]])(using Quotes): Growable[Expr[Out]] = flatMap[S, Expr[Out]](f)
@@ -1639,6 +1668,13 @@ object K0 {
       }
 
       def withInstances[F[_], A](f: Quotes ?=> Expressions[F, A] => SumDeriver[F, A])(using Quotes, Type[F], Type[A], SumGeneric[A], Derivable[F]): SumDeriver[F, A] = new WithInstances[F, A](f)
+
+      final class Impl[F[_], A](value: () => Expr[F[A]])(using Quotes, Type[F], Type[A], SumGeneric[A]) extends SumDeriver[F, A] {
+        override def derive: Expr[F[A]] = value()
+      }
+
+      def impl[F[_], A](value: => Expr[F[A]])(using Quotes, Type[F], Type[A], SumGeneric[A]): SumDeriver[F, A] =
+        new Impl[F, A](() => value)
 
       abstract class Split[F[_], A](using Quotes, Type[F], Type[A], SumGeneric[A]) extends SumDeriver[F, A] {
 

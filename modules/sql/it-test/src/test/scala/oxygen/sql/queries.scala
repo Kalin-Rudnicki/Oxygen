@@ -6,8 +6,8 @@ import oxygen.sql.query.*
 import oxygen.sql.query.dsl.*
 import oxygen.sql.query.dsl.Q.*
 import oxygen.sql.schema.*
-import oxygen.test.Generators
-import oxygen.test.Generators.syntax.*
+import oxygen.test.RandomGen
+import oxygen.test.RandomGen.syntax.*
 import scala.annotation.experimental
 import zio.*
 
@@ -21,7 +21,7 @@ final case class Person(
 )
 object Person extends TableCompanion[Person, UUID](TableRepr.derived[Person]) {
 
-  private val randomName: UIO[String] = Generators.capitalizedString()
+  private val randomName: UIO[String] = RandomGen.capitalizedString()
 
   def generate(groupId: UUID)(
       id: Specified[UUID] = Specified.WasNotSpecified,

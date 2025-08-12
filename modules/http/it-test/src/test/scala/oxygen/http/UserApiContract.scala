@@ -8,8 +8,8 @@ object UserApiContract extends Contract[UserApi] {
 
   private val genCreate: UIO[CreateUser] =
     for {
-      first <- Generators.lowerCaseString()
-      last <- Generators.lowerCaseString()
+      first <- RandomGen.lowerCaseString()
+      last <- RandomGen.lowerCaseString()
       age <- Random.nextIntBetween(18, 35)
     } yield CreateUser(first, last, age)
 
