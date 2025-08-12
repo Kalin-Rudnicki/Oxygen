@@ -39,6 +39,8 @@ sealed trait Generator[+A] { self =>
 
   def map[B](f: A => B): Generator[B] = Generator.MapUnbounded(this, f)
 
+  final def flatMap[B](f: A => Generator[B]): Generator[B] = Generator.FlatMapUnbounded(this, f)
+
 }
 object Generator extends GeneratorLowPriority.LowPriority1, Derivable[Generator.Bounded] {
 
@@ -180,6 +182,16 @@ object Generator extends GeneratorLowPriority.LowPriority1, Derivable[Generator.
     override def gen: UIO[A2] = a.gen.map(f)
 
     override def genN(n: Int): UIO[Chunk[A2]] = a.genN(n).map(_.map(f))
+
+  }
+
+  final case class FlatMapUnbounded[A, A2](a: Generator[A], f: A => Generator[A2]) extends Unbounded[A2] {
+
+    override def streamExhaustiveOrSized: UStream[A2] = a.streamExhaustiveOrSized.flatMap(f(_).streamExhaustiveOrSized)
+
+    override def gen: UIO[A2] = streamExhaustiveOrSized.runCollect.flatMap(RandomGen.oneOf(_))
+
+    override def genN(n: Int): UIO[Chunk[A2]] = streamExhaustiveOrSized.runCollect.flatMap(RandomGen.oneOfN(_, n))
 
   }
 
