@@ -37,9 +37,8 @@ object MacroSpec extends OxygenSpecDefault {
     suite("MacroSpec")(
       suite("seq")(
         seqTest(1, 2, 3)(List(1, 2, 3)),
-        seqTest(1, 2, 3)(Contiguous(1, 2, 3)),
         seqTest(1, 2, 3)(Seq(1, 2, 3)),
-        seqTest()(Contiguous()),
+        seqTest()(Seq()),
       ),
       suite("matching")(
         suite("strings")(

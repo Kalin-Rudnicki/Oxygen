@@ -1,6 +1,7 @@
 package oxygen.http
 
 import oxygen.predef.test.*
+import oxygen.zio.instances.chunkSeqOps
 import scala.annotation.experimental
 
 @experimental

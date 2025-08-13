@@ -9,8 +9,8 @@ sealed trait EncodedLogCause derives JsonCodec {
 
   protected def toSimpleBuilder: Growable[EncodedLogCause.Simple]
 
-  final def toSimple: Contiguous[EncodedLogCause.Simple] =
-    toSimpleBuilder.toContiguous
+  final def toSimple: ArraySeq[EncodedLogCause.Simple] =
+    toSimpleBuilder.toArraySeq
 
 }
 object EncodedLogCause {

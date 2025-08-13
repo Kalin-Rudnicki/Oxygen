@@ -24,7 +24,7 @@ final class DeriveProductJsonEncoder[A](
         }
       }
 
-    '{ Json.Obj(${ fields.to[Contiguous].seqToExpr }.flattenIterable) }
+    '{ Json.Obj(${ fields.seqToArraySeqExpr }.flatten) }
   }
 
   override def derive: Expr[JsonEncoder.ObjectEncoder[A]] =

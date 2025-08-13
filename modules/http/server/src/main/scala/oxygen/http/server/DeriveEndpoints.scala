@@ -21,11 +21,11 @@ object DeriveEndpoints {
   private[server] def derivedImpl[Api: Type](using Quotes): Expr[DeriveEndpoints[Api]] = {
     val api: ApiRepr[Api] = ApiRepr.derive[Api]
 
-    val endpoints: Contiguous[EndpointRepr[Api]] =
+    val endpoints: ArraySeq[EndpointRepr[Api]] =
       api.routes.map(EndpointRepr[Api](_))
 
     def endpointsImpl(apiExpr: Expr[Api]): Expr[Growable[Endpoint]] =
-      endpoints.map(_.toEndpoint(apiExpr)).seqToExprOf[Growable]
+      Growable.many(endpoints.map(_.toEndpoint(apiExpr))).seqToExpr
 
     '{
       new DeriveEndpoints[Api] {

@@ -70,7 +70,7 @@ object RowRepr {
       decoder: ResultDecoder.ColumnDecoder[A],
       encoder: InputEncoder.ColumnEncoder[A],
   ) extends RowRepr[A] {
-    override val columns: Columns[A] = Columns(Contiguous.single(column))
+    override val columns: Columns[A] = Columns(ArraySeq(column))
     override def prefixed(prefix: String): RowRepr[A] = {
       val newColumn: Column = column.prefixed(prefix)
       ColumnRepr(newColumn, decoder.withColumn(newColumn), encoder.withColumn(newColumn))
@@ -105,12 +105,12 @@ object RowRepr {
 
   trait ProductRepr[A] extends RowRepr[A] { self =>
 
-    val productFields: Contiguous[(String, RowRepr[?])]
+    val productFields: ArraySeq[(String, RowRepr[?])]
     private[sql] final lazy val productSchemaMap: Map[String, RowRepr[?]] = productFields.toMap
 
     override final def prefixed(prefix: String): RowRepr.ProductRepr[A] =
       new ProductRepr[A] {
-        override val productFields: Contiguous[(String, RowRepr[?])] = self.productFields.map { case (k, v) => (k, v.prefixed(prefix)) }
+        override val productFields: ArraySeq[(String, RowRepr[?])] = self.productFields.map { case (k, v) => (k, v.prefixed(prefix)) }
         override val columns: Columns[A] = Columns(productFields.flatMap(_._2.columns.columns))
         override val decoder: ResultDecoder[A] = self.decoder
         override val encoder: InputEncoder[A] = self.encoder
@@ -148,7 +148,7 @@ object RowRepr {
   }
 
   case object Empty extends RowRepr[Unit] {
-    override val columns: Columns[Unit] = Columns(Contiguous.empty)
+    override val columns: Columns[Unit] = Columns(ArraySeq.empty[Column])
     override val decoder: ResultDecoder[Unit] = ResultDecoder.Empty
     override val encoder: InputEncoder[Unit] = InputEncoder.Empty
     override def prefixed(prefix: String): RowRepr[Unit] = this

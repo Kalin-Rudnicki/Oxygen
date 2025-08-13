@@ -1,6 +1,5 @@
 package oxygen.core.typeclass
 
-import oxygen.core.collection.Contiguous
 import oxygen.predef.test.*
 
 object SeqOpsSpec extends OxygenSpecDefault {
@@ -16,10 +15,10 @@ object SeqOpsSpec extends OxygenSpecDefault {
   override def testSpec: TestSpec =
     suite("SeqOpsSpec")(
       transformSpec(List(1, 2, 3), Vector(1, 2, 3)),
-      transformSpec(Seq(1, 2, 3), Contiguous(1, 2, 3)),
+      transformSpec(Seq(1, 2, 3), Seq(1, 2, 3)),
       transformSpec(List.empty[Int], IndexedSeq.empty[Int]),
       transformSpec(Iterable(1, 2, 3), Seq(1, 2, 3)),
-      transformSpec(List(1, 2, 3), Contiguous(1, 2, 3)),
+      transformSpec(List(1, 2, 3), Seq(1, 2, 3)),
     )
 
 }

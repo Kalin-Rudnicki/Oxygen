@@ -7,7 +7,7 @@ import oxygen.predef.core.*
   */
 final case class CalculatedMigration(
     planned: PlannedMigration,
-    steps: Contiguous[CalculatedMigration.Step],
+    steps: ArraySeq[CalculatedMigration.Step],
 ) {
 
   def version: Int = planned.version

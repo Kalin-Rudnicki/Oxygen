@@ -11,7 +11,7 @@ final case class Endpoints(endpoints: Growable[Endpoint]) {
 
   def ++(that: Endpoints): Endpoints = Endpoints(this.endpoints ++ that.endpoints)
 
-  def finish: Endpoints.Finalized = Endpoints.Finalized.ListScan(endpoints.to[List])
+  def finish: Endpoints.Finalized = Endpoints.Finalized.ArraySeqScan(endpoints.toArraySeq)
 
 }
 object Endpoints {
@@ -26,22 +26,20 @@ object Endpoints {
   }
   object Finalized {
 
-    final case class ListScan(endpoints: List[Endpoint]) extends Finalized {
+    final case class ArraySeqScan(endpoints: ArraySeq[Endpoint]) extends Finalized {
 
       override def eval(request: RequestContext): URIO[Scope, HttpResponse] = {
         @tailrec
-        def loop(endpoints: List[Endpoint]): URIO[Scope, HttpResponse] =
-          endpoints match {
-            case head :: tail =>
-              head.run(request) match {
-                case Some(responseEffect) => responseEffect
-                case None                 => loop(tail)
-              }
-            case Nil =>
-              ZIO.succeed(HttpResponse(HttpCode.`404`))
-          }
+        def loop(idx: Int): URIO[Scope, HttpResponse] =
+          if (idx < endpoints.length)
+            endpoints(idx).run(request) match {
+              case Some(responseEffect) => responseEffect
+              case None                 => loop(idx + 1)
+            }
+          else
+            ZIO.succeed(HttpResponse(HttpCode.`404`))
 
-        loop(endpoints)
+        loop(0)
       }
 
     }

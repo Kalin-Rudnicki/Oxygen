@@ -67,10 +67,10 @@ object JsonSpec extends OxygenSpecDefault {
         directRoundTripTest("false")(false.some),
         directRoundTripTest("null")(Option.empty[Boolean]),
         suite("seq")(
-          directRoundTripTest("[]")(Contiguous.empty[Int]),
+          directRoundTripTest("[]")(Seq.empty[Int]),
           directRoundTripTest("[]")(List.empty[Int]),
           directRoundTripTest("[]")(Vector.empty[Int]),
-          directRoundTripTest("[1,2,3]")(Contiguous(1, 2, 3)),
+          directRoundTripTest("[1,2,3]")(Seq(1, 2, 3)),
           directRoundTripTest("[1,2,3]")(List(1, 2, 3)),
           directRoundTripTest("[1,2,3]")(Vector(1, 2, 3)),
           failedDecodeTest[NonEmptyList[Int]]("[]"),

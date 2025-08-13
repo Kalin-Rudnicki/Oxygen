@@ -156,15 +156,15 @@ object QueryError {
   final case class Connection(connectionError: ConnectionError) extends QueryError.Cause
 
   sealed trait UnableToDecodeRow extends QueryError.Cause {
-    val rowValues: Contiguous[Any]
+    val rowValues: ArraySeq[Any]
   }
   object UnableToDecodeRow {
-    final case class AtColumn(rowValues: Contiguous[Any], column: Column, idx: Int, message: String) extends UnableToDecodeRow
-    final case class MapOrFail(rowValues: Contiguous[Any], index: Int, size: Int, valueToMap: Any, message: String) extends UnableToDecodeRow
-    final case class InvalidRowSize(rowValues: Contiguous[Any], expected: Int, columns: Option[Columns[?]]) extends UnableToDecodeRow
+    final case class AtColumn(rowValues: ArraySeq[Any], column: Column, idx: Int, message: String) extends UnableToDecodeRow
+    final case class MapOrFail(rowValues: ArraySeq[Any], index: Int, size: Int, valueToMap: Any, message: String) extends UnableToDecodeRow
+    final case class InvalidRowSize(rowValues: ArraySeq[Any], expected: Int, columns: Option[Columns[?]]) extends UnableToDecodeRow
   }
 
-  final case class InvalidResultSetSize(expected: InvalidResultSetSize.ExpectedSize, actual: Int) extends QueryError.Cause
+  final case class InvalidResultSetSize(expected: InvalidResultSetSize.ExpectedSize, actual: String) extends QueryError.Cause
   object InvalidResultSetSize {
     enum ExpectedSize {
       case Single

@@ -2,6 +2,7 @@ package oxygen.http
 
 import java.util.UUID
 import oxygen.predef.core.*
+import oxygen.zio.instances.chunkSeqOps
 import scala.annotation.experimental
 import zio.*
 
@@ -12,9 +13,9 @@ final case class UserApiImpl(ref: Ref[Map[UUID, User]]) extends UserApi {
     ZIO.logInfo(s"looking for user with id $id") *>
       ref.get.map(_.get(id)).someOrFail(ApiError.NoSuchUser(id))
 
-  override def allUsers(): UIO[Contiguous[User]] =
+  override def allUsers(): UIO[Chunk[User]] =
     ZIO.logInfo("looking for all users") *>
-      ref.get.map(_.values.into[Contiguous])
+      ref.get.map(_.values.into[Chunk])
 
   override def createUser(create: CreateUser): UIO[User] =
     for {

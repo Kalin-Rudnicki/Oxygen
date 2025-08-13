@@ -47,7 +47,7 @@ object MigrationSpec extends OxygenSpec[Database & MigrationService] {
     suite("MigrationSpec")(
       test("simple migration works") {
         for {
-          err1 <- ModelA1.selectAll.execute().contiguous.exit
+          err1 <- ModelA1.selectAll.execute().arraySeq.exit
           migration1 = PlannedMigration.auto(1)(ModelA1.tableRepr)
           migration2 = PlannedMigration.auto(2)(ModelA2.tableRepr)
 

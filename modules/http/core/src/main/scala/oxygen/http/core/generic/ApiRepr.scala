@@ -17,10 +17,10 @@ final class ApiRepr[Api] private (_apiTpe: Type[Api])(using Quotes) {
   val classDef: ClassDef = tree.narrow[ClassDef]("trait is not a classDef?")
 
   // TODO (KR) : detect unimplemented parents
-  val defDefs: Contiguous[DefDef] =
-    classDef.body.into[Contiguous].map(_.narrow[DefDef]("body contains non-def-def"))
+  val defDefs: ArraySeq[DefDef] =
+    classDef.body.toArraySeq.map(_.narrow[DefDef]("body contains non-def-def"))
 
-  val routes: Contiguous[RouteRepr[Api]] = defDefs.map(RouteRepr.derive[Api](_))
+  val routes: ArraySeq[RouteRepr[Api]] = defDefs.map(RouteRepr.derive[Api](_))
 
   def toIndentedString: IndentedString =
     IndentedString.section(s"${typeRepr.showAnsiCode}:")(routes.map(_.toIndentedString).toSeq*)

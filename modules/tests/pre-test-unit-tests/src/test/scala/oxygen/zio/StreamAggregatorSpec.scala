@@ -47,7 +47,7 @@ object StreamAggregatorSpec extends OxygenSpecDefault {
   }
 
   private def manySpec: TestSpec = {
-    val agg = SparseStreamAggregator.of[Int].many[Contiguous]
+    val agg = SparseStreamAggregator.of[Int].many[Seq]
 
     suite("many")(
       passingAggTest("empty")(agg)()(),
@@ -56,7 +56,7 @@ object StreamAggregatorSpec extends OxygenSpecDefault {
         2.some,
         3.some,
       )(
-        Contiguous(1, 2, 3),
+        Seq(1, 2, 3),
       ),
     )
   }
@@ -88,7 +88,7 @@ object StreamAggregatorSpec extends OxygenSpecDefault {
   }
 
   private def megaSpec: TestSpec = {
-    val agg = SparseStreamAggregator.of[Int] *: SparseStreamAggregator.of[Boolean] *: SparseStreamAggregator.of[String].optional *: SparseStreamAggregator.of[String].many[Contiguous]
+    val agg = SparseStreamAggregator.of[Int] *: SparseStreamAggregator.of[Boolean] *: SparseStreamAggregator.of[String].optional *: SparseStreamAggregator.of[String].many[Seq]
 
     suite("mega")(
       passingAggTest("empty")(agg)()(),
@@ -110,10 +110,10 @@ object StreamAggregatorSpec extends OxygenSpecDefault {
         (None, None, None, "R5".some),
         (None, None, None, "R6".some),
       )(
-        (1, true, None, Contiguous()),
-        (2, true, "L1".some, Contiguous()),
-        (3, true, None, Contiguous("R1", "R2", "R3")),
-        (4, false, "L2".some, Contiguous("R4", "R5", "R6")),
+        (1, true, None, Seq()),
+        (2, true, "L1".some, Seq()),
+        (3, true, None, Seq("R1", "R2", "R3")),
+        (4, false, "L2".some, Seq("R4", "R5", "R6")),
       ),
     )
   }

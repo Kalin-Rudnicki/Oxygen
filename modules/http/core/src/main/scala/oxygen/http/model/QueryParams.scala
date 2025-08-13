@@ -2,7 +2,7 @@ package oxygen.http.model
 
 import oxygen.predef.core.*
 
-final case class QueryParams(rawQueryParams: Contiguous[(String, String)]) {
+final case class QueryParams(rawQueryParams: ArraySeq[(String, String)]) {
 
   private lazy val queryParamMap: Map[String, List[String]] = rawQueryParams.toList.groupMap(_._1)(_._2)
 
@@ -11,8 +11,8 @@ final case class QueryParams(rawQueryParams: Contiguous[(String, String)]) {
 }
 object QueryParams {
 
-  val empty: QueryParams = QueryParams(Contiguous.empty)
+  val empty: QueryParams = QueryParams(ArraySeq.empty[(String, String)])
 
-  def apply(queryParams: (String, String)*): QueryParams = QueryParams(Contiguous(queryParams*))
+  inline def of(queryParams: (String, String)*): QueryParams = QueryParams(ArraySeq(queryParams*))
 
 }

@@ -1,8 +1,8 @@
 package oxygen.sql.migration.model
 
-import oxygen.core.collection.Contiguous
+import scala.collection.immutable.ArraySeq
 
 final case class MigrationResult(
     state: MigrationState,
-    executed: Contiguous[ExecutedMigration],
+    executed: ArraySeq[ExecutedMigration],
 )

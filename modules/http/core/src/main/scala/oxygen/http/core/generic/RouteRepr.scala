@@ -64,8 +64,8 @@ final class RouteRepr[Api] private (val defDef: DefDef, _apiType: Type[Api])(usi
   if (pathList.contains(".."))
     report.errorAndAbort("path contains \"..\"")
 
-  private val paths: Contiguous[(Int, Option[String])] =
-    pathList.into[Contiguous].zipWithIndex.map {
+  private val paths: ArraySeq[(Int, Option[String])] =
+    pathList.toArraySeq.zipWithIndex.map {
       case ("%", i) => (i, None)
       case (s, i)   => (i, s.some)
     }
@@ -110,19 +110,19 @@ final class RouteRepr[Api] private (val defDef: DefDef, _apiType: Type[Api])(usi
     }
   }
 
-  private val tmpParamReprs: Contiguous[TmpParamRepr] =
-    valDefs.into[Contiguous].zipWithIndex.map(parseTmpParamRepr)
+  private val tmpParamReprs: ArraySeq[TmpParamRepr] =
+    valDefs.toArraySeq.zipWithIndex.map(parseTmpParamRepr)
 
-  private val tmpPathReprs: Contiguous[TmpParamRepr.Path] =
+  private val tmpPathReprs: ArraySeq[TmpParamRepr.Path] =
     tmpParamReprs.collect { case p: TmpParamRepr.Path => p }
 
-  private val tmpNonPathReprs: Contiguous[TmpParamRepr.NonPath] =
+  private val tmpNonPathReprs: ArraySeq[TmpParamRepr.NonPath] =
     tmpParamReprs.collect { case p: TmpParamRepr.NonPath => p }
 
   tmpNonPathReprs.collect { case TmpParamRepr.Body(_, name, _, _) => name } match {
-    case Contiguous()  => ()
-    case Contiguous(_) => ()
-    case bodies        => fail(s"more than 1 body (${bodies.mkString(", ")})")
+    case ArraySeq()  => ()
+    case ArraySeq(_) => ()
+    case bodies      => fail(s"more than 1 body (${bodies.mkString(", ")})")
   }
 
   private val idxMap: Map[Int, Int] =
@@ -131,16 +131,16 @@ final class RouteRepr[Api] private (val defDef: DefDef, _apiType: Type[Api])(usi
   if (idxMap.size != tmpPathReprs.length)
     fail(s"number of % and @param.path do not match (${idxMap.size} != ${tmpPathReprs.length})")
 
-  val pathParams: Contiguous[ParamRepr.Path] =
+  val pathParams: ArraySeq[ParamRepr.Path] =
     paths.map {
       case (i, Some(const)) =>
         ParamRepr.ConstPath(i, const)
       case (i, None) =>
-        val tmpPath: TmpParamRepr.Path = tmpPathReprs.at(idxMap(i))
+        val tmpPath: TmpParamRepr.Path = tmpPathReprs(idxMap(i))
         ParamRepr.NonConstPath(tmpPath.valDef, tmpPath.name, i, tmpPath.paramIdx, tmpPath.codec)
     }
 
-  val nonPathParams: Contiguous[ParamRepr.NonPath] =
+  val nonPathParams: ArraySeq[ParamRepr.NonPath] =
     tmpNonPathReprs.sorted.zipWithIndexFrom(pathParams.length).map { case (np, i) =>
       np match {
         case TmpParamRepr.QueryParam(valDef, name, paramIdx, decoder) =>
@@ -152,7 +152,7 @@ final class RouteRepr[Api] private (val defDef: DefDef, _apiType: Type[Api])(usi
       }
     }
 
-  val functionParams: Contiguous[ParamRepr.FunctionArg] =
+  val functionParams: ArraySeq[ParamRepr.FunctionArg] =
     (pathParams ++ nonPathParams).collect { case fa: ParamRepr.FunctionArg => fa }.sortBy(_.paramIdx)
 
   val errorResponseCodec: Expr[ResponseCodec[ErrorOut]] =

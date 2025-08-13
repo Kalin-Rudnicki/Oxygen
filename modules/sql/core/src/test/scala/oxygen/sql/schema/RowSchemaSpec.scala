@@ -34,12 +34,12 @@ object RowSchemaSpec extends OxygenSpecDefault {
       val prefixedInlineNull = nullSchema.prefixedInline("prefix")
 
       assertTrue(
-        nonNullSchema.columns.columns == Contiguous(Column("", expType, false)),
-        prefixedNonNull.columns.columns == Contiguous(Column("prefix", expType, false)),
-        prefixedInlineNonNull.columns.columns == Contiguous(Column("prefix", expType, false)),
-        nullSchema.columns.columns == Contiguous(Column("", expType, true)),
-        prefixedNull.columns.columns == Contiguous(Column("prefix", expType, true)),
-        prefixedInlineNull.columns.columns == Contiguous(Column("prefix", expType, true)),
+        nonNullSchema.columns.columns == ArraySeq(Column("", expType, false)),
+        prefixedNonNull.columns.columns == ArraySeq(Column("prefix", expType, false)),
+        prefixedInlineNonNull.columns.columns == ArraySeq(Column("prefix", expType, false)),
+        nullSchema.columns.columns == ArraySeq(Column("", expType, true)),
+        prefixedNull.columns.columns == ArraySeq(Column("prefix", expType, true)),
+        prefixedInlineNull.columns.columns == ArraySeq(Column("prefix", expType, true)),
       )
     }
 
@@ -47,8 +47,8 @@ object RowSchemaSpec extends OxygenSpecDefault {
       columns: Column*,
   )(using schema: RowRepr.ProductRepr[A], tag: TypeTag[A]): TestSpec =
     test(tag.prefixNone) {
-      assert(schema.columns.columns)(equalTo_filteredDiff(columns.toContiguous)) &&
-      assert(schema.prefixedInline("prefix").columns.columns)(equalTo_filteredDiff(columns.toContiguous))
+      assert(schema.columns.columns)(equalTo_filteredDiff(columns.toArraySeq)) &&
+      assert(schema.prefixedInline("prefix").columns.columns)(equalTo_filteredDiff(columns.toArraySeq))
     }
 
   private def singleColumnsSpec: TestSpec =

@@ -8,7 +8,7 @@ import oxygen.predef.core.*
   */
 final case class ExecutedMigration(
     version: Int,
-    steps: Contiguous[ExecutedMigration.Step],
+    steps: ArraySeq[ExecutedMigration.Step],
     startedAt: Instant,
     completedAt: Option[Instant],
 ) {

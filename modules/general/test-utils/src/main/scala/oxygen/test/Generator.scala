@@ -219,14 +219,14 @@ object Generator extends GeneratorLowPriority.LowPriority1, Derivable[Generator.
     Derivable.ProductDeriver.withDisjointInstances[Bounded, Generator, A] { instances =>
       new Derivable.ProductDeriver.Split[Bounded, A] {
 
-        private def make(idx: Expr[Int], built: Contiguous[Expr[Chunk[?]]]): Expr[A] =
+        private def make(idx: Expr[Int], built: ArraySeq[Expr[Chunk[?]]]): Expr[A] =
           generic.instantiate.id { [a] => (_, _) ?=> (field: generic.Field[?]) =>
-            val c: Expr[Chunk[a]] = built.at(field.idx).asExprOf[Chunk[a]]
+            val c: Expr[Chunk[a]] = built(field.idx).asExprOf[Chunk[a]]
             '{ $c($idx) }
           }
 
         private def convert2(size: Expr[Int], acc: Growable[(generic.Field[?], Expr[Chunk[?]])])(using Quotes): Expr[Chunk[A]] = {
-          val built = acc.toContiguous.map(_._2)
+          val built = acc.toArraySeq.map(_._2)
 
           '{
             Chunk.from(0.until($size)).map { idx => ${ make('idx, built) } }

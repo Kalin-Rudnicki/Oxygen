@@ -27,14 +27,14 @@ final class DeriveProductRowRepr[A](
       }
     }
 
-  private def makeProductSchemas: Expr[Contiguous[(String, RowRepr[?])]] =
+  private def makeProductSchemas: Expr[ArraySeq[(String, RowRepr[?])]] =
     generic.mapChildren
       .mapExpr[(String, RowRepr[?])] { [i] => (_, _) ?=> (field: generic.Field[i]) =>
         '{
           (${ Expr(field.name) }, ${ field.getExpr(instances) })
         }
       }
-      .seqToExprOf[Contiguous]
+      .seqToArraySeqExpr
 
   override def derive: Expr[RowRepr.ProductRepr[A]] = {
     if (generic.fields.isEmpty)
@@ -43,7 +43,7 @@ final class DeriveProductRowRepr[A](
     '{
       new RowRepr.ProductRepr[A] {
 
-        override val productFields: Contiguous[(String, RowRepr[?])] = $makeProductSchemas
+        override val productFields: ArraySeq[(String, RowRepr[?])] = $makeProductSchemas
 
         override val columns: Columns[A] = Columns(productFields.flatMap(_._2.columns.columns))
 

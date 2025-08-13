@@ -15,7 +15,7 @@ final case class MigrationState private (
   /**
     * Returns a set of diffs that would transform `this` into `that`.
     */
-  def diff(that: MigrationState): Either[DiffError, Contiguous[StateDiff]] = {
+  def diff(that: MigrationState): Either[DiffError, ArraySeq[StateDiff]] = {
     val createSchemas: Growable[StateDiff] = Growable.many(that.schemas &~ this.schemas: Iterable[SchemaRef]).filterNot(_.schemaName == "public").map { StateDiff.AlterSchema.CreateSchema(_) }
     val deleteSchemas: Growable[StateDiff] = Growable.many(this.schemas &~ that.schemas: Iterable[SchemaRef]).filterNot(_.schemaName == "public").map { StateDiff.AlterSchema.DropSchema(_) }
     val alterTables: Either[DiffError, Growable[StateDiff]] =
@@ -31,7 +31,7 @@ final case class MigrationState private (
         }
         .map(_.flatten)
 
-    alterTables.map { _ ++ createSchemas ++ deleteSchemas }.map(_.toContiguous.sortBy(_.applicationOrder))
+    alterTables.map { _ ++ createSchemas ++ deleteSchemas }.map(_.toArraySeq.sortBy(_.applicationOrder))
   }
 
   private def modifyTables(diff: StateDiff): Either[ApplyError, MigrationState] =
@@ -74,7 +74,7 @@ final case class MigrationState private (
         else modifyTables(diff)
     }
 
-  def applyAll(diffs: Contiguous[StateDiff]): Either[ApplyError, MigrationState] =
+  def applyAll(diffs: ArraySeq[StateDiff]): Either[ApplyError, MigrationState] =
     diffs.eitherFoldLeft(this)(_.apply(_))
 
   def toIndentedString: IndentedString =
@@ -88,7 +88,7 @@ object MigrationState {
 
   val empty: MigrationState = MigrationState(Set(SchemaRef("public")), Map.empty)
 
-  def fromTables(schemas: Contiguous[TableRepr[?]]): Either[DeriveError, MigrationState] =
+  def fromTables(schemas: ArraySeq[TableRepr[?]]): Either[DeriveError, MigrationState] =
     schemas.traverse(TableState.fromTable).map { tables =>
       MigrationState(tables.map(_.tableName.schema).toSet + SchemaRef("public"), tables.map(t => (t.tableName, t)).toMap)
     }

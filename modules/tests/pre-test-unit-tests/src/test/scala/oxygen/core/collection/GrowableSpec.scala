@@ -8,42 +8,42 @@ object GrowableSpec extends OxygenSpecDefault {
     suite("GrowableSpec")(
       test("Empty") {
         assertTrue(
-          Growable.empty.toContiguous == Contiguous.Empty,
+          Growable.empty.toArraySeq[Any] == ArraySeq.empty[Any],
         )
       },
       test("Single") {
         assertTrue(
-          Growable.single(1).toContiguous == Contiguous.single(1),
+          Growable.single(1).toArraySeq == ArraySeq(1),
           Growable.single(1).to[List] == (1 :: Nil),
         )
       },
       test("Many") {
         assertTrue(
-          Growable.many(List(1, 2, 3)).toContiguous == Contiguous(1, 2, 3),
+          Growable.many(List(1, 2, 3)).toArraySeq == ArraySeq(1, 2, 3),
         )
       },
       test("Concat") {
         assertTrue(
-          (Growable.many(List(-1, 0)) ++: (Growable.empty[Int] :++ Growable.single(1) :++ Growable.many(List(2, 3, 4)))).toContiguous ==
-            Contiguous(-1, 0, 1, 2, 3, 4),
+          (Growable.many(List(-1, 0)) ++: (Growable.empty[Int] :++ Growable.single(1) :++ Growable.many(List(2, 3, 4)))).toArraySeq ==
+            ArraySeq(-1, 0, 1, 2, 3, 4),
         )
       },
       test("Map") {
         assertTrue(
-          (Growable.many(List(-1, 0)) ++: (Growable.empty[Int] :++ Growable.single(1) :++ Growable.many(List(2, 3, 4)))).map(_.toString).toContiguous ==
-            Contiguous("-1", "0", "1", "2", "3", "4"),
+          (Growable.many(List(-1, 0)) ++: (Growable.empty[Int] :++ Growable.single(1) :++ Growable.many(List(2, 3, 4)))).map(_.toString).toArraySeq ==
+            ArraySeq("-1", "0", "1", "2", "3", "4"),
         )
       },
       test("Map") {
         assertTrue(
-          (Growable.many(List(-1, 0)) ++: (Growable.empty[Int] :++ Growable.single(1) :++ Growable.many(List(2, 3, 4)))).map(_.toString).toContiguous ==
-            Contiguous("-1", "0", "1", "2", "3", "4"),
+          (Growable.many(List(-1, 0)) ++: (Growable.empty[Int] :++ Growable.single(1) :++ Growable.many(List(2, 3, 4)))).map(_.toString).toArraySeq ==
+            ArraySeq("-1", "0", "1", "2", "3", "4"),
         )
       },
       test("FlatMap + Fill") {
         assertTrue(
-          Growable(1, 2, 3).flatMap { i => Growable.fill(i)(i) }.toContiguous ==
-            Contiguous(1, 2, 2, 3, 3, 3),
+          Growable(1, 2, 3).flatMap { i => Growable.fill(i)(i) }.toArraySeq ==
+            ArraySeq(1, 2, 2, 3, 3, 3),
         )
       },
       test("Collect") {

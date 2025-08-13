@@ -15,7 +15,7 @@ object RequestMiddleware {
     request =>
       TraceState.getOrSetRoot.map { traceState =>
         val (newRoot, newParent) = traceState.rootAndNewParent
-        request.addHeaders(Headers((TraceState.rootHeader, newRoot.toString), (TraceState.parentHeader, newParent.toString)))
+        request.addHeaders(Headers.of((TraceState.rootHeader, newRoot.toString), (TraceState.parentHeader, newParent.toString)))
       }
 
   private def parseTraceIds(request: HttpRequest): Option[(UUID, UUID)] = {

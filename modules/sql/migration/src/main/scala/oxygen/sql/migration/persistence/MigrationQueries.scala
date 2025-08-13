@@ -1,6 +1,6 @@
 package oxygen.sql.migration.persistence
 
-import oxygen.core.collection.Contiguous
+import oxygen.predef.core.*
 import oxygen.sql.migration.model.*
 import oxygen.sql.migration.model.StateDiff.*
 import oxygen.sql.query.*
@@ -57,7 +57,7 @@ object MigrationQueries {
     )
 
   def createTable(table: TableState, ifDNE: Boolean): Query = {
-    val columnLines: Contiguous[String] =
+    val columnLines: ArraySeq[String] =
       table.columns.map { c => s"\n    ${c.toSql}" }
     val pkLine: String =
       if (table.primaryKeyColumns.nonEmpty) s",\n\n    PRIMARY KEY (${table.primaryKeyColumns.map(_.name).mkString(", ")})"

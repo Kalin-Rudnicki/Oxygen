@@ -13,36 +13,39 @@ final class GeneratedInputEncoder private (
   def ++(that: GeneratedInputEncoder): GeneratedInputEncoder =
     GeneratedInputEncoder(this.parts ++ that.parts)
 
-  def buildExpr(using Quotes): GeneratedInputEncoder.Built =
-    parts.toContiguous match {
-      case Contiguous() =>
+  def buildExpr(using Quotes): GeneratedInputEncoder.Built = {
+    val many: ArraySeq[GeneratedInputEncoder.Part] = parts.toArraySeq
+    many.length match {
+      case 0 =>
         GeneratedInputEncoder.Built(
           TypeRepr.of[Any],
           false,
           false,
           '{ InputEncoder.Empty },
         )
-      case Contiguous(single) =>
+      case 1 =>
+        val single = many(0)
         GeneratedInputEncoder.Built(
           single.tpe,
           !single.isConst,
           true,
           single.buildExpr,
         )
-      case many =>
+      case _ =>
         type A
-        val repr = TypeRepr.contravariantJoin(many.map(_.tpe).toSeq)
+        val repr = TypeRepr.contravariantJoin(many.map(_.tpe))
         given Type[A] = repr.asTypeOf
 
-        val encs: Contiguous[Expr[InputEncoder[A]]] = many.map(_.buildExpr.asExprOf[InputEncoder[A]])
+        val encs: ArraySeq[Expr[InputEncoder[A]]] = many.map(_.buildExpr.asExprOf[InputEncoder[A]])
 
         GeneratedInputEncoder.Built(
           repr,
-          many.toSeq.exists(!_.isConst),
+          many.exists(!_.isConst),
           true,
-          '{ InputEncoder.ConcatAll[A](${ encs.seqToExpr }) },
+          '{ InputEncoder.ConcatAll[A](${ encs.seqToArraySeqExpr }) },
         )
     }
+  }
 
 }
 object GeneratedInputEncoder {

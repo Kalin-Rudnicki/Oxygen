@@ -2,7 +2,7 @@ package oxygen.http.model
 
 import oxygen.predef.core.*
 
-final case class Headers(rawHeaders: Contiguous[(String, String)]) {
+final case class Headers(rawHeaders: ArraySeq[(String, String)]) {
 
   private lazy val lowerHeaderMap: Map[String, List[String]] = rawHeaders.toList.groupMap(_._1.toLowerCase)(_._2)
 
@@ -14,8 +14,8 @@ final case class Headers(rawHeaders: Contiguous[(String, String)]) {
 }
 object Headers {
 
-  val empty: Headers = Headers(Contiguous.empty)
+  val empty: Headers = Headers(ArraySeq.empty[(String, String)])
 
-  def apply(headers: (String, String)*): Headers = Headers(Contiguous(headers*))
+  inline def of(headers: (String, String)*): Headers = Headers(ArraySeq(headers*))
 
 }

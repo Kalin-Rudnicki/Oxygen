@@ -68,7 +68,7 @@ object OxygenAspects {
             case Spec.MultipleCase(specs)         => Spec.MultipleCase(specs.map(loop(acc, _)))
             case Spec.TestCase(test, annotations) =>
               Spec.TestCase(
-                test @@ ZIO.withLogSpans(LogSpan(acc.toContiguous.mkString(" / "), java.time.Instant.now().toEpochMilli) :: Nil),
+                test @@ ZIO.withLogSpans(LogSpan(acc.toArraySeq.mkString(" / "), java.time.Instant.now().toEpochMilli) :: Nil),
                 annotations,
               )
           }

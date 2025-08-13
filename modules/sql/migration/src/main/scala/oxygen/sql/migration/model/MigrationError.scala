@@ -124,7 +124,7 @@ object MigrationError {
   final case class MigrationDoesNotResultInExpectedState(
       expected: MigrationState,
       actual: MigrationState,
-      steps: Contiguous[StateDiff],
+      steps: ArraySeq[StateDiff],
   ) extends MigrationError
 
 }

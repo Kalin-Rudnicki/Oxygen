@@ -4,6 +4,7 @@ import oxygen.predef.core.*
 import oxygen.sql.*
 import oxygen.sql.error.*
 import oxygen.zio.instances.given
+import scala.reflect.ClassTag
 import zio.*
 import zio.stream.*
 
@@ -29,35 +30,35 @@ object QueryResult {
 
     // TODO (KR) : it might potentially be worth optimizing for `single/option` queries,
     //           : and avoiding the overhead of creating a whole stream.
+    //           : It should now be possible using `toSink`
 
-    def singleOrElse[E2 >: E](error: => E2): ZIO[Database, E2, A] = singleOrElse[E2] { _ => error }
-    def singleOrElse[E2 >: E](error: Int => E2): ZIO[Database, E2, A] =
-      this.to[List].flatMap {
-        case row :: Nil => ZIO.succeed(row)
-        case rows       => ZIO.fail(error(rows.size))
-      }
+    def singleOrElse[E2 >: E](onEmpty: => E2, onMany: => E2): ZIO[Database, E2, A] =
+      this.toSink(Sinks.option(onMany)).someOrFail(onEmpty)
 
     def single(using ev: QueryError <:< E): ZIO[Database, E, A] =
-      this.singleOrElse { actualSize => ev(QueryError(ctx, QueryError.InvalidResultSetSize(QueryError.InvalidResultSetSize.ExpectedSize.Single, actualSize))) }
+      this.singleOrElse(
+        ev(QueryError(ctx, QueryError.InvalidResultSetSize(QueryError.InvalidResultSetSize.ExpectedSize.Single, "0"))),
+        ev(QueryError(ctx, QueryError.InvalidResultSetSize(QueryError.InvalidResultSetSize.ExpectedSize.Single, "many"))),
+      )
 
-    def optionOrElse[E2 >: E](error: => E2): ZIO[Database, E2, Option[A]] = optionOrElse[E2] { _ => error }
-    def optionOrElse[E2 >: E](error: Int => E2): ZIO[Database, E2, Option[A]] =
-      this.to[List].flatMap {
-        case row :: Nil => ZIO.some(row)
-        case Nil        => ZIO.none
-        case rows       => ZIO.fail(error(rows.size))
-      }
+    def optionOrElse[E2 >: E](onMany: => E2): ZIO[Database, E2, Option[A]] =
+      this.toSink(Sinks.option(onMany))
 
     def option(using ev: QueryError <:< E): ZIO[Database, E, Option[A]] =
-      optionOrElse { actualSize => ev(QueryError(ctx, QueryError.InvalidResultSetSize(QueryError.InvalidResultSetSize.ExpectedSize.Optional, actualSize))) }
+      this.optionOrElse(
+        ev(QueryError(ctx, QueryError.InvalidResultSetSize(QueryError.InvalidResultSetSize.ExpectedSize.Single, "many"))),
+      )
 
     def chunk: ZIO[Database, E, Chunk[A]] = this.to[Chunk]
-    def contiguous: ZIO[Database, E, Contiguous[A]] = this.to[Contiguous]
+    def arraySeq(using ClassTag[A]): ZIO[Database, E, ArraySeq[A]] = this.toSink(Sinks.arraySeq)
 
     // =====| Root Result Functions |=====
 
-    def to[S[_]: SeqOps as ops]: ZIO[Database, E, S[A]] =
-      this.effect.run(Sinks.seq[S, A]) @@ ctx.metrics.track(QueryContext.ExecutionType.Query)
+    def toSink[E1 >: E, B](sink: ZSink[Any, E1, A, Nothing, B]): ZIO[Database, E1, B] =
+      this.effect.run(sink) @@ ctx.metrics.track(QueryContext.ExecutionType.Query)
+
+    def toSinkT[E1 >: E, T[_]](sink: ZSink[Any, E1, A, Nothing, T[A]]): ZIO[Database, E1, T[A]] = this.toSink(sink)
+    def to[S[_]: SeqOps as ops]: ZIO[Database, E, S[A]] = this.toSink(Sinks.seq[S, A])
 
     // TODO (KR) : support stream metrics
     def stream: ZStream[Database, E, A] =
@@ -97,7 +98,7 @@ object QueryResult {
   final class BatchUpdate[E] private[sql] (
       ctx: QueryContext,
       batchSize: Int,
-      effect: ZIO[Database, E, Contiguous[Int]],
+      effect: ZIO[Database, E, ArraySeq[Int]],
   ) {
 
     // =====| Error Mapping |=====
@@ -113,7 +114,7 @@ object QueryResult {
 
     // =====| Results |=====
 
-    def updated: ZIO[Database, E, Contiguous[Int]] =
+    def updated: ZIO[Database, E, ArraySeq[Int]] =
       effect @@ ctx.metrics.track(QueryContext.ExecutionType.JdbcBatchUpdate(batchSize))
 
     def totalUpdated: ZIO[Database, E, Int] =

@@ -5,7 +5,7 @@ import oxygen.predef.core.*
 import oxygen.sql.generic.typeclass.*
 import scala.quoted.*
 
-final case class Columns[A](columns: Contiguous[Column]) {
+final case class Columns[A](columns: ArraySeq[Column]) {
 
   val size: Int = columns.length
 

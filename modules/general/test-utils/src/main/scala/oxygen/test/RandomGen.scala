@@ -2,6 +2,7 @@ package oxygen.test
 
 import java.time.*
 import oxygen.predef.core.*
+import oxygen.zio.instances.given
 import zio.*
 
 object RandomGen {
@@ -11,15 +12,15 @@ object RandomGen {
   //////////////////////////////////////////////////////////////////////////////////////////////////////
 
   def oneOf[S[_]: SeqOps, A](values: S[A]): UIO[A] = {
-    val elems: Contiguous[A] = values.into[Contiguous]
+    val elems: Chunk[A] = values.into[Chunk]
 
-    Random.nextIntBounded(elems.length).map(elems.at)
+    Random.nextIntBounded(elems.length).map(elems.apply)
   }
 
   def oneOfN[S[_]: SeqOps, A](values: S[A], n: Int): UIO[S[A]] = {
-    val elems: Contiguous[A] = values.into[Contiguous]
+    val elems: Chunk[A] = values.into[Chunk]
 
-    Random.nextIntBounded(elems.length).map(elems.at).replicateZIO(n).map(_.into[S])
+    Random.nextIntBounded(elems.length).map(elems.apply).replicateZIO(n).map(_.into[S])
   }
 
   //////////////////////////////////////////////////////////////////////////////////////////////////////

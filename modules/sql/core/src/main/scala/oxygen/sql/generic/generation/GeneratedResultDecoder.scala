@@ -14,21 +14,23 @@ final class GeneratedResultDecoder private (
   def ++(that: GeneratedResultDecoder): GeneratedResultDecoder =
     GeneratedResultDecoder(this.parts ++ that.parts)
 
-  def buildExpr(using quotes: Quotes): GeneratedResultDecoder.Built =
-    parts.toContiguous match {
-      case Contiguous() =>
+  def buildExpr(using quotes: Quotes): GeneratedResultDecoder.Built = {
+    val many: ArraySeq[GeneratedResultDecoder.Part] = parts.toArraySeq
+    many.length match {
+      case 0 =>
         GeneratedResultDecoder.Built(
           TypeRepr.of[Unit],
           false,
           '{ ResultDecoder.Empty },
         )
-      case Contiguous(single) =>
+      case 1 =>
+        val single = many(0)
         GeneratedResultDecoder.Built(
           single.tpe,
           true,
           single.buildExpr,
         )
-      case many =>
+      case _ =>
         type A
         given tupGeneric: K0.ProductGeneric[A] = K0.ProductGeneric.ofTuple[A](many.map(_.tpe).toList)
         val fTpe: Type[ResultDecoder] = Type.of[ResultDecoder]
@@ -40,6 +42,7 @@ final class GeneratedResultDecoder private (
           DeriveProductResultDecoder[A](instances)(using quotes, fTpe, tupGeneric.tpe, tupGeneric).derive,
         )
     }
+  }
 
 }
 object GeneratedResultDecoder {

@@ -7,6 +7,7 @@ import oxygen.http.model.{DecodingFailure as OopsDecode, *}
 import oxygen.http.server.{DeriveEndpoints, ServerErrorHandler}
 import oxygen.json.*
 import oxygen.predef.core.*
+import oxygen.zio.instances.chunkSeqOps
 import scala.annotation.experimental
 import zio.*
 
@@ -53,7 +54,7 @@ trait UserApi derives DeriveEndpoints, DeriveClient {
   ): IO[ApiError, User]
 
   @route.get("/user")
-  def allUsers(): UIO[Contiguous[User]]
+  def allUsers(): UIO[Chunk[User]]
 
   @route.post("/user")
   def createUser(

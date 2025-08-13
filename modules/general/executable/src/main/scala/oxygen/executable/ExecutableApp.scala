@@ -14,8 +14,8 @@ trait ExecutableApp extends ZIOAppDefault {
 
   val executable: Executable
 
-  val additionalLoggerDecoders: Contiguous[KeyedMapDecoder.Decoder[LogConfig.LoggerElem]] = Contiguous.empty
-  val additionalLoggerParsers: Contiguous[Params[Logger]] = Contiguous.empty
+  val additionalLoggerDecoders: ArraySeq[KeyedMapDecoder.Decoder[LogConfig.LoggerElem]] = ArraySeq.empty[KeyedMapDecoder.Decoder[LogConfig.LoggerElem]]
+  val additionalLoggerParsers: ArraySeq[Params[Logger]] = ArraySeq.empty[Params[Logger]]
 
   private def parseAndExecute(args: List[String]): ZIO[Scope, ExecuteError, Unit] =
     for {

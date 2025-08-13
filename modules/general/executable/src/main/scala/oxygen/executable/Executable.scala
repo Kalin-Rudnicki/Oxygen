@@ -283,7 +283,7 @@ object SingleBuilders {
         hints = List("Uses the default zio logger"),
       )
 
-    private def loggerParser(otherParsers: Contiguous[Params[Logger]])(default: Logger): Params[Logger] = {
+    private def loggerParser(otherParsers: ArraySeq[Params[Logger]])(default: Logger): Params[Logger] = {
       val base: NonEmptyList[Params[Logger]] = NonEmptyList.of(oxygenLoggerParser, jsonLoggerParser, zioLoggerParser)
       val withExtras: NonEmptyList[Params[Logger]] = base :++ otherParsers
 
@@ -301,7 +301,7 @@ object SingleBuilders {
             if (config.executableConfig.keepZioLogger) Logger.zioDefault
             else Logger.oxygenDefault
           }
-      ).map { case (annotations, spans, logLevel, logger) => LogConfig(annotations, spans, Contiguous.single(LogConfig.LoggerElem(logger, logLevel))) }
+      ).map { case (annotations, spans, logLevel, logger) => LogConfig(annotations, spans, ArraySeq(LogConfig.LoggerElem(logger, logLevel))) }
 
   }
 

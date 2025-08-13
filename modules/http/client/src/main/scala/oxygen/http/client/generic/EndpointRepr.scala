@@ -23,14 +23,14 @@ final class EndpointRepr[Api](val route: RouteRepr[Api], classSym: Symbol) {
       defDefSym,
       {
         case args :: Nil =>
-          val terms: Contiguous[Term] = args.into[Contiguous].map(_.narrow[Term]("param args are not a term?"))
-          val termsAndParams: Contiguous[(Term, ParamRepr.FunctionArg)] = terms.zipExact(route.functionParams)
+          val terms: ArraySeq[Term] = args.toArraySeq.map(_.narrow[Term]("param args are not a term?"))
+          val termsAndParams: ArraySeq[(Term, ParamRepr.FunctionArg)] = terms.zipExact(route.functionParams)
           functionImpl(clientExpr, termsAndParams).toTerm.some
         case argss => report.errorAndAbort(s"Expected single param clause, found: ${argss.size}(${argss.map(_.size).mkString(", ")})")
       },
     )
 
-  private def functionImpl(clientExpr: Expr[HttpClient], args: Contiguous[(Term, ParamRepr.FunctionArg)]): Expr[ZIO[route.EnvOut, route.ErrorOut, route.SuccessOut]] =
+  private def functionImpl(clientExpr: Expr[HttpClient], args: ArraySeq[(Term, ParamRepr.FunctionArg)]): Expr[ZIO[route.EnvOut, route.ErrorOut, route.SuccessOut]] =
     '{
       val request: HttpRequest = ${ toHttpRequest(args) }
       val sendResult: ZIO[Scope, HttpClientError, HttpResponse] = $clientExpr.send(request)
@@ -39,16 +39,16 @@ final class EndpointRepr[Api](val route: RouteRepr[Api], classSym: Symbol) {
       ${ route.convertR('parsedResponse) }
     }
 
-  private def toHttpRequest(args: Contiguous[(Term, ParamRepr.FunctionArg)]): Expr[HttpRequest] = {
-    val constPaths: Contiguous[ParamRepr.ConstPath] = route.pathParams.collect { case p: ParamRepr.ConstPath => p }
-    val nonConstPaths: Contiguous[(Term, ParamRepr.NonConstPath)] = args.collect { case (t, p: ParamRepr.NonConstPath) => (t, p) }
-    val queryParams: Contiguous[(Term, ParamRepr.QueryParam)] = args.collect { case (t, p: ParamRepr.QueryParam) => (t, p) }
-    val headers: Contiguous[(Term, ParamRepr.Header)] = args.collect { case (t, p: ParamRepr.Header) => (t, p) }
+  private def toHttpRequest(args: ArraySeq[(Term, ParamRepr.FunctionArg)]): Expr[HttpRequest] = {
+    val constPaths: ArraySeq[ParamRepr.ConstPath] = route.pathParams.collect { case p: ParamRepr.ConstPath => p }
+    val nonConstPaths: ArraySeq[(Term, ParamRepr.NonConstPath)] = args.collect { case (t, p: ParamRepr.NonConstPath) => (t, p) }
+    val queryParams: ArraySeq[(Term, ParamRepr.QueryParam)] = args.collect { case (t, p: ParamRepr.QueryParam) => (t, p) }
+    val headers: ArraySeq[(Term, ParamRepr.Header)] = args.collect { case (t, p: ParamRepr.Header) => (t, p) }
     val body: Option[(Term, ParamRepr.Body)] = args.collectFirst { case (t, p: ParamRepr.Body) => (t, p) }
 
     val methodExpr: Expr[HttpMethod] = Expr(route.method)
 
-    val tmpPaths: Contiguous[(ParamRepr.Path, Expr[Growable[String]])] =
+    val tmpPaths: ArraySeq[(ParamRepr.Path, Expr[Growable[String]])] =
       constPaths.map { p => (p, '{ Growable.single(${ Expr(p.path) }) }) } ++
         nonConstPaths.map { case (t, p) =>
           type P
@@ -61,13 +61,13 @@ final class EndpointRepr[Api](val route: RouteRepr[Api], classSym: Symbol) {
     // TODO (KR) : Maybe consider using mutable builders here?
 
     // TODO (KR) : Be more efficient, joining adjacent const params, and such.
-    val pathExpr: Expr[Contiguous[String]] =
+    val pathExpr: Expr[ArraySeq[String]] =
       '{
-        ${ tmpPaths.sortBy(_._1.parseIdx).map(_._2).seqToExprOf[Growable] }.flatten.to[Contiguous]
+        ${ Growable.many(tmpPaths.sortBy(_._1.parseIdx).map(_._2)).seqToExpr }.flatten.toArraySeq
       }
 
-    def paramTuples(args: Contiguous[(Term, ParamRepr.ParamMap)]): Expr[Contiguous[(String, String)]] = {
-      val exprs: Contiguous[Expr[Growable[(String, String)]]] =
+    def paramTuples(args: ArraySeq[(Term, ParamRepr.ParamMap)]): Expr[ArraySeq[(String, String)]] = {
+      val exprs: ArraySeq[Expr[Growable[(String, String)]]] =
         args.map { case (t, p) =>
           type P
           given Type[P] = p.typeRepr.asTypeOf
@@ -80,15 +80,15 @@ final class EndpointRepr[Api](val route: RouteRepr[Api], classSym: Symbol) {
         }
 
       exprs match {
-        case Contiguous()     => '{ Contiguous.empty }
-        case Contiguous(expr) => '{ $expr.to[Contiguous] }
-        case exprs            => '{ ${ Growable.many(exprs).seqToExpr }.flatten.to[Contiguous] }
+        case ArraySeq()     => '{ ArraySeq.empty }
+        case ArraySeq(expr) => '{ $expr.toArraySeq }
+        case exprs          => '{ ${ Growable.many(exprs).seqToExpr }.flatten.toArraySeq }
       }
     }
 
-    val queryParamsExpr: Expr[Contiguous[(String, String)]] = paramTuples(queryParams)
+    val queryParamsExpr: Expr[ArraySeq[(String, String)]] = paramTuples(queryParams)
 
-    val headersExpr: Expr[Contiguous[(String, String)]] = paramTuples(headers)
+    val headersExpr: Expr[ArraySeq[(String, String)]] = paramTuples(headers)
 
     val bodyExpr: Expr[HttpBody] =
       body match {
