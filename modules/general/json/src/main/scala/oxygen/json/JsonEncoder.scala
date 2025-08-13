@@ -8,6 +8,7 @@ import oxygen.json.generic.*
 import oxygen.meta.*
 import oxygen.predef.core.*
 import scala.quoted.*
+import scala.reflect.ClassTag
 
 trait JsonEncoder[A] {
 
@@ -76,14 +77,14 @@ object JsonEncoder extends K0.Derivable[JsonEncoder.ObjectEncoder], JsonEncoderL
       value.toOption.nonEmpty
   }
 
-  final case class ContiguousEncoder[A](encoder: JsonEncoder[A]) extends JsonEncoder[Contiguous[A]] {
-    override def encodeJsonAST(value: Contiguous[A]): Json =
+  final case class ArraySeqEncoder[A](encoder: JsonEncoder[A]) extends JsonEncoder[ArraySeq[A]] {
+    override def encodeJsonAST(value: ArraySeq[A]): Json =
       Json.Arr(value.map(encoder.encodeJsonAST))
   }
 
   final case class MapEncoder[K, V](k: JsonFieldEncoder[K], v: JsonEncoder[V]) extends JsonEncoder[Map[K, V]] {
     override def encodeJsonAST(value: Map[K, V]): Json =
-      Json.Obj(Contiguous.from(value).map { case (_k, _v) => (k.encode(_k), v.encodeJsonAST(_v)) })
+      Json.Obj(ArraySeq.from(value).map { case (_k, _v) => (k.encode(_k), v.encodeJsonAST(_v)) })
   }
 
   sealed trait TupleEncoder[A <: Tuple] extends JsonEncoder[A] {
@@ -93,9 +94,10 @@ object JsonEncoder extends K0.Derivable[JsonEncoder.ObjectEncoder], JsonEncoderL
     private[TupleEncoder] def append(value: A, offset: Int, array: Array[Json]): Unit
 
     override final def encodeJsonAST(value: A): Json = {
-      val (contiguous, array) = Contiguous.unsafeMakeExposingArray[Json](size)
+      val array: Array[Json] = new Array[Json](size)
+      val arraySeq: ArraySeq[Json] = ArraySeq.unsafeWrapArray(array)
       append(value, 0, array)
-      Json.Arr(contiguous)
+      Json.Arr(arraySeq)
     }
 
   }
@@ -152,8 +154,8 @@ object JsonEncoder extends K0.Derivable[JsonEncoder.ObjectEncoder], JsonEncoderL
   given option: [A] => (encoder: JsonEncoder[A]) => JsonEncoder[Option[A]] = OptionEncoder(encoder)
   given specified: [A] => (encoder: JsonEncoder[A]) => JsonEncoder[Specified[A]] = SpecifiedEncoder(encoder)
 
-  given contiguous: [A] => (encoder: JsonEncoder[A]) => JsonEncoder[Contiguous[A]] = ContiguousEncoder(encoder)
-  given seq: [S[_], A] => (seqOps: SeqOps[S], encoder: JsonEncoder[A]) => JsonEncoder[S[A]] = ContiguousEncoder(encoder).contramap(_.transformTo[Contiguous])
+  given arraySeq: [A] => (encoder: JsonEncoder[A]) => JsonEncoder[ArraySeq[A]] = ArraySeqEncoder(encoder)
+  given seq: [S[_], A: ClassTag] => (seqOps: SeqOps[S], encoder: JsonEncoder[A]) => JsonEncoder[S[A]] = ArraySeqEncoder(encoder).contramap(_.toArraySeq)
 
   given map: [K, V] => (k: JsonFieldEncoder[K], v: JsonEncoder[V]) => JsonEncoder[Map[K, V]] = MapEncoder(k, v)
 

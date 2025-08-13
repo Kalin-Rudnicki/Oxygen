@@ -9,8 +9,8 @@ import oxygen.sql.schema.TableRepr
   */
 final case class PlannedMigration(
     version: Int,
-    tables: Contiguous[TableRepr[?]],
-    steps: Contiguous[PlannedMigration.StepType],
+    tables: ArraySeq[TableRepr[?]],
+    steps: ArraySeq[PlannedMigration.StepType],
 ) {
 
   def toIndentedString: IndentedString =
@@ -25,7 +25,7 @@ object PlannedMigration {
   enum StepType {
 
     case Diff(diff: StateDiff)
-    case Auto(tables: Contiguous[TableRepr[?]])
+    case Auto(tables: ArraySeq[TableRepr[?]])
 
     final def toIndentedString: IndentedString = this match
       case StepType.Diff(diff)   => IndentedString.section("diff:")(diff.toIndentedString)
@@ -43,7 +43,7 @@ object PlannedMigration {
       * Auto, using explicitly specified tables.
       */
     def auto(tables: TableRepr[?]*): SpecifyStep =
-      StepType.Auto(tables.toContiguous)
+      StepType.Auto(tables.toArraySeq)
 
   }
 
@@ -53,7 +53,7 @@ object PlannedMigration {
     type InheritAuto = InheritAuto.type
     case object InheritAuto
 
-    def apply(specify: SpecifyStep, tables: Contiguous[TableRepr[?]]): StepType = specify match
+    def apply(specify: SpecifyStep, tables: ArraySeq[TableRepr[?]]): StepType = specify match
       case step: StepType  => step
       case InheritAuto     => StepType.Auto(tables)
       case diff: StateDiff => StepType.Diff(diff)
@@ -61,8 +61,8 @@ object PlannedMigration {
   }
 
   def make(version: Int)(tablesN: TableRepr[?]*)(steps: SpecifyStep*): PlannedMigration = {
-    val tables = tablesN.toContiguous
-    PlannedMigration(version, tables, steps.toContiguous.map(SpecifyStep(_, tables)))
+    val tables = tablesN.toArraySeq
+    PlannedMigration(version, tables, steps.toArraySeq.map(SpecifyStep(_, tables)))
   }
 
   def auto(version: Int)(tablesN: TableRepr[?]*): PlannedMigration =

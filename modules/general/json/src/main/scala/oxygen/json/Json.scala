@@ -19,12 +19,17 @@ sealed trait Json {
               case (Some(a), Some(b)) => k -> a.merge(b)
               case (Some(a), None)    => k -> a
               case (None, Some(b))    => k -> b
-              case (None, None)       => ??? // not possible
+              case (None, None)       => throw new RuntimeException(s"not possible, key in neither map: $k")
             }
           },
         )
       case (self: Json.Arr, that: Json.Arr) =>
-        Json.Arr(self.value.zipUsing(that.value)(identity, identity, _.merge(_)))
+        val zipped = self.value.zip(that.value).map(_.merge(_))
+        val len1 = self.value.length
+        val len2 = that.value.length
+        if (len1 > len2) Json.Arr(zipped ++ self.value.drop(len2))
+        else if (len1 < len2) Json.Arr(zipped ++ that.value.drop(len1))
+        else Json.Arr(zipped)
       case _ =>
         that
     }
@@ -115,7 +120,7 @@ object Json {
 
   }
 
-  final case class Arr(value: Contiguous[Json]) extends Json {
+  final case class Arr(value: ArraySeq[Json]) extends Json {
 
     override private[Json] def writeCompact(sb: mutable.StringBuilder): Unit = {
       sb.append('[')
@@ -144,7 +149,7 @@ object Json {
 
   }
 
-  final case class Obj(value: Contiguous[(String, Json)]) extends Json {
+  final case class Obj(value: ArraySeq[(String, Json)]) extends Json {
 
     lazy val valueMap: Map[String, Json] = value.toMap
 
@@ -207,9 +212,9 @@ object Json {
 
   def boolean(value: Boolean): Json.Bool = Json.Bool(value)
 
-  def arr(value: Json*): Json.Arr = Json.Arr(value.toContiguous)
+  def arr(value: Json*): Json.Arr = Json.Arr(value.toArraySeq)
 
-  def obj(value: (String, Json)*): Json.Obj = Json.Obj(value.toContiguous)
+  def obj(value: (String, Json)*): Json.Obj = Json.Obj(value.toArraySeq)
 
   def parse(string: String): Either[JsonError, Json] =
     JsonParser.parse(string)

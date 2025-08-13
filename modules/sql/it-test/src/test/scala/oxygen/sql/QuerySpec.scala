@@ -22,9 +22,9 @@ object QuerySpec extends OxygenSpec[Database] {
           p1p2 = Set(p1, p2)
           otherId <- Random.nextUUID
 
-          all1 <- Person.selectAll().contiguous
+          all1 <- Person.selectAll().arraySeq
           _ <- Person.insert.all(p1, p2).unit
-          all2 <- Person.selectAll().contiguous
+          all2 <- Person.selectAll().to[Set]
 
           getP1Opt <- Person.selectByPK(p1.id).option
           getP1Req <- Person.selectByPK(p1.id).single
@@ -34,7 +34,7 @@ object QuerySpec extends OxygenSpec[Database] {
           getOtherReq <- Person.selectByPK(otherId).single.exit
         } yield assertTrue(
           (all1.toSet & p1p2).isEmpty,
-          (all2.toSet & p1p2) == p1p2,
+          (all2 & p1p2) == p1p2,
           getP1Opt.contains(p1),
           getP1Req == p1,
           getP2Opt.contains(p2),

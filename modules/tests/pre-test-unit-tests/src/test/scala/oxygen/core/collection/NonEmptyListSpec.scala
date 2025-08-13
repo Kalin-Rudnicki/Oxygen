@@ -2,6 +2,7 @@ package oxygen.core.collection
 
 import oxygen.core.syntax.option.*
 import oxygen.test.*
+import scala.collection.immutable.ArraySeq
 import zio.test.*
 
 object NonEmptyListSpec extends OxygenSpecDefault {
@@ -69,10 +70,10 @@ object NonEmptyListSpec extends OxygenSpecDefault {
         },
         test("concat ops via SeqLike works") {
           assertTrue(
-            NonEmptyList.of(1, 2, 3) :++ Contiguous(4, 5, 6) == NonEmptyList.of(1, 2, 3, 4, 5, 6),
-            Contiguous(1, 2, 3) ++: NonEmptyList.of(4, 5, 6) == NonEmptyList.of(1, 2, 3, 4, 5, 6),
-            NonEmptyList.of(1, 2, 3) ++ Contiguous(4, 5, 6) == NonEmptyList.of(1, 2, 3, 4, 5, 6),
-            NonEmptyList.of(1, 2, 3).appendedAll(Contiguous(4, 5, 6)) == NonEmptyList.of(1, 2, 3, 4, 5, 6),
+            NonEmptyList.of(1, 2, 3) :++ ArraySeq(4, 5, 6) == NonEmptyList.of(1, 2, 3, 4, 5, 6),
+            ArraySeq(1, 2, 3) ++: NonEmptyList.of(4, 5, 6) == NonEmptyList.of(1, 2, 3, 4, 5, 6),
+            NonEmptyList.of(1, 2, 3) ++ ArraySeq(4, 5, 6) == NonEmptyList.of(1, 2, 3, 4, 5, 6),
+            NonEmptyList.of(1, 2, 3).appendedAll(ArraySeq(4, 5, 6)) == NonEmptyList.of(1, 2, 3, 4, 5, 6),
             NonEmptyList.of(4, 5, 6).prependedAll(Vector(1, 2, 3)) == NonEmptyList.of(1, 2, 3, 4, 5, 6),
           )
         },

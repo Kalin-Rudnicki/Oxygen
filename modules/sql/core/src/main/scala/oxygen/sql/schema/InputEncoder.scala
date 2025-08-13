@@ -75,7 +75,7 @@ object InputEncoder extends K0.Derivable[InputEncoder] {
     override def unsafeEncode(writer: InputWriter, value: B): Unit = a.unsafeEncode(writer, ba(value))
   }
 
-  final case class ConcatAll[A](encoders: Contiguous[InputEncoder[A]]) extends InputEncoder[A] {
+  final case class ConcatAll[A](encoders: ArraySeq[InputEncoder[A]]) extends InputEncoder[A] {
     override val size: Int = encoders.map(_.size).sum
     override def unsafeEncode(writer: InputWriter, value: A): Unit = encoders.foreach { _.unsafeEncode(writer, value) }
   }

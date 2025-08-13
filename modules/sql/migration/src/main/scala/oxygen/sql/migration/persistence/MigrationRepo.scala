@@ -24,7 +24,7 @@ trait MigrationRepo {
   def executeStep(version: Int, step: CalculatedMigration.Step): IO[StepError, ExecutedMigration.Step]
 
   // =====| Get |=====
-  def getMigrations: IO[ErrorFetchingMigrations, Contiguous[ExecutedMigration]]
+  def getMigrations: IO[ErrorFetchingMigrations, ArraySeq[ExecutedMigration]]
 
 }
 object MigrationRepo {
@@ -58,15 +58,15 @@ object MigrationRepo {
       } yield executedStep.toDomain
     }
 
-    override def getMigrations: IO[MigrationError.ErrorFetchingMigrations, Contiguous[ExecutedMigration]] =
+    override def getMigrations: IO[MigrationError.ErrorFetchingMigrations, ArraySeq[ExecutedMigration]] =
       for {
-        dbMigrations <- Live.queries.getMigrations.execute().contiguous.mapError(MigrationError.ErrorFetchingMigrations(_)).usingDb(db)
-        dbMigrationSteps <- Live.queries.getMigrationSteps.execute().contiguous.mapError(MigrationError.ErrorFetchingMigrations(_)).usingDb(db)
+        dbMigrations <- Live.queries.getMigrations.execute().arraySeq.mapError(MigrationError.ErrorFetchingMigrations(_)).usingDb(db)
+        dbMigrationSteps <- Live.queries.getMigrationSteps.execute().arraySeq.mapError(MigrationError.ErrorFetchingMigrations(_)).usingDb(db)
         groupedSteps = dbMigrationSteps.groupMap(_.version)(_.toDomain)
       } yield dbMigrations.sortBy(_.version).map { migration =>
         ExecutedMigration(
           migration.version,
-          groupedSteps.getOrElse(migration.version, Contiguous.empty).sortBy(_.stepNo),
+          groupedSteps.getOrElse(migration.version, ArraySeq.empty[ExecutedMigration.Step]).sortBy(_.stepNo),
           migration.startedAt,
           migration.completedAt,
         )

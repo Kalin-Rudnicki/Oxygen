@@ -32,7 +32,7 @@ object DeriveClient {
         selfType = None,
       )
 
-    val endpoints: Contiguous[EndpointRepr[Api]] = api.routes.map(EndpointRepr[Api](_, newClassSym))
+    val endpoints: ArraySeq[EndpointRepr[Api]] = api.routes.map(EndpointRepr[Api](_, newClassSym))
 
     def makeClassDef(clientExpr: Expr[HttpClient]): ClassDef =
       ClassDef.companion.apply(

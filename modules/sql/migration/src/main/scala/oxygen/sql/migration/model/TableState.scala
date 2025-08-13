@@ -9,8 +9,8 @@ import oxygen.sql.schema.*
 
 final case class TableState private[migration] (
     tableName: TableRef,
-    primaryKeyColumns: Contiguous[Column],
-    columns: Contiguous[Column],
+    primaryKeyColumns: ArraySeq[Column],
+    columns: ArraySeq[Column],
 ) {
 
   val pkColNames: Set[String] = primaryKeyColumns.map(_.name).toSet
@@ -120,7 +120,7 @@ object TableState {
 
   def fromTable(repr: TableRepr[?]): Either[DeriveError, TableState] = {
     val ref = TableRef(repr.schemaName, repr.tableName)
-    val cols: Contiguous[Column] = repr.rowRepr.columns.columns
+    val cols: ArraySeq[Column] = repr.rowRepr.columns.columns
 
     if (cols.length != cols.distinctBy(_.name).length)
       DeriveError(ref, NonDistinctColumnNames).asLeft

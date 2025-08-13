@@ -158,7 +158,7 @@ final class EndpointRepr[Api](val route: RouteRepr[Api])(using Quotes) {
       else None
     }
 
-  private val pathCodecParts: Contiguous[Expr[PathCodec[?]]] =
+  private val pathCodecParts: ArraySeq[Expr[PathCodec[?]]] =
     route.pathParams.map {
       case param: ParamRepr.ConstPath    => param.codec
       case param: ParamRepr.NonConstPath => param.codec

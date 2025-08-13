@@ -24,9 +24,9 @@ private[sql] final class PreparedStatement private (
     writeInput(inputEncoder, input) *>
       executeUpdate
 
-  def executeBatchUpdate[I](inputEncoder: InputEncoder[I], inputs: Chunk[I]): IO[QueryError, Contiguous[Int]] =
+  def executeBatchUpdate[I](inputEncoder: InputEncoder[I], inputs: Chunk[I]): IO[QueryError, ArraySeq[Int]] =
     writeInputs(inputEncoder, inputs) *>
-      attemptExecute { rawPS.executeBatch() }.map(Contiguous.fromArray)
+      attemptExecute { rawPS.executeBatch() }.map(ArraySeq.unsafeWrapArray)
 
   def executeQuery[O](resultDecoder: ResultDecoder[O]): ZStream[Database, QueryError, O] =
     ZStream.scoped { executeResult <*> Database.executionConfig }.flatMap { case (rawRS, exeCfg) =>
@@ -59,27 +59,27 @@ private[sql] final class PreparedStatement private (
         attemptJava("put batch") { writer.putBatch() }
     }
 
-  private def unsafeReadResultSet(rawRS: java.sql.ResultSet): Contiguous[Any] = {
+  private def unsafeReadResultSet(rawRS: java.sql.ResultSet): ArraySeq[Any] = {
     val size: Int = rawRS.getMetaData.getColumnCount
-    var idx: Int = 1
-    val builder: Contiguous.Builder[Any] = Contiguous.newBuilder
-    builder.sizeHint(size)
-    while (idx <= size) {
-      builder.addOne(rawRS.getObject(idx))
-      idx += 1
+    var idx: Int = 0
+    val array: Array[Any] = new Array[Any](size)
+    while (idx < size) {
+      val idx2 = idx + 1
+      array(idx) = rawRS.getObject(idx2)
+      idx = idx2
     }
-    builder.result()
+    ArraySeq.unsafeWrapArray(array)
   }
 
   private def readRawResults(
       rawRS: java.sql.ResultSet,
       bufferChunkSize: NonEmptyList[Int],
-  ): ZChannel[Any, Any, Any, Any, QueryError, Contiguous[Contiguous[Any]], Unit] = {
-    val builder = Contiguous.newBuilder[Contiguous[Any]]
+  ): ZChannel[Any, Any, Any, Any, QueryError, ArraySeq[ArraySeq[Any]], Unit] = {
+    val builder = ArraySeq.newBuilder[ArraySeq[Any]]
     builder.sizeHint(bufferChunkSize.head)
 
     @tailrec
-    def loop2(idx: Int, bufferSize: Int, hasNext: => Boolean): (ZChannel[Any, Any, Any, Any, QueryError, Contiguous[Contiguous[Any]], Unit], Boolean) =
+    def loop2(idx: Int, bufferSize: Int, hasNext: => Boolean): (ZChannel[Any, Any, Any, Any, QueryError, ArraySeq[ArraySeq[Any]], Unit], Boolean) =
       if (idx < bufferSize)
         if (hasNext) {
           builder.addOne(unsafeReadResultSet(rawRS))
@@ -89,7 +89,7 @@ private[sql] final class PreparedStatement private (
       else
         (ZChannel.write(builder.result()), true)
 
-    def loop1(bufferChunkSize: NonEmptyList[Int]): ZChannel[Any, Any, Any, Any, QueryError, Contiguous[Contiguous[Any]], Unit] =
+    def loop1(bufferChunkSize: NonEmptyList[Int]): ZChannel[Any, Any, Any, Any, QueryError, ArraySeq[ArraySeq[Any]], Unit] =
       if (bufferChunkSize.head > 0)
         ZChannel.suspend {
           builder.clear()
@@ -117,12 +117,12 @@ private[sql] final class PreparedStatement private (
     loop1(bufferChunkSize)
   }
 
-  private def convertRawResultChunk[O](rawResults: Contiguous[Contiguous[Any]], resultDecoder: ResultDecoder[O]): ZChannel[Any, Any, Any, Any, QueryError, Chunk[O], Unit] =
+  private def convertRawResultChunk[O](rawResults: ArraySeq[ArraySeq[Any]], resultDecoder: ResultDecoder[O]): ZChannel[Any, Any, Any, Any, QueryError, Chunk[O], Unit] =
     rawResults.length match {
       case 0 =>
         ZChannel.write(Chunk.empty)
       case 1 =>
-        resultDecoder.decode(rawResults.at(0)) match {
+        resultDecoder.decode(rawResults(0)) match {
           case Right(value) => ZChannel.write(Chunk.single(value))
           case Left(error)  => ZChannel.fail(QueryError(ctx, error))
         }
@@ -133,7 +133,7 @@ private[sql] final class PreparedStatement private (
         @tailrec
         def loop(idx: Int): ZChannel[Any, Any, Any, Any, QueryError, Chunk[O], Unit] =
           if (idx < len)
-            resultDecoder.decode(rawResults.at(idx)) match {
+            resultDecoder.decode(rawResults(idx)) match {
               case Right(value) => builder.addOne(value); loop(idx + 1)
               case Left(error)  => ZChannel.write(builder.result()) *> ZChannel.fail(QueryError(ctx, error))
             }

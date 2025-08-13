@@ -6,7 +6,7 @@ import scala.util.NotGiven
 
 private[sql] final case class ParseContext private (context: Growable[String]) {
   def :+(ctx: String): ParseContext = ParseContext(context :+ ctx)
-  override def toString: String = context.toContiguous.mkString(" -> ")
+  override def toString: String = context.toArraySeq.mkString(" -> ")
 }
 private[sql] object ParseContext {
 

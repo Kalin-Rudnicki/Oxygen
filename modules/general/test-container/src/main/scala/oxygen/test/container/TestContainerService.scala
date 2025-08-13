@@ -56,7 +56,7 @@ final class TestContainerService(config: TestContainerConfig, acquiredPortsRef: 
 
     def start(container: TestContainer): IO[TestContainerError.UnableToStartContainer, Unit] =
       Command("docker")(
-        Contiguous("run", "-d", "--name", container.name),
+        Seq("run", "-d", "--name", container.name),
         container.params.flatMap(_.toArgs),
         s"${container.imageName}:${container.imageVersion}",
       ).executeSuccess(outLevel = LogLevel.Debug)

@@ -130,7 +130,7 @@ private[json] final class JsonParser private (string: String) {
         expectChar('l')
         Json.Null
       case '{' =>
-        val builder = Contiguous.newBuilder[(String, Json)]
+        val builder = ArraySeq.newBuilder[(String, Json)]
         @tailrec
         def loop(): Json.Obj = {
           skipWhiteSpace()
@@ -156,12 +156,12 @@ private[json] final class JsonParser private (string: String) {
             loop()
           case '}' =>
             idx += 1
-            Json.Obj(Contiguous.empty)
+            Json.Obj(ArraySeq.empty)
           case _ =>
             fail()
         }
       case '[' =>
-        val builder = Contiguous.newBuilder[Json]
+        val builder = ArraySeq.newBuilder[Json]
         @tailrec
         def loop(): Json.Arr = {
           skipWhiteSpace()
@@ -184,7 +184,7 @@ private[json] final class JsonParser private (string: String) {
         arr(idx) match {
           case ']' =>
             idx += 1
-            Json.Arr(Contiguous.empty)
+            Json.Arr(ArraySeq.empty)
           case _ =>
             builder.addOne(parseAnyJson())
             loop()

@@ -40,15 +40,15 @@ final class MigrationService(
             (calc, exe) => Either.cond(exe.comesFrom(calc), None, MigrationsDiffer(exe, calc)),
           )
           .sequence
-          .map(_.flattenIterable)
+          .map(_.flatten)
       }
 
       _ <- ZIO.logDebug("Executing migrations")
       _ <- ZIO.logInfo("No new migrations to run").whenDiscard(toExecute.isEmpty)
       executed <- config.atomicity match {
-        case MigrationConfig.Atomicity.None         => toExecute.mapZIO(execute)
-        case MigrationConfig.Atomicity.PerMigration => toExecute.mapZIO(execute(_) @@ atomically)
-        case MigrationConfig.Atomicity.AllOrNothing => toExecute.mapZIO(execute) @@ atomically
+        case MigrationConfig.Atomicity.None         => ZIO.foreach(toExecute)(execute)
+        case MigrationConfig.Atomicity.PerMigration => ZIO.foreach(toExecute)(execute(_) @@ atomically)
+        case MigrationConfig.Atomicity.AllOrNothing => ZIO.foreach(toExecute)(execute) @@ atomically
       }
 
     } yield MigrationResult(newState, executed)
@@ -64,13 +64,13 @@ final class MigrationService(
       stepType: CalculatedMigration.StepType,
   )
 
-  private def calculateSteps(currentState: MigrationState, step: PlannedMigration.StepType): Either[StateDiffError, (MigrationState, Contiguous[CalculatedStep])] =
+  private def calculateSteps(currentState: MigrationState, step: PlannedMigration.StepType): Either[StateDiffError, (MigrationState, ArraySeq[CalculatedStep])] =
     for {
       steps <- step match {
         case PlannedMigration.StepType.Diff(diff) =>
-          Contiguous.single(CalculatedStep(false, CalculatedMigration.StepType.Diff(diff))).asRight
+          ArraySeq(CalculatedStep(false, CalculatedMigration.StepType.Diff(diff))).asRight
         case PlannedMigration.StepType.Auto(reprs) =>
-          MigrationState.fromTables(reprs).flatMap(currentState.diff).map(_.toContiguous.map(d => CalculatedStep(true, CalculatedMigration.StepType.Diff(d))))
+          MigrationState.fromTables(reprs).flatMap(currentState.diff).map(_.toArraySeq.map(d => CalculatedStep(true, CalculatedMigration.StepType.Diff(d))))
       }
       newState <- currentState.applyAll(steps.collect { case CalculatedStep(_, CalculatedMigration.StepType.Diff(diff)) => diff })
     } yield (newState, steps)
@@ -86,7 +86,7 @@ final class MigrationService(
               .map { (newState, newSteps) => (newState, growableSteps ++ Growable.many(newSteps)) }
               .leftMap(ErrorDiffingState(planned.version, currentState.some, _))
           }
-      stepTypes = growableSteps.toContiguous
+      stepTypes = growableSteps.toArraySeq
       _ <- Either.cond(stepTypes.nonEmpty, (), EmptyMigration(planned))
       steps = stepTypes.zipWithIndexFrom(1).map { case (CalculatedStep(derived, stepType), idx) => CalculatedMigration.Step(idx, derived, stepType) }
       expectedState <- MigrationState.fromTables(planned.tables).leftMap(ErrorDiffingState(planned.version, None, _))
@@ -94,14 +94,14 @@ final class MigrationService(
       _ <- Either.cond(actualDiffExpected.isEmpty, (), MigrationDoesNotResultInExpectedState(expectedState, actualState, actualDiffExpected))
     } yield (actualState, CalculatedMigration(planned, steps))
 
-  private def calculateMigrations(planned: Contiguous[PlannedMigration]): Either[CalculationError, (MigrationState, Contiguous[CalculatedMigration])] = {
+  private def calculateMigrations(planned: ArraySeq[PlannedMigration]): Either[CalculationError, (MigrationState, ArraySeq[CalculatedMigration])] = {
     @tailrec
     def loop(
         expVersion: Int,
         currentState: MigrationState,
         queue: List[PlannedMigration],
         stack: Growable[CalculatedMigration],
-    ): Either[CalculationError, (MigrationState, Contiguous[CalculatedMigration])] =
+    ): Either[CalculationError, (MigrationState, ArraySeq[CalculatedMigration])] =
       queue match {
         case head :: _ if head.version != expVersion =>
           UnexpectedVersion(expVersion, head).asLeft
@@ -111,7 +111,7 @@ final class MigrationService(
             case Left(error)                   => error.asLeft
           }
         case Nil =>
-          (currentState, stack.toContiguous).asRight
+          (currentState, stack.toArraySeq).asRight
       }
 
     loop(1, MigrationState.empty, planned.sortBy(_.version).toList, Growable.empty)
@@ -124,7 +124,7 @@ final class MigrationService(
         _ <- ZIO.logInfo("Starting migration")
         _ <- repo.startMigration(calculated.version, startedAt)
 
-        steps <- calculated.steps.mapZIO(repo.executeStep(calculated.version, _))
+        steps <- ZIO.foreach(calculated.steps)(repo.executeStep(calculated.version, _))
 
         completedAt <- Clock.instant
         _ <- ZIO.logInfo("Migration complete")

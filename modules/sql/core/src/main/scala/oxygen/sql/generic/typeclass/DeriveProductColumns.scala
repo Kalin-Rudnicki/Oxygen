@@ -11,15 +11,13 @@ final class DeriveProductColumns[A](
 )(using Quotes, Type[Columns], Type[A], K0.ProductGeneric[A])
     extends K0.Derivable.ProductDeriver[Columns, A] {
 
-  private def makeColumnsInner: Growable[Expr[Contiguous[Column]]] =
-    generic.mapChildren.mapExpr[Contiguous[Column]] { [i] => (_, _) ?=> (field: generic.Field[i]) =>
-      import field.given
-
+  private def makeColumnsInner: Growable[Expr[ArraySeq[Column]]] =
+    generic.mapChildren.mapExpr[ArraySeq[Column]] { [i] => (_, _) ?=> (field: generic.Field[i]) =>
       '{ ${ field.getExpr(instances) }.columns }
     }
 
-  private def makeColumnsExpr: Expr[Contiguous[Column]] =
-    '{ ${ makeColumnsInner.toContiguous.seqToExpr }.flatten }
+  private def makeColumnsExpr: Expr[ArraySeq[Column]] =
+    '{ ${ makeColumnsInner.seqToArraySeqExpr }.flatten }
 
   override def derive: Expr[Columns[A]] =
     '{ Columns($makeColumnsExpr) }

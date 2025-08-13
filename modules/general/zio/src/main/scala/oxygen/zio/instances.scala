@@ -6,10 +6,13 @@ import oxygen.meta.ExprMonad
 import oxygen.zio.logging.RichLogLevel
 import scala.collection.mutable
 import scala.quoted.*
+import scala.reflect.ClassTag
 import zio.{Chunk, FiberId, LogLevel, LogSpan, StackTrace, Trace, ZIO}
 import zio.stream.ZStream
 
 object instances {
+
+  given traceClassTag: ClassTag[Trace] = summon[ClassTag[String]].asInstanceOf[ClassTag[Trace]]
 
   given traceJsonCodec: JsonCodec[Trace] = JsonCodec[String].asInstanceOf[JsonCodec[Trace]]
   given logSpanJsonCodec: JsonCodec[LogSpan] = JsonCodec.derived

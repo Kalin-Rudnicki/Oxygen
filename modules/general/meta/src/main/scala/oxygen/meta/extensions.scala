@@ -7,6 +7,28 @@ import oxygen.quoted.*
 import scala.annotation.{tailrec, targetName, unused}
 import scala.collection.mutable
 import scala.quoted.*
+import scala.reflect.ClassTag
+
+extension [S[_], A](self: S[Expr[A]]) {
+
+  /**
+    * Will try to create a static ArraySeq creation, if the compiler can find a [[ClassTag]] for [[A]],
+    * otherwise, it will create a norma [[Seq]].
+    */
+  def seqAttemptArraySeqExpr(using s: SeqRead[S], sTpe: Type[S], aTpe: Type[A], q: Quotes): Expr[Seq[A]] =
+    Implicits.searchOption[ClassTag[A]] match {
+      case Some(ct) => '{ ArraySeq.apply[A](${ Expr.ofSeq(self.into[Seq]) }*)(using $ct) }
+      case None     => '{ Seq.apply[A](${ Expr.ofSeq(self.into[Seq]) }*) }
+    }
+
+  /**
+    * Will try to create a static ArraySeq creation, if the compiler can find a [[ClassTag]] for [[A]],
+    * otherwise, the compiler will blow up saying that it can't find a [[ClassTag]] for [[A]].
+    */
+  def seqToArraySeqExpr(using s: SeqRead[S], sTpe: Type[S], aTpe: Type[A], q: Quotes): Expr[ArraySeq[A]] =
+    '{ ArraySeq.apply[A](${ Expr.ofSeq(self.into[Seq]) }*)(using ${ Implicits.searchRequiredIgnoreMessage[ClassTag[A]] }) }
+
+}
 
 extension [S[_], A](self: S[Expr[A]]) {
 

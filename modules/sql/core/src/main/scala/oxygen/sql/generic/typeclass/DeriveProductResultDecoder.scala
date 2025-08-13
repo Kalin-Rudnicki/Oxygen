@@ -19,7 +19,7 @@ final class DeriveProductResultDecoder[A](
       }
     }
 
-  private def makeDecode(offset: Expr[Int], values: Expr[Contiguous[Matchable]]): Expr[Either[QueryError.UnableToDecodeRow, A]] =
+  private def makeDecode(offset: Expr[Int], values: Expr[ArraySeq[Matchable]]): Expr[Either[QueryError.UnableToDecodeRow, A]] =
     generic.cacheVals
       .foldLeftDelayed[Int](
         valName = name => s"offset_$name",
@@ -58,10 +58,10 @@ final class DeriveProductResultDecoder[A](
 
         override val size: Int = $makeSize
 
-        override def __decodeInternal(offset: Int, values: Contiguous[Matchable]): Either[QueryError.UnableToDecodeRow, A] =
+        override def __decodeInternal(offset: Int, values: ArraySeq[Matchable]): Either[QueryError.UnableToDecodeRow, A] =
           ${ makeDecode('offset, 'values) }
 
-        override def toString: String = ${ (makeToStringHeader('size) ++ makeToStringBody).toContiguous.exprMkString }
+        override def toString: String = ${ (makeToStringHeader('size) ++ makeToStringBody).to[Seq].exprMkString }
 
       }
     }

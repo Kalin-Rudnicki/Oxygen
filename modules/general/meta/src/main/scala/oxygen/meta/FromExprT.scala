@@ -106,14 +106,14 @@ object FromExprT extends Derivable[FromExprT] {
 
         // TODO (KR) : support default args and named args
         private def unapplyImpl(
-            stage2Args: Stage1.Expr[Contiguous[Stage2.Term]],
+            stage2Args: Stage1.Expr[Seq[Stage2.Term]],
             stage2Quotes: Stage1.Expr[Stage2.Quotes],
         ): Stage1.Expr[Option[A]] = {
           val tmp: Stage1.Expr[Option[A]] =
             stage1Generic.instantiate.option { [a] => (_, _) ?=> (field: stage1Generic.Field[a]) =>
               val instExpr: Expr[FromExprT[a]] = field.getExpr(instances)
               '{
-                val term: Term = $stage2Args.at(${ Expr(field.idx) }).removeInlineAndTyped
+                val term: Term = $stage2Args(${ Expr(field.idx) }).removeInlineAndTyped
                 $instExpr.fromTerm.unapply(term)(using Type.of[a](using $stage2Quotes), $stage2Quotes)
               }
             }
@@ -133,15 +133,15 @@ object FromExprT extends Derivable[FromExprT] {
                 val stage2Value: Stage2.Term = x.toTerm.removeInlineAndTyped
                 val stage2TypeRepr: TypeRepr = stage2Generic.typeRepr
 
-                def parse(term: Term, args: Contiguous[Term]): Option[A] =
+                def parse(term: Term, args: ArraySeq[Term]): Option[A] =
                   term match
                     case Select(sel, "apply") if sel.symbol.fullName == stage2TypeRepr.typeSymbol.fullName               => ${ unapplyImpl('args, 'stage2Quotes) }
                     case Select(New(tpt), "<init>") if tpt.tpe.typeSymbol.fullName == stage2TypeRepr.typeSymbol.fullName => ${ unapplyImpl('args, 'stage2Quotes) }
                     case _                                                                                               => None
 
                 stage2Value match
-                  case Apply(TypeApply(fun, _), args) => parse(fun, args.into[Contiguous])
-                  case Apply(fun, args)               => parse(fun, args.into[Contiguous])
+                  case Apply(TypeApply(fun, _), args) => parse(fun, args.toArraySeq)
+                  case Apply(fun, args)               => parse(fun, args.toArraySeq)
                   case _                              => None
               }
 

@@ -37,7 +37,7 @@ final case class FragmentBuilder(inputs: List[QueryParser.Input])(using Quotes) 
             TermTransformer.Id.asRight
           case (Some(inputTpeTupGen), QueryReference.InputParam(param)) =>
             val idx: Int = symIdxMap.getOrElse(param.sym, report.errorAndAbort("sym not found?", param.tree.pos))
-            TermTransformer.FromProductGenericField(inputTpeTupGen, inputTpeTupGen.fields.at(idx)).asRight
+            TermTransformer.FromProductGenericField(inputTpeTupGen, inputTpeTupGen.fields(idx)).asRight
           case (_, QueryReference.ConstInput(_, term, _)) =>
             term.asLeft
         }
@@ -211,9 +211,9 @@ final case class FragmentBuilder(inputs: List[QueryParser.Input])(using Quotes) 
 
   def setPart(s: QueryParser.Set.SetPart)(using ParseContext, Quotes): ParseResult[GeneratedFragment] = {
     val rowRepr: Expr[RowRepr[?]] = s.lhsExpr.rowRepr
-    val lhsParts: Expr[Contiguous[String]] = '{ $rowRepr.columns.columns.map(_.name) }
+    val lhsParts: Expr[ArraySeq[String]] = '{ $rowRepr.columns.columns.map(_.name) }
 
-    val rhsParts: ParseResult[(Expr[Contiguous[String]], GeneratedInputEncoder)] =
+    val rhsParts: ParseResult[(Expr[ArraySeq[String]], GeneratedInputEncoder)] =
       s.rhsExpr match {
         case input: QueryExpr.InputLike =>
           inputToEncoder(input, rowRepr).map(('{ $rowRepr.columns.columns.map(_ => "?") }, _))
@@ -227,13 +227,13 @@ final case class FragmentBuilder(inputs: List[QueryParser.Input])(using Quotes) 
       }
 
     rhsParts.map { case (rhsParts, enc) =>
-      val zipped: Expr[Contiguous[String]] =
+      val zipped: Expr[ArraySeq[String]] =
         '{
-          $lhsParts.zipUsing($rhsParts)(
-            _ => throw new RuntimeException("defect: non-equal set lengths"),
-            _ => throw new RuntimeException("defect: non-equal set lengths"),
-            (a, b) => s"$a = $b",
-          )
+          val lhs: ArraySeq[String] = $lhsParts
+          val rhs: ArraySeq[String] = $rhsParts
+          if (lhs.length != rhs.length)
+            throw new RuntimeException("defect: non-equal set lengths")
+          lhs.zip(rhs).map { case (a, b) => s"$a = $b" }
         }
       val joined: Expr[String] = '{ $zipped.mkString(",\n        ") }
 

@@ -2,7 +2,6 @@ package oxygen.meta
 
 import oxygen.core.RightProjection
 import oxygen.core.instances.listOrd
-import oxygen.core.syntax.extra.*
 import oxygen.predef.core.*
 import oxygen.quoted.*
 import scala.annotation.Annotation
@@ -153,13 +152,13 @@ object K0 {
   final class Expressions[F[_], A](
       private[K0] val fTpe: Type[F],
       private[K0] val aTpe: Type[A],
-      private[K0] val expressions: Contiguous[Expressions.Elem[F, ?]],
+      private[K0] val expressions: ArraySeq[Expressions.Elem[F, ?]],
   ) {
 
     private given Type[F] = fTpe
 
     def at[B: Type](idx: Int)(using Quotes): Expr[F[B]] =
-      expressions.at(idx).expr.asExprOf[F[B]]
+      expressions(idx).expr.asExprOf[F[B]]
 
     def mapK[G[_]: Type as gTpe](f: [b] => Type[b] ?=> Expr[F[b]] => Expr[G[b]]): Expressions[G, A] =
       Expressions[G, A](
@@ -200,7 +199,7 @@ object K0 {
 
     /////// Basic Members ///////////////////////////////////////////////////////////////
 
-    def children: Contiguous[AnyChild]
+    def children: ArraySeq[AnyChild]
 
     override final def pos: Position = sym.pos.get
     override final def annotations(using Quotes): AnnotationsTyped[A] = AnnotationsTyped(typeRepr.annotations.all, typeRepr.show)
@@ -334,7 +333,7 @@ object K0 {
                 )
               }
             case Nil =>
-              val exprs: Expressions[F, A] = new Expressions[F, A](fTpe, tpe, acc.toContiguous)
+              val exprs: Expressions[F, A] = new Expressions[F, A](fTpe, tpe, acc.toArraySeq)
               build(exprs).toTerm
           }
 
@@ -400,7 +399,7 @@ object K0 {
                 )
               }
             case Nil =>
-              val exprs: Expressions[K0.Const[V], A] = new Expressions[K0.Const[V], A](Type.of[K0.Const[V]], tpe, acc.toContiguous)
+              val exprs: Expressions[K0.Const[V], A] = new Expressions[K0.Const[V], A](Type.of[K0.Const[V]], tpe, acc.toArraySeq)
               build(exprs).toTerm
           }
 
@@ -455,7 +454,7 @@ object K0 {
                 )
               }
             case Nil =>
-              val exprs: Expressions[K0.Const[V], A] = new Expressions[K0.Const[V], A](Type.of[K0.Const[V]], tpe, acc.toContiguous)
+              val exprs: Expressions[K0.Const[V], A] = new Expressions[K0.Const[V], A](Type.of[K0.Const[V]], tpe, acc.toArraySeq)
               build(exprs, prevValue).toTerm
           }
 
@@ -537,11 +536,11 @@ object K0 {
 
     override val typeType: TypeType.Case
 
-    def fields: Contiguous[Field[?]]
+    def fields: ArraySeq[Field[?]]
 
-    override final def children: Contiguous[AnyChild] = fields.asInstanceOf[Contiguous[AnyChild]]
+    override final def children: ArraySeq[AnyChild] = fields.asInstanceOf[ArraySeq[AnyChild]]
 
-    def fieldsToInstance[S[_]: SeqOps](exprs: S[Expr[?]])(using Quotes): Expr[A]
+    def fieldsToInstance[S[_]: SeqRead](exprs: S[Expr[?]])(using Quotes): Expr[A]
 
     /////// Field ///////////////////////////////////////////////////////////////
 
@@ -600,7 +599,7 @@ object K0 {
 
     class Instantiate {
 
-      def fieldsToInstance[S[_]: SeqOps](exprs: S[Expr[?]])(using Quotes): Expr[A] =
+      def fieldsToInstance[S[_]: SeqRead](exprs: S[Expr[?]])(using Quotes): Expr[A] =
         productGeneric.fieldsToInstance(exprs)
 
       def id(
@@ -621,11 +620,11 @@ object K0 {
               val value: Expr[F[B]] = f[B](child)
 
               tail match {
-                case Nil => monad.mapE(value) { a => productGeneric.fieldsToInstance((acc :+ a).to[Contiguous]) }
+                case Nil => monad.mapE(value) { a => productGeneric.fieldsToInstance((acc :+ a).toArraySeq) }
                 case _   => monad.flatMapE(value) { a => rec(tail, acc :+ a) }
               }
             case Nil =>
-              monad.pure(productGeneric.fieldsToInstance(acc.to[Contiguous]))
+              monad.pure(productGeneric.fieldsToInstance(acc.toArraySeq))
           }
 
         rec(children.toList, Growable.empty)
@@ -648,7 +647,7 @@ object K0 {
     /////// Misc ///////////////////////////////////////////////////////////////
 
     def filtered[SubsetT](f: ChildFunction0[K0.Const[Boolean]])(using Quotes): ProductGeneric.Subset[A, SubsetT] = {
-      val fieldSubset: Contiguous[Field[?]] = fields.filter { field0 =>
+      val fieldSubset: ArraySeq[Field[?]] = fields.filter { field0 =>
         type T
         val field: Field[T] = field0.typedAs[T]
         given Type[T] = field.tpe
@@ -656,7 +655,7 @@ object K0 {
       }
 
       fieldSubset match {
-        case Contiguous() =>
+        case ArraySeq() =>
           val _unitTypeRepr: TypeRepr = TypeRepr.of[Unit]
           val empty: ProductGeneric.Subset.Empty[A] =
             new ProductGeneric.Subset.Empty[A] {
@@ -664,7 +663,7 @@ object K0 {
               override val aGeneric: ProductGeneric[A] = productGeneric
             }
           empty.typedAs[SubsetT]
-        case Contiguous(aField0) =>
+        case ArraySeq(aField0) =>
           val _aField: Field[SubsetT] = aField0.typedAs[SubsetT]
           new ProductGeneric.Subset.Single[A, SubsetT] {
             override val aGeneric: productGeneric.type = productGeneric
@@ -674,7 +673,7 @@ object K0 {
           val tupleTypeRepr: TypeRepr = TypeRepr.tuplePreferTupleN(_aFields.map(_.typeRepr).toList)
           new ProductGeneric.Subset.Many[A, SubsetT] {
             override val aGeneric: productGeneric.type = productGeneric
-            override val aFields: Contiguous[productGeneric.Field[?]] = _aFields
+            override val aFields: ArraySeq[productGeneric.Field[?]] = _aFields
             override val bGeneric: ProductGeneric.CaseClassGeneric[SubsetT] =
               ProductGeneric.CaseClassGeneric.unsafeOf[SubsetT](tupleTypeRepr, tupleTypeRepr.typeSymbol, productGeneric.derivedFromConfig)
           }
@@ -690,12 +689,12 @@ object K0 {
 
       override final type SelfType[A2] = CaseObjectGeneric[A2]
 
-      override final val fields: Contiguous[Field[?]] = Contiguous.empty
+      override final val fields: ArraySeq[Field[?]] = ArraySeq.empty
 
       override val typeType: TypeType.Case.Object
 
       def fieldsToInstance0(using Quotes): Expr[A]
-      override final def fieldsToInstance[S[_]: SeqOps](exprs: S[Expr[?]])(using Quotes): Expr[A] =
+      override final def fieldsToInstance[S[_]: SeqRead](exprs: S[Expr[?]])(using Quotes): Expr[A] =
         exprs.into[List] match {
           case Nil   => fieldsToInstance0
           case exprs => report.errorAndAbort(s"attempted to instantiate case object with non-empty fields (${exprs.size})")
@@ -779,8 +778,8 @@ object K0 {
 
         val allDecls = _typeSym.declaredMethods
 
-        val fieldTuple: Contiguous[(Int, TypeRepr, ValDef, Symbol)] =
-          Contiguous.from(constructorVals.zip(fieldSyms)).zipWithIndex.map { case ((constructorVal, fieldSym), idx) =>
+        val fieldTuple: ArraySeq[(Int, TypeRepr, ValDef, Symbol)] =
+          ArraySeq.from(constructorVals.zip(fieldSyms)).zipWithIndex.map { case ((constructorVal, fieldSym), idx) =>
             if (constructorVal.name != fieldSym.name)
               report.errorAndAbort("vals are not in same order?")
 
@@ -816,7 +815,7 @@ object K0 {
           override val typeType: TypeType.Case.Class = _typeSym.typeTypeCaseClass.get
           override val derivedFromConfig: Derivable.Config = config
 
-          override val fields: Contiguous[Field[?]] =
+          override val fields: ArraySeq[Field[?]] =
             fieldTuple.map { case (idx, typeRepr, constructorVal, fieldSym) =>
               Field(
                 idx = idx,
@@ -826,13 +825,13 @@ object K0 {
               )
             }
 
-          override def fieldsToInstance[S[_]: SeqOps](exprs: S[Expr[?]])(using quotes: Quotes): Expr[A] = {
+          override def fieldsToInstance[S[_]: SeqRead](exprs: S[Expr[?]])(using quotes: Quotes): Expr[A] = {
             val exprSize = exprs.size
             if (exprSize != fields.length)
               report.errorAndAbort(s"Provided exprs ($exprSize) != num fields (${fields.length})")
 
             constructorAwaitingArgs
-              .appliedToArgs(exprs.map(_.toTerm).into[List])
+              .appliedToArgs(exprs.into[List].map(_.toTerm))
               .asExprOf[A]
           }
 
@@ -849,10 +848,10 @@ object K0 {
 
       given bTpe: Type[B] = field.tpe
 
-      override final lazy val fields: Contiguous[Field[?]] = Contiguous.single(field)
+      override final lazy val fields: ArraySeq[Field[?]] = ArraySeq(field)
 
       def fieldsToInstance1(expr: Expr[B])(using Quotes): Expr[A]
-      override final def fieldsToInstance[S[_]: SeqOps](exprs: S[Expr[?]])(using Quotes): Expr[A] =
+      override final def fieldsToInstance[S[_]: SeqRead](exprs: S[Expr[?]])(using Quotes): Expr[A] =
         exprs.into[List] match {
           case expr :: Nil => fieldsToInstance1(expr.asExprOf[B])
           case exprs       => report.errorAndAbort(s"attempted to instantiate AnyVal with non-single fields (${exprs.size})")
@@ -879,8 +878,8 @@ object K0 {
         val g: CaseClassGeneric[A] = CaseClassGeneric.unsafeOf[A](_typeRepr, _typeSym, config)
 
         val _gField: g.Field[?] = g.fields match {
-          case Contiguous(field) => field
-          case _                 => report.errorAndAbort("AnyVal has non-single param?")
+          case ArraySeq(field) => field
+          case _               => report.errorAndAbort("AnyVal has non-single param?")
         }
 
         type B
@@ -1032,7 +1031,7 @@ object K0 {
         override final def convert(a: Expr[A])(using Quotes): Expr[Unit] = bGeneric.instantiate.instance
 
         override final def convertExpressions[F[_]](expressions: Expressions[F, A])(using Quotes): Expressions[F, Unit] =
-          new Expressions[F, Unit](expressions.fTpe, bGeneric.tpe, Contiguous.empty)
+          new Expressions[F, Unit](expressions.fTpe, bGeneric.tpe, ArraySeq.empty)
 
       }
 
@@ -1053,26 +1052,25 @@ object K0 {
         override final def convert(a: Expr[A])(using Quotes): Expr[B] = aField.fromParent(a)
 
         override final def convertExpressions[F[_]](expressions: Expressions[F, A])(using Quotes): Expressions[F, B] =
-          new Expressions[F, B](expressions.fTpe, bGeneric.tpe, Contiguous.single(expressions.expressions.at(aField.idx)))
+          new Expressions[F, B](expressions.fTpe, bGeneric.tpe, ArraySeq(expressions.expressions(aField.idx)))
 
       }
 
       trait Many[A, B] extends Subset.NonEmpty[A, B] {
         override final val subsetType: String = "Many"
         override val aGeneric: ProductGeneric[A]
-        val aFields: Contiguous[aGeneric.Field[?]]
+        val aFields: ArraySeq[aGeneric.Field[?]]
         override val bGeneric: ProductGeneric.CaseClassGeneric[B]
 
         override final def convert(a: Expr[A])(using Quotes): Expr[B] =
           bGeneric.instantiate.id { [b] => (_, _) ?=> (bField: bGeneric.Field[b]) =>
-            aFields
-              .at(bField.idx)
+            aFields(bField.idx)
               .typedAs[b]
               .fromParent(a)
           }
 
         override final def convertExpressions[F[_]](expressions: Expressions[F, A])(using Quotes): Expressions[F, B] =
-          new Expressions[F, B](expressions.fTpe, bGeneric.tpe, aFields.map { aField => expressions.expressions.at(aField.idx) })
+          new Expressions[F, B](expressions.fTpe, bGeneric.tpe, aFields.map { aField => expressions.expressions(aField.idx) })
 
       }
 
@@ -1127,9 +1125,9 @@ object K0 {
 
     override val typeType: TypeType.Sealed
 
-    def cases: Contiguous[Case[? <: A]]
+    def cases: ArraySeq[Case[? <: A]]
 
-    override final def children: Contiguous[AnyChild] = cases.asInstanceOf[Contiguous[AnyChild]]
+    override final def children: ArraySeq[AnyChild] = cases.asInstanceOf[ArraySeq[AnyChild]]
 
     /////// Case ///////////////////////////////////////////////////////////////
 
@@ -1332,8 +1330,7 @@ object K0 {
 
         val values: ArraySeq[Expr[A]] = caseObjects.map { _.instantiate.instance }
 
-        val ctExpr: Expr[ClassTag[A]] = Implicits.searchRequiredIgnoreMessage[ClassTag[A]]
-        '{ ArraySeq.apply[A](${ Expr.ofSeq(values) }*)(using $ctExpr).distinct }
+        values.seqToArraySeqExpr
       }
 
       object deriveEnum {
@@ -1446,10 +1443,10 @@ object K0 {
           case None => report.errorAndAbort(s"Type ${sym.name} is not a product or sum type", sym.pos)
         }
 
-      val childGenerics: Contiguous[ProductOrSumGeneric[? <: A]] =
-        childGenericsRec(true, _typeSym).toContiguous.sorted(using config.defaultOrdinalStrategy.ord)
+      val childGenerics: ArraySeq[ProductOrSumGeneric[? <: A]] =
+        childGenericsRec(true, _typeSym).toArraySeq.sorted(using config.defaultOrdinalStrategy.ord)
 
-      val filteredGenerics: Either[Contiguous[ProductOrSumGeneric[? <: A]], Either[Contiguous[ProductGeneric[? <: A]], Contiguous[ProductGeneric.CaseObjectGeneric[? <: A]]]] =
+      val filteredGenerics: Either[ArraySeq[ProductOrSumGeneric[? <: A]], Either[ArraySeq[ProductGeneric[? <: A]], ArraySeq[ProductGeneric.CaseObjectGeneric[? <: A]]]] =
         childGenerics
           .traverse {
             case g: ProductGeneric[? <: A] => g.some
@@ -1473,8 +1470,7 @@ object K0 {
             override val typeRepr: TypeRepr = _typeRepr
             override val typeType: TypeType.Sealed = _typeSym.typeTypeSealed.get
             override val derivedFromConfig: Derivable.Config = config
-            override val cases: Contiguous[Case[? <: A]] =
-              enums.zipWithIndex.map { case (g, i) => Case(i, g) }
+            override val cases: ArraySeq[Case[? <: A]] = enums.toArraySeq.zipWithIndex.map { case (g, i) => Case(i, g) }
           }
         case Right(Left(products)) =>
           new SumGeneric.FlatNonEnumGeneric[A] {
@@ -1483,8 +1479,7 @@ object K0 {
             override val typeRepr: TypeRepr = _typeRepr
             override val typeType: TypeType.Sealed = _typeSym.typeTypeSealed.get
             override val derivedFromConfig: Derivable.Config = config
-            override val cases: Contiguous[Case[? <: A]] =
-              products.zipWithIndex.map { case (g, i) => Case(i, g) }
+            override val cases: ArraySeq[Case[? <: A]] = products.toArraySeq.zipWithIndex.map { case (g, i) => Case(i, g) }
           }
         case Left(generics) =>
           new SumGeneric.NestedGeneric[A] {
@@ -1493,8 +1488,7 @@ object K0 {
             override val typeRepr: TypeRepr = _typeRepr
             override val typeType: TypeType.Sealed = _typeSym.typeTypeSealed.get
             override val derivedFromConfig: Derivable.Config = config
-            override val cases: Contiguous[Case[? <: A]] =
-              generics.zipWithIndex.map { case (g, i) => Case(i, g) }
+            override val cases: ArraySeq[Case[? <: A]] = generics.toArraySeq.zipWithIndex.map { case (g, i) => Case(i, g) }
           }
       }
     }
@@ -1530,7 +1524,7 @@ object K0 {
 
     final val child: IdentityChild[A] = new IdentityChild[A]
 
-    override final val children: Contiguous[AnyChild] = Contiguous.single(child)
+    override final val children: ArraySeq[AnyChild] = ArraySeq(child)
 
   }
 

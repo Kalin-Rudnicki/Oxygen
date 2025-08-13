@@ -130,8 +130,8 @@ object JsonDecoder extends K0.Derivable[JsonDecoder.ObjectDecoder], JsonDecoderL
       Specified.WasNotSpecified.some
   }
 
-  final case class ContiguousDecoder[A](decoder: JsonDecoder[A]) extends JsonDecoder[Contiguous[A]] {
-    override def decodeJsonAST(ast: Json): Either[JsonError, Contiguous[A]] = ast match
+  final case class ArraySeqDecoder[A](decoder: JsonDecoder[A]) extends JsonDecoder[ArraySeq[A]] {
+    override def decodeJsonAST(ast: Json): Either[JsonError, ArraySeq[A]] = ast match
       case Json.Arr(value) => value.traverse(decoder.decodeJsonAST)
       case _               => JsonError(Nil, JsonError.Cause.InvalidType(Json.Type.Array, ast.tpe)).asLeft
   }
@@ -155,7 +155,7 @@ object JsonDecoder extends K0.Derivable[JsonDecoder.ObjectDecoder], JsonDecoderL
 
     val size: Int
 
-    private[TupleDecoder] def decodeArray(in: Contiguous[Json], offset: Int): Either[JsonError, A]
+    private[TupleDecoder] def decodeArray(in: ArraySeq[Json], offset: Int): Either[JsonError, A]
 
     override final def decodeJsonAST(ast: Json): Either[JsonError, A] = ast match
       case Json.Arr(value) if value.length == size => decodeArray(value, 0)
@@ -169,7 +169,7 @@ object JsonDecoder extends K0.Derivable[JsonDecoder.ObjectDecoder], JsonDecoderL
 
       override val size: Int = b.size + 1
 
-      override private[TupleDecoder] def decodeArray(in: Contiguous[Json], offset: Int): Either[JsonError, A *: B] =
+      override private[TupleDecoder] def decodeArray(in: ArraySeq[Json], offset: Int): Either[JsonError, A *: B] =
         for {
           aValue <- a.decodeJsonAST(in(offset)).leftMap(_.atIndex(offset))
           bValue <- b.decodeArray(in, offset + 1)
@@ -181,7 +181,7 @@ object JsonDecoder extends K0.Derivable[JsonDecoder.ObjectDecoder], JsonDecoderL
 
       override val size: Int = 0
 
-      override private[TupleDecoder] def decodeArray(in: Contiguous[Json], offset: Int): Either[JsonError, EmptyTuple] =
+      override private[TupleDecoder] def decodeArray(in: ArraySeq[Json], offset: Int): Either[JsonError, EmptyTuple] =
         EmptyTuple.asRight
 
     }
@@ -229,8 +229,8 @@ object JsonDecoder extends K0.Derivable[JsonDecoder.ObjectDecoder], JsonDecoderL
   given option: [A] => (decoder: JsonDecoder[A]) => JsonDecoder[Option[A]] = OptionDecoder(decoder)
   given specified: [A] => (decoder: JsonDecoder[A]) => JsonDecoder[Specified[A]] = SpecifiedDecoder(decoder)
 
-  given contiguous: [A] => (decoder: JsonDecoder[A]) => JsonDecoder[Contiguous[A]] = ContiguousDecoder(decoder)
-  given seq: [S[_], A] => (seqOps: SeqOps[S], decoder: JsonDecoder[A]) => JsonDecoder[S[A]] = ContiguousDecoder(decoder).map(_.transformTo[S])
+  given arraySeq: [A] => (decoder: JsonDecoder[A]) => JsonDecoder[ArraySeq[A]] = ArraySeqDecoder(decoder)
+  given seq: [S[_], A] => (seqOps: SeqOps[S], decoder: JsonDecoder[A]) => JsonDecoder[S[A]] = ArraySeqDecoder(decoder).map(_.transformTo[S])
 
   given map: [K, V] => (k: JsonFieldDecoder[K], v: JsonDecoder[V]) => JsonDecoder[Map[K, V]] = MapDecoder(k, v)
 

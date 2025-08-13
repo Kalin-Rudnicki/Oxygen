@@ -1,8 +1,10 @@
 package oxygen.core.collection
 
-import oxygen.core.typeclass.SeqOps
+import oxygen.core.typeclass.{SeqOps, SeqRead}
 import scala.annotation.targetName
+import scala.collection.immutable.ArraySeq
 import scala.collection.mutable
+import scala.reflect.ClassTag
 
 /**
   * For the purpose of building sequences.
@@ -25,7 +27,11 @@ sealed trait Growable[+A] {
   def addTo[G[_], B >: A](builder: mutable.Builder[B, G[B]]): Unit =
     foreach(builder.addOne)
 
-  final def toContiguous: Contiguous[A] = this.to[Contiguous]
+  final def toArraySeq[A2 >: A](using ClassTag[A2]): ArraySeq[A2] = {
+    val builder = ArraySeq.newBuilder[A2]
+    this.addTo(builder)
+    builder.result()
+  }
 
   final def ++[B >: A](that: Growable[B]): Growable[B] = Growable.Concat(this, that)
 
@@ -71,7 +77,7 @@ object Growable {
       builder.addOne(value)
   }
 
-  final case class Many[S[_], A](values: S[A], seqOps: SeqOps[S]) extends Growable[A] {
+  final case class Many[S[_], A](values: S[A], seqOps: SeqRead[S]) extends Growable[A] {
     override val knownSize: Int = seqOps.knownSize(values)
     override def size: Int = seqOps.size(values)
     override def foreach(f: A => Unit): Unit =
@@ -149,14 +155,14 @@ object Growable {
 
   def empty[A]: Growable[A] = Empty
   def single[A](value: A): Growable[A] = Single(value)
-  def many[S[_], A](values: S[A])(using seqOps: SeqOps[S]): Growable[A] = values.asInstanceOf[Matchable] match
+  def many[S[_], A](values: S[A])(using seqOps: SeqRead[S]): Growable[A] = values.asInstanceOf[Matchable] match
     case growable: Growable[A @unchecked] => growable
     case _                                => Many(values, seqOps)
 
-  def manyMapped[S[_]: SeqOps, A, B](values: S[A])(f: A => B): Growable[B] =
+  def manyMapped[S[_]: SeqRead, A, B](values: S[A])(f: A => B): Growable[B] =
     many(values).map(f)
 
-  def manyFlatMapped[S[_]: SeqOps, A, B](values: S[A])(f: A => Growable[B]): Growable[B] =
+  def manyFlatMapped[S[_]: SeqRead, A, B](values: S[A])(f: A => Growable[B]): Growable[B] =
     many(values).flatMap(f)
 
   def apply[A](values: A*): Growable[A] = Growable.many(values)

@@ -2,8 +2,8 @@ package oxygen.json
 
 import oxygen.predef.core.*
 
-final class KeyedMapDecoder[A](options: Contiguous[KeyedMapDecoder.Decoder[A]]) {
-  val decoder: JsonDecoder[Contiguous[A]] = KeyedMapDecoder.make(options)
+final class KeyedMapDecoder[A](options: ArraySeq[KeyedMapDecoder.Decoder[A]]) {
+  val decoder: JsonDecoder[ArraySeq[A]] = KeyedMapDecoder.make(options)
 }
 object KeyedMapDecoder {
 
@@ -16,7 +16,7 @@ object KeyedMapDecoder {
     def make[A](key: String)(using decoder: JsonDecoder[A]): Decoder[A] = Decoder(key, decoder)
   }
 
-  def make[A](options: Contiguous[Decoder[A]]): JsonDecoder[Contiguous[A]] = {
+  def make[A](options: ArraySeq[Decoder[A]]): JsonDecoder[ArraySeq[A]] = {
     val map: Map[String, JsonDecoder[A]] = options.map(a => (a.key, a.decoder)).toMap
     JsonDecoder.jsonObject.mapOrFail { obj =>
       obj.value.traverse { case (key, value) =>

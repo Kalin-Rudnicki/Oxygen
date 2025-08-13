@@ -1,18 +1,18 @@
 package zio.compat
 
-import oxygen.core.collection.Contiguous
+import oxygen.predef.core.*
 import oxygen.zio.*
 import oxygen.zio.logging.OxygenZLogger
 import zio.{Cause, Exit, FiberRef, LogLevel, Runtime, Trace, UIO, ZIO}
 
 object logOps {
 
-  def withLoggers(loggers: Contiguous[OxygenZLogger]): FiberRefModification =
+  def withLoggers[S[_]: SeqRead](loggers: S[OxygenZLogger]): FiberRefModification =
     FiberRef.currentLoggers.modification.update { l =>
       (l -- Runtime.defaultLoggers).filter {
         case _: OxygenZLogger => false
         case _                => true
-      } ++ loggers.toSeq.toSet
+      } ++ loggers.into[Set]
     }
 
   def withMinLogLevel(level: LogLevel): FiberRefModification =

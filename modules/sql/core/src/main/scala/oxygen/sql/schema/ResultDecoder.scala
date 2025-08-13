@@ -9,15 +9,15 @@ import scala.quoted.*
 trait ResultDecoder[+A] {
 
   val size: Int
-  def __decodeInternal(offset: Int, values: Contiguous[Matchable]): Either[QueryError.UnableToDecodeRow, A]
+  def __decodeInternal(offset: Int, values: ArraySeq[Matchable]): Either[QueryError.UnableToDecodeRow, A]
 
-  final def decode(values: Contiguous[Any]): Either[QueryError.UnableToDecodeRow, A] =
+  final def decode(values: ArraySeq[Any]): Either[QueryError.UnableToDecodeRow, A] =
     if (values.length != size)
       this match {
         case ResultDecoder.WithColumns(_, columns) => QueryError.UnableToDecodeRow.InvalidRowSize(values, size, columns.some).asLeft
         case _                                     => QueryError.UnableToDecodeRow.InvalidRowSize(values, size, None).asLeft
       }
-    else __decodeInternal(0, values.asInstanceOf[Contiguous[Matchable]])
+    else __decodeInternal(0, values.asInstanceOf[ArraySeq[Matchable]])
 
   final def map[B](ab: A => B): ResultDecoder[B] = this match
     case ResultDecoder.ColumnDecoder(column, decodeSingle) => ResultDecoder.ColumnDecoder(column, decodeSingle(_).map(ab))
@@ -46,7 +46,7 @@ object ResultDecoder extends K0.Derivable[ResultDecoder] {
 
     override val size: Int = 1
 
-    override def __decodeInternal(offset: Int, values: Contiguous[Matchable]): Either[QueryError.UnableToDecodeRow, A] = {
+    override def __decodeInternal(offset: Int, values: ArraySeq[Matchable]): Either[QueryError.UnableToDecodeRow, A] = {
       val value: Matchable = values(offset)
       decodeSingle(value).leftMap(QueryError.UnableToDecodeRow.MapOrFail(values, offset, 1, value, _))
     }
@@ -68,7 +68,7 @@ object ResultDecoder extends K0.Derivable[ResultDecoder] {
 
     override val size: Int = 1
 
-    override def __decodeInternal(offset: Int, values: Contiguous[Matchable]): Either[QueryError.UnableToDecodeRow, A] =
+    override def __decodeInternal(offset: Int, values: ArraySeq[Matchable]): Either[QueryError.UnableToDecodeRow, A] =
       decodeSingle(values(offset)).leftMap(QueryError.UnableToDecodeRow.AtColumn(values, column, offset, _))
 
     private[sql] def withColumn(column: Column): ColumnDecoder[A] = copy(column = column)
@@ -87,7 +87,7 @@ object ResultDecoder extends K0.Derivable[ResultDecoder] {
 
     override val size: Int = inner.size
 
-    override def __decodeInternal(offset: Int, values: Contiguous[Matchable]): Either[QueryError.UnableToDecodeRow, Option[A]] =
+    override def __decodeInternal(offset: Int, values: ArraySeq[Matchable]): Either[QueryError.UnableToDecodeRow, Option[A]] =
       if (isAllNull(offset, offset + size, values)) None.asRight
       else inner.__decodeInternal(offset, values).map(_.some)
 
@@ -95,19 +95,19 @@ object ResultDecoder extends K0.Derivable[ResultDecoder] {
 
   final case class WithColumns[A](inner: ResultDecoder[A], columns: Columns[A]) extends ResultDecoder[A] {
     override val size: Int = inner.size
-    override def __decodeInternal(offset: Int, values: Contiguous[Matchable]): Either[QueryError.UnableToDecodeRow, A] =
+    override def __decodeInternal(offset: Int, values: ArraySeq[Matchable]): Either[QueryError.UnableToDecodeRow, A] =
       inner.__decodeInternal(offset, values)
   }
 
   final case class MapDecoder[A, B] private[ResultDecoder] (a: ResultDecoder[A], ab: A => B) extends ResultDecoder[B] {
     override val size: Int = a.size
-    override def __decodeInternal(offset: Int, values: Contiguous[Matchable]): Either[QueryError.UnableToDecodeRow, B] =
+    override def __decodeInternal(offset: Int, values: ArraySeq[Matchable]): Either[QueryError.UnableToDecodeRow, B] =
       a.__decodeInternal(offset, values).map(ab)
   }
 
   final case class MapOrFailDecoder[A, B] private[ResultDecoder] (a: ResultDecoder[A], ab: A => Either[String, B]) extends ResultDecoder[B] {
     override val size: Int = a.size
-    override def __decodeInternal(offset: Int, values: Contiguous[Matchable]): Either[QueryError.UnableToDecodeRow, B] =
+    override def __decodeInternal(offset: Int, values: ArraySeq[Matchable]): Either[QueryError.UnableToDecodeRow, B] =
       a.__decodeInternal(offset, values).flatMap { aValue =>
         ab(aValue).leftMap { e => QueryError.UnableToDecodeRow.MapOrFail(values, offset, size, aValue, e) }
       }
@@ -115,7 +115,7 @@ object ResultDecoder extends K0.Derivable[ResultDecoder] {
 
   case object Empty extends ResultDecoder[Unit] {
     override val size: Int = 0
-    override def __decodeInternal(offset: Int, values: Contiguous[Matchable]): Either[QueryError.UnableToDecodeRow, Unit] = ().asRight
+    override def __decodeInternal(offset: Int, values: ArraySeq[Matchable]): Either[QueryError.UnableToDecodeRow, Unit] = ().asRight
   }
 
   trait CustomDecoder[A] extends ResultDecoder[A]
@@ -142,7 +142,7 @@ object ResultDecoder extends K0.Derivable[ResultDecoder] {
   //      Helpers
   //////////////////////////////////////////////////////////////////////////////////////////////////////
 
-  def isAllNull(fromIndexInclusive: Int, toIndexExclusive: Int, values: Contiguous[Matchable]): Boolean = {
+  def isAllNull(fromIndexInclusive: Int, toIndexExclusive: Int, values: ArraySeq[Matchable]): Boolean = {
     var i: Int = fromIndexInclusive
     while (i < toIndexExclusive) {
       if (values(i) != null)

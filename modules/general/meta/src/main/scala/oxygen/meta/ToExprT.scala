@@ -118,22 +118,22 @@ object ToExprT extends Derivable[ToExprT] {
             stage2Generic: Stage1.Expr[ProductGeneric[A]],
             stage2Quotes: Stage1.Expr[Stage2.Quotes],
         ): Stage1.Expr[Stage2.Expr[A]] = {
-          val contiguousExprExpr: Contiguous[Stage1.Expr[Stage2.Expr[?]]] =
+          val arraySeqExprExpr: ArraySeq[Stage1.Expr[Stage2.Expr[?]]] =
             stage1Generic.mapChildren
               .mapExpr[Stage2.Expr[?]] { [a] => (_, _) ?=> (field: stage1Generic.Field[a]) =>
                 val toExprExpr: Stage1.Expr[ToExprT[a]] = field.getExpr(instances)
                 val stage2ValueAExpr: Stage1.Expr[a] = field.fromParent(stage2Value)
                 '{ $toExprExpr.apply($stage2ValueAExpr)(using Type.of[a](using $stage2Quotes), $stage2Quotes) }
               }
-              .to[Contiguous]
+              .toArraySeq
 
-          val exprContiguousExpr: Stage1.Expr[Contiguous[Stage2.Expr[?]]] =
-            contiguousExprExpr.seqToExpr
+          val exprArraySeqExpr: Stage1.Expr[ArraySeq[Stage2.Expr[?]]] =
+            arraySeqExprExpr.seqToArraySeqExpr
 
           '{
             val s2g: ProductGeneric[A] = $stage2Generic
             given s2q: Quotes = $stage2Quotes
-            s2g.fieldsToInstance($exprContiguousExpr)
+            s2g.fieldsToInstance($exprArraySeqExpr)
           }
         }
 

@@ -93,7 +93,7 @@ final case class JvmHttpClient(
     var contentType: ContentType = null
     var contentLength: Option[Long] = null
     var charset: Charset = StandardCharsets.UTF_8
-    val headerBuilder: Contiguous.Builder[(String, String)] = Contiguous.newBuilder[(String, String)]
+    val headerBuilder = ArraySeq.newBuilder[(String, String)]
 
     reader.readUntilSpaceAndSkipSpaces() match
       case "HTTP/1.1" =>

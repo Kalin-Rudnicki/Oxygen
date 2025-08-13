@@ -1,6 +1,6 @@
 package oxygen.test
 
-import oxygen.core.collection.{Contiguous, NonEmptyList}
+import oxygen.core.collection.NonEmptyList
 import oxygen.core.syntax.common.*
 import scala.Console.*
 import zio.test.*
@@ -130,7 +130,6 @@ object OxygenAssertions {
       case _: Option[?]         => None
       case seq: IterableOnce[?] => Seq.from(seq).some
       case seq: Array[?]        => seq.toSeq.some
-      case seq: Contiguous[?]   => seq.toSeq.some
       case _                    => None
   }
 

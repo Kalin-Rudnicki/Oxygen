@@ -1,8 +1,8 @@
 package oxygen.zio.logging
 
 import oxygen.core.ColorMode
-import oxygen.core.collection.Contiguous
 import oxygen.json.JsonFieldDecoder
+import oxygen.predef.core.*
 import oxygen.predef.json.*
 import oxygen.zio.*
 import oxygen.zio.instances.given
@@ -13,7 +13,7 @@ import zio.compat.logOps
 final case class LogConfig(
     annotations: Map[String, String],
     spans: List[LogSpan],
-    loggers: Contiguous[LogConfig.LoggerElem],
+    loggers: ArraySeq[LogConfig.LoggerElem],
 )
 object LogConfig {
 
@@ -34,7 +34,7 @@ object LogConfig {
 
   }
 
-  def oxygenDefault(level: LogLevel): LogConfig = LogConfig(Map.empty, Nil, Contiguous(LoggerElem(Logger.oxygenDefault, level)))
+  def oxygenDefault(level: LogLevel): LogConfig = LogConfig(Map.empty, Nil, ArraySeq(LoggerElem(Logger.oxygenDefault, level)))
   def oxygenDefault: LogConfig = oxygenDefault(LogLevels.Info)
 
   final case class LoggerElem(
@@ -102,8 +102,8 @@ object LogConfig {
         .make[SimpleConfig]("json")
         .map { c => LoggerElem(Logger.zioDefault, c.level) }
 
-    val default: Contiguous[KeyedMapDecoder.Decoder[LoggerElem]] =
-      Contiguous(zio, raw, oxygen, json)
+    val default: ArraySeq[KeyedMapDecoder.Decoder[LoggerElem]] =
+      ArraySeq(zio, raw, oxygen, json)
 
   }
 

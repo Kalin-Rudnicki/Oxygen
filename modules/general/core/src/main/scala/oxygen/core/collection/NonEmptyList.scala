@@ -2,7 +2,7 @@ package oxygen.core.collection
 
 import oxygen.core.syntax.groupBy.*
 import oxygen.core.syntax.option.*
-import oxygen.core.typeclass.SeqOps
+import oxygen.core.typeclass.SeqRead
 import scala.collection.mutable
 import scala.quoted.*
 import scala.reflect.ClassTag
@@ -23,16 +23,17 @@ final case class NonEmptyList[+A](head: A, tail: List[A]) extends PartialFunctio
   // multi builders
   def :::[A2 >: A](that: NonEmptyList[A2]): NonEmptyList[A2] = NonEmptyList(that.head, that.tail ::: this.toList)
   def ++[A2 >: A](that: NonEmptyList[A2]): NonEmptyList[A2] = NonEmptyList(this.head, this.tail ::: that.toList)
-  def ++[F[_], A2 >: A](that: F[A2])(using seqOps: SeqOps[F]): NonEmptyList[A2] = NonEmptyList.unsafeConcat(this.iterator, seqOps.newIterator(that))
+  def ++[F[_], A2 >: A](that: F[A2])(using seqOps: SeqRead[F]): NonEmptyList[A2] = NonEmptyList.unsafeConcat(this.iterator, seqOps.newIterator(that))
   def :++[A2 >: A](that: NonEmptyList[A2]): NonEmptyList[A2] = NonEmptyList(this.head, this.tail ::: that.toList)
-  def :++[F[_], A2 >: A](that: F[A2])(using seqOps: SeqOps[F]): NonEmptyList[A2] = NonEmptyList.unsafeConcat(this.iterator, seqOps.newIterator(that))
+  def :++[F[_], A2 >: A](that: F[A2])(using seqOps: SeqRead[F]): NonEmptyList[A2] = NonEmptyList.unsafeConcat(this.iterator, seqOps.newIterator(that))
   def ++:[A2 >: A](that: NonEmptyList[A2]): NonEmptyList[A2] = NonEmptyList(that.head, that.tail ::: this.toList)
-  def ++:[F[_], A2 >: A](that: F[A2])(using seqOps: SeqOps[F]): NonEmptyList[A2] = NonEmptyList.unsafeConcat(seqOps.newIterator(that), this.iterator)
-  def prependedAll[F[_], B >: A](prefix: F[B])(using seqOps: SeqOps[F]): NonEmptyList[B] = NonEmptyList.unsafeConcat(seqOps.newIterator(prefix), this.iterator)
-  def appendedAll[F[_], B >: A](suffix: F[B])(using seqOps: SeqOps[F]): NonEmptyList[B] = NonEmptyList.unsafeConcat(this.iterator, seqOps.newIterator(suffix))
+  def ++:[F[_], A2 >: A](that: F[A2])(using seqOps: SeqRead[F]): NonEmptyList[A2] = NonEmptyList.unsafeConcat(seqOps.newIterator(that), this.iterator)
+  def prependedAll[F[_], B >: A](prefix: F[B])(using seqOps: SeqRead[F]): NonEmptyList[B] = NonEmptyList.unsafeConcat(seqOps.newIterator(prefix), this.iterator)
+  def appendedAll[F[_], B >: A](suffix: F[B])(using seqOps: SeqRead[F]): NonEmptyList[B] = NonEmptyList.unsafeConcat(this.iterator, seqOps.newIterator(suffix))
 
   def iterator: Iterator[A] = toList.iterator
 
+  def size: Int = toList.length
   def length: Int = toList.length
 
   def last: A = toList.last

@@ -4,7 +4,7 @@ import oxygen.predef.core.*
 
 final case class HttpRequest(
     method: HttpMethod,
-    paths: Contiguous[String],
+    paths: ArraySeq[String],
     queryParams: QueryParams,
     headers: Headers,
     body: HttpBody,

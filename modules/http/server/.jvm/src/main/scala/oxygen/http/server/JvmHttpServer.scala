@@ -49,7 +49,7 @@ final case class JvmHttpServer(
     var contentType: ContentType = null
     var contentLength: Option[Long] = null
     var charset: Charset = StandardCharsets.UTF_8
-    val headerBuilder: Contiguous.Builder[(String, String)] = Contiguous.newBuilder[(String, String)]
+    val headerBuilder = ArraySeq.newBuilder[(String, String)]
 
     val method: HttpMethod = HttpMethod(reader.readUntilSpaceAndSkipSpaces())
     val url: String = reader.readUntilSpaceAndSkipSpaces()
@@ -63,13 +63,13 @@ final case class JvmHttpServer(
       url.split('?').toList.filter(_.nonEmpty) match {
         case pat :: Nil =>
           (
-            Contiguous.from(pat.split('/').iterator.filter(_.nonEmpty)).map(URLDecoder.decode(_, StandardCharsets.UTF_8)),
-            Contiguous.empty,
+            ArraySeq.from(pat.split('/').iterator.filter(_.nonEmpty)).map(URLDecoder.decode(_, StandardCharsets.UTF_8)),
+            ArraySeq.empty[(String, String)],
           )
         case pat :: queries :: Nil =>
           (
-            Contiguous.from(pat.split('/').iterator.filter(_.nonEmpty)).map(URLDecoder.decode(_, StandardCharsets.UTF_8)),
-            Contiguous.from(queries.split('&')).map {
+            ArraySeq.from(pat.split('/').iterator.filter(_.nonEmpty)).map(URLDecoder.decode(_, StandardCharsets.UTF_8)),
+            ArraySeq.from(queries.split('&')).map {
               _.split('=').toList match {
                 case k :: v :: Nil => (URLDecoder.decode(k, StandardCharsets.UTF_8), URLDecoder.decode(v, StandardCharsets.UTF_8))
                 case _             => throw new RuntimeException(s"invalid query-params format: $queries")
