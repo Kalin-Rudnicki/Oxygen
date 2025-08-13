@@ -777,15 +777,24 @@ object K0 {
               identity
           }
 
+        val allDecls = _typeSym.declaredMethods
+
         val fieldTuple: Contiguous[(Int, TypeRepr, ValDef, Symbol)] =
           Contiguous.from(constructorVals.zip(fieldSyms)).zipWithIndex.map { case ((constructorVal, fieldSym), idx) =>
             if (constructorVal.name != fieldSym.name)
               report.errorAndAbort("vals are not in same order?")
 
-            // TODO (KR) : this is because of the stupid -Yretain-trees bug
+            val optFieldDef: Option[ValOrDefDef] =
+              allDecls.filter(_.name == constructorVal.name).map(_.tree).collect { case d: ValOrDefDef => d } match {
+                case single :: Nil => single.some
+                case _             => None
+              }
+
+            // TODO (KR) : this is a very hacky way to get around -Yretain-trees bug + difficult type referencing in `alterRepr`
             val baseTypeRepr: TypeRepr =
               try { fieldSym.tree.narrow[ValOrDefDef].tpt.tpe }
-              catch { case _: Throwable => constructorVal.tpt.tpe }
+              catch { case _: Throwable => optFieldDef.fold(constructorVal.tpt.tpe)(_.tpt.tpe) }
+
             val typeRepr: TypeRepr = alterRepr(baseTypeRepr)
 
             (idx, typeRepr, constructorVal, fieldSym)
@@ -1078,6 +1087,8 @@ object K0 {
         case Some(_: TypeType.Case.Class) =>
           repr.typeSymbol.tree match {
             case cdef: ClassDef if cdef.parents.headOption.flatMap(_.narrowOpt[TypeTree]).exists(_.tpe =:= TypeRepr.of[AnyVal]) =>
+              AnyValGeneric.unsafeOf[A](repr, sym, config)
+            case _ if repr <:< TypeRepr.of[AnyVal] =>
               AnyValGeneric.unsafeOf[A](repr, sym, config)
             case _ =>
               CaseClassGeneric.unsafeOf[A](repr, sym, config)

@@ -2,9 +2,11 @@ package oxygen.test
 
 import java.time.*
 import java.util.UUID
+import oxygen.meta.*
 import oxygen.meta.K0.*
 import oxygen.predef.core.*
-import oxygen.zio.instances.{*, given}
+import oxygen.quoted.*
+import oxygen.zio.instances.given
 import scala.quoted.{Expr, Quotes, Type}
 import zio.*
 import zio.stream.*
@@ -50,6 +52,12 @@ object Generator extends GeneratorLowPriority.LowPriority1, Derivable[Generator.
 
   def apply[A: Generator as gen]: Generator[A] = gen
 
+  def fillChunkTo[A](chunk: Chunk[A], size: Int): Chunk[A] =
+    if (chunk.isEmpty) throw new RuntimeException("empty chunk")
+    else if (chunk.length < size) fillChunkTo(chunk ++ chunk, size)
+    else if (chunk.length > size) chunk.take(size)
+    else chunk
+
   //////////////////////////////////////////////////////////////////////////////////////////////////////
   //      Givens
   //////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -86,7 +94,7 @@ object Generator extends GeneratorLowPriority.LowPriority1, Derivable[Generator.
   //      Instances
   //////////////////////////////////////////////////////////////////////////////////////////////////////
 
-  private def streamZioChunk[A](zio: UIO[Chunk[A]]): UStream[A] =
+  def streamZioChunk[A](zio: UIO[Chunk[A]]): UStream[A] =
     ZStream.fromZIO(zio).flatMap(ZStream.fromChunk)
 
   /////// Bounded ///////////////////////////////////////////////////////////////
@@ -142,7 +150,7 @@ object Generator extends GeneratorLowPriority.LowPriority1, Derivable[Generator.
 
   final case class MapBounded[A, A2](a: Bounded[A], f: A => A2) extends Bounded[A2] {
 
-    override def streamExhaustive: UStream[A2] = ???
+    override def streamExhaustive: UStream[A2] = a.streamExhaustive.map(f)
 
   }
 
@@ -211,15 +219,99 @@ object Generator extends GeneratorLowPriority.LowPriority1, Derivable[Generator.
     Derivable.ProductDeriver.withDisjointInstances[Bounded, Generator, A] { instances =>
       new Derivable.ProductDeriver.Split[Bounded, A] {
 
+        private def make(idx: Expr[Int], built: Contiguous[Expr[Chunk[?]]]): Expr[A] =
+          generic.instantiate.id { [a] => (_, _) ?=> (field: generic.Field[?]) =>
+            val c: Expr[Chunk[a]] = built.at(field.idx).asExprOf[Chunk[a]]
+            '{ $c($idx) }
+          }
+
+        private def convert2(size: Expr[Int], acc: Growable[(generic.Field[?], Expr[Chunk[?]])])(using Quotes): Expr[Chunk[A]] = {
+          val built = acc.toContiguous.map(_._2)
+
+          '{
+            Chunk.from(0.until($size)).map { idx => ${ make('idx, built) } }
+          }
+        }
+
+        private def convert1(acc: Growable[(generic.Field[?], Expr[Chunk[?]])])(using Quotes): Expr[Chunk[A]] = {
+          val perms: List[(generic.Field[?], Expr[Chunk[?]])] = acc.to[List]
+
+          if (perms.isEmpty)
+            '{ Chunk.single(${ generic.instantiate.fieldsToInstance(Nil) }) }
+          else {
+            val tmp: List[Expr[Int]] = perms.map { case (_, c) => '{ $c.length } }
+            val size: Expr[Int] = '{ ${ tmp.seqToExprOf[Chunk] }.max }
+
+            def rec(
+                queue: List[(generic.Field[?], Expr[Chunk[?]])],
+                acc: Growable[(generic.Field[?], Expr[Chunk[?]])],
+                size: Expr[Int],
+            ): Expr[Chunk[A]] =
+              queue match {
+                case head :: tail =>
+                  type B
+                  val f: generic.Field[B] = head._1.typedAs[B]
+                  given Type[B] = f.tpe
+                  val c: Expr[Chunk[B]] = head._2.asExprOf[Chunk[B]]
+
+                  ValDef.companion.letExpr(s"${f.name}_sized", '{ Generator.fillChunkTo($c, $size) }, ValDef.ValType.Val) { c2 =>
+                    rec(tail, acc :+ (f, c2), size)
+                  }
+                case Nil =>
+                  convert2(size, acc)
+              }
+
+            ValDef.companion.letExpr("maxSize", size, ValDef.ValType.Val) { size =>
+              rec(perms, Growable.empty, size)
+            }
+          }
+        }
+
+        private def chunksImpl: Expr[UIO[Chunk[A]]] = {
+          def rec(
+              queue: List[generic.Field[?]],
+              acc: Growable[(generic.Field[?], Expr[Chunk[?]])],
+          )(using Quotes): Expr[UIO[Chunk[A]]] =
+            queue match {
+              case head :: Nil =>
+                type B
+                val field: generic.Field[B] = head.typedAs
+                given Type[B] = field.tpe
+
+                '{
+                  ${ field.getExpr(instances) }.genExhaustiveOrSized.map { genChunk =>
+                    ${ convert1(acc :+ (field, 'genChunk)) }
+                  }
+                }
+              case head :: tail =>
+                type B
+                val field: generic.Field[B] = head.typedAs
+                given Type[B] = field.tpe
+
+                '{
+                  ${ field.getExpr(instances) }.genExhaustiveOrSized.flatMap { genChunk =>
+                    ${ rec(tail, acc :+ (field, 'genChunk)) }
+                  }
+                }
+              case Nil =>
+                '{ ZIO.succeed(${ convert1(acc) }) }
+            }
+
+          rec(generic.fields.toList, Growable.empty)
+        }
+
+        // TODO (KR) : potentially re-add with an option for cross-product
+        /*
         private def streamImpl: Expr[UStream[A]] =
           generic.instantiate.monad[ProjectStream[Any, Nothing]] { [a] => (_, _) ?=> (field: generic.Field[a]) =>
             '{ ${ field.getExpr(instances) }.streamExhaustiveOrSized }
           }
+         */
 
         override def deriveCaseClass(generic: ProductGeneric.CaseClassGeneric[A]): Expr[Bounded[A]] =
           '{
             new Bounded[A] {
-              override def streamExhaustive: UStream[A] = $streamImpl
+              override def streamExhaustive: UStream[A] = streamZioChunk { $chunksImpl }
             }
           }
 
