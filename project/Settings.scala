@@ -22,7 +22,7 @@ object Settings {
     Seq(
       scalaVersion := Scala_3,
       organization := Dependencies.kalinRudnicki.organization,
-      scalacOptions ++= Seq("-source:future", "-Ycheck-all-patmat", "-Wunused:all", "-Werror", "-language:implicitConversions", "-deprecation", "-feature"),
+      scalacOptions ++= Seq("-source:future", "-Ycheck-all-patmat", "-Wunused:all", "-Werror", "-language:implicitConversions", "-deprecation", "-feature", "-Yretain-trees"),
       name := { throw new RuntimeException("You must define a project name!!!") },
       usePipelining := false,
       description := { throw new RuntimeException("You must define a project description!!!") },

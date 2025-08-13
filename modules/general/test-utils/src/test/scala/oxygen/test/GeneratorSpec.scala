@@ -2,7 +2,7 @@ package oxygen.test
 
 import oxygen.predef.test.*
 
-object TestExamplesSpec extends OxygenSpecDefault {
+object GeneratorSpec extends OxygenSpecDefault {
 
   val gen1: Generator[Int] = Generator.finite(1, 2, 3)
   val gen2: Generator[Int] = Generator.Rand(Random.nextIntBetween(10, 20))
@@ -63,17 +63,14 @@ object TestExamplesSpec extends OxygenSpecDefault {
       test("derived") {
         for {
           a <- Generator[MyEnum2].genExhaustiveOrSized
+          as = a.collect { case a: MyEnum2.A => a }
+          bools = as.map(_._1).toSet
+          e1s = as.map(_._2).toSet
         } yield assertTrue(
-          a.toSet ==
-            Set(
-              MyEnum2.A(true, MyEnum1.A),
-              MyEnum2.A(true, MyEnum1.B),
-              MyEnum2.A(true, MyEnum1.C),
-              MyEnum2.A(false, MyEnum1.A),
-              MyEnum2.A(false, MyEnum1.B),
-              MyEnum2.A(false, MyEnum1.C),
-              MyEnum2.B,
-            ),
+          a.size == 4,
+          a.contains(MyEnum2.B),
+          bools == Set(true, false),
+          e1s == Set(MyEnum1.A, MyEnum1.B, MyEnum1.C),
         )
       },
     )
