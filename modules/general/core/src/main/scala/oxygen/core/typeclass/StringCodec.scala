@@ -113,51 +113,51 @@ object StringCodec {
   //      Default
   //////////////////////////////////////////////////////////////////////////////////////////////////////
 
-  implicit val string: StringCodec[String] = StringCodec(StringEncoder.string, StringDecoder.string)
+  given string: StringCodec[String] = StringCodec(StringEncoder.string, StringDecoder.string)
 
-  implicit val boolean: StringCodec[Boolean] = StringCodec.string.transformOption(_.toBooleanOption, _.toString)
-  implicit val uuid: StringCodec[UUID] = StringCodec.string.transformCatchOption(UUID.fromString, _.toString)
+  given boolean: StringCodec[Boolean] = StringCodec.string.transformOption(_.toBooleanOption, _.toString)
+  given uuid: StringCodec[UUID] = StringCodec.string.transformCatchOption(UUID.fromString, _.toString)
 
   // TODO (KR) : support hex
-  implicit val byte: StringCodec[Byte] = StringCodec.string.transformOption(parseInt(_.toByte, _.toByte), _.toString)
-  implicit val short: StringCodec[Short] = StringCodec.string.transformOption(parseInt(_.toShort, _.toShort), _.toString)
-  implicit val int: StringCodec[Int] = StringCodec.string.transformOption(parseInt(_.toInt, identity), _.toString)
-  implicit val long: StringCodec[Long] = StringCodec.string.transformOption(parseInt(_.toLong, identity), _.toString)
-  implicit val bigInt: StringCodec[BigInt] = StringCodec.string.transformOption(parseInt(BigInt(_), BigInt(_)), _.toString)
+  given byte: StringCodec[Byte] = StringCodec.string.transformOption(parseInt(_.toByte, _.toByte), _.toString)
+  given short: StringCodec[Short] = StringCodec.string.transformOption(parseInt(_.toShort, _.toShort), _.toString)
+  given int: StringCodec[Int] = StringCodec.string.transformOption(parseInt(_.toInt, identity), _.toString)
+  given long: StringCodec[Long] = StringCodec.string.transformOption(parseInt(_.toLong, identity), _.toString)
+  given bigInt: StringCodec[BigInt] = StringCodec.string.transformOption(parseInt(BigInt(_), BigInt(_)), _.toString)
 
-  implicit val float: StringCodec[Float] = StringCodec.string.transformOption(_.toFloatOption, _.toString)
-  implicit val double: StringCodec[Double] = StringCodec.string.transformOption(_.toDoubleOption, _.toString)
-  implicit val bigDecimal: StringCodec[BigDecimal] = StringCodec.string.transformCatchOption(BigDecimal(_), _.toString)
+  given float: StringCodec[Float] = StringCodec.string.transformOption(_.toFloatOption, _.toString)
+  given double: StringCodec[Double] = StringCodec.string.transformOption(_.toDoubleOption, _.toString)
+  given bigDecimal: StringCodec[BigDecimal] = StringCodec.string.transformCatchOption(BigDecimal(_), _.toString)
 
-  implicit val instant: StringCodec[Instant] = StringCodec.string.transformCatchOption(Instant.parse, _.toString)
-  implicit val offsetDateTime: StringCodec[OffsetDateTime] = StringCodec.string.transformCatchOption(OffsetDateTime.parse(_), _.toString)
-  implicit val zonedDateTime: StringCodec[ZonedDateTime] = StringCodec.string.transformCatchOption(ZonedDateTime.parse(_), _.toString)
-  implicit val zoneId: StringCodec[ZoneId] = StringCodec.string.transformCatchOption(ZoneId.of, _.toString)
-  implicit val zoneOffset: StringCodec[ZoneOffset] = StringCodec.string.transformCatchOption(ZoneOffset.of, _.toString)
-  implicit val timeZone: StringCodec[TimeZone] = StringCodec.string.transformCatchOption(TimeZone.getTimeZone, _.getID)
+  given instant: StringCodec[Instant] = StringCodec.string.transformCatchOption(Instant.parse, _.toString)
+  given offsetDateTime: StringCodec[OffsetDateTime] = StringCodec.string.transformCatchOption(OffsetDateTime.parse(_), _.toString)
+  given zonedDateTime: StringCodec[ZonedDateTime] = StringCodec.string.transformCatchOption(ZonedDateTime.parse(_), _.toString)
+  given zoneId: StringCodec[ZoneId] = StringCodec.string.transformCatchOption(ZoneId.of, _.toString)
+  given zoneOffset: StringCodec[ZoneOffset] = StringCodec.string.transformCatchOption(ZoneOffset.of, _.toString)
+  given timeZone: StringCodec[TimeZone] = StringCodec.string.transformCatchOption(TimeZone.getTimeZone, _.getID)
 
-  implicit val localTime: StringCodec[LocalTime] =
+  given localTime: StringCodec[LocalTime] =
     StringCodec(
       StringEncoder.usingToString,
       StringDecoder.string.mapCatchOption(LocalTime.parse(_)) <> StringDecoder.localTime,
     )
-  implicit val localDate: StringCodec[LocalDate] =
+  given localDate: StringCodec[LocalDate] =
     StringCodec(
       StringEncoder.usingToString,
       StringDecoder.string.mapCatchOption(LocalDate.parse(_)) <> StringDecoder.localDate(LocalDate.now().getYear, 25),
     )
-  implicit val localDateTime: StringCodec[LocalDateTime] =
+  given localDateTime: StringCodec[LocalDateTime] =
     StringCodec(
       StringEncoder.usingToString,
       StringDecoder.string.mapCatchOption(LocalDateTime.parse(_)) <> StringDecoder.localDateTime(LocalDate.now().getYear, 25),
     )
-  implicit val duration: StringCodec[Duration] =
+  given duration: StringCodec[Duration] =
     StringCodec(
       StringEncoder.usingToString,
       StringDecoder.string.mapCatchOption(Duration.parse) <> StringDecoder.duration,
     )
 
-  implicit val `class`: StringCodec[Class[?]] =
+  given `class`: StringCodec[Class[?]] =
     StringCodec.string.transform(str => Try { Class.forName(str) }.getOrElse { classOf[Any] }, _.getName)
 
   //////////////////////////////////////////////////////////////////////////////////////////////////////
