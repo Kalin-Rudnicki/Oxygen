@@ -62,6 +62,7 @@ lazy val `oxygen-modules-jvm`: Project =
       `oxygen-json`.jvm,
       `oxygen-meta`.jvm,
       `oxygen-quoted`.jvm,
+      `oxygen-schema`.jvm,
       `oxygen-sql`,
       `oxygen-sql-migration`,
       `oxygen-http-client`.jvm,
@@ -96,6 +97,7 @@ lazy val `oxygen-modules-js`: Project =
       `oxygen-json`.js,
       `oxygen-meta`.js,
       `oxygen-quoted`.js,
+      `oxygen-schema`.js,
       `oxygen-http-core`.js,
       `oxygen-zio`.js,
 
@@ -122,6 +124,7 @@ lazy val `oxygen-modules-native`: Project =
       `oxygen-json`.native,
       `oxygen-meta`.native,
       `oxygen-quoted`.native,
+      `oxygen-schema`.native,
       `oxygen-http-core`.native,
       `oxygen-zio`.native,
 
@@ -213,6 +216,19 @@ lazy val `oxygen-quoted`: CrossProject =
       publishedProjectSettings,
       name := "oxygen-quoted",
       description := "Wrapper around scala.quoted.Quotes.reflect.*, exposing the types at a top-level.",
+    )
+
+lazy val `oxygen-schema`: CrossProject =
+  crossProject(JSPlatform, JVMPlatform, NativePlatform)
+    .crossType(CrossType.Pure)
+    .in(file("modules/general/schema"))
+    .settings(
+      publishedProjectSettings,
+      name := "oxygen-schema",
+      description := "Schemas are like things, but instead of being things, they just talk about things.",
+    )
+    .dependsOn(
+      `oxygen-json` % testAndCompile,
     )
 
 lazy val `oxygen-sql`: Project =
@@ -432,6 +448,7 @@ lazy val `ut`: CrossProject =
       description := "This serves no purpose besides being able to use `oxygen-test` to write tests for sub-projects that `oxygen-test` depends on.",
     )
     .dependsOn(
+      `oxygen-schema` % testAndCompile,
       `oxygen-zio` % testAndCompile,
       `oxygen-test` % Test,
     )

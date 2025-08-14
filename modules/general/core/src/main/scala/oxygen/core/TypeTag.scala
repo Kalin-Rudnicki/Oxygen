@@ -99,7 +99,7 @@ object TypeTag {
     final case class Single(
         typeName: String,
         typeArgs: List[TypeRef],
-        prefix: Either[Single, List[String]],
+        prefix: Either[TypeRef.Single, List[String]], // Either[ another type , package name ]
     ) extends TypeRef
         with Showable {
 

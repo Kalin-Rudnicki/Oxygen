@@ -1561,6 +1561,8 @@ object K0 {
     protected final def derivedImpl[A](using Quotes, Type[F], Type[A]): Expr[F[A]] =
       deriveFromGenericImpl(Generic.of[A](deriveConfig))
 
+    final given Derivable[F] = this
+
     object deriveInternal {
       def productDeriver[A](using Quotes, Type[F], Type[A], ProductGeneric[A], Derivable[F]): Derivable.ProductDeriver[F, A] = der.productDeriver[A]
       def sumDeriver[A](using Quotes, Type[F], Type[A], SumGeneric[A], Derivable[F]): Derivable.SumDeriver[F, A] = der.sumDeriver[A]

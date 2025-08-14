@@ -22,7 +22,7 @@ trait JsonEncoder[A] {
   final def encodeJsonStringPretty(value: A): String =
     encodeJsonAST(value).showPretty
 
-  final def contramap[B](f: B => A): JsonEncoder[B] =
+  def contramap[B](f: B => A): JsonEncoder[B] =
     JsonEncoder.Contramapped(this, f)
 
   final def mapJsonOutput(f: PartialFunction[Json, Json]): JsonEncoder[A] =
@@ -38,7 +38,12 @@ object JsonEncoder extends K0.Derivable[JsonEncoder.ObjectEncoder], JsonEncoderL
   //////////////////////////////////////////////////////////////////////////////////////////////////////
 
   trait ObjectEncoder[A] extends JsonEncoder[A] {
+
     override def encodeJsonAST(value: A): Json.Obj
+
+    override def contramap[B](f: B => A): JsonEncoder.ObjectEncoder[B] =
+      JsonEncoder.ContramappedObject(this, f)
+
   }
 
   final class AnyJsonEncoder[A <: Json] extends JsonEncoder[A] {
@@ -186,6 +191,13 @@ object JsonEncoder extends K0.Derivable[JsonEncoder.ObjectEncoder], JsonEncoderL
 
   final case class Contramapped[A, B](encoder: JsonEncoder[A], f: B => A) extends JsonEncoder[B] {
     override def encodeJsonAST(value: B): Json =
+      encoder.encodeJsonAST(f(value))
+    override def addToObject(value: B): Boolean =
+      encoder.addToObject(f(value))
+  }
+
+  final case class ContramappedObject[A, B](encoder: JsonEncoder.ObjectEncoder[A], f: B => A) extends JsonEncoder.ObjectEncoder[B] {
+    override def encodeJsonAST(value: B): Json.Obj =
       encoder.encodeJsonAST(f(value))
     override def addToObject(value: B): Boolean =
       encoder.addToObject(f(value))

@@ -35,11 +35,11 @@ final class ImplicitsCompanion(using quotes: Quotes) {
       case ImplicitSearchSuccess(tree) => Some(tree.asExprOf[A])
       case ImplicitSearchFailure(_)    => None
 
-  def searchRequired[A: Type]: Expr[A] =
+  def searchRequired[A: Type]: Expr[A] = // TODO (KR) : improve error message
     search(TypeRepr.of[A]) match
       case ImplicitSearchSuccess(tree)        => tree.asExprOf[A]
       case ImplicitSearchFailure(explanation) => report.errorAndAbort(explanation)
-  def searchRequired[A: Type](pos: Position): Expr[A] =
+  def searchRequired[A: Type](pos: Position): Expr[A] = // TODO (KR) : improve error message
     search(TypeRepr.of[A]) match
       case ImplicitSearchSuccess(tree)        => tree.asExprOf[A]
       case ImplicitSearchFailure(explanation) => report.errorAndAbort(explanation, pos)
