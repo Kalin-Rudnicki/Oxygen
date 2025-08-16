@@ -14,6 +14,9 @@ final case class Endpoints(endpoints: Growable[Endpoint]) {
 
   def finish: Endpoints.Finalized = Endpoints.Finalized.ArraySeqScan(endpoints.toArraySeq)
 
+  def applyMiddlewares(middlewares: Seq[EndpointMiddleware]): Endpoints =
+    middlewares.foldLeft(this) { (acc, mid) => mid.apply(acc) }
+
 }
 object Endpoints {
 
