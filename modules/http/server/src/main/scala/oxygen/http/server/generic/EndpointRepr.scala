@@ -169,8 +169,10 @@ final class EndpointRepr[Api](val route: RouteRepr[Api])(using Quotes) {
     Context.expr[Endpoint](apiExpr) { partial =>
       '{
         Endpoint(
-          PathCodec.specsFor(${ Expr.ofSeq(pathCodecParts.toSeq) }*),
-          req => ${ partial.finish('req)(toEndpointImpl) },
+          apiName = ${ Expr(route.apiName) }.some,
+          endpointName = ${ Expr(route.routeName) },
+          pathElems = PathCodec.specsFor(${ Expr.ofSeq(pathCodecParts.toSeq) }*),
+          run = req => ${ partial.finish('req)(toEndpointImpl) },
         )
       }
     }

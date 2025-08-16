@@ -24,6 +24,9 @@ final class RouteRepr[Api] private (val defDef: DefDef, _apiType: Type[Api])(usi
   def failParam(valDef: ValDef, msg: String): Nothing =
     report.errorAndAbort(s"${apiTypeRepr.showAnsiCode}.${defDef.name}.${valDef.name} : $msg")
 
+  val apiName: String = apiTypeRepr.typeSymbol.name // TODO (KR) : make configurable
+  val routeName: String = defDef.name // TODO (KR) : make configurable
+
   private val termParamClause: TermParamClause = defDef.paramss match
     case (tpc: TermParamClause) :: Nil => tpc
     case _                             => fail("expected single parameter clause with no type params")
