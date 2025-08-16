@@ -252,10 +252,10 @@ final case class JvmHttpServer(
       eff.provideEnvironment(ZEnvironment(scope))
     }
 
-  override def start(config: HttpServer.Config, endpoints: Endpoints): RIO[Scope, Unit] =
+  override def start(config: HttpServer.Config, endpoints: Endpoints, middlewares: Seq[EndpointMiddleware]): RIO[Scope, Unit] =
     for {
       runningFibers <- Ref.make(Map.empty[UUID, Fiber[Nothing, Unit]])
-      finalizedEndpoints = endpoints.finish
+      finalizedEndpoints = endpoints.applyMiddlewares(middlewares).finish
       interruptRunningFibers = for {
         runningFibers <- runningFibers.get
         _ <- ZIO.foreachParDiscard(runningFibers.values)(_.interrupt)
