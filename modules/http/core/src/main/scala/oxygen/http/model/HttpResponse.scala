@@ -9,6 +9,11 @@ final case class HttpResponse(
 
   def header(key: String): List[String] = headers.header(key)
 
+  def singleHeader(key: String): Option[String] = header(key).headOption
+
+  def addHeaders(headers: Headers): HttpResponse =
+    copy(headers = this.headers ++ headers)
+
 }
 object HttpResponse {
 

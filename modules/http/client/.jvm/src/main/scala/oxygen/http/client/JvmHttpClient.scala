@@ -16,7 +16,7 @@ final case class JvmHttpClient(
     target: ConnectionTarget,
     streamChunkSize: Int = 8192,
     requestMiddlewares: Chunk[RequestMiddleware] = Chunk(RequestMiddleware.sendOxygenTracing),
-    responseMiddlewares: Chunk[ResponseMiddleware] = Chunk.empty,
+    responseMiddlewares: Chunk[ResponseMiddleware] = Chunk(ResponseMiddleware.receiveOxygenTracing),
 ) extends HttpClient {
 
   private object HttpClientBytes {

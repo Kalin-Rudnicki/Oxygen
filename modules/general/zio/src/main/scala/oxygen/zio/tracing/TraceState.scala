@@ -9,6 +9,10 @@ enum TraceState {
   case Root(rootId: UUID)
   case NonRoot(rootId: UUID, parentId: UUID, currentId: UUID)
 
+  final def current: UUID = this match
+    case TraceState.Root(rootId)             => rootId
+    case TraceState.NonRoot(_, _, currentId) => currentId
+
   final def rootAndNewParent: (UUID, UUID) = this match
     case TraceState.Root(rootId)                  => (rootId, rootId)
     case TraceState.NonRoot(rootId, _, currentId) => (rootId, currentId)
