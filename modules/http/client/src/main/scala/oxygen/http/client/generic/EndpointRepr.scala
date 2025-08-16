@@ -7,8 +7,10 @@ import oxygen.http.model.*
 import oxygen.meta.{*, given}
 import oxygen.predef.core.*
 import oxygen.quoted.*
+import oxygen.zio.metrics.*
 import scala.quoted.*
 import zio.*
+import zio.metrics.*
 
 final class EndpointRepr[Api](val route: RouteRepr[Api], classSym: Symbol) {
   import route.given
@@ -32,11 +34,14 @@ final class EndpointRepr[Api](val route: RouteRepr[Api], classSym: Symbol) {
 
   private def functionImpl(clientExpr: Expr[HttpClient], args: ArraySeq[(Term, ParamRepr.FunctionArg)]): Expr[ZIO[route.EnvOut, route.ErrorOut, route.SuccessOut]] =
     '{
-      val request: HttpRequest = ${ toHttpRequest(args) }
-      val sendResult: ZIO[Scope, HttpClientError, HttpResponse] = $clientExpr.send(request)
-      val withConvertedClientError: ZIO[Scope, route.ErrorOut, HttpResponse] = sendResult.orDie // TODO (KR) : type-class for wrapping this
-      val parsedResponse: ZIO[Scope, route.ErrorOut, route.SuccessOut] = withConvertedClientError.flatMap { response => ${ parseResponse('response) } }
-      ${ route.convertR('parsedResponse) }
+      val metricLabels: Set[MetricLabel] = Set(MetricLabel("oxygen.api-name", ${ Expr(route.apiName) }), MetricLabel("oxygen.endpoint-name", ${ Expr(route.routeName) }))
+      ZIO.suspendSucceed {
+        val request: HttpRequest = ${ toHttpRequest(args) }
+        val sendResult: ZIO[Scope, HttpClientError, HttpResponse] = $clientExpr.send(request)
+        val withConvertedClientError: ZIO[Scope, route.ErrorOut, HttpResponse] = sendResult.orDie // TODO (KR) : type-class for wrapping this
+        val parsedResponse: ZIO[Scope, route.ErrorOut, route.SuccessOut] = withConvertedClientError.flatMap { response => ${ parseResponse('response) } }
+        ${ route.convertR('parsedResponse) }
+      } @@ HttpClientMetrics.endpointDuration.tagged(metricLabels).toAspect
     }
 
   private def toHttpRequest(args: ArraySeq[(Term, ParamRepr.FunctionArg)]): Expr[HttpRequest] = {

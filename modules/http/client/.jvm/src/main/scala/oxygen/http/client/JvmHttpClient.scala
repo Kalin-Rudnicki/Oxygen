@@ -9,6 +9,7 @@ import oxygen.http.core.*
 import oxygen.http.core.internal.*
 import oxygen.http.model.*
 import oxygen.predef.core.*
+import oxygen.zio.metrics.*
 import zio.*
 
 final case class JvmHttpClient(
@@ -215,6 +216,6 @@ final case class JvmHttpClient(
       response <- ZIO.foldLeft(responseMiddlewares)(response) { (res, mid) => mid.map(res) }
 
       _ <- ZIO.logTrace("--- HTTP Client : Request Handled ---")
-    } yield response).mapError(HttpClientError(_))
+    } yield response).mapError(HttpClientError(_)) @@ HttpClientMetrics.requestDuration.toAspect
 
 }

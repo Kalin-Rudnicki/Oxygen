@@ -7,7 +7,6 @@ import oxygen.zio.metrics.*
 import scala.annotation.tailrec
 import scala.quoted.*
 import zio.*
-import zio.metrics.*
 
 final case class Endpoints(endpoints: Growable[Endpoint]) {
 
@@ -28,14 +27,6 @@ object Endpoints {
   }
   object Finalized {
 
-    private val endpointDuration: Metric.Histogram[Duration] =
-      MetricBuilders.microTimer(
-        "oxygen.http.server.endpoint.duration",
-        "How long it takes the endpoint to handle the request.",
-        50.micros,
-        1.hour,
-      )
-
     final case class ArraySeqScan(endpoints: ArraySeq[Endpoint]) extends Finalized {
 
       override def eval(request: RequestContext): URIO[Scope, HttpResponse] = {
@@ -44,7 +35,7 @@ object Endpoints {
           if (idx < endpoints.length) {
             val endpoint = endpoints(idx)
             endpoint.run(request) match {
-              case Some(responseEffect) => responseEffect @@ endpointDuration.tagged(endpoint.metricLabels).toAspect
+              case Some(responseEffect) => responseEffect @@ HttpServerMetrics.endpointDuration.tagged(endpoint.metricLabels).toAspect
               case None                 => loop(idx + 1)
             }
           } else
