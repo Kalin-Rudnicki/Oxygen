@@ -11,21 +11,12 @@ import oxygen.predef.core.*
 import oxygen.zio.metrics.*
 import oxygen.zio.syntax.log.*
 import zio.*
-import zio.metrics.*
 
 final case class JvmHttpServer(
     streamChunkSize: Int = 8192,
     requestMiddlewares: Chunk[RequestMiddleware] = Chunk(RequestMiddleware.receiveOxygenTracing),
     responseMiddlewares: Chunk[ResponseMiddleware] = Chunk.empty,
 ) extends HttpServer {
-
-  private val requestDuration: Metric.Histogram[Duration] =
-    MetricBuilders.microTimer(
-      "oxygen.http.server.request.duration",
-      "How long it takes the Oxygen HTTP Server to handle the HTTP request.",
-      50.micros,
-      1.hour,
-    )
 
   private object HttpServerBytes {
 
@@ -253,7 +244,7 @@ final case class JvmHttpServer(
                 ZIO.foreachDiscard(exit.causeOption)(ZIO.logErrorCause("Error handling request", _)) *>
                   runningFibers.update(_.removed(requestId)) *> scope.close(exit)
               }
-          } @@ ZIOAspect.annotated("request-id", requestId.toString) @@ requestDuration.toAspect
+          } @@ ZIOAspect.annotated("request-id", requestId.toString) @@ HttpServerMetrics.requestDuration.toAspect
           effectFiber <- effect.fork
           _ <- runningFibers.update(_.updated(requestId, effectFiber))
         } yield ()
