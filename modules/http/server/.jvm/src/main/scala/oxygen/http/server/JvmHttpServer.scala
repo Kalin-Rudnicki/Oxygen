@@ -15,7 +15,7 @@ import zio.*
 final case class JvmHttpServer(
     streamChunkSize: Int = 8192,
     requestMiddlewares: Chunk[RequestMiddleware] = Chunk(RequestMiddleware.receiveOxygenTracing),
-    responseMiddlewares: Chunk[ResponseMiddleware] = Chunk.empty,
+    responseMiddlewares: Chunk[ResponseMiddleware] = Chunk(ResponseMiddleware.sendOxygenTracing),
 ) extends HttpServer {
 
   private object HttpServerBytes {
