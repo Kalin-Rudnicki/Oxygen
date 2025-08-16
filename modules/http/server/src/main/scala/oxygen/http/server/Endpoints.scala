@@ -3,9 +3,11 @@ package oxygen.http.server
 import oxygen.http.model.*
 import oxygen.predef.core.*
 import oxygen.quoted.*
+import oxygen.zio.metrics.*
 import scala.annotation.tailrec
 import scala.quoted.*
 import zio.*
+import zio.metrics.*
 
 final case class Endpoints(endpoints: Growable[Endpoint]) {
 
@@ -26,17 +28,26 @@ object Endpoints {
   }
   object Finalized {
 
+    private val endpointDuration: Metric.Histogram[Duration] =
+      MetricBuilders.microTimer(
+        "oxygen.http.server.endpoint.duration",
+        "How long it takes the endpoint to handle the request.",
+        50.micros,
+        1.hour,
+      )
+
     final case class ArraySeqScan(endpoints: ArraySeq[Endpoint]) extends Finalized {
 
       override def eval(request: RequestContext): URIO[Scope, HttpResponse] = {
         @tailrec
         def loop(idx: Int): URIO[Scope, HttpResponse] =
-          if (idx < endpoints.length)
-            endpoints(idx).run(request) match {
-              case Some(responseEffect) => responseEffect
+          if (idx < endpoints.length) {
+            val endpoint = endpoints(idx)
+            endpoint.run(request) match {
+              case Some(responseEffect) => responseEffect @@ endpointDuration.tagged(endpoint.metricLabels).toAspect
               case None                 => loop(idx + 1)
             }
-          else
+          } else
             ZIO.succeed(HttpResponse(HttpCode.`404`))
 
         loop(0)
