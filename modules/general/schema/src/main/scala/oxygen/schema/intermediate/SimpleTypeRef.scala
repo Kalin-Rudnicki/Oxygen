@@ -1,4 +1,4 @@
-package oxygen.schema
+package oxygen.schema.intermediate
 
 import oxygen.core.TypeTag
 

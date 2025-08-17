@@ -1,16 +1,16 @@
-package oxygen.schema
+package oxygen.schema.compiled
 
-// FIX-PRE-MERGE (KR) : move into package 
-sealed trait CompiledSchemaRepr {
+// FIX-PRE-MERGE (KR) : move into package
+sealed trait SchemaRepr {
   // TODO (KR) :
 }
-object CompiledSchemaRepr {
+object SchemaRepr {
 
   //////////////////////////////////////////////////////////////////////////////////////////////////////
   //      Plain
   //////////////////////////////////////////////////////////////////////////////////////////////////////
 
-  sealed trait PlainRepr extends CompiledSchemaRepr
+  sealed trait PlainRepr extends SchemaRepr
 
   // TODO (KR) :
 
@@ -18,7 +18,7 @@ object CompiledSchemaRepr {
   //      Json
   //////////////////////////////////////////////////////////////////////////////////////////////////////
 
-  sealed trait JsonRepr extends CompiledSchemaRepr
+  sealed trait JsonRepr extends SchemaRepr
 
   // TODO (KR) :
 
@@ -26,6 +26,6 @@ object CompiledSchemaRepr {
   //      Conversion
   //////////////////////////////////////////////////////////////////////////////////////////////////////
 
-  // TODO (KR) :  
-  
+  // TODO (KR) :
+
 }

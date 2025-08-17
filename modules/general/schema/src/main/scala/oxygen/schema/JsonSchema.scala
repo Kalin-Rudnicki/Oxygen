@@ -107,7 +107,7 @@ object JsonSchema extends Derivable[JsonSchema.ProductLike], JsonSchemaLowPriori
       typeTag: TypeTag[A],
       jsonEncoder: JsonEncoder[A],
       jsonDecoder: JsonDecoder[A],
-      // TODO (KR) : additional information about null/missing
+      // TODO (KR) : [OXY-70] improve representation of missing vs. null values
   ) extends JsonSchema.NonProductLike[A]
 
   final case class ArraySchema[A] private[JsonSchema] (

@@ -1,4 +1,4 @@
-package oxygen.schema
+package oxygen.schema.compiled
 
 import oxygen.core.TypeTag
 import scala.annotation.tailrec
@@ -23,7 +23,14 @@ object TypeRef {
   final case class ConcretePlainRef(ref: TypeTag[?]) extends PlainRef, Concrete
 
   // A | Option[A] | Array[A] | recursive
-  sealed trait JsonRef extends TypeRef
+  sealed trait JsonRef extends TypeRef {
+
+    // TODO (KR) : [OXY-70] improve representation of missing vs. null values
+    final def toRequired: (RequiredJsonRef, Boolean) = this match
+      case ref: RequiredJsonRef   => (ref, true)
+      case JsonOption(underlying) => (underlying, false)
+
+  }
 
   // A | Array[A] | recursive
   sealed trait RequiredJsonRef extends JsonRef

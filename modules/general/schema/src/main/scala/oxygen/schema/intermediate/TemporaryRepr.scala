@@ -1,7 +1,8 @@
-package oxygen.schema
+package oxygen.schema.intermediate
 
 import oxygen.json.*
 import oxygen.predef.core.*
+import oxygen.schema.*
 import scala.annotation.tailrec
 
 // FIX-PRE-MERGE (KR) : move into package
