@@ -4,6 +4,7 @@ import oxygen.json.*
 import oxygen.predef.core.*
 import scala.annotation.tailrec
 
+// FIX-PRE-MERGE (KR) : move into package
 private[schema] sealed trait TemporaryRepr
 private[schema] object TemporaryRepr {
 
@@ -14,25 +15,25 @@ private[schema] object TemporaryRepr {
   sealed trait PlainRepr extends TemporaryRepr
   case object PlainString extends PlainRepr
   final case class PlainEnum(values: Seq[String], caseSensitive: Boolean) extends PlainRepr
-  final case class PlainTransform(plainRef: TypeRef.Plain) extends PlainRepr
+  final case class PlainTransform(plainRef: SimpleTypeRef.Plain) extends PlainRepr
 
   sealed trait JsonRepr extends TemporaryRepr
-  final case class JsonString(plainRef: TypeRef.Plain) extends JsonRepr
+  final case class JsonString(plainRef: SimpleTypeRef.Plain) extends JsonRepr
   final case class JsonAST(specificType: Option[Json.Type]) extends JsonRepr
-  final case class JsonOptional(jsonRef: TypeRef.Json) extends JsonRepr
-  final case class JsonArray(jsonRef: TypeRef.Json) extends JsonRepr
+  final case class JsonOptional(jsonRef: SimpleTypeRef.Json) extends JsonRepr
+  final case class JsonArray(jsonRef: SimpleTypeRef.Json) extends JsonRepr
   final case class JsonProduct(fields: ArraySeq[JsonField]) extends JsonRepr
   final case class JsonSum(discriminator: Option[String], cases: ArraySeq[JsonCase]) extends JsonRepr
-  final case class JsonTransform(jsonRef: TypeRef.Json) extends JsonRepr
+  final case class JsonTransform(jsonRef: SimpleTypeRef.Json) extends JsonRepr
 
   final case class JsonField(
       name: String,
-      ref: TypeRef.Json,
+      ref: SimpleTypeRef.Json,
   )
 
   final case class JsonCase(
       name: String,
-      ref: TypeRef.Json,
+      ref: SimpleTypeRef.Json,
   )
 
   //////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -40,19 +41,19 @@ private[schema] object TemporaryRepr {
   //////////////////////////////////////////////////////////////////////////////////////////////////////
 
   final case class Reprs(
-      plain: Map[TypeRef.Plain, PlainRepr],
-      json: Map[TypeRef.Json, JsonRepr],
+      plain: Map[SimpleTypeRef.Plain, PlainRepr],
+      json: Map[SimpleTypeRef.Json, JsonRepr],
   ) {
 
     def ++(that: Reprs): Reprs = Reprs(this.plain ++ that.plain, this.json ++ that.json)
 
     def withPlain(typeTag: TypeTag[?], repr: PlainRepr): Generated.Plain = {
-      val ref: TypeRef.Plain = TypeRef.Plain(typeTag)
+      val ref: SimpleTypeRef.Plain = SimpleTypeRef.Plain(typeTag)
       Generated.Plain(ref, Reprs(this.plain + (ref -> repr), this.json))
     }
 
     def withJson(typeTag: TypeTag[?], repr: JsonRepr): Generated.Json = {
-      val ref: TypeRef.Json = TypeRef.Json(typeTag)
+      val ref: SimpleTypeRef.Json = SimpleTypeRef.Json(typeTag)
       Generated.Json(ref, Reprs(this.plain, this.json + (ref -> repr)))
     }
 
@@ -63,14 +64,14 @@ private[schema] object TemporaryRepr {
 
   final case class Generating(
       reprs: Reprs,
-      recursive: Set[TypeRef.Json],
+      recursive: Set[SimpleTypeRef.Json],
   )
 
   enum Generated {
-    case Plain(ref: TypeRef.Plain, reprs: Reprs)
-    case Json(ref: TypeRef.Json, reprs: Reprs)
+    case Plain(ref: SimpleTypeRef.Plain, reprs: Reprs)
+    case Json(ref: SimpleTypeRef.Json, reprs: Reprs)
 
-    val ref: TypeRef
+    val ref: SimpleTypeRef
     val reprs: Reprs
 
     def withPlain(typeTag: TypeTag[?], repr: PlainRepr): Generated.Plain = reprs.withPlain(typeTag, repr)
@@ -80,20 +81,20 @@ private[schema] object TemporaryRepr {
   object Generated {
 
     def plain(typeTag: TypeTag[?], repr: PlainRepr): Generated.Plain = {
-      val ref: TypeRef.Plain = TypeRef.Plain(typeTag)
+      val ref: SimpleTypeRef.Plain = SimpleTypeRef.Plain(typeTag)
       Generated.Plain(ref, Reprs(Map(ref -> repr), Map.empty))
     }
 
     def json(typeTag: TypeTag[?], repr: JsonRepr): Generated.Json = {
-      val ref: TypeRef.Json = TypeRef.Json(typeTag)
+      val ref: SimpleTypeRef.Json = SimpleTypeRef.Json(typeTag)
       Generated.Json(ref, Reprs(Map.empty, Map(ref -> repr)))
     }
 
     def emptyPlain(typeTag: TypeTag[?]): Generated.Plain =
-      Generated.Plain(TypeRef.Plain(typeTag), Reprs.empty)
+      Generated.Plain(SimpleTypeRef.Plain(typeTag), Reprs.empty)
 
     def emptyJson(typeTag: TypeTag[?]): Generated.Json =
-      Generated.Json(TypeRef.Json(typeTag), Reprs.empty)
+      Generated.Json(SimpleTypeRef.Json(typeTag), Reprs.empty)
 
   }
 
@@ -101,7 +102,7 @@ private[schema] object TemporaryRepr {
       schema: PlainTextSchema[?],
       generating: Generating,
   ): Generated.Plain = {
-    val myRef: TypeRef.Plain = TypeRef.Plain(schema.typeTag)
+    val myRef: SimpleTypeRef.Plain = SimpleTypeRef.Plain(schema.typeTag)
     val res =
       if (generating.reprs.plain.contains(myRef))
         Generated.emptyPlain(schema.typeTag)
@@ -130,7 +131,7 @@ private[schema] object TemporaryRepr {
       schema: JsonSchema[?],
       generating: Generating,
   ): Generated.Json = {
-    val myRef: TypeRef.Json = TypeRef.Json(schema.typeTag)
+    val myRef: SimpleTypeRef.Json = SimpleTypeRef.Json(schema.typeTag)
     val res =
       if (generating.reprs.json.contains(myRef) || generating.recursive.contains(myRef)) {
         println("json.short-circuit")

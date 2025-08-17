@@ -1,20 +1,25 @@
 package oxygen.schema
 
+// FIX-PRE-MERGE (KR) : remove
+object SchemaRepr
+
+/*
 import oxygen.json.*
 import oxygen.predef.core.*
 
-enum SchemaRepr {
-  case Plain(ref: TypeRef.Plain, repr: SchemaRepr.PlainRepr)
-  case Json(ref: TypeRef.Json, repr: SchemaRepr.JsonRepr)
+// FIX-PRE-MERGE (KR) : remove
+enum SchemaRepr2 {
+  case Plain(ref: SimpleTypeRef.Plain, repr: SchemaRepr2.PlainRepr)
+  case Json(ref: SimpleTypeRef.Json, repr: SchemaRepr2.JsonRepr)
 
-  val ref: TypeRef
-  val repr: SchemaRepr.Repr
+  val ref: SimpleTypeRef
+  val repr: SchemaRepr2.Repr
 
   final def toIndentedString: IndentedString =
     IndentedString.section(s"${ref.typeTag.prefixAll}:")(repr.toIndentedString)
 
 }
-object SchemaRepr {
+object SchemaRepr2 {
 
   sealed trait Repr {
 
@@ -129,23 +134,23 @@ object SchemaRepr {
   //
   //////////////////////////////////////////////////////////////////////////////////////////////////////
 
-  private def dealiasPlain(repr: TemporaryRepr.Reprs, plainRef: TypeTag[?]): SchemaRepr.PlainRepr =
+  private def dealiasPlain(repr: TemporaryRepr.Reprs, plainRef: TypeTag[?]): SchemaRepr2.PlainRepr =
     convertPlain(repr, repr.plain(plainRef))
 
-  private def convertPlain(repr: TemporaryRepr.Reprs, plainRepr: TemporaryRepr.PlainRepr): SchemaRepr.PlainRepr =
+  private def convertPlain(repr: TemporaryRepr.Reprs, plainRepr: TemporaryRepr.PlainRepr): SchemaRepr2.PlainRepr =
     plainRepr match {
-      case TemporaryRepr.PlainString                      => SchemaRepr.PlainString
-      case TemporaryRepr.PlainEnum(values, caseSensitive) => SchemaRepr.PlainEnum(values, caseSensitive)
+      case TemporaryRepr.PlainString                      => SchemaRepr2.PlainString
+      case TemporaryRepr.PlainEnum(values, caseSensitive) => SchemaRepr2.PlainEnum(values, caseSensitive)
       case TemporaryRepr.PlainTransform(plainRef)         => dealiasPlain(repr, plainRef)
     }
 
-  private def convertJson(repr: TemporaryRepr.Reprs, jsonRef: TypeTag[?]): SchemaRepr.JsonRef =
+  private def convertJson(repr: TemporaryRepr.Reprs, jsonRef: TypeTag[?]): SchemaRepr2.JsonRef =
     repr.json(jsonRef) match
-      case TemporaryRepr.JsonOptional(jsonRef) => SchemaRepr.JsonRef.Option(convertJson(repr, jsonRef))
-      case TemporaryRepr.JsonArray(jsonRef)    => SchemaRepr.JsonRef.Array(convertJson(repr, jsonRef))
-      case _                                   => SchemaRepr.JsonRef.Ref(jsonRef)
+      case TemporaryRepr.JsonOptional(jsonRef) => SchemaRepr2.JsonRef.Option(convertJson(repr, jsonRef))
+      case TemporaryRepr.JsonArray(jsonRef)    => SchemaRepr2.JsonRef.Array(convertJson(repr, jsonRef))
+      case _                                   => SchemaRepr2.JsonRef.Ref(jsonRef)
 
-  private def convertJson(repr: TemporaryRepr.Reprs, jsonRepr: TemporaryRepr.JsonRepr): SchemaRepr.JsonRepr =
+  private def convertJson(repr: TemporaryRepr.Reprs, jsonRepr: TemporaryRepr.JsonRepr): SchemaRepr2.JsonRepr =
     jsonRepr match {
       case TemporaryRepr.JsonString(plainRef)  => JsonString(dealiasPlain(repr, plainRef))
       case TemporaryRepr.JsonAST(specificType) => JsonAST(specificType)
@@ -159,17 +164,17 @@ object SchemaRepr {
         convertJson(repr, repr.json(jsonRef))
     }
 
-  def from(repr: TemporaryRepr.Reprs): Seq[SchemaRepr] = {
-    val fromPlain: Seq[SchemaRepr] =
+  def from(repr: TemporaryRepr.Reprs): Seq[SchemaRepr2] = {
+    val fromPlain: Seq[SchemaRepr2] =
       repr.plain.toSeq.map { case (typeTag, plainRepr) =>
-        SchemaRepr.Plain(
+        SchemaRepr2.Plain(
           typeTag,
           convertPlain(repr, plainRepr),
         )
       }
-    val fromJson: Seq[SchemaRepr] =
+    val fromJson: Seq[SchemaRepr2] =
       repr.json.toSeq.map { case (typeTag, plainRepr) =>
-        SchemaRepr.Json(
+        SchemaRepr2.Json(
           typeTag,
           convertJson(repr, plainRepr),
         )
@@ -179,3 +184,4 @@ object SchemaRepr {
   }
 
 }
+ */
