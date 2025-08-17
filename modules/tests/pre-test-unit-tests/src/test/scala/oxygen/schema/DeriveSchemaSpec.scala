@@ -2,6 +2,7 @@ package oxygen.schema
 
 import oxygen.json.*
 import oxygen.predef.test.*
+import oxygen.schema.compiled.*
 
 object DeriveSchemaSpec extends OxygenSpecDefault {
 
@@ -87,11 +88,6 @@ object DeriveSchemaSpec extends OxygenSpecDefault {
           val bFields = b.fields.toList
           val cFields = c.fields.toList
 
-          val reprs = TemporaryRepr.from(schema, TemporaryRepr.Generating(TemporaryRepr.Reprs.empty, Set.empty)).reprs
-
-          val str = IndentedString.inline(SchemaRepr.from(reprs).sortBy(_.typeTag.prefixObject).map(_.toIndentedString))
-          println(" \n \n" + str.toStringColorized + "\n \n ")
-
           assertTrue(
             schema.discriminator.contains("type"),
             aFields.map(_.name) == List(),
@@ -101,6 +97,35 @@ object DeriveSchemaSpec extends OxygenSpecDefault {
           )
         },
       ),
+      test("compiler") {
+        val c1 = Compiler.initial
+        val (r1, c2) = c1.compile(JsonSchema[Product1])
+        val (r2, c3) = c2.compile(JsonSchema[Product3])
+        val (r3, c4) = c3.compile(JsonSchema[Sum1])
+        val (r4, c5) = c4.compile(JsonSchema[Sum2])
+        val (r5, c6) = c5.compile(JsonSchema[Option[Product2]])
+        val (r6, c7) = c6.compile(JsonSchema[List[Product2]])
+
+        println()
+        println(Seq(r1, r2, r3, r4, r5, r6).mkString("\n"))
+        println()
+        println(c7)
+        println()
+
+        // TODO (KR) : Array[Specified[A]] == Array[A]
+        //           : specified: missing
+        //           : option:    missing/nullable
+        //           : Specified[A] anywhere besides a json object field is the same as [A]
+
+        assertTrue(
+          r1 == TypeRef.ConcreteJsonRef(TypeTag[Product1]),
+          r2 == TypeRef.ConcreteJsonRef(TypeTag[Product3]),
+          r3 == TypeRef.ConcreteJsonRef(TypeTag[Sum1]),
+          r4 == TypeRef.ConcreteJsonRef(TypeTag[Sum2]),
+          r5 == TypeRef.JsonOption(TypeRef.ConcreteJsonRef(TypeTag[Product2])),
+          r6 == TypeRef.JsonArray(TypeRef.ConcreteJsonRef(TypeTag[Product2])),
+        )
+      },
     )
 
 }

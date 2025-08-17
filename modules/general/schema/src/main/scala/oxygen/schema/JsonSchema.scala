@@ -58,6 +58,10 @@ object JsonSchema extends Derivable[JsonSchema.ProductLike], JsonSchemaLowPriori
     OptionalSchema(underlying, newTypeTag, JsonEncoder.option(using underlying.jsonEncoder), JsonDecoder.option(using underlying.jsonDecoder))
   given specified: [A: JsonSchema as underlying] => (newTypeTag: TypeTag[Specified[A]]) => JsonSchema[Specified[A]] =
     OptionalSchema(underlying, newTypeTag, JsonEncoder.specified(using underlying.jsonEncoder), JsonDecoder.specified(using underlying.jsonDecoder))
+  given arraySeq: [A: JsonSchema as underlying] => (newTypeTag: TypeTag[ArraySeq[A]]) => JsonSchema[ArraySeq[A]] =
+    ArraySchema(underlying, newTypeTag, JsonEncoder.arraySeq(using underlying.jsonEncoder), JsonDecoder.arraySeq(using underlying.jsonDecoder))
+  given seq: [S[_]: SeqOps as seqOps, A: {JsonSchema as underlying, ClassTag as ct}] => (newTypeTag: TypeTag[S[A]]) => JsonSchema[S[A]] =
+    ArraySchema(underlying, newTypeTag, JsonEncoder.seq(using ct, seqOps, underlying.jsonEncoder), JsonDecoder.seq(using seqOps, underlying.jsonDecoder))
 
   given localDate: JsonSchema[LocalDate] = fromPlainText
   given localTime: JsonSchema[LocalTime] = fromPlainText

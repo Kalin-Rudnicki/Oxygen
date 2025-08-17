@@ -29,6 +29,6 @@ final class Compiler(
 }
 object Compiler {
 
-  val empty: Compiler = Compiler(I.Reprs.empty)
+  val initial: Compiler = Compiler(I.Reprs.empty)
 
 }
