@@ -40,10 +40,22 @@ private[schema] object TemporaryRepr {
   //////////////////////////////////////////////////////////////////////////////////////////////////////
 
   final case class Reprs(
-      plain: Map[TypeTag[?], PlainRepr],
-      json: Map[TypeTag[?], JsonRepr],
+      plain: Map[TypeRef.Plain, PlainRepr],
+      json: Map[TypeRef.Json, JsonRepr],
   ) {
+
     def ++(that: Reprs): Reprs = Reprs(this.plain ++ that.plain, this.json ++ that.json)
+
+    def withPlain(typeTag: TypeTag[?], repr: PlainRepr): Generated.Plain = {
+      val ref: TypeRef.Plain = TypeRef.Plain(typeTag)
+      Generated.Plain(ref, Reprs(this.plain + (ref -> repr), this.json))
+    }
+
+    def withJson(typeTag: TypeTag[?], repr: JsonRepr): Generated.Json = {
+      val ref: TypeRef.Json = TypeRef.Json(typeTag)
+      Generated.Json(ref, Reprs(this.plain, this.json + (ref -> repr)))
+    }
+
   }
   object Reprs {
     val empty: Reprs = Reprs(Map.empty, Map.empty)
@@ -54,40 +66,50 @@ private[schema] object TemporaryRepr {
       recursive: Set[TypeTag[?]],
   )
 
-  final case class Generated(
-      typeTag: TypeTag[?],
-      reprs: Reprs,
-  ) {
+  enum Generated {
+    case Plain(ref: TypeRef.Plain, reprs: Reprs)
+    case Json(ref: TypeRef.Json, reprs: Reprs)
 
-    def withPlain(typeTag: TypeTag[?], repr: PlainRepr): Generated =
-      Generated(typeTag, Reprs(reprs.plain + (typeTag -> repr), reprs.json))
+    val ref: TypeRef
+    val reprs: Reprs
 
-    def withJson(typeTag: TypeTag[?], repr: JsonRepr): Generated =
-      Generated(typeTag, Reprs(reprs.plain, reprs.json + (typeTag -> repr)))
+    def withPlain(typeTag: TypeTag[?], repr: PlainRepr): Generated.Plain = reprs.withPlain(typeTag, repr)
+    def withJson(typeTag: TypeTag[?], repr: JsonRepr): Generated.Json = reprs.withJson(typeTag, repr)
 
   }
   object Generated {
 
-    def plain(typeTag: TypeTag[?], repr: PlainRepr): Generated =
-      Generated(typeTag, Reprs(Map(typeTag -> repr), Map.empty))
+    def plain(typeTag: TypeTag[?], repr: PlainRepr): Generated.Plain = {
+      val ref: TypeRef.Plain = TypeRef.Plain(typeTag)
+      Generated.Plain(ref, Reprs(Map(ref -> repr), Map.empty))
+    }
 
-    def json(typeTag: TypeTag[?], repr: JsonRepr): Generated =
-      Generated(typeTag, Reprs(Map.empty, Map(typeTag -> repr)))
+    def json(typeTag: TypeTag[?], repr: JsonRepr): Generated.Json = {
+      val ref: TypeRef.Json = TypeRef.Json(typeTag)
+      Generated.Json(ref, Reprs(Map.empty, Map(ref -> repr)))
+    }
+
+    def emptyPlain(typeTag: TypeTag[?]): Generated.Plain =
+      Generated.Plain(TypeRef.Plain(typeTag), Reprs.empty)
+
+    def emptyJson(typeTag: TypeTag[?]): Generated.Json =
+      Generated.Json(TypeRef.Json(typeTag), Reprs.empty)
 
   }
 
   private def convertPlain(
       schema: PlainTextSchema[?],
       generating: Generating,
-  ): Generated = {
+  ): Generated.Plain = {
     val res =
-      if (generating.reprs.plain.contains(schema.typeTag)) {
-        println("plain.short-circuit")
-        Generated(schema.typeTag, Reprs.empty)
-      } else
+      if (generating.reprs.plain.contains(schema.typeTag))
+        Generated.emptyPlain(schema.typeTag)
+      else
         schema match {
-          case PlainTextSchema.StringSchema            => Generated.plain(schema.typeTag, PlainString)
-          case schema: PlainTextSchema.EnumSchema[?]   => Generated.plain(schema.typeTag, PlainEnum(schema.encodedValues, schema.caseSensitive))
+          case PlainTextSchema.StringSchema =>
+            Generated.plain(schema.typeTag, PlainString)
+          case schema: PlainTextSchema.EnumSchema[?] =>
+            Generated.plain(schema.typeTag, PlainEnum(schema.encodedValues, schema.caseSensitive))
           case schema: PlainTextSchema.Transform[?, ?] =>
             val gen = convertPlain(schema.underlying, generating)
             gen.withPlain(schema.typeTag, PlainTransform(gen.typeTag))
@@ -106,11 +128,11 @@ private[schema] object TemporaryRepr {
   private def convertJson(
       schema: JsonSchema[?],
       generating: Generating,
-  ): Generated = {
+  ): Generated.Json = {
     val res =
       if (generating.reprs.json.contains(schema.typeTag) || generating.recursive.contains(schema.typeTag)) {
         println("json.short-circuit")
-        Generated(schema.typeTag, Reprs.empty)
+        Generated.emptyJson(schema.typeTag)
       } else
         schema match {
           //
@@ -152,8 +174,7 @@ private[schema] object TemporaryRepr {
               }
 
             val (fields, gen) = loop(generating.reprs, Reprs.empty, schema.fields.toList, Growable.empty)
-            val productRepr = JsonProduct(fields)
-            Generated(schema.typeTag, gen ++ Reprs(Map.empty, Map(schema.typeTag -> productRepr)))
+            gen.withJson(schema.typeTag, JsonProduct(fields))
           case schema: JsonSchema.SumSchema[?] =>
             val recursive = generating.recursive + schema.typeTag
             @tailrec
@@ -168,8 +189,7 @@ private[schema] object TemporaryRepr {
               }
 
             val (cases, gen) = loop(generating.reprs, Reprs.empty, schema.children.toList, Growable.empty)
-            val sumRepr = JsonSum(schema.discriminator, cases)
-            Generated(schema.typeTag, gen ++ Reprs(Map.empty, Map(schema.typeTag -> sumRepr)))
+            gen.withJson(schema.typeTag, JsonSum(schema.discriminator, cases))
           case schema: JsonSchema.TransformProduct[?, ?] =>
             val gen = convertJson(schema.underlying, generating)
             gen.withJson(schema.typeTag, JsonTransform(gen.typeTag))

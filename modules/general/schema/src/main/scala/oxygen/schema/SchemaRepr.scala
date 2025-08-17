@@ -3,13 +3,15 @@ package oxygen.schema
 import oxygen.json.*
 import oxygen.predef.core.*
 
-final case class SchemaRepr(
-    typeTag: TypeTag[?],
-    repr: SchemaRepr.Repr,
-) {
+enum SchemaRepr {
+  case Plain(ref: TypeRef.Plain, repr: SchemaRepr.PlainRepr)
+  case Json(ref: TypeRef.Json, repr: SchemaRepr.JsonRepr)
 
-  def toIndentedString: IndentedString =
-    IndentedString.section(s"${typeTag.prefixAll}:")(repr.toIndentedString)
+  val ref: TypeRef
+  val repr: SchemaRepr.Repr
+
+  final def toIndentedString: IndentedString =
+    IndentedString.section(s"${ref.typeTag.prefixAll}:")(repr.toIndentedString)
 
 }
 object SchemaRepr {
@@ -159,14 +161,14 @@ object SchemaRepr {
   def from(repr: TemporaryRepr.Reprs): Seq[SchemaRepr] = {
     val fromPlain: Seq[SchemaRepr] =
       repr.plain.toSeq.map { case (typeTag, plainRepr) =>
-        SchemaRepr(
+        SchemaRepr.Plain(
           typeTag,
           convertPlain(repr, plainRepr),
         )
       }
     val fromJson: Seq[SchemaRepr] =
       repr.json.toSeq.map { case (typeTag, plainRepr) =>
-        SchemaRepr(
+        SchemaRepr.Json(
           typeTag,
           convertJson(repr, plainRepr),
         )
