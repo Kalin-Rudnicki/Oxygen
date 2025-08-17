@@ -32,13 +32,13 @@ object JsonSchema extends Derivable[JsonSchema.ProductLike], JsonSchemaLowPriori
   //      Givens
   //////////////////////////////////////////////////////////////////////////////////////////////////////
 
-  given json: JsonSchema[Json] = ASTSchema(TypeTag[Json], JsonEncoder.json, JsonDecoder.json)
-  given jsonString: JsonSchema[Json.Str] = ASTSchema(TypeTag[Json.Str], JsonEncoder.json, JsonDecoder.jsonString)
-  given jsonBoolean: JsonSchema[Json.Bool] = ASTSchema(TypeTag[Json.Bool], JsonEncoder.json, JsonDecoder.jsonBoolean)
-  given jsonNumber: JsonSchema[Json.Number] = ASTSchema(TypeTag[Json.Number], JsonEncoder.json, JsonDecoder.jsonNumber)
-  given jsonArray: JsonSchema[Json.Arr] = ASTSchema(TypeTag[Json.Arr], JsonEncoder.json, JsonDecoder.jsonArray)
-  given jsonObject: JsonSchema[Json.Obj] = ASTSchema(TypeTag[Json.Obj], JsonEncoder.json, JsonDecoder.jsonObject)
-  given jsonNull: JsonSchema[Json.Null.type] = ASTSchema(TypeTag[Json.Null.type], JsonEncoder.json, JsonDecoder.jsonNull)
+  given json: JsonSchema[Json] = ASTSchema(TypeTag[Json], None, JsonEncoder.json, JsonDecoder.json)
+  given jsonString: JsonSchema[Json.Str] = ASTSchema(TypeTag[Json.Str], Json.Type.String.some, JsonEncoder.json, JsonDecoder.jsonString)
+  given jsonBoolean: JsonSchema[Json.Bool] = ASTSchema(TypeTag[Json.Bool], Json.Type.Boolean.some, JsonEncoder.json, JsonDecoder.jsonBoolean)
+  given jsonNumber: JsonSchema[Json.Number] = ASTSchema(TypeTag[Json.Number], Json.Type.Number.some, JsonEncoder.json, JsonDecoder.jsonNumber)
+  given jsonArray: JsonSchema[Json.Arr] = ASTSchema(TypeTag[Json.Arr], Json.Type.Array.some, JsonEncoder.json, JsonDecoder.jsonArray)
+  given jsonObject: JsonSchema[Json.Obj] = ASTSchema(TypeTag[Json.Obj], Json.Type.Object.some, JsonEncoder.json, JsonDecoder.jsonObject)
+  given jsonNull: JsonSchema[Json.Null.type] = ASTSchema(TypeTag[Json.Null.type], Json.Type.Null.some, JsonEncoder.json, JsonDecoder.jsonNull)
 
   given string: JsonSchema[String] = fromPlainText
   given boolean: JsonSchema[Boolean] = BooleanSchema
@@ -97,7 +97,7 @@ object JsonSchema extends Derivable[JsonSchema.ProductLike], JsonSchemaLowPriori
     override val jsonDecoder: JsonDecoder[Boolean] = JsonDecoder.boolean
   }
 
-  final case class ASTSchema[A] private[JsonSchema] (typeTag: TypeTag[A], jsonEncoder: JsonEncoder[A], jsonDecoder: JsonDecoder[A]) extends NonProductLike[A]
+  final case class ASTSchema[A] private[JsonSchema] (typeTag: TypeTag[A], specificType: Option[Json.Type], jsonEncoder: JsonEncoder[A], jsonDecoder: JsonDecoder[A]) extends NonProductLike[A]
 
   final case class IntNumberSchema[A] private[JsonSchema] (typeTag: TypeTag[A], jsonEncoder: JsonEncoder[A], jsonDecoder: JsonDecoder[A]) extends NonProductLike[A]
   final case class NumberSchema[A] private[JsonSchema] (typeTag: TypeTag[A], jsonEncoder: JsonEncoder[A], jsonDecoder: JsonDecoder[A]) extends NonProductLike[A]

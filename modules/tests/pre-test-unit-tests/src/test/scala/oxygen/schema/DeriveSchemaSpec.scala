@@ -78,6 +78,17 @@ object DeriveSchemaSpec extends OxygenSpecDefault {
           val aFields = a.fields.toList
           val bFields = b.fields.toList
           val cFields = c.fields.toList
+
+          val reprs = SchemaRepr.from(schema, SchemaRepr.Generating(SchemaRepr.Reprs.empty, Set.empty)).reprs
+
+          println(
+            s"""
+               |plain:${reprs.plain.toSeq.sortBy(_._1.prefixObject).map { case (k, v) => s"\n  ${k.prefixAll}: $v" }.mkString}
+               |
+               |json:${reprs.json.toSeq.sortBy(_._1.prefixObject).map { case (k, v) => s"\n  ${k.prefixAll}: $v" }.mkString}
+               |""".stripMargin,
+          )
+
           assertTrue(
             schema.discriminator.contains("type"),
             aFields.map(_.name) == List(),
