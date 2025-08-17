@@ -5,9 +5,8 @@ import oxygen.predef.core.*
 import oxygen.schema.*
 import scala.annotation.tailrec
 
-// FIX-PRE-MERGE (KR) : move into package
-private[schema] sealed trait TemporaryRepr
-private[schema] object TemporaryRepr {
+sealed trait TemporaryRepr
+object TemporaryRepr {
 
   //////////////////////////////////////////////////////////////////////////////////////////////////////
   //      Reprs
@@ -41,63 +40,10 @@ private[schema] object TemporaryRepr {
   //      Conversion
   //////////////////////////////////////////////////////////////////////////////////////////////////////
 
-  final case class Reprs(
-      plain: Map[SimpleTypeRef.Plain, PlainRepr],
-      json: Map[SimpleTypeRef.Json, JsonRepr],
-  ) {
-
-    def ++(that: Reprs): Reprs = Reprs(this.plain ++ that.plain, this.json ++ that.json)
-
-    def withPlain(typeTag: TypeTag[?], repr: PlainRepr): Generated.Plain = {
-      val ref: SimpleTypeRef.Plain = SimpleTypeRef.Plain(typeTag)
-      Generated.Plain(ref, Reprs(this.plain + (ref -> repr), this.json))
-    }
-
-    def withJson(typeTag: TypeTag[?], repr: JsonRepr): Generated.Json = {
-      val ref: SimpleTypeRef.Json = SimpleTypeRef.Json(typeTag)
-      Generated.Json(ref, Reprs(this.plain, this.json + (ref -> repr)))
-    }
-
-  }
-  object Reprs {
-    val empty: Reprs = Reprs(Map.empty, Map.empty)
-  }
-
   final case class Generating(
       reprs: Reprs,
       recursive: Set[SimpleTypeRef.Json],
   )
-
-  enum Generated {
-    case Plain(ref: SimpleTypeRef.Plain, reprs: Reprs)
-    case Json(ref: SimpleTypeRef.Json, reprs: Reprs)
-
-    val ref: SimpleTypeRef
-    val reprs: Reprs
-
-    def withPlain(typeTag: TypeTag[?], repr: PlainRepr): Generated.Plain = reprs.withPlain(typeTag, repr)
-    def withJson(typeTag: TypeTag[?], repr: JsonRepr): Generated.Json = reprs.withJson(typeTag, repr)
-
-  }
-  object Generated {
-
-    def plain(typeTag: TypeTag[?], repr: PlainRepr): Generated.Plain = {
-      val ref: SimpleTypeRef.Plain = SimpleTypeRef.Plain(typeTag)
-      Generated.Plain(ref, Reprs(Map(ref -> repr), Map.empty))
-    }
-
-    def json(typeTag: TypeTag[?], repr: JsonRepr): Generated.Json = {
-      val ref: SimpleTypeRef.Json = SimpleTypeRef.Json(typeTag)
-      Generated.Json(ref, Reprs(Map.empty, Map(ref -> repr)))
-    }
-
-    def emptyPlain(typeTag: TypeTag[?]): Generated.Plain =
-      Generated.Plain(SimpleTypeRef.Plain(typeTag), Reprs.empty)
-
-    def emptyJson(typeTag: TypeTag[?]): Generated.Json =
-      Generated.Json(SimpleTypeRef.Json(typeTag), Reprs.empty)
-
-  }
 
   private def convertPlain(
       schema: PlainTextSchema[?],
@@ -211,11 +157,11 @@ private[schema] object TemporaryRepr {
 
   def from(
       schema: AnySchema,
-      generating: Generating,
+      reprs: Reprs,
   ): Generated =
     schema match {
-      case schema: PlainTextSchema[?] => convertPlain(schema, generating)
-      case schema: JsonSchema[?]      => convertJson(schema, generating)
+      case schema: PlainTextSchema[?] => convertPlain(schema, Generating(reprs, Set.empty))
+      case schema: JsonSchema[?]      => convertJson(schema, Generating(reprs, Set.empty))
     }
 
 }
