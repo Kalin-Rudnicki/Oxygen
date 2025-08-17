@@ -40,128 +40,124 @@ object TemporaryRepr {
   //      Conversion
   //////////////////////////////////////////////////////////////////////////////////////////////////////
 
-  final case class Generating(
+  private final case class CompileInput(
       reprs: Reprs,
       recursive: Set[SimpleTypeRef.Json],
   )
 
-  private def convertPlain(
+  private def compilePlain(
       schema: PlainTextSchema[?],
-      generating: Generating,
-  ): Generated.Plain = {
+      input: CompileInput,
+  ): Compiled.Plain = {
     val myRef: SimpleTypeRef.Plain = SimpleTypeRef.Plain(schema.typeTag)
     val res =
-      if (generating.reprs.plain.contains(myRef))
-        Generated.emptyPlain(schema.typeTag)
+      if (input.reprs.plain.contains(myRef))
+        Compiled.emptyPlain(schema.typeTag)
       else
         schema match {
           case PlainTextSchema.StringSchema =>
-            Generated.plain(schema.typeTag, PlainString)
+            Compiled.plain(schema.typeTag, PlainString)
           case schema: PlainTextSchema.EnumSchema[?] =>
-            Generated.plain(schema.typeTag, PlainEnum(schema.encodedValues, schema.caseSensitive))
+            Compiled.plain(schema.typeTag, PlainEnum(schema.encodedValues, schema.caseSensitive))
           case schema: PlainTextSchema.Transform[?, ?] =>
-            val gen = convertPlain(schema.underlying, generating)
+            val gen = compilePlain(schema.underlying, input)
             gen.withPlain(schema.typeTag, PlainTransform(gen.ref))
           case schema: PlainTextSchema.TransformOrFail[?, ?] =>
-            val gen = convertPlain(schema.underlying, generating)
+            val gen = compilePlain(schema.underlying, input)
             gen.withPlain(schema.typeTag, PlainTransform(gen.ref))
         }
 
     println(
-      s"plain[${schema.typeTag}]\n  (in.plain = ${generating.reprs.plain.keySet}, in.json = ${generating.reprs.json.keySet})\n  (out.plain = ${res.reprs.plain.keySet}, out.json = ${res.reprs.json.keySet})",
+      s"plain[${schema.typeTag}]\n  (in.plain = ${input.reprs.plain.keySet}, in.json = ${input.reprs.json.keySet})\n  (out.plain = ${res.reprs.plain.keySet}, out.json = ${res.reprs.json.keySet})",
     )
 
     res
   }
 
-  private def convertJson(
+  private def compileJson(
       schema: JsonSchema[?],
-      generating: Generating,
-  ): Generated.Json = {
+      input: CompileInput,
+  ): Compiled.Json = {
     val myRef: SimpleTypeRef.Json = SimpleTypeRef.Json(schema.typeTag)
     val res =
-      if (generating.reprs.json.contains(myRef) || generating.recursive.contains(myRef)) {
+      if (input.reprs.json.contains(myRef) || input.recursive.contains(myRef)) {
         println("json.short-circuit")
-        Generated.emptyJson(schema.typeTag)
+        Compiled.emptyJson(schema.typeTag)
       } else
         schema match {
           //
           case schema: JsonSchema.StringSchema[?] =>
-            val gen = convertPlain(schema.underlying, generating)
+            val gen = compilePlain(schema.underlying, input)
             gen.withJson(schema.typeTag, JsonString(gen.ref))
           case JsonSchema.BooleanSchema =>
-            Generated.json(schema.typeTag, JsonAST(Json.Type.Boolean.some))
+            Compiled.json(schema.typeTag, JsonAST(Json.Type.Boolean.some))
           case schema: JsonSchema.ASTSchema[?] =>
-            Generated.json(schema.typeTag, JsonAST(schema.specificType))
+            Compiled.json(schema.typeTag, JsonAST(schema.specificType))
           case schema: JsonSchema.IntNumberSchema[?] =>
-            Generated.json(schema.typeTag, JsonAST(Json.Type.Number.some))
+            Compiled.json(schema.typeTag, JsonAST(Json.Type.Number.some))
           case schema: JsonSchema.NumberSchema[?] =>
-            Generated.json(schema.typeTag, JsonAST(Json.Type.Number.some))
+            Compiled.json(schema.typeTag, JsonAST(Json.Type.Number.some))
           case schema: JsonSchema.OptionalSchema[?] =>
-            val gen = convertJson(schema.underlying, generating)
+            val gen = compileJson(schema.underlying, input)
             gen.withJson(schema.typeTag, JsonOptional(gen.ref))
           case schema: JsonSchema.ArraySchema[?] =>
-            val gen = convertJson(schema.underlying, generating)
+            val gen = compileJson(schema.underlying, input)
             gen.withJson(schema.typeTag, JsonArray(gen.ref))
           case schema: JsonSchema.Transform[?, ?] =>
-            val gen = convertJson(schema.underlying, generating)
+            val gen = compileJson(schema.underlying, input)
             gen.withJson(schema.typeTag, JsonTransform(gen.ref))
           case schema: JsonSchema.TransformOrFail[?, ?] =>
-            val gen = convertJson(schema.underlying, generating)
+            val gen = compileJson(schema.underlying, input)
             gen.withJson(schema.typeTag, JsonTransform(gen.ref))
           //
           case schema: JsonSchema.ProductSchema[?] =>
-            val recursive = generating.recursive + myRef
+            val recursive = input.recursive + myRef
             @tailrec
             def loop(in: Reprs, out: Reprs, queue: List[JsonSchema.ProductField[?]], acc: Growable[JsonField]): (ArraySeq[JsonField], Reprs) =
               queue match {
                 case head :: tail =>
-                  val gen = convertJson(head.schema, Generating(in, recursive))
+                  val gen = compileJson(head.schema, CompileInput(in, recursive))
                   val field = JsonField(head.name, gen.ref)
                   loop(in ++ gen.reprs, out ++ gen.reprs, tail, acc :+ field)
                 case Nil =>
                   (acc.toArraySeq, out)
               }
 
-            val (fields, gen) = loop(generating.reprs, Reprs.empty, schema.fields.toList, Growable.empty)
+            val (fields, gen) = loop(input.reprs, Reprs.empty, schema.fields.toList, Growable.empty)
             gen.withJson(schema.typeTag, JsonProduct(fields))
           case schema: JsonSchema.SumSchema[?] =>
-            val recursive = generating.recursive + myRef
+            val recursive = input.recursive + myRef
             @tailrec
             def loop(in: Reprs, out: Reprs, queue: List[JsonSchema.SumCase[?]], acc: Growable[JsonCase]): (ArraySeq[JsonCase], Reprs) =
               queue match {
                 case head :: tail =>
-                  val gen = convertJson(head.schema, Generating(in, recursive))
+                  val gen = compileJson(head.schema, CompileInput(in, recursive))
                   val kase = JsonCase(head.name, gen.ref)
                   loop(in ++ gen.reprs, out ++ gen.reprs, tail, acc :+ kase)
                 case Nil =>
                   (acc.toArraySeq, out)
               }
 
-            val (cases, gen) = loop(generating.reprs, Reprs.empty, schema.children.toList, Growable.empty)
+            val (cases, gen) = loop(input.reprs, Reprs.empty, schema.children.toList, Growable.empty)
             gen.withJson(schema.typeTag, JsonSum(schema.discriminator, cases))
           case schema: JsonSchema.TransformProduct[?, ?] =>
-            val gen = convertJson(schema.underlying, generating)
+            val gen = compileJson(schema.underlying, input)
             gen.withJson(schema.typeTag, JsonTransform(gen.ref))
           case schema: JsonSchema.TransformOrFailProduct[?, ?] =>
-            val gen = convertJson(schema.underlying, generating)
+            val gen = compileJson(schema.underlying, input)
             gen.withJson(schema.typeTag, JsonTransform(gen.ref))
         }
 
     println(
-      s"json[${schema.typeTag}]\n  (in.plain = ${generating.reprs.plain.keySet}, in.json = ${generating.reprs.json.keySet})\n  (out.plain = ${res.reprs.plain.keySet}, out.json = ${res.reprs.json.keySet})",
+      s"json[${schema.typeTag}]\n  (in.plain = ${input.reprs.plain.keySet}, in.json = ${input.reprs.json.keySet})\n  (out.plain = ${res.reprs.plain.keySet}, out.json = ${res.reprs.json.keySet})",
     )
 
     res
   }
 
-  def from(
-      schema: AnySchema,
-      reprs: Reprs,
-  ): Generated =
-    schema match {
-      case schema: PlainTextSchema[?] => convertPlain(schema, Generating(reprs, Set.empty))
-      case schema: JsonSchema[?]      => convertJson(schema, Generating(reprs, Set.empty))
-    }
+  def compile(schema: AnySchema, reprs: Reprs): Compiled =
+    schema match
+      case schema: PlainTextSchema[?] => compilePlain(schema, CompileInput(reprs, Set.empty))
+      case schema: JsonSchema[?]      => compileJson(schema, CompileInput(reprs, Set.empty))
 
 }

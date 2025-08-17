@@ -9,14 +9,14 @@ final case class Reprs(
 
   def ++(that: Reprs): Reprs = Reprs(this.plain ++ that.plain, this.json ++ that.json)
 
-  def withPlain(typeTag: TypeTag[?], repr: TemporaryRepr.PlainRepr): Generated.Plain = {
+  def withPlain(typeTag: TypeTag[?], repr: TemporaryRepr.PlainRepr): Compiled.Plain = {
     val ref: SimpleTypeRef.Plain = SimpleTypeRef.Plain(typeTag)
-    Generated.Plain(ref, Reprs(this.plain + (ref -> repr), this.json))
+    Compiled.Plain(ref, Reprs(this.plain + (ref -> repr), this.json))
   }
 
-  def withJson(typeTag: TypeTag[?], repr: TemporaryRepr.JsonRepr): Generated.Json = {
+  def withJson(typeTag: TypeTag[?], repr: TemporaryRepr.JsonRepr): Compiled.Json = {
     val ref: SimpleTypeRef.Json = SimpleTypeRef.Json(typeTag)
-    Generated.Json(ref, Reprs(this.plain, this.json + (ref -> repr)))
+    Compiled.Json(ref, Reprs(this.plain, this.json + (ref -> repr)))
   }
 
 }
