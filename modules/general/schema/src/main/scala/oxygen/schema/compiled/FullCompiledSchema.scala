@@ -1,0 +1,302 @@
+package oxygen.schema.compiled
+
+import oxygen.json.Json.Type as JsonType
+import oxygen.predef.core.*
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////
+//      FullCompiledSchema
+//////////////////////////////////////////////////////////////////////////////////////////////////////
+
+sealed trait FullCompiledSchema {
+
+  val ref: CompiledSchemaRef
+
+  protected def __toIndentedStringInternal(seen: Set[CompiledSchemaRef]): IndentedString
+
+  protected final def makeIndentedString(typeDescr: String)(elems: (String, String | IndentedString)*): IndentedString =
+    IndentedString.inline(
+      IndentedString.keyValuesSuffixKey(": ")(
+        "type" -> typeDescr,
+      ),
+      IndentedString.keyValuesSuffixKey(": ")(elems*),
+    )
+
+  protected final def makeIndentedStringOpt(typeDescr: String)(elems: (String, Option[String | IndentedString])*): IndentedString =
+    makeIndentedString(typeDescr)(elems.collect { case (key, Some(value)) => (key, value) }*)
+
+  final def toIndentedString(seen: Set[CompiledSchemaRef]): IndentedString =
+    if (seen.contains(ref)) s"< recursive reference > ~ $ref"
+    else IndentedString.section(s"$ref:")(__toIndentedStringInternal(seen + ref))
+
+  final def toIndentedString: IndentedString =
+    toIndentedString(Set.empty)
+
+}
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////
+//      FullCompiledPlainSchema
+//////////////////////////////////////////////////////////////////////////////////////////////////////
+
+sealed trait FullCompiledPlainSchema extends FullCompiledSchema
+object FullCompiledPlainSchema {
+
+  final case class PlainText(
+      raw: RawCompiledPlainSchema,
+      rawRepr: RawCompiledPlainSchema.PlainText,
+  ) extends FullCompiledPlainSchema {
+
+    override val ref: CompiledSchemaRef = raw.ref
+
+    override protected def __toIndentedStringInternal(seen: Set[CompiledSchemaRef]): IndentedString =
+      makeIndentedStringOpt("Plain Text")(
+        "source-file" -> rawRepr.sourceFile.file.some,
+        "source-file-line" -> rawRepr.sourceFile.lineNo.map(_.toString),
+      )
+
+  }
+
+  final case class FormattedText(
+      raw: RawCompiledPlainSchema,
+      rawRepr: RawCompiledPlainSchema.FormattedText,
+  ) extends FullCompiledPlainSchema {
+
+    override val ref: CompiledSchemaRef = raw.ref
+
+    override protected def __toIndentedStringInternal(seen: Set[CompiledSchemaRef]): IndentedString =
+      makeIndentedStringOpt("Formatted Text")(
+        "source-file" -> rawRepr.sourceFile.file.some,
+        "source-file-line" -> rawRepr.sourceFile.lineNo.map(_.toString),
+        ("formats", IndentedString.inline(rawRepr.formats.toList.map { f => s"- $f" }).some),
+      )
+
+  }
+
+  final case class Enum(
+      raw: RawCompiledPlainSchema,
+      rawRepr: RawCompiledPlainSchema.Enum,
+  ) extends FullCompiledPlainSchema {
+
+    override val ref: CompiledSchemaRef = raw.ref
+
+    override protected def __toIndentedStringInternal(seen: Set[CompiledSchemaRef]): IndentedString =
+      makeIndentedString("Enum")(
+        ("case-sensitive", rawRepr.caseSensitive.toString),
+        ("exhaustive", rawRepr.exhaustive.toString),
+        ("values", rawRepr.values.map { v => s"- $v" }),
+      )
+
+  }
+
+  final case class EncodedText(
+      ref: CompiledSchemaRef.EncodedText,
+      encoding: String,
+      underlyingType: Lazy[FullCompiledPlainSchema],
+  ) extends FullCompiledPlainSchema {
+
+    override protected def __toIndentedStringInternal(seen: Set[CompiledSchemaRef]): IndentedString =
+      makeIndentedString("Encoded Text")(
+        ("encoding", encoding),
+        ("underlying-type", underlyingType.value.toIndentedString(seen)),
+      )
+
+  }
+
+  final case class JsonEncoded(
+      ref: CompiledSchemaRef.JsonEncodedText,
+      underlyingType: Lazy[FullCompiledJsonSchema],
+  ) extends FullCompiledPlainSchema {
+
+    override protected def __toIndentedStringInternal(seen: Set[CompiledSchemaRef]): IndentedString =
+      makeIndentedString("Encoded Text")(
+        ("underlying-type", underlyingType.value.toIndentedString(seen)),
+      )
+
+  }
+
+  final case class JWT(
+      ref: CompiledSchemaRef.JWT,
+      payloadType: Lazy[FullCompiledJsonSchema],
+  ) extends FullCompiledPlainSchema {
+
+    override protected def __toIndentedStringInternal(seen: Set[CompiledSchemaRef]): IndentedString =
+      makeIndentedString("JWT")(
+        "payload-type" -> payloadType.value.toIndentedString(seen),
+      )
+
+  }
+
+  final case class Transformed(
+      raw: RawCompiledPlainSchema,
+      repr: RawCompiledPlainSchema.PlainTransform,
+      underlyingType: Lazy[FullCompiledPlainSchema],
+  ) extends FullCompiledPlainSchema {
+
+    override val ref: CompiledSchemaRef = raw.ref
+
+    override protected def __toIndentedStringInternal(seen: Set[CompiledSchemaRef]): IndentedString =
+      makeIndentedStringOpt("Transformed")(
+        "source-file" -> repr.sourceFile.file.some,
+        "source-file-line" -> repr.sourceFile.lineNo.map(_.toString),
+        "underlying-type" -> underlyingType.value.toIndentedString(seen).some,
+      )
+
+  }
+
+}
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////
+//      FullCompiledJsonSchema
+//////////////////////////////////////////////////////////////////////////////////////////////////////
+
+sealed trait FullCompiledJsonSchema extends FullCompiledSchema {
+  val isInherentlyNullable: Boolean
+}
+object FullCompiledJsonSchema {
+
+  final case class JsonAST(
+      raw: RawCompiledJsonSchema,
+      rawRepr: RawCompiledJsonSchema.JsonAST,
+  ) extends FullCompiledJsonSchema {
+
+    override val ref: CompiledSchemaRef = raw.ref
+
+    override val isInherentlyNullable: Boolean =
+      rawRepr.jsonType.isEmpty || rawRepr.jsonType.contains(JsonType.Null)
+
+    override protected def __toIndentedStringInternal(seen: Set[CompiledSchemaRef]): IndentedString =
+      makeIndentedString("Json AST")(
+        "json-type" -> rawRepr.jsonType.fold("<any>")(_.toString),
+      )
+
+  }
+
+  final case class JsonString(
+      ref: CompiledSchemaRef.JsonString,
+      elemType: Lazy[FullCompiledPlainSchema],
+  ) extends FullCompiledJsonSchema {
+
+    override val isInherentlyNullable: Boolean = false
+
+    override protected def __toIndentedStringInternal(seen: Set[CompiledSchemaRef]): IndentedString =
+      makeIndentedString("Json String")(
+        "string-type" -> elemType.value.toIndentedString(seen),
+      )
+
+  }
+
+  final case class JsonArray(
+      ref: CompiledSchemaRef.JsonArray,
+      elemType: Lazy[FullCompiledJsonSchema],
+  ) extends FullCompiledJsonSchema {
+
+    override val isInherentlyNullable: Boolean = false
+
+    override protected def __toIndentedStringInternal(seen: Set[CompiledSchemaRef]): IndentedString =
+      makeIndentedString("Json Array")(
+        "elem-type" -> elemType.value.toIndentedString(seen),
+      )
+
+  }
+
+  final case class JsonMap(
+      ref: CompiledSchemaRef.JsonMap,
+      keyType: Lazy[FullCompiledPlainSchema],
+      valueType: Lazy[FullCompiledJsonSchema],
+  ) extends FullCompiledJsonSchema {
+
+    override val isInherentlyNullable: Boolean = false
+
+    override protected def __toIndentedStringInternal(seen: Set[CompiledSchemaRef]): IndentedString =
+      makeIndentedString("Json Array")(
+        "key-type" -> keyType.value.toIndentedString(seen),
+        "value-type" -> valueType.value.toIndentedString(seen),
+      )
+
+  }
+
+  sealed trait ProductLike extends FullCompiledJsonSchema
+
+  final case class JsonProduct(
+      raw: RawCompiledJsonSchema,
+      rawRepr: RawCompiledJsonSchema.JsonProduct,
+      fields: ArraySeq[ProductField],
+  ) extends ProductLike {
+
+    override val isInherentlyNullable: Boolean = false
+
+    override val ref: CompiledSchemaRef = raw.ref
+
+    override protected def __toIndentedStringInternal(seen: Set[CompiledSchemaRef]): IndentedString =
+      makeIndentedString("Json Object (Product)")(
+        ("fields", fields.map(_.toIndentedString(seen))),
+      )
+
+  }
+
+  final case class JsonSum(
+      raw: RawCompiledJsonSchema,
+      rawRepr: RawCompiledJsonSchema.JsonSum,
+      cases: ArraySeq[SumCase],
+  ) extends ProductLike {
+
+    override val isInherentlyNullable: Boolean = false
+
+    override val ref: CompiledSchemaRef = raw.ref
+
+    override protected def __toIndentedStringInternal(seen: Set[CompiledSchemaRef]): IndentedString =
+      makeIndentedStringOpt("Json Object (Product)")(
+        ("discriminator", rawRepr.discriminator),
+        ("cases", cases.map(_.toIndentedString(seen)).some),
+      )
+
+  }
+
+  final case class Transformed(
+      raw: RawCompiledJsonSchema,
+      repr: RawCompiledJsonSchema.JsonTransform,
+      underlyingType: Lazy[FullCompiledJsonSchema],
+  ) extends FullCompiledJsonSchema {
+
+    override val ref: CompiledSchemaRef = raw.ref
+
+    override val isInherentlyNullable: Boolean = repr.underlyingIsNullable
+
+    override protected def __toIndentedStringInternal(seen: Set[CompiledSchemaRef]): IndentedString =
+      makeIndentedStringOpt("Transformed")(
+        "source-file" -> repr.sourceFile.file.some,
+        "source-file-line" -> repr.sourceFile.lineNo.map(_.toString),
+        "underlying-type" -> underlyingType.value.toIndentedString(seen).some,
+      )
+
+  }
+
+  /////// Extras ///////////////////////////////////////////////////////////////
+
+  final case class ProductField(
+      raw: RawCompiledJsonSchema.ProductField,
+      fieldType: Lazy[FullCompiledJsonSchema],
+  ) {
+
+    def toIndentedString(seen: Set[CompiledSchemaRef]): IndentedString =
+      IndentedString.keyValuesSuffixKey(": ")(
+        "- name" -> raw.fieldName,
+        "  nullable" -> raw.nullable.toString,
+        "  on-missing" -> raw.onMissing.fold("Error")(_.toString),
+        "  type" -> fieldType.value.toIndentedString(seen),
+      )
+
+  }
+
+  final case class SumCase(
+      raw: RawCompiledJsonSchema.SumCase,
+      caseType: Lazy[FullCompiledJsonSchema],
+  ) {
+
+    def toIndentedString(seen: Set[CompiledSchemaRef]): IndentedString =
+      IndentedString.section(s"${raw.caseName}:")(
+        caseType.value.toIndentedString(seen),
+      )
+
+  }
+
+}

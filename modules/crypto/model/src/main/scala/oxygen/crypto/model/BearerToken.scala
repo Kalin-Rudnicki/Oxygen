@@ -68,4 +68,9 @@ object BearerToken {
       case tokenReg(headerBase64, payloadBase64, signatureBase64)  => build(headerBase64, payloadBase64, signatureBase64)
       case _                                                       => "Malformed bearer/JWT token".asLeft
 
+  val bearerStringCodec: StringCodec[BearerToken] = StringCodec.string.transformOption(decodeBearer(_).toOption, _.bearer)
+  val tokenStringCodec: StringCodec[BearerToken] = StringCodec.string.transformOption(decodeToken(_).toOption, _.token)
+  val bearerOrTokenStringCodec: StringCodec[BearerToken] = StringCodec.string.transformOption(decodeBearerOrToken(_).toOption, _.bearer)
+  given StringCodec[BearerToken] = bearerStringCodec
+
 }

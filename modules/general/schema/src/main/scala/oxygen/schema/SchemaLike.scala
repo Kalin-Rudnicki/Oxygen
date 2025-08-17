@@ -1,12 +1,20 @@
 package oxygen.schema
 
 import java.util.UUID
-import oxygen.core.{PlatformCompat, TypeTag}
+import oxygen.core.{PlatformCompat, SourcePosition}
+import oxygen.meta.K0
+import oxygen.predef.core.*
 import scala.util.Try
 
 trait SchemaLike[A] { self =>
 
   private[schema] final val schemaId: UUID = PlatformCompat.randomUUID() // used in the detection of recursive schemas
+
+  protected final def withHeader(header: String, tt: TypeTag[?], args: (String, String)*): String = s"$header[${tt.prefixAll}](${args.map { case (k, v) => s"$k=$v" }.mkString(",")})"
+  protected final def withHeader(header: String, args: (String, String)*): String = withHeader(header, typeTag, args*)
+  protected def __internalReferenceOf(builder: SchemaLike.ReferenceBuilder): String
+
+  private[schema] final lazy val referenceName: SchemaLike.ReferenceName = SchemaLike.ReferenceName(SchemaLike.ReferenceBuilder(Map.empty).referenceOf(this))
 
   type S[a] <: SchemaLike[a]
 
@@ -15,18 +23,23 @@ trait SchemaLike[A] { self =>
   def decode(string: String): Either[String, A]
   def encode(value: A): String
 
-  def transform[B: TypeTag as newTypeTag](ab: A => B, ba: B => A): S[B]
-  def transformOrFail[B: TypeTag as newTypeTag](ab: A => Either[String, B], ba: B => A): S[B]
+  def transform[B: TypeTag as newTypeTag](ab: A => B, ba: B => A)(using pos: SourcePosition): S[B]
+  def transformOrFail[B: TypeTag as newTypeTag](ab: A => Either[String, B], ba: B => A)(using pos: SourcePosition): S[B]
 
-  final def transformOption[B: TypeTag as newTypeTag](ab: A => Option[B], ba: B => A): S[B] =
+  final def transformOption[B: TypeTag as newTypeTag](ab: A => Option[B], ba: B => A)(using pos: SourcePosition): S[B] =
     transformOrFail(a => ab(a).toRight(s"Invalid '${newTypeTag.prefixObject}': $a"), ba)
-  final def transformAttempt[B: TypeTag as newTypeTag](ab: A => B, ba: B => A): S[B] =
+  final def transformAttempt[B: TypeTag as newTypeTag](ab: A => B, ba: B => A)(using pos: SourcePosition): S[B] =
     transformOption(a => Try { ab(a) }.toOption, ba)
 
-  final def transformOptionObscure[B: TypeTag as newTypeTag](ab: A => Option[B], ba: B => A): S[B] =
+  final def transformOptionObscure[B: TypeTag as newTypeTag](ab: A => Option[B], ba: B => A)(using pos: SourcePosition): S[B] =
     transformOrFail(a => ab(a).toRight("Unable to decode invalid value"), ba)
   final def transformAttemptObscure[B: TypeTag as newTypeTag](ab: A => B, ba: B => A): S[B] =
     transformOptionObscure(a => Try { ab(a) }.toOption, ba)
+
+  inline final def transformAuto[B: TypeTag](using pos: SourcePosition): S[B] = {
+    val (ab, ba) = K0.ProductGeneric.deriveTransform[A, B]
+    transform[B](ab, ba)
+  }
 
   /**
     * There are times when you only care about encoding or decoding, and not the other.
@@ -35,29 +48,51 @@ trait SchemaLike[A] { self =>
     */
   object unsafe {
 
-    def map[B: TypeTag as newTypeTag](ab: A => B): S[B] =
+    def map[B: TypeTag as newTypeTag](ab: A => B)(using pos: SourcePosition): S[B] =
       transform(ab, _ => throw SchemaLike.UnsafeEncodingFailure(self.typeTag, newTypeTag))
 
-    def mapOrFail[B: TypeTag as newTypeTag](ab: A => Either[String, B]): S[B] =
+    def mapOrFail[B: TypeTag as newTypeTag](ab: A => Either[String, B])(using pos: SourcePosition): S[B] =
       transformOrFail(ab, _ => throw SchemaLike.UnsafeEncodingFailure(self.typeTag, newTypeTag))
 
-    def mapOption[B: TypeTag as newTypeTag](ab: A => Option[B]): S[B] =
+    def mapOption[B: TypeTag as newTypeTag](ab: A => Option[B])(using pos: SourcePosition): S[B] =
       transformOrFail(a => ab(a).toRight(s"Invalid '${newTypeTag.prefixObject}': $a"), _ => throw SchemaLike.UnsafeEncodingFailure(self.typeTag, newTypeTag))
     def mapAttempt[B: TypeTag as newTypeTag](ab: A => B): S[B] =
       mapOption(a => Try { ab(a) }.toOption)
 
-    def mapOptionObscure[B: TypeTag as newTypeTag](ab: A => Option[B]): S[B] =
+    def mapOptionObscure[B: TypeTag as newTypeTag](ab: A => Option[B])(using pos: SourcePosition): S[B] =
       transformOrFail(a => ab(a).toRight("Unable to decode invalid value"), _ => throw SchemaLike.UnsafeEncodingFailure(self.typeTag, newTypeTag))
-    def mapAttemptObscure[B: TypeTag as newTypeTag](ab: A => B): S[B] =
+    def mapAttemptObscure[B: TypeTag as newTypeTag](ab: A => B)(using pos: SourcePosition): S[B] =
       mapOptionObscure(a => Try { ab(a) }.toOption)
 
-    def contramap[B: TypeTag as newTypeTag](ba: B => A): S[B] =
+    def contramap[B: TypeTag as newTypeTag](ba: B => A)(using pos: SourcePosition): S[B] =
       transform(_ => throw SchemaLike.UnsafeDecodingFailure(self.typeTag, newTypeTag), ba)
 
   }
 
 }
 object SchemaLike {
+
+  private[schema] final class ReferenceBuilder private[SchemaLike] (seenFullTypeNames: Map[UUID, String]) {
+
+    def referenceOf(schema: SchemaLike[?]): String =
+      seenFullTypeNames.get(schema.schemaId) match
+        case Some(seenFullTypeName) => s"RecursiveReference<$seenFullTypeName>"
+        case None                   => schema.__internalReferenceOf(ReferenceBuilder(seenFullTypeNames.updated(schema.schemaId, schema.typeTag.prefixAll)))
+
+  }
+
+  private[schema] final case class ReferenceName private[SchemaLike] (reference: String) {
+
+    override val hashCode: Int = reference.hashCode
+
+    override def equals(that: Any): Boolean = that.asInstanceOf[Matchable] match
+      case that: ReferenceName => this.reference == that.reference
+      case _                   => false
+
+  }
+  private[schema] object ReferenceName {
+    given Ordering[ReferenceName] = Ordering.by[ReferenceName, Int](_.reference.length).orElseBy(_.reference)
+  }
 
   // TODO (KR) : add SourceLocation
   final case class UnsafeEncodingFailure(aTag: TypeTag[?], bTag: TypeTag[?]) extends Throwable {

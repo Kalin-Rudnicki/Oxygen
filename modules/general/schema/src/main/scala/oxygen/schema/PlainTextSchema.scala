@@ -2,16 +2,22 @@ package oxygen.schema
 
 import java.time.*
 import java.util.{TimeZone, UUID}
-import oxygen.core.TypeTag
+import oxygen.core.{SourcePosition, TypeTag}
 import oxygen.crypto.model.{BearerToken, JWT, Password}
+import oxygen.meta.K0
 import oxygen.predef.core.*
+import scala.quoted.*
 
 sealed trait PlainTextSchema[A] extends SchemaLike[A] {
 
   override final type S[a] = PlainTextSchema[a]
 
-  override final def transform[B: TypeTag as newTypeTag](ab: A => B, ba: B => A): PlainTextSchema[B] = PlainTextSchema.Transform(this, newTypeTag, ab, ba)
-  override final def transformOrFail[B: TypeTag as newTypeTag](ab: A => Either[String, B], ba: B => A): PlainTextSchema[B] = PlainTextSchema.TransformOrFail(this, newTypeTag, ab, ba)
+  override final def transform[B: TypeTag as newTypeTag](ab: A => B, ba: B => A)(using pos: SourcePosition): PlainTextSchema[B] =
+    PlainTextSchema.Transform(this, newTypeTag, ab, ba, pos)
+  override final def transformOrFail[B: TypeTag as newTypeTag](ab: A => Either[String, B], ba: B => A)(using pos: SourcePosition): PlainTextSchema[B] =
+    PlainTextSchema.TransformOrFail(this, newTypeTag, ab, ba, pos)
+
+  final def @@(wrapper: PlainTextSchema.Encoding): PlainTextSchema[A] = PlainTextSchema.EncodedText(this, wrapper)
 
 }
 object PlainTextSchema extends PlainTextSchemaLowPriority.LowPriority1 {
@@ -21,74 +27,100 @@ object PlainTextSchema extends PlainTextSchemaLowPriority.LowPriority1 {
   //////////////////////////////////////////////////////////////////////////////////////////////////////
 
   given string: PlainTextSchema[String] = StringSchema
-  given uuid: PlainTextSchema[UUID] = PlainTextSchema.string.transformAttempt(UUID.fromString, _.toString)
-  given boolean: PlainTextSchema[Boolean] = PlainTextSchema.string.transformOption(_.toBooleanOption, _.toString)
+  given uuid: PlainTextSchema[UUID] = PlainTextSchema.fromStringCodecWithFormat("UUID", "RFC 4122")
+  given boolean: PlainTextSchema[Boolean] = PlainTextSchema.fromStringCodecWithFormat("boolean")
 
-  given byte: PlainTextSchema[Byte] = PlainTextSchema.string.transformOption(_.toByteOption, _.toString)
-  given short: PlainTextSchema[Short] = PlainTextSchema.string.transformOption(_.toShortOption, _.toString)
-  given int: PlainTextSchema[Int] = PlainTextSchema.string.transformOption(_.toIntOption, _.toString)
-  given long: PlainTextSchema[Long] = PlainTextSchema.string.transformOption(_.toLongOption, _.toString)
-  given bigInt: PlainTextSchema[BigInt] = PlainTextSchema.string.transformAttempt(BigInt(_), _.toString)
+  given byte: PlainTextSchema[Byte] = PlainTextSchema.fromStringCodecWithFormat("Int8")
+  given short: PlainTextSchema[Short] = PlainTextSchema.fromStringCodecWithFormat("Int16")
+  given int: PlainTextSchema[Int] = PlainTextSchema.fromStringCodecWithFormat("Int32")
+  given long: PlainTextSchema[Long] = PlainTextSchema.fromStringCodecWithFormat("Int64")
+  given bigInt: PlainTextSchema[BigInt] = PlainTextSchema.fromStringCodecWithFormat("BigInt")
 
-  given float: PlainTextSchema[Float] = PlainTextSchema.string.transformOption(_.toFloatOption, _.toString)
-  given double: PlainTextSchema[Double] = PlainTextSchema.string.transformOption(_.toDoubleOption, _.toString)
-  given bigDecimal: PlainTextSchema[BigDecimal] = PlainTextSchema.string.transformAttempt(BigDecimal(_), _.toString)
+  given float: PlainTextSchema[Float] = PlainTextSchema.fromStringCodecWithFormat("Float32")
+  given double: PlainTextSchema[Double] = PlainTextSchema.fromStringCodecWithFormat("Float64")
+  given bigDecimal: PlainTextSchema[BigDecimal] = PlainTextSchema.fromStringCodecWithFormat("BigDecimal")
 
-  given localDate: PlainTextSchema[LocalDate] = PlainTextSchema.string.transformAttempt(LocalDate.parse, _.toString)
-  given localTime: PlainTextSchema[LocalTime] = PlainTextSchema.string.transformAttempt(LocalTime.parse, _.toString)
-  given localDateTime: PlainTextSchema[LocalDateTime] = PlainTextSchema.string.transformAttempt(LocalDateTime.parse, _.toString)
+  given period: PlainTextSchema[Period] = standardJavaTime.period
+  given instant: PlainTextSchema[Instant] = standardJavaTime.instant
+  given offsetDateTime: PlainTextSchema[OffsetDateTime] = standardJavaTime.offsetDateTime
+  given zonedDateTime: PlainTextSchema[ZonedDateTime] = standardJavaTime.zonedDateTime
+  given zoneId: PlainTextSchema[ZoneId] = standardJavaTime.zoneId
+  given zoneOffset: PlainTextSchema[ZoneOffset] = standardJavaTime.zoneOffset
+  given timeZone: PlainTextSchema[TimeZone] = standardJavaTime.timeZone
 
-  given duration: PlainTextSchema[Duration] = PlainTextSchema.fromStringCodec
-  given period: PlainTextSchema[Period] = PlainTextSchema.string.transformAttempt(Period.parse, _.toString)
-  given instant: PlainTextSchema[Instant] = PlainTextSchema.string.transformAttempt(Instant.parse, _.toString)
-  given offsetDateTime: PlainTextSchema[OffsetDateTime] = PlainTextSchema.string.transformAttempt(OffsetDateTime.parse, _.toString)
-  given zonedDateTime: PlainTextSchema[ZonedDateTime] = PlainTextSchema.string.transformAttempt(ZonedDateTime.parse, _.toString)
-  given zoneId: PlainTextSchema[ZoneId] = PlainTextSchema.string.transformAttempt(ZoneId.of, _.toString)
-  given zoneOffset: PlainTextSchema[ZoneOffset] = PlainTextSchema.string.transformAttempt(ZoneOffset.of, _.toString)
-  given timeZone: PlainTextSchema[TimeZone] = PlainTextSchema.string.transformAttempt(TimeZone.getTimeZone, _.getID)
+  given duration: PlainTextSchema[Duration] = standardJavaTime.duration
+  given localDate: PlainTextSchema[LocalDate] = standardJavaTime.localDate
+  given localTime: PlainTextSchema[LocalTime] = standardJavaTime.localTime
+  given localDateTime: PlainTextSchema[LocalDateTime] = standardJavaTime.localDateTime
 
-  given bearerToken: PlainTextSchema[BearerToken] = PlainTextSchema.BearerTokenSchema
+  given bearerToken: PlainTextSchema[BearerToken] = PlainTextSchema.fromStringCodecWithFormat("Bearer Token", "RFC 6750")
 
-  given standardJWT: [A: JsonSchema] => (jwtTypeTag: TypeTag[JWT.Std[A]], payloadTypeTag: TypeTag[JWT.StandardPayload[A]]) => PlainTextSchema[JWT.Std[A]] =
-    PlainTextSchema.JWTSchema(jwtTypeTag, instances.standardJWTPayloadSchema[A])
-  given password: PlainTextSchema[Password.PlainText] = PlainTextSchema.fromStringCodec
+  given standardJWT: [A: JsonSchema] => PlainTextSchema[JWT.Std[A]] = PlainTextSchema.JWTSchema(instances.standardJWTPayloadSchema[A])
 
-  def fromStringCodec[A: {StringCodec as codec, TypeTag}]: PlainTextSchema[A] =
-    PlainTextSchema.string.transformOrFail(codec.decoder.decodeSimple, codec.encoder.encode)
+  given password: PlainTextSchema[Password.PlainText] =
+    PlainTextSchema.fromStringCodec
+
+  def fromStringCodec[A: StringCodec as codec](using pos: SourcePosition): PlainTextSchema[A] =
+    PlainTextSchema.FromStringCodec(codec, None, pos)
+  def fromStringCodecWithFormat[A: StringCodec as codec](format0: String, formatN: String*)(using pos: SourcePosition): PlainTextSchema[A] =
+    PlainTextSchema.FromStringCodec(codec, NonEmptyList(format0, formatN.toList).some, pos)
+
+  def jsonString[A: JsonSchema as schema]: PlainTextSchema[A] = PlainTextSchema.JsonEncoded(schema)
+
+  object standardJavaTime {
+
+    given period: PlainTextSchema[Period] = PlainTextSchema.fromStringCodecWithFormat("ISO 8601 (Period)")(using StringCodec.standardJavaTime.period)
+    given instant: PlainTextSchema[Instant] = PlainTextSchema.fromStringCodecWithFormat("ISO 8601 (Instant)")(using StringCodec.standardJavaTime.instant)
+    given offsetDateTime: PlainTextSchema[OffsetDateTime] =
+      PlainTextSchema.fromStringCodecWithFormat("ISO 8601 (Date Time with Offset)")(using StringCodec.standardJavaTime.offsetDateTime)
+    given zonedDateTime: PlainTextSchema[ZonedDateTime] =
+      PlainTextSchema.fromStringCodecWithFormat("ISO 8601 (Date Time with Zone)")(using StringCodec.standardJavaTime.zonedDateTime)
+    given zoneId: PlainTextSchema[ZoneId] = PlainTextSchema.fromStringCodecWithFormat("IANA Time Zone Database")(using StringCodec.standardJavaTime.zoneId)
+    given zoneOffset: PlainTextSchema[ZoneOffset] = PlainTextSchema.fromStringCodecWithFormat("ISO 8601 (Zone Offset)")(using StringCodec.standardJavaTime.zoneOffset)
+    given timeZone: PlainTextSchema[TimeZone] = PlainTextSchema.fromStringCodecWithFormat("IANA Time Zone Database")(using StringCodec.standardJavaTime.timeZone)
+
+    given duration: PlainTextSchema[Duration] = PlainTextSchema.fromStringCodecWithFormat("ISO 8601 (Duration)")(using StringCodec.standardJavaTime.duration)
+    given localDate: PlainTextSchema[LocalDate] = PlainTextSchema.fromStringCodecWithFormat("ISO 8601 (Date)")(using StringCodec.standardJavaTime.localDate)
+    given localTime: PlainTextSchema[LocalTime] = PlainTextSchema.fromStringCodecWithFormat("ISO 8601 (Time)")(using StringCodec.standardJavaTime.localTime)
+    given localDateTime: PlainTextSchema[LocalDateTime] = PlainTextSchema.fromStringCodecWithFormat("ISO 8601 (Date Time)")(using StringCodec.standardJavaTime.localDateTime)
+
+  }
+
+  object oxygenTime {
+
+    given duration: PlainTextSchema[Duration] = PlainTextSchema.fromStringCodec(using StringCodec.oxygenTime.duration)
+    given localDate: PlainTextSchema[LocalDate] = PlainTextSchema.fromStringCodecWithFormat("Oxygen (Date)", "ISO 8601 (Date)")(using StringCodec.oxygenTime.localDate)
+    given localTime: PlainTextSchema[LocalTime] = PlainTextSchema.fromStringCodec(using StringCodec.oxygenTime.localTime)
+    given localDateTime: PlainTextSchema[LocalDateTime] = PlainTextSchema.fromStringCodec(using StringCodec.oxygenTime.localDateTime)
+
+  }
 
   //////////////////////////////////////////////////////////////////////////////////////////////////////
   //      Instances
   //////////////////////////////////////////////////////////////////////////////////////////////////////
 
-  case object StringSchema extends PlainTextSchema[String] {
+  private[schema] case object StringSchema extends PlainTextSchema[String] {
+    val pos: SourcePosition = SourcePosition.derived
     override val typeTag: TypeTag[String] = TypeTag[String]
+    override protected def __internalReferenceOf(builder: SchemaLike.ReferenceBuilder): String = withHeader("PlainText")
     override def decode(string: String): Either[String, String] = string.asRight
     override def encode(value: String): String = value
   }
 
-  trait EnumSchema[A] extends PlainTextSchema[A] {
+  private[schema] trait EnumSchema[A] extends PlainTextSchema[A] {
     val encodedValues: Seq[String]
+    override protected final def __internalReferenceOf(builder: SchemaLike.ReferenceBuilder): String =
+      withHeader("PlainText.Enum", "values" -> encodedValues.mkString("[", ",", "]"), "caseSensitive" -> caseSensitive.toString, "exhaustive" -> exhaustive.toString)
+    val caseSensitive: Boolean
+    val exhaustive: Boolean
   }
 
-  final case class GenericEnumSchema[A](typeTag: TypeTag[A], values: Seq[A], encodeValue: A => String, caseSensitive: Boolean) extends EnumSchema[A] {
-
-    override val encodedValues: Seq[String] = values.map(encodeValue)
-    private val encodedValuesString: String = encodedValues.map(s => s"'$s'").mkString(", ")
-
-    val valueMap: Map[String, A] = values.map { a => (if (caseSensitive) encodeValue(a) else encodeValue(a).toLowerCase, a) }.toMap
-
-    override def decode(string: String): Either[String, A] =
-      valueMap.get(if (caseSensitive) string else string.toLowerCase).toRight(s"Invalid '${typeTag.prefixObject}' ($string), expected one of: $encodedValuesString")
-
-    override def encode(value: A): String =
-      encodeValue(value)
-
-  }
-
-  final case class StrictEnumSchema[A](strictEnum: StrictEnum[A]) extends EnumSchema[A] {
+  private[schema] final case class StrictEnumSchema[A](strictEnum: StrictEnum[A]) extends EnumSchema[A] {
 
     override val typeTag: TypeTag[A] = strictEnum.typeTag
     override val encodedValues: Seq[String] = strictEnum.encodedValues
+    override val caseSensitive: Boolean = false
+    override val exhaustive: Boolean = true
 
     override def decode(string: String): Either[String, A] = strictEnum.decodeEitherWithHint(string)
 
@@ -96,10 +128,12 @@ object PlainTextSchema extends PlainTextSchemaLowPriority.LowPriority1 {
 
   }
 
-  final case class EnumWithOtherSchema[A](strictEnum: EnumWithOther[A]) extends EnumSchema[A] {
+  private[schema] final case class EnumWithOtherSchema[A](strictEnum: EnumWithOther[A]) extends EnumSchema[A] {
 
     override val typeTag: TypeTag[A] = strictEnum.typeTag
     override val encodedValues: Seq[String] = strictEnum.encodedValues
+    override val caseSensitive: Boolean = false
+    override val exhaustive: Boolean = false
 
     override def decode(string: String): Either[String, A] = strictEnum.decode(string).asRight
 
@@ -107,26 +141,130 @@ object PlainTextSchema extends PlainTextSchemaLowPriority.LowPriority1 {
 
   }
 
-  case object BearerTokenSchema extends PlainTextSchema[BearerToken] {
-    override val typeTag: TypeTag[BearerToken] = TypeTag[BearerToken]
-    override def decode(string: String): Either[String, BearerToken] = BearerToken.decodeBearer(string)
-    override def encode(value: BearerToken): String = value.bearer
-  }
-
-  final case class JWTSchema[A](typeTag: TypeTag[JWT[A]], payloadSchema: JsonSchema[A]) extends PlainTextSchema[JWT[A]] {
+  private[schema] final case class JWTSchema[A](payloadSchema: JsonSchema[A]) extends PlainTextSchema[JWT[A]] {
+    override val typeTag: TypeTag[JWT[A]] = {
+      given TypeTag[A] = payloadSchema.typeTag
+      TypeTag.derived[JWT[A]]
+    }
+    override protected def __internalReferenceOf(builder: SchemaLike.ReferenceBuilder): String = s"JWT(${builder.referenceOf(payloadSchema)})"
     override def decode(string: String): Either[String, JWT[A]] = JWT.decodeBearer[A](string)(using payloadSchema.jsonDecoder)
     override def encode(value: JWT[A]): String = value.token.bearer
   }
 
-  final case class Transform[A, B](underlying: PlainTextSchema[A], typeTag: TypeTag[B], ab: A => B, ba: B => A) extends PlainTextSchema[B] {
+  private[schema] final case class JsonEncoded[A](underlying: JsonSchema[A]) extends PlainTextSchema[A] {
+    override val typeTag: TypeTag[A] = underlying.typeTag
+
+    // this exactly matches the reference string of the corresponding JsonSchema so that there is no penalty or duplication from switching back and forth
+    override protected def __internalReferenceOf(builder: SchemaLike.ReferenceBuilder): String = builder.referenceOf(underlying)
+
+    override def decode(string: String): Either[String, A] = underlying.decode(string)
+    override def encode(value: A): String = underlying.encode(value)
+  }
+
+  private[schema] final case class FromStringCodec[A](codec: StringCodec[A], formats: Option[NonEmptyList[String]], pos: SourcePosition) extends PlainTextSchema[A] {
+
+    override val typeTag: TypeTag[A] = codec.decoder.typeInfo
+
+    override protected def __internalReferenceOf(builder: SchemaLike.ReferenceBuilder): String = formats match
+      case Some(NonEmptyList(head, Nil)) => withHeader("FromStringCodec", "pos" -> pos.toString, "format" -> head)
+      case Some(formats)                 => withHeader("FromStringCodec", "pos" -> pos.toString, "formats" -> formats.mkString("[", ",", "]"))
+      case None                          => withHeader("FromStringCodec", "pos" -> pos.toString)
+
+    private val formatsSuffix: Option[String] =
+      formats.map {
+        case NonEmptyList(head, Nil) => s"\n  Accepted Format: $head"
+        case formats                 => "\n  Accepted Formats:" + formats.map { f => s"\n    - $f" }.mkString
+      }
+
+    private val decodeInternal: String => Either[String, A] = formatsSuffix match
+      case Some(formatsSuffix) => codec.decoder.decodeDetailed(_).leftMap(_ + formatsSuffix)
+      case None                => codec.decoder.decodeDetailed
+
+    override def decode(string: String): Either[String, A] = decodeInternal(string)
+    override def encode(value: A): String = codec.encoder.encode(value)
+
+  }
+
+  private[schema] final case class EncodedText[A](underlying: PlainTextSchema[A], encoding: PlainTextSchema.Encoding) extends PlainTextSchema[A] {
+
+    override val typeTag: TypeTag[A] = underlying.typeTag
+
+    override protected def __internalReferenceOf(builder: SchemaLike.ReferenceBuilder): String = s"Encoded<${encoding.name}>(${builder.referenceOf(underlying)})"
+
+    override def decode(string: String): Either[String, A] =
+      encoding.codec.decoder.decodeDetailed(string).flatMap(underlying.decode)
+
+    override def encode(value: A): String =
+      encoding.codec.encoder.encode(underlying.encode(value))
+
+  }
+
+  private[schema] final case class Transform[A, B](
+      underlying: PlainTextSchema[A],
+      typeTag: TypeTag[B],
+      ab: A => B,
+      ba: B => A,
+      pos: SourcePosition,
+  ) extends PlainTextSchema[B] {
+    override protected def __internalReferenceOf(builder: SchemaLike.ReferenceBuilder): String =
+      withHeader("PlainText.Transform", "pos" -> pos.toString, "underlying" -> builder.referenceOf(underlying))
     override def decode(string: String): Either[String, B] = underlying.decode(string).map(ab)
     override def encode(value: B): String = underlying.encode(ba(value))
   }
 
-  final case class TransformOrFail[A, B](underlying: PlainTextSchema[A], typeTag: TypeTag[B], ab: A => Either[String, B], ba: B => A) extends PlainTextSchema[B] {
+  private[schema] final case class TransformOrFail[A, B](
+      underlying: PlainTextSchema[A],
+      typeTag: TypeTag[B],
+      ab: A => Either[String, B],
+      ba: B => A,
+      pos: SourcePosition,
+  ) extends PlainTextSchema[B] {
+    override protected def __internalReferenceOf(builder: SchemaLike.ReferenceBuilder): String =
+      withHeader("PlainText.Transform", "pos" -> pos.toString, "underlying" -> builder.referenceOf(underlying))
     override def decode(string: String): Either[String, B] = underlying.decode(string).flatMap(ab)
     override def encode(value: B): String = underlying.encode(ba(value))
   }
+
+  final case class Encoding private (codec: StringCodec[String], name: String) {
+    override def toString: String = s"PlainTextSchema.Encoding($name)"
+  }
+  object Encoding {
+
+    val base64WithPadding: Encoding = Encoding(StringCodec.base64, "Base64 (With Padding)")
+    val base64UrlWithPadding: Encoding = Encoding(StringCodec.base64Url, "Base64 Url (With Padding)")
+    val base64MimeWithPadding: Encoding = Encoding(StringCodec.base64Mime, "Base64 Mime (With Padding)")
+
+    val base64WithoutPadding: Encoding = Encoding(StringCodec.base64NoPadding, "Base64 (Without Padding)")
+    val base64UrlWithoutPadding: Encoding = Encoding(StringCodec.base64UrlNoPadding, "Base64 Url (Without Padding)")
+    val base64MimeWithoutPadding: Encoding = Encoding(StringCodec.base64MimeNoPadding, "Base64 Mime (Without Padding)")
+
+  }
+
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
+  //      Generic
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
+
+  private def deriveWrappedImpl[A: Type](using Quotes): Expr[PlainTextSchema[A]] = {
+    type B
+    val wrapping = K0.ProductGeneric.extractSingleCaseClassField[A, B]
+    given Type[B] = wrapping.field.tpe
+
+    '{ ${ wrapping.field.summonTypeClass[PlainTextSchema] }.transform[A](${ wrapping.wrapExpr }, ${ wrapping.unwrapExpr }) }
+  }
+
+  /**
+    * Expects [[A]] to be a case class with a single field.
+    * Will then derive an instance
+    *
+    * Example:
+    * ```scala
+    * final case class Wrapped(value: String)
+    * object Wrapped {
+    *   given PlainTextSchema[Wrapped] = PlainTextSchema.deriveWrapped
+    * }
+    * ```
+    */
+  inline def deriveWrapped[A]: PlainTextSchema[A] = ${ deriveWrappedImpl[A] }
 
 }
 
@@ -134,7 +272,7 @@ object PlainTextSchemaLowPriority {
 
   trait LowPriority1 {
 
-    given jwt: [A: JsonSchema as payloadSchema] => (typeTag: TypeTag[JWT[A]]) => PlainTextSchema[JWT[A]] = PlainTextSchema.JWTSchema(typeTag, payloadSchema)
+    given jwt: [A: JsonSchema as payloadSchema] => PlainTextSchema[JWT[A]] = PlainTextSchema.JWTSchema(payloadSchema)
 
     given strictEnum: [A: StrictEnum as e] => PlainTextSchema[A] = PlainTextSchema.StrictEnumSchema(e)
     given enumWithOther: [A: EnumWithOther as e] => PlainTextSchema[A] = PlainTextSchema.EnumWithOtherSchema(e)

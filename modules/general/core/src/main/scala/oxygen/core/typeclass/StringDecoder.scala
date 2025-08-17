@@ -294,6 +294,7 @@ object StringDecoder extends StringDecoderLowPriority.LowPriority1 {
 
   }
 
+  // TODO (KR) : move this logic exclusively to StringCodec or PlainTextSchema
   sealed trait Hint {
 
     override final def toString: String = this match
