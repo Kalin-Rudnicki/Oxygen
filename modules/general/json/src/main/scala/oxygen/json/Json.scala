@@ -84,7 +84,7 @@ sealed trait Json {
 }
 object Json {
 
-  enum Type { case String, Number, Boolean, Array, Object, Null }
+  enum Type derives StrictEnum { case String, Number, Boolean, Array, Object, Null }
 
   //////////////////////////////////////////////////////////////////////////////////////////////////////
   //      Cases

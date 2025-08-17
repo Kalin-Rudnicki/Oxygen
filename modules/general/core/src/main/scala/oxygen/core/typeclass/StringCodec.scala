@@ -134,34 +134,18 @@ object StringCodec {
   given double: StringCodec[Double] = StringCodec.string.transformOption(_.toDoubleOption, _.toString)
   given bigDecimal: StringCodec[BigDecimal] = StringCodec.string.transformCatchOption(BigDecimal(_), _.toString)
 
-  given period: StringCodec[Period] = StringCodec.string.transformCatchOption(Period.parse, _.toString)
-  given instant: StringCodec[Instant] = StringCodec.string.transformCatchOption(Instant.parse, _.toString)
-  given offsetDateTime: StringCodec[OffsetDateTime] = StringCodec.string.transformCatchOption(OffsetDateTime.parse(_), _.toString)
-  given zonedDateTime: StringCodec[ZonedDateTime] = StringCodec.string.transformCatchOption(ZonedDateTime.parse(_), _.toString)
-  given zoneId: StringCodec[ZoneId] = StringCodec.string.transformCatchOption(ZoneId.of, _.toString)
-  given zoneOffset: StringCodec[ZoneOffset] = StringCodec.string.transformCatchOption(ZoneOffset.of, _.toString)
-  given timeZone: StringCodec[TimeZone] = StringCodec.string.transformCatchOption(TimeZone.getTimeZone, _.getID)
+  given period: StringCodec[Period] = standardJavaTime.period
+  given instant: StringCodec[Instant] = standardJavaTime.instant
+  given offsetDateTime: StringCodec[OffsetDateTime] = standardJavaTime.offsetDateTime
+  given zonedDateTime: StringCodec[ZonedDateTime] = standardJavaTime.zonedDateTime
+  given zoneId: StringCodec[ZoneId] = standardJavaTime.zoneId
+  given zoneOffset: StringCodec[ZoneOffset] = standardJavaTime.zoneOffset
+  given timeZone: StringCodec[TimeZone] = standardJavaTime.timeZone
 
-  given localTime: StringCodec[LocalTime] =
-    StringCodec(
-      StringEncoder.usingToString,
-      StringDecoder.string.mapCatchOption(LocalTime.parse(_)) <> StringDecoder.localTime,
-    )
-  given localDate: StringCodec[LocalDate] =
-    StringCodec(
-      StringEncoder.usingToString,
-      StringDecoder.string.mapCatchOption(LocalDate.parse(_)) <> StringDecoder.localDate(LocalDate.now().getYear, 25),
-    )
-  given localDateTime: StringCodec[LocalDateTime] =
-    StringCodec(
-      StringEncoder.usingToString,
-      StringDecoder.string.mapCatchOption(LocalDateTime.parse(_)) <> StringDecoder.localDateTime(LocalDate.now().getYear, 25),
-    )
-  given duration: StringCodec[Duration] =
-    StringCodec(
-      StringEncoder.usingToString,
-      StringDecoder.duration <> StringDecoder.string.mapCatchOption(Duration.parse),
-    )
+  given localTime: StringCodec[LocalTime] = oxygenTime.localTime
+  given localDate: StringCodec[LocalDate] = oxygenTime.localDate
+  given localDateTime: StringCodec[LocalDateTime] = oxygenTime.localDateTime
+  given duration: StringCodec[Duration] = oxygenTime.duration
 
   given `class`: StringCodec[Class[?]] =
     StringCodec.string.transform(str => Try { Class.forName(str) }.getOrElse { classOf[Any] }, _.getName)
@@ -170,6 +154,48 @@ object StringCodec {
     StringCodec.string.transformOption(StringDecoder.Hint.AllowedValues(e.encodedValues), e.decodeOption, e.encode)(using e.typeTag)
   given enumWithOther: [A: EnumWithOther as e] => StringCodec[A] =
     StringCodec.string.transform(e.decode, e.encode)(using e.typeTag)
+
+  object standardJavaTime {
+
+    given period: StringCodec[Period] = StringCodec.string.transformCatchOption(Period.parse, _.toString)
+    given instant: StringCodec[Instant] = StringCodec.string.transformCatchOption(Instant.parse, _.toString)
+    given offsetDateTime: StringCodec[OffsetDateTime] = StringCodec.string.transformCatchOption(OffsetDateTime.parse(_), _.toString)
+    given zonedDateTime: StringCodec[ZonedDateTime] = StringCodec.string.transformCatchOption(ZonedDateTime.parse(_), _.toString)
+    given zoneId: StringCodec[ZoneId] = StringCodec.string.transformCatchOption(ZoneId.of, _.toString)
+    given zoneOffset: StringCodec[ZoneOffset] = StringCodec.string.transformCatchOption(ZoneOffset.of, _.toString)
+    given timeZone: StringCodec[TimeZone] = StringCodec.string.transformCatchOption(TimeZone.getTimeZone, _.getID)
+
+    given localTime: StringCodec[LocalTime] = StringCodec(StringEncoder.usingToString, StringDecoder.localTime)
+    given localDate: StringCodec[LocalDate] = StringCodec(StringEncoder.usingToString, StringDecoder.string.mapCatchOption(LocalDate.parse(_)))
+    given localDateTime: StringCodec[LocalDateTime] = StringCodec(StringEncoder.usingToString, StringDecoder.string.mapCatchOption(LocalDateTime.parse(_)))
+    given duration: StringCodec[Duration] = StringCodec(StringEncoder.usingToString, StringDecoder.duration <> StringDecoder.string.mapCatchOption(Duration.parse))
+
+  }
+
+  object oxygenTime {
+
+    given localTime: StringCodec[LocalTime] =
+      StringCodec(
+        StringEncoder.usingToString,
+        StringDecoder.string.mapCatchOption(LocalTime.parse(_)) <> StringDecoder.localTime,
+      )
+    given localDate: StringCodec[LocalDate] =
+      StringCodec(
+        StringEncoder.usingToString,
+        StringDecoder.string.mapCatchOption(LocalDate.parse(_)) <> StringDecoder.localDate(LocalDate.now().getYear, 25),
+      )
+    given localDateTime: StringCodec[LocalDateTime] =
+      StringCodec(
+        StringEncoder.usingToString,
+        StringDecoder.string.mapCatchOption(LocalDateTime.parse(_)) <> StringDecoder.localDateTime(LocalDate.now().getYear, 25),
+      )
+    given duration: StringCodec[Duration] =
+      StringCodec(
+        StringEncoder.usingToString,
+        StringDecoder.duration <> StringDecoder.string.mapCatchOption(Duration.parse),
+      )
+
+  }
 
   //////////////////////////////////////////////////////////////////////////////////////////////////////
   //      Manual

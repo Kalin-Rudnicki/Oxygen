@@ -1,7 +1,11 @@
 package oxygen.schema
 
+import java.time.*
 import oxygen.json.*
+import oxygen.json.syntax.json.*
 import oxygen.predef.test.*
+import oxygen.schema.compiled.*
+import zio.test.TestResult
 
 object DeriveSchemaSpec extends OxygenSpecDefault {
 
@@ -13,6 +17,34 @@ object DeriveSchemaSpec extends OxygenSpecDefault {
   final case class Product2(
       @jsonField("product") p: Product1,
   ) derives JsonSchema.ProductLike
+  object Product2 {
+
+    final case class Wrapped(value: Product2)
+    object Wrapped {
+      given JsonSchema[Wrapped] = JsonSchema.deriveWrapped[Wrapped]
+    }
+
+    final case class OptWrapped(value: Option[Product2])
+    object OptWrapped {
+      given JsonSchema[OptWrapped] = JsonSchema.deriveWrapped[OptWrapped]
+    }
+
+  }
+
+  final case class Product3(
+      value: String,
+      rec: Option[Product3],
+      timestamp: Instant,
+      date: LocalDate,
+      updated: Updated,
+  ) derives JsonSchema.ProductLike
+
+  final case class Updated(at: Option[Instant])
+  object Updated {
+    given JsonSchema[Updated] = JsonSchema.option[Instant].transform(Updated(_), _.at)
+  }
+
+  enum MyEnum derives StrictEnum { case A, B, C }
 
   enum Sum1 derives JsonSchema.ProductLike {
     @jsonType("_A_") case A
@@ -24,8 +56,35 @@ object DeriveSchemaSpec extends OxygenSpecDefault {
   enum Sum2 derives JsonSchema.ProductLike {
     case A
     @jsonType("_B_") case B()
-    case C(@jsonField("p2") p: Product2)
+    case C(@jsonField("p2") p: Product2, p3: Product3, e: MyEnum)
   }
+
+  final case class IntPlusOne(i: Int)
+  object IntPlusOne {
+    given JsonSchema[IntPlusOne] = JsonSchema.int.transform(_ + 1, _ - 1).transform(_ - 1, _ + 1).transform(_ + 1, _ - 1).transformAuto[IntPlusOne]
+  }
+
+  final case class Base64OxygenDate(product1: LocalDate)
+  object Base64OxygenDate {
+    import JsonSchema.oxygenTime.given
+    given PlainTextSchema[Base64OxygenDate] = JsonSchema.deriveWrapped[Base64OxygenDate] @@ PlainTextSchema.Encoding.base64WithPadding
+    given JsonSchema[Base64OxygenDate] = JsonSchema.fromPlainText
+  }
+
+  final case class TestProduct(
+      ip1: IntPlusOne,
+      b64p1: Base64OxygenDate,
+      int1: Int,
+      int2: Option[Int],
+      int3: Specified[Int],
+      int4: Specified[Option[Int]],
+      int5: Option[Specified[Int]],
+      wrapped1: Updated,
+      wrapped2: Option[Updated],
+      wrapped3: Specified[Updated],
+      wrapped4: Specified[Option[Updated]],
+      wrapped5: Option[Specified[Updated]],
+  ) derives JsonSchema
 
   override def testSpec: TestSpec =
     suite("DeriveSchemaSpec")(
@@ -78,15 +137,57 @@ object DeriveSchemaSpec extends OxygenSpecDefault {
           val aFields = a.fields.toList
           val bFields = b.fields.toList
           val cFields = c.fields.toList
+
           assertTrue(
             schema.discriminator.contains("type"),
             aFields.map(_.name) == List(),
             bFields.map(_.name) == List(),
-            cFields.map(_.name) == List("p2"),
+            cFields.map(_.name) == List("p2", "p3", "e"),
             cFields.find(_.name == "p2").exists(_.schema == JsonSchema[Product2]),
           )
         },
       ),
+      test("compiler") {
+        val compiling: Compiled[CompiledSchemaRef] =
+          for {
+            _ <- Compiled.usingJson[Product1]
+            _ <- Compiled.usingJson[Product3]
+            _ <- Compiled.usingJson[Sum1]
+            _ <- Compiled.usingJson[Sum2]
+            _ <- Compiled.usingJson[Option[Product2]]
+            _ <- Compiled.usingJson[List[Product2]]
+            _ <- Compiled.plain(PlainTextSchema.bearerToken)
+            _ <- Compiled.usingJson[Product2.Wrapped]
+            _ <- Compiled.usingJson[Product2.OptWrapped]
+            ref <- Compiled.usingJson[TestProduct]
+          } yield ref
+
+        val rawCompiled = compiling.compiled._2
+        val fullCompiled = FullCompiledSchemas(rawCompiled)
+
+        val exportFiles: Boolean = true
+
+        def showTypes: IndentedString =
+          IndentedString.inline(
+            IndentedString.Break,
+            IndentedString.section("raw:")(
+              rawCompiled.all.map(s => s"- ${s.ref.showCore}"),
+            ),
+            IndentedString.Break,
+            IndentedString.section("full:")(
+              fullCompiled.allSchemas.map(s => s"- ${s.ref.showCore}"),
+            ),
+            IndentedString.Break,
+          )
+
+        val doExport: Task[Unit] =
+          ZIO.writeFile("target/raw-compiled.json", rawCompiled.toJsonStringPretty) <&>
+            ZIO.writeFile("target/types.yaml", showTypes.toString("  ")) <&>
+            ZIO.writeFile("target/full-compiled.yaml", fullCompiled.allSchemas.map(_.toIndentedString.toString("  ")).mkString("\n", "\n\n", "\n"))
+
+        doExport.whenDiscard(exportFiles) *>
+          assertCompletesZIO
+      },
     )
 
 }

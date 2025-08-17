@@ -145,8 +145,17 @@ object IndentedString {
       case value: IndentedString                              => IndentedString.section(key)(value)
     }
 
+  def keyValues(keyValues: (String, String | IndentedString)*): IndentedString =
+    keyValues.map(keyValue(_, _))
+
+  def keyValuesSuffixKey(suffix: String)(keyValues: (String, String | IndentedString)*): IndentedString =
+    keyValues.map { case (k, v) => keyValue(k + suffix, v) }
+
   def keyValueSection(header: String)(keyValues: (String, String | IndentedString)*): IndentedString =
-    IndentedString.section(header)(keyValues.map(keyValue(_, _)))
+    IndentedString.section(header)(IndentedString.keyValues(keyValues*))
+
+  def keyValueSectionSuffixKey(header: String, suffix: String)(keyValues: (String, String | IndentedString)*): IndentedString =
+    IndentedString.section(header)(IndentedString.keyValuesSuffixKey(suffix)(keyValues*))
 
   def fromAny(any: Any)(show: PartialFunction[Matchable, IndentedString]): IndentedString = fromAny(any, show.lift)
   def fromAny(any: Any): IndentedString = fromAny(any, _ => None)
@@ -167,6 +176,11 @@ object IndentedString {
       str =>
         if (str.contains('\n')) Inline(str.split('\n').map(Str(_)).toSeq)
         else Str(str)
+
+    given stringOrIndentedString: ToIndentedString[String | IndentedString] = {
+      case string: String         => ToIndentedString.string.convert(string)
+      case string: IndentedString => string
+    }
 
     given option: [A] => (toIdtStr: ToIndentedString[A]) => ToIndentedString[Option[A]] = {
       case Some(value) => toIdtStr.convert(value)
