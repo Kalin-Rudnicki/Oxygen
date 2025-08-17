@@ -87,6 +87,7 @@ object SchemaRepr {
   final case class JsonProduct(fields: ArraySeq[JsonField]) extends RootJsonRepr
   final case class JsonSum(discriminator: Option[String], cases: ArraySeq[JsonCase]) extends RootJsonRepr
 
+  // FIX-PRE-MERGE (KR) : plain/((required/array)/option)
   enum JsonRef {
     case Ref(ref: TypeTag[?])
     case Option(ref: JsonRef)

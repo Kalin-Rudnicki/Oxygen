@@ -14,25 +14,25 @@ private[schema] object TemporaryRepr {
   sealed trait PlainRepr extends TemporaryRepr
   case object PlainString extends PlainRepr
   final case class PlainEnum(values: Seq[String], caseSensitive: Boolean) extends PlainRepr
-  final case class PlainTransform(plainRef: TypeTag[?]) extends PlainRepr
+  final case class PlainTransform(plainRef: TypeRef.Plain) extends PlainRepr
 
   sealed trait JsonRepr extends TemporaryRepr
-  final case class JsonString(plainRef: TypeTag[?]) extends JsonRepr
+  final case class JsonString(plainRef: TypeRef.Plain) extends JsonRepr
   final case class JsonAST(specificType: Option[Json.Type]) extends JsonRepr
-  final case class JsonOptional(jsonRef: TypeTag[?]) extends JsonRepr
-  final case class JsonArray(jsonRef: TypeTag[?]) extends JsonRepr
+  final case class JsonOptional(jsonRef: TypeRef.Json) extends JsonRepr
+  final case class JsonArray(jsonRef: TypeRef.Json) extends JsonRepr
   final case class JsonProduct(fields: ArraySeq[JsonField]) extends JsonRepr
   final case class JsonSum(discriminator: Option[String], cases: ArraySeq[JsonCase]) extends JsonRepr
-  final case class JsonTransform(jsonRef: TypeTag[?]) extends JsonRepr
+  final case class JsonTransform(jsonRef: TypeRef.Json) extends JsonRepr
 
   final case class JsonField(
       name: String,
-      ref: TypeTag[?],
+      ref: TypeRef.Json,
   )
 
   final case class JsonCase(
       name: String,
-      ref: TypeTag[?],
+      ref: TypeRef.Json,
   )
 
   //////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -63,7 +63,7 @@ private[schema] object TemporaryRepr {
 
   final case class Generating(
       reprs: Reprs,
-      recursive: Set[TypeTag[?]],
+      recursive: Set[TypeRef.Json],
   )
 
   enum Generated {
@@ -101,8 +101,9 @@ private[schema] object TemporaryRepr {
       schema: PlainTextSchema[?],
       generating: Generating,
   ): Generated.Plain = {
+    val myRef: TypeRef.Plain = TypeRef.Plain(schema.typeTag)
     val res =
-      if (generating.reprs.plain.contains(schema.typeTag))
+      if (generating.reprs.plain.contains(myRef))
         Generated.emptyPlain(schema.typeTag)
       else
         schema match {
@@ -112,10 +113,10 @@ private[schema] object TemporaryRepr {
             Generated.plain(schema.typeTag, PlainEnum(schema.encodedValues, schema.caseSensitive))
           case schema: PlainTextSchema.Transform[?, ?] =>
             val gen = convertPlain(schema.underlying, generating)
-            gen.withPlain(schema.typeTag, PlainTransform(gen.typeTag))
+            gen.withPlain(schema.typeTag, PlainTransform(gen.ref))
           case schema: PlainTextSchema.TransformOrFail[?, ?] =>
             val gen = convertPlain(schema.underlying, generating)
-            gen.withPlain(schema.typeTag, PlainTransform(gen.typeTag))
+            gen.withPlain(schema.typeTag, PlainTransform(gen.ref))
         }
 
     println(
@@ -129,8 +130,9 @@ private[schema] object TemporaryRepr {
       schema: JsonSchema[?],
       generating: Generating,
   ): Generated.Json = {
+    val myRef: TypeRef.Json = TypeRef.Json(schema.typeTag)
     val res =
-      if (generating.reprs.json.contains(schema.typeTag) || generating.recursive.contains(schema.typeTag)) {
+      if (generating.reprs.json.contains(myRef) || generating.recursive.contains(myRef)) {
         println("json.short-circuit")
         Generated.emptyJson(schema.typeTag)
       } else
@@ -138,7 +140,7 @@ private[schema] object TemporaryRepr {
           //
           case schema: JsonSchema.StringSchema[?] =>
             val gen = convertPlain(schema.underlying, generating)
-            gen.withJson(schema.typeTag, JsonString(gen.typeTag))
+            gen.withJson(schema.typeTag, JsonString(gen.ref))
           case JsonSchema.BooleanSchema =>
             Generated.json(schema.typeTag, JsonAST(Json.Type.Boolean.some))
           case schema: JsonSchema.ASTSchema[?] =>
@@ -149,25 +151,25 @@ private[schema] object TemporaryRepr {
             Generated.json(schema.typeTag, JsonAST(Json.Type.Number.some))
           case schema: JsonSchema.OptionalSchema[?] =>
             val gen = convertJson(schema.underlying, generating)
-            gen.withJson(schema.typeTag, JsonOptional(gen.typeTag))
+            gen.withJson(schema.typeTag, JsonOptional(gen.ref))
           case schema: JsonSchema.ArraySchema[?] =>
             val gen = convertJson(schema.underlying, generating)
-            gen.withJson(schema.typeTag, JsonArray(gen.typeTag))
+            gen.withJson(schema.typeTag, JsonArray(gen.ref))
           case schema: JsonSchema.Transform[?, ?] =>
             val gen = convertJson(schema.underlying, generating)
-            gen.withJson(schema.typeTag, JsonTransform(gen.typeTag))
+            gen.withJson(schema.typeTag, JsonTransform(gen.ref))
           case schema: JsonSchema.TransformOrFail[?, ?] =>
             val gen = convertJson(schema.underlying, generating)
-            gen.withJson(schema.typeTag, JsonTransform(gen.typeTag))
+            gen.withJson(schema.typeTag, JsonTransform(gen.ref))
           //
           case schema: JsonSchema.ProductSchema[?] =>
-            val recursive = generating.recursive + schema.typeTag
+            val recursive = generating.recursive + myRef
             @tailrec
             def loop(in: Reprs, out: Reprs, queue: List[JsonSchema.ProductField[?]], acc: Growable[JsonField]): (ArraySeq[JsonField], Reprs) =
               queue match {
                 case head :: tail =>
                   val gen = convertJson(head.schema, Generating(in, recursive))
-                  val field = JsonField(head.name, gen.typeTag)
+                  val field = JsonField(head.name, gen.ref)
                   loop(in ++ gen.reprs, out ++ gen.reprs, tail, acc :+ field)
                 case Nil =>
                   (acc.toArraySeq, out)
@@ -176,13 +178,13 @@ private[schema] object TemporaryRepr {
             val (fields, gen) = loop(generating.reprs, Reprs.empty, schema.fields.toList, Growable.empty)
             gen.withJson(schema.typeTag, JsonProduct(fields))
           case schema: JsonSchema.SumSchema[?] =>
-            val recursive = generating.recursive + schema.typeTag
+            val recursive = generating.recursive + myRef
             @tailrec
             def loop(in: Reprs, out: Reprs, queue: List[JsonSchema.SumCase[?]], acc: Growable[JsonCase]): (ArraySeq[JsonCase], Reprs) =
               queue match {
                 case head :: tail =>
                   val gen = convertJson(head.schema, Generating(in, recursive))
-                  val kase = JsonCase(head.name, gen.typeTag)
+                  val kase = JsonCase(head.name, gen.ref)
                   loop(in ++ gen.reprs, out ++ gen.reprs, tail, acc :+ kase)
                 case Nil =>
                   (acc.toArraySeq, out)
@@ -192,10 +194,10 @@ private[schema] object TemporaryRepr {
             gen.withJson(schema.typeTag, JsonSum(schema.discriminator, cases))
           case schema: JsonSchema.TransformProduct[?, ?] =>
             val gen = convertJson(schema.underlying, generating)
-            gen.withJson(schema.typeTag, JsonTransform(gen.typeTag))
+            gen.withJson(schema.typeTag, JsonTransform(gen.ref))
           case schema: JsonSchema.TransformOrFailProduct[?, ?] =>
             val gen = convertJson(schema.underlying, generating)
-            gen.withJson(schema.typeTag, JsonTransform(gen.typeTag))
+            gen.withJson(schema.typeTag, JsonTransform(gen.ref))
         }
 
     println(
