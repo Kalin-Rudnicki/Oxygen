@@ -14,6 +14,14 @@ object DeriveSchemaSpec extends OxygenSpecDefault {
       @jsonField("product") p: Product1,
   ) derives JsonSchema.ProductLike
 
+  final case class Product3(
+      value: String,
+      rec: Option[Product3],
+  ) derives JsonSchema.ProductLike
+
+  enum MyEnum { case A, B, C }
+  object MyEnum extends Enum.Companion[MyEnum]
+
   enum Sum1 derives JsonSchema.ProductLike {
     @jsonType("_A_") case A
     case B()
@@ -24,7 +32,7 @@ object DeriveSchemaSpec extends OxygenSpecDefault {
   enum Sum2 derives JsonSchema.ProductLike {
     case A
     @jsonType("_B_") case B()
-    case C(@jsonField("p2") p: Product2)
+    case C(@jsonField("p2") p: Product2, p3: Product3, e: MyEnum)
   }
 
   override def testSpec: TestSpec =
@@ -79,15 +87,10 @@ object DeriveSchemaSpec extends OxygenSpecDefault {
           val bFields = b.fields.toList
           val cFields = c.fields.toList
 
-          val reprs = SchemaRepr.from(schema, SchemaRepr.Generating(SchemaRepr.Reprs.empty, Set.empty)).reprs
+          val reprs = TemporaryRepr.from(schema, TemporaryRepr.Generating(TemporaryRepr.Reprs.empty, Set.empty)).reprs
 
-          println(
-            s"""
-               |plain:${reprs.plain.toSeq.sortBy(_._1.prefixObject).map { case (k, v) => s"\n  ${k.prefixAll}: $v" }.mkString}
-               |
-               |json:${reprs.json.toSeq.sortBy(_._1.prefixObject).map { case (k, v) => s"\n  ${k.prefixAll}: $v" }.mkString}
-               |""".stripMargin,
-          )
+          val str = IndentedString.inline(SchemaRepr.from(reprs).sortBy(_.typeTag.prefixObject).map(_.toIndentedString))
+          println(" \n \n" + str.toStringColorized + "\n \n ")
 
           assertTrue(
             schema.discriminator.contains("type"),

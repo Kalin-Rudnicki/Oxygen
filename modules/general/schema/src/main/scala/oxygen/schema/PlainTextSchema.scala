@@ -43,6 +43,8 @@ object PlainTextSchema {
   given zoneOffset: PlainTextSchema[ZoneOffset] = PlainTextSchema.string.transformAttempt(ZoneOffset.of, _.toString)
   given timeZone: PlainTextSchema[TimeZone] = PlainTextSchema.string.transformAttempt(TimeZone.getTimeZone, _.getID)
 
+  given `enum`: [E: {Enum.Companion as ec, TypeTag as tt}] => PlainTextSchema[E] = EnumSchema(tt, ec.enumValues, ec.stringCodec.encoder.encode, false)
+
   //////////////////////////////////////////////////////////////////////////////////////////////////////
   //      Instances
   //////////////////////////////////////////////////////////////////////////////////////////////////////

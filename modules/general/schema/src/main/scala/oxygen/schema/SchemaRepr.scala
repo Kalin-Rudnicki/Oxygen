@@ -2,194 +2,177 @@ package oxygen.schema
 
 import oxygen.json.*
 import oxygen.predef.core.*
-import scala.annotation.tailrec
 
-// FIX-PRE-MERGE (KR) : naming
+final case class SchemaRepr(
+    typeTag: TypeTag[?],
+    repr: SchemaRepr.Repr,
+) {
+
+  def toIndentedString: IndentedString =
+    IndentedString.section(s"${typeTag.prefixAll}:")(repr.toIndentedString)
+
+}
 object SchemaRepr {
 
-  //////////////////////////////////////////////////////////////////////////////////////////////////////
-  //      Reprs
-  //////////////////////////////////////////////////////////////////////////////////////////////////////
+  sealed trait Repr {
 
-  sealed trait Repr
+    final def toIndentedString: IndentedString =
+      this match {
+        case repr: PlainRepr =>
+          repr match {
+            case PlainString =>
+              IndentedString.inline()
+            case PlainEnum(values, caseSensitive) =>
+              IndentedString.inline(
+                IndentedString.section("values:")(values.map(v => s"- $v")),
+                s"caseSensitive: $caseSensitive",
+              )
+          }
+        case repr: JsonRepr =>
+          repr match {
+            case JsonOptional(underlying) =>
+              IndentedString.inline(
+                "[nullable]",
+                IndentedString.section("underlying:")(underlying.toIndentedString),
+              )
+            case JsonArray(underlying) =>
+              IndentedString.inline(
+                "[array]",
+                IndentedString.section("underlying:")(underlying.toIndentedString),
+              )
+            case repr: RootJsonRepr =>
+              repr match {
+                case JsonString(plain)           => plain.toIndentedString
+                case JsonAST(Some(specificType)) => s"json-type: $specificType"
+                case JsonAST(None)               => "json-type: Any"
+                case JsonProduct(fields)         =>
+                  IndentedString.section("fields:")(
+                    fields.map { f =>
+                      IndentedString.section(s"${f.name}:")(
+                        f.ref.toIndentedString,
+                      )
+                    },
+                  )
+                case JsonSum(discriminator, cases) =>
+                  IndentedString.inline(
+                    s"discriminator: ${discriminator.fold("null")(_.unesc)}",
+                    IndentedString.section("cases:")(
+                      cases.map { c =>
+                        IndentedString.section(s"${c.name}")(
+                          c.ref.toIndentedString,
+                        )
+                      },
+                    ),
+                  )
+              }
+          }
+      }
+
+  }
 
   sealed trait PlainRepr extends Repr
   case object PlainString extends PlainRepr
   final case class PlainEnum(values: Seq[String], caseSensitive: Boolean) extends PlainRepr
-  final case class PlainTransform(plainRef: TypeTag[?]) extends PlainRepr
 
   sealed trait JsonRepr extends Repr
-  final case class JsonString(plainRef: TypeTag[?]) extends JsonRepr
-  final case class JsonAST(specificType: Option[Json.Type]) extends JsonRepr
-  final case class JsonOptional(jsonRef: TypeTag[?]) extends JsonRepr
-  final case class JsonArray(jsonRef: TypeTag[?]) extends JsonRepr
-  final case class JsonProduct(fields: ArraySeq[JsonField]) extends JsonRepr
-  final case class JsonSum(discriminator: Option[String], cases: ArraySeq[JsonCase]) extends JsonRepr
-  final case class JsonTransform(jsonRef: TypeTag[?]) extends JsonRepr
+
+  final case class JsonOptional(underlying: JsonRepr) extends JsonRepr
+  final case class JsonArray(underlying: JsonRepr) extends JsonRepr
+
+  sealed trait RootJsonRepr extends JsonRepr
+  final case class JsonString(plain: PlainRepr) extends RootJsonRepr
+  final case class JsonAST(specificType: Option[Json.Type]) extends RootJsonRepr
+  final case class JsonProduct(fields: ArraySeq[JsonField]) extends RootJsonRepr
+  final case class JsonSum(discriminator: Option[String], cases: ArraySeq[JsonCase]) extends RootJsonRepr
+
+  enum JsonRef {
+    case Ref(ref: TypeTag[?])
+    case Option(ref: JsonRef)
+    case Array(ref: JsonRef)
+
+    final lazy val underlyingTypeTag: TypeTag[?] = this match
+      case JsonRef.Ref(ref)    => ref
+      case JsonRef.Option(ref) => ref.underlyingTypeTag
+      case JsonRef.Array(ref)  => ref.underlyingTypeTag
+
+    final def toIndentedString: IndentedString = this match {
+      case Ref(ref) =>
+        ref.prefixAll
+      case Option(underlying) =>
+        IndentedString.inline(
+          "[nullable]",
+          IndentedString.section("underlying:")(underlying.toIndentedString),
+        )
+      case Array(underlying) =>
+        IndentedString.inline(
+          "[array]",
+          IndentedString.section("underlying:")(underlying.toIndentedString),
+        )
+    }
+
+  }
 
   final case class JsonField(
       name: String,
-      ref: TypeTag[?],
+      ref: JsonRef,
   )
 
   final case class JsonCase(
       name: String,
-      ref: TypeTag[?],
+      ref: JsonRef.Ref,
   )
 
   //////////////////////////////////////////////////////////////////////////////////////////////////////
-  //      Conversion
+  //
   //////////////////////////////////////////////////////////////////////////////////////////////////////
 
-  final case class Reprs(
-      plain: Map[TypeTag[?], PlainRepr],
-      json: Map[TypeTag[?], JsonRepr],
-  ) {
-    def ++(that: Reprs): Reprs = Reprs(this.plain ++ that.plain, this.json ++ that.json)
-  }
-  object Reprs {
-    val empty: Reprs = Reprs(Map.empty, Map.empty)
-  }
+  private def dealiasPlain(repr: TemporaryRepr.Reprs, plainRef: TypeTag[?]): SchemaRepr.PlainRepr =
+    convertPlain(repr, repr.plain(plainRef))
 
-  final case class Generating(
-      reprs: Reprs,
-      recursive: Set[TypeTag[?]],
-  )
-
-  final case class Generated(
-      typeTag: TypeTag[?],
-      reprs: Reprs,
-  ) {
-
-    def withPlain(typeTag: TypeTag[?], repr: PlainRepr): Generated =
-      Generated(typeTag, Reprs(reprs.plain + (typeTag -> repr), Map.empty))
-
-    def withJson(typeTag: TypeTag[?], repr: JsonRepr): Generated =
-      Generated(typeTag, Reprs(Map.empty, reprs.json + (typeTag -> repr)))
-
-  }
-  object Generated {
-
-    def plain(typeTag: TypeTag[?], repr: PlainRepr): Generated =
-      Generated(typeTag, Reprs(Map(typeTag -> repr), Map.empty))
-
-    def json(typeTag: TypeTag[?], repr: JsonRepr): Generated =
-      Generated(typeTag, Reprs(Map.empty, Map(typeTag -> repr)))
-
-  }
-
-  private def convertPlain(
-      schema: PlainTextSchema[?],
-      generating: Generating,
-  ): Generated = {
-    val res =
-      if (generating.reprs.plain.contains(schema.typeTag)) Generated(schema.typeTag, Reprs.empty)
-      else
-        schema match {
-          case PlainTextSchema.StringSchema            => Generated.plain(schema.typeTag, PlainString)
-          case schema: PlainTextSchema.EnumSchema[?]   => Generated.plain(schema.typeTag, PlainEnum(schema.encodedValues, schema.caseSensitive))
-          case schema: PlainTextSchema.Transform[?, ?] =>
-            val gen = convertPlain(schema.underlying, generating)
-            gen.withPlain(schema.typeTag, PlainTransform(gen.typeTag))
-          case schema: PlainTextSchema.TransformOrFail[?, ?] =>
-            val gen = convertPlain(schema.underlying, generating)
-            gen.withPlain(schema.typeTag, PlainTransform(gen.typeTag))
-        }
-
-    println(
-      s"plain[${schema.typeTag}](in.plain = ${generating.reprs.plain.keySet}, in.json = ${generating.reprs.json.keySet})(out.plain = ${res.reprs.plain.keySet}, out.json = ${res.reprs.json.keySet})",
-    )
-
-    res
-  }
-
-  private def convertJson(
-      schema: JsonSchema[?],
-      generating: Generating,
-  ): Generated = {
-    val res =
-      if (generating.reprs.json.contains(schema.typeTag) || generating.recursive.contains(schema.typeTag)) Generated(schema.typeTag, Reprs.empty)
-      else
-        schema match {
-          //
-          case schema: JsonSchema.StringSchema[?] =>
-            val gen = convertPlain(schema.underlying, generating)
-            gen.withJson(schema.typeTag, JsonString(gen.typeTag))
-          case JsonSchema.BooleanSchema =>
-            Generated.json(schema.typeTag, JsonAST(Json.Type.Boolean.some))
-          case schema: JsonSchema.ASTSchema[?] =>
-            Generated.json(schema.typeTag, JsonAST(schema.specificType))
-          case schema: JsonSchema.IntNumberSchema[?] =>
-            Generated.json(schema.typeTag, JsonAST(Json.Type.Number.some))
-          case schema: JsonSchema.NumberSchema[?] =>
-            Generated.json(schema.typeTag, JsonAST(Json.Type.Number.some))
-          case schema: JsonSchema.OptionalSchema[?] =>
-            val gen = convertJson(schema.underlying, generating)
-            gen.withJson(schema.typeTag, JsonOptional(gen.typeTag))
-          case schema: JsonSchema.ArraySchema[?] =>
-            val gen = convertJson(schema.underlying, generating)
-            gen.withJson(schema.typeTag, JsonArray(gen.typeTag))
-          case schema: JsonSchema.Transform[?, ?] =>
-            val gen = convertJson(schema.underlying, generating)
-            gen.withJson(schema.typeTag, JsonTransform(gen.typeTag))
-          case schema: JsonSchema.TransformOrFail[?, ?] =>
-            val gen = convertJson(schema.underlying, generating)
-            gen.withJson(schema.typeTag, JsonTransform(gen.typeTag))
-          //
-          case schema: JsonSchema.ProductSchema[?] =>
-            val recursive = generating.recursive + schema.typeTag
-            @tailrec
-            def loop(in: Reprs, out: Reprs, queue: List[JsonSchema.ProductField[?]], acc: Growable[JsonField]): (ArraySeq[JsonField], Reprs) =
-              queue match {
-                case head :: tail =>
-                  val gen = convertJson(head.schema, Generating(in, recursive))
-                  val field = JsonField(head.name, gen.typeTag)
-                  loop(in ++ gen.reprs, out ++ gen.reprs, tail, acc :+ field)
-                case Nil =>
-                  (acc.toArraySeq, out)
-              }
-
-            val (fields, gen) = loop(generating.reprs, Reprs.empty, schema.fields.toList, Growable.empty)
-            val productRepr = JsonProduct(fields)
-            Generated(schema.typeTag, gen ++ Reprs(Map.empty, Map(schema.typeTag -> productRepr)))
-          case schema: JsonSchema.SumSchema[?] =>
-            val recursive = generating.recursive + schema.typeTag
-            @tailrec
-            def loop(in: Reprs, out: Reprs, queue: List[JsonSchema.SumCase[?]], acc: Growable[JsonCase]): (ArraySeq[JsonCase], Reprs) =
-              queue match {
-                case head :: tail =>
-                  val gen = convertJson(head.schema, Generating(in, recursive))
-                  val kase = JsonCase(head.name, gen.typeTag)
-                  loop(in ++ gen.reprs, out ++ gen.reprs, tail, acc :+ kase)
-                case Nil =>
-                  (acc.toArraySeq, out)
-              }
-
-            val (cases, gen) = loop(generating.reprs, Reprs.empty, schema.children.toList, Growable.empty)
-            val sumRepr = JsonSum(schema.discriminator, cases)
-            Generated(schema.typeTag, gen ++ Reprs(Map.empty, Map(schema.typeTag -> sumRepr)))
-          case schema: JsonSchema.TransformProduct[?, ?] =>
-            val gen = convertJson(schema.underlying, generating)
-            gen.withJson(schema.typeTag, JsonTransform(gen.typeTag))
-          case schema: JsonSchema.TransformOrFailProduct[?, ?] =>
-            val gen = convertJson(schema.underlying, generating)
-            gen.withJson(schema.typeTag, JsonTransform(gen.typeTag))
-        }
-
-    println(
-      s"json[${schema.typeTag}](in.plain = ${generating.reprs.plain.keySet}, in.json = ${generating.reprs.json.keySet})(out.plain = ${res.reprs.plain.keySet}, out.json = ${res.reprs.json.keySet})",
-    )
-
-    res
-  }
-
-  def from(
-      schema: AnySchema,
-      generating: Generating,
-  ): Generated =
-    schema match {
-      case schema: PlainTextSchema[?] => convertPlain(schema, generating)
-      case schema: JsonSchema[?]      => convertJson(schema, generating)
+  private def convertPlain(repr: TemporaryRepr.Reprs, plainRepr: TemporaryRepr.PlainRepr): SchemaRepr.PlainRepr =
+    plainRepr match {
+      case TemporaryRepr.PlainString                      => SchemaRepr.PlainString
+      case TemporaryRepr.PlainEnum(values, caseSensitive) => SchemaRepr.PlainEnum(values, caseSensitive)
+      case TemporaryRepr.PlainTransform(plainRef)         => dealiasPlain(repr, plainRef)
     }
+
+  private def convertJson(repr: TemporaryRepr.Reprs, jsonRef: TypeTag[?]): SchemaRepr.JsonRef =
+    repr.json(jsonRef) match
+      case TemporaryRepr.JsonOptional(jsonRef) => SchemaRepr.JsonRef.Option(convertJson(repr, jsonRef))
+      case TemporaryRepr.JsonArray(jsonRef)    => SchemaRepr.JsonRef.Array(convertJson(repr, jsonRef))
+      case _                                   => SchemaRepr.JsonRef.Ref(jsonRef)
+
+  private def convertJson(repr: TemporaryRepr.Reprs, jsonRepr: TemporaryRepr.JsonRepr): SchemaRepr.JsonRepr =
+    jsonRepr match {
+      case TemporaryRepr.JsonString(plainRef)  => JsonString(dealiasPlain(repr, plainRef))
+      case TemporaryRepr.JsonAST(specificType) => JsonAST(specificType)
+      case TemporaryRepr.JsonOptional(jsonRef) => JsonOptional(convertJson(repr, repr.json(jsonRef)))
+      case TemporaryRepr.JsonArray(jsonRef)    => JsonArray(convertJson(repr, repr.json(jsonRef)))
+      case TemporaryRepr.JsonProduct(fields)   =>
+        JsonProduct(fields.map { f => JsonField(f.name, convertJson(repr, f.ref)) })
+      case TemporaryRepr.JsonSum(discriminator, cases) =>
+        JsonSum(discriminator, cases.map { c => JsonCase(c.name, JsonRef.Ref(c.ref)) })
+      case TemporaryRepr.JsonTransform(jsonRef) =>
+        convertJson(repr, repr.json(jsonRef))
+    }
+
+  def from(repr: TemporaryRepr.Reprs): Seq[SchemaRepr] = {
+    val fromPlain: Seq[SchemaRepr] =
+      repr.plain.toSeq.map { case (typeTag, plainRepr) =>
+        SchemaRepr(
+          typeTag,
+          convertPlain(repr, plainRepr),
+        )
+      }
+    val fromJson: Seq[SchemaRepr] =
+      repr.json.toSeq.map { case (typeTag, plainRepr) =>
+        SchemaRepr(
+          typeTag,
+          convertJson(repr, plainRepr),
+        )
+      }
+
+    fromPlain ++ fromJson
+  }
 
 }
