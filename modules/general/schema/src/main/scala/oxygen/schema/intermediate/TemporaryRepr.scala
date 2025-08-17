@@ -40,12 +40,12 @@ object TemporaryRepr {
   //      Conversion
   //////////////////////////////////////////////////////////////////////////////////////////////////////
 
-  private final case class CompileInput(
+  private[intermediate] final case class CompileInput(
       reprs: Reprs,
       recursive: Set[SimpleTypeRef.Json],
   )
 
-  private def compilePlain(
+  private[intermediate] def compilePlain(
       schema: PlainTextSchema[?],
       input: CompileInput,
   ): Compiled.Plain = {
@@ -74,7 +74,7 @@ object TemporaryRepr {
     res
   }
 
-  private def compileJson(
+  private[intermediate] def compileJson(
       schema: JsonSchema[?],
       input: CompileInput,
   ): Compiled.Json = {
@@ -155,9 +155,5 @@ object TemporaryRepr {
     res
   }
 
-  def compile(schema: AnySchema, reprs: Reprs): Compiled =
-    schema match
-      case schema: PlainTextSchema[?] => compilePlain(schema, CompileInput(reprs, Set.empty))
-      case schema: JsonSchema[?]      => compileJson(schema, CompileInput(reprs, Set.empty))
-
 }
+// FIX-PRE-MERGE (KR) : remove `println`
