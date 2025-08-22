@@ -44,4 +44,12 @@ object TypeRef {
   // Option[A]
   final case class JsonOption(underlying: RequiredJsonRef) extends JsonRef
 
+  def jsonOption(ref: JsonRef): JsonOption = ref match
+    case ref: RequiredJsonRef   => JsonOption(ref)
+    case JsonOption(underlying) => JsonOption(underlying)
+
+  // Array[Specified[A]] == Array[A], once that time comes
+  def jsonArray(ref: JsonRef): JsonArray =
+    JsonArray(ref)
+
 }

@@ -1,6 +1,6 @@
 package oxygen.schema.compiled
 
-import oxygen.schema.{intermediate as I, *}
+import oxygen.schema.{compiled as C, intermediate as I, *}
 
 final class Compiler(
     intermediate: I.Reprs,
@@ -12,8 +12,9 @@ final class Compiler(
     val r2 = intermediate ++ i2.reprs
     val c2 = Compiler(r2)
     val tr = i2.ref match // FIX-PRE-MERGE (KR) :
-      case I.SimpleTypeRef.Plain(typeTag) => TypeRef.ConcretePlainRef(typeTag)
-      case I.SimpleTypeRef.Json(typeTag)  => TypeRef.ConcreteJsonRef(typeTag)
+      case r: I.SimpleTypeRef.Plain => C.SchemaRepr.plainTypeRef(r, r2)
+      case r: I.SimpleTypeRef.Json  => C.SchemaRepr.jsonTypeRef(r, r2)
+    println(s"${schema.typeTag.prefixAll} -> $tr")
     (tr, c2)
   }
 

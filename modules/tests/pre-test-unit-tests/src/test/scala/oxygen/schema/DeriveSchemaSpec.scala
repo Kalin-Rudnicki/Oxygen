@@ -1,5 +1,6 @@
 package oxygen.schema
 
+import java.time.*
 import oxygen.json.*
 import oxygen.predef.test.*
 import oxygen.schema.compiled.*
@@ -18,7 +19,15 @@ object DeriveSchemaSpec extends OxygenSpecDefault {
   final case class Product3(
       value: String,
       rec: Option[Product3],
+      timestamp: Instant,
+      updated: Updated,
   ) derives JsonSchema.ProductLike
+
+  final case class Updated(at: Option[Instant])
+  object Updated {
+    given JsonSchema[Updated] =
+      JsonSchema.option[Instant].transform(Updated(_), _.at)
+  }
 
   enum MyEnum { case A, B, C }
   object MyEnum extends Enum.Companion[MyEnum]

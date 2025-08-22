@@ -32,7 +32,6 @@ object Compiled {
   private[intermediate] def emptyJson(typeTag: TypeTag[?]): Compiled.Json =
     Compiled.Json(SimpleTypeRef.Json(typeTag), Reprs.empty)
 
-  // FIX-PRE-MERGE (KR) : figure out if this belongs somewhere else
   def compile(schema: AnySchema, reprs: Reprs): Compiled = {
     println(s"\n--- compile: ${schema.typeTag.prefixAll} ---")
     schema match
