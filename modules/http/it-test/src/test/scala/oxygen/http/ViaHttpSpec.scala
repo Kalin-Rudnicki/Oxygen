@@ -12,17 +12,18 @@ object ViaHttpSpec extends OxygenContractSpec[UserApi]("ViaHttpSpec", UserApiCon
 
   private val serverLayer: RLayer[Int, Unit] =
     ZLayer.makeSome[Int, Unit](
-      HttpServer.defaultLayer,
-      ZLayer.service[Int].project { port => HttpServer.Config(port, true) },
+      Server.layer.simple,
       Endpoints.layer(
         UserApiImpl.layer,
       ),
-      HttpServer.runningServerLayer,
+      CompiledEndpoints.endpointLayer(),
+      Server.Config.defaultLayer,
+      Server.layer.serving,
     )
 
   private val clientLayer: RLayer[Int, UserApi] =
     ZLayer.makeSome[Int, UserApi](
-      ZLayer.service[Int].project { port => JvmHttpClient(ConnectionTarget("localhost", ConnectionTarget.SslConfig.NoSsl, port)) },
+      Client.layer.localPort,
       DeriveClient.clientLayer[UserApi],
     )
 

@@ -10,6 +10,18 @@ trait FromExprT[A] { self =>
 
   def unapply(x: Expr[A])(using Type[A], Quotes): Option[A]
 
+  final def ||(that: FromExprT[A]): FromExprT[A] =
+    new FromExprT[A] {
+      override def unapply(x: Expr[A])(using Type[A], Quotes): Option[A] =
+        self.unapply(x).orElse(that.unapply(x))
+    }
+
+  final def orElse(f: (Type[A], Quotes) ?=> Expr[A] => Option[A]): FromExprT[A] =
+    this || FromExprT.fromFunction { f }
+
+  final def orElsePartial(f: (Type[A], Quotes) ?=> PartialFunction[Expr[A], A]): FromExprT[A] =
+    this || FromExprT.fromPartialFunction { f }
+
   object fromTerm {
 
     def unapply(x: Term)(using Type[A], Quotes): Option[A] = {
@@ -87,6 +99,19 @@ object FromExprT extends Derivable[FromExprT] {
       }
 
     }
+
+  final case class FromFunction[A](f: (Type[A], Quotes) => Expr[A] => Option[A]) extends FromExprT[A] {
+
+    override def unapply(x: Expr[A])(using tpe: Type[A], quotes: Quotes): Option[A] =
+      f(tpe, quotes)(x)
+
+  }
+
+  def fromFunction[A](f: (Type[A], Quotes) ?=> Expr[A] => Option[A]): FromExprT[A] =
+    FromFunction[A] { (tpe, quotes) => x => f(using tpe, quotes)(x) }
+
+  def fromPartialFunction[A](f: (Type[A], Quotes) ?=> PartialFunction[Expr[A], A]): FromExprT[A] =
+    fromFunction { f.lift }
 
   // TODO (KR) : Seq
 

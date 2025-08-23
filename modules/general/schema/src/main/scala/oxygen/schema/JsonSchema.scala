@@ -58,6 +58,8 @@ object JsonSchema extends Derivable[JsonSchema.ProductLike], JsonSchemaLowPriori
     OptionalSchema(underlying, newTypeTag, JsonEncoder.option(using underlying.jsonEncoder), JsonDecoder.option(using underlying.jsonDecoder))
   given specified: [A: JsonSchema as underlying] => (newTypeTag: TypeTag[Specified[A]]) => JsonSchema[Specified[A]] =
     OptionalSchema(underlying, newTypeTag, JsonEncoder.specified(using underlying.jsonEncoder), JsonDecoder.specified(using underlying.jsonDecoder))
+  given arraySeq: [A: JsonSchema as underlying] => (tt: TypeTag[ArraySeq[A]]) => JsonSchema[ArraySeq[A]] =
+    ArraySchema(underlying, tt, JsonEncoder.arraySeq[A](using underlying.jsonEncoder), JsonDecoder.arraySeq[A](using underlying.jsonDecoder))
 
   given localDate: JsonSchema[LocalDate] = fromPlainText
   given localTime: JsonSchema[LocalTime] = fromPlainText
@@ -110,7 +112,7 @@ object JsonSchema extends Derivable[JsonSchema.ProductLike], JsonSchemaLowPriori
       // TODO (KR) : additional information about null/missing
   ) extends JsonSchema.NonProductLike[A]
 
-  final case class ArraySchema[A] private[JsonSchema] (
+  final case class ArraySchema[A] private[schema] (
       underlying: JsonSchema[?],
       typeTag: TypeTag[A],
       jsonEncoder: JsonEncoder[A],
@@ -271,6 +273,15 @@ object JsonSchemaLowPriority {
   trait LowPriority1 {
 
     given fromPlainText: [A: PlainTextSchema as underlying] => JsonSchema[A] = JsonSchema.StringSchema(underlying)
+
+    given seq: [S[_]: SeqOps as seqOps, A: {JsonSchema as underlying, ClassTag as ct}] => (tt: TypeTag[S[A]]) => JsonSchema[S[A]] =
+      JsonSchema.ArraySchema(underlying, tt, JsonEncoder.seq[S, A](using seqOps, underlying.jsonEncoder, ct), JsonDecoder.seq[S, A](using seqOps, underlying.jsonDecoder))
+
+    given nonEmptyList: [A: {JsonSchema, ClassTag}] => (ltt: TypeTag[List[A]], neltt: TypeTag[NonEmptyList[A]]) => JsonSchema[NonEmptyList[A]] =
+      seq[List, A].transformOrFail[NonEmptyList[A]](
+        NonEmptyList.fromList(_).toRight("Array can not be empty"),
+        _.toList,
+      )
 
   }
 

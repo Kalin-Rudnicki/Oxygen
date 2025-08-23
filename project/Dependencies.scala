@@ -31,6 +31,12 @@ object Dependencies {
     val test = "zio-test"
     val testSbt = "zio-test-sbt"
 
+    // =====| HTTP |=====
+
+    val httpVersion = "3.4.0"
+
+    val http = "zio-http"
+
   }
 
 }

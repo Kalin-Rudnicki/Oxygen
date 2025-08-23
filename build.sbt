@@ -65,9 +65,7 @@ lazy val `oxygen-modules-jvm`: Project =
       `oxygen-schema`.jvm,
       `oxygen-sql`,
       `oxygen-sql-migration`,
-      `oxygen-http-client`.jvm,
-      `oxygen-http-core`.jvm,
-      `oxygen-http-server`.jvm,
+      `oxygen-http`.jvm,
       `oxygen-zio`.jvm,
 
       // Testing
@@ -98,7 +96,7 @@ lazy val `oxygen-modules-js`: Project =
       `oxygen-meta`.js,
       `oxygen-quoted`.js,
       `oxygen-schema`.js,
-      `oxygen-http-core`.js,
+      `oxygen-http`.js,
       `oxygen-zio`.js,
 
       // Testing
@@ -125,7 +123,6 @@ lazy val `oxygen-modules-native`: Project =
       `oxygen-meta`.native,
       `oxygen-quoted`.native,
       `oxygen-schema`.native,
-      `oxygen-http-core`.native,
       `oxygen-zio`.native,
 
       // Testing
@@ -259,48 +256,20 @@ lazy val `oxygen-sql-migration`: Project =
       `oxygen-sql` % testAndCompile,
     )
 
-lazy val `oxygen-http-core`: CrossProject =
-  crossProject(JSPlatform, JVMPlatform, NativePlatform)
+lazy val `oxygen-http`: CrossProject =
+  crossProject(JSPlatform, JVMPlatform)
     .crossType(CrossType.Pure)
-    .in(file("modules/http/core"))
+    .in(file("modules/http/zio"))
     .settings(
       publishedProjectSettings,
-      name := "oxygen-http-core",
-      description := "HTTP concepts shared between server and client.",
+      name := "oxygen-http-zio",
+      description := "Use macros to turn traits into clients AND servers.",
+      libraryDependencies ++= Seq(
+        zio.organization %%% zio.http % zio.httpVersion,
+      ),
     )
     .dependsOn(
-      `oxygen-zio` % testAndCompile,
-      `oxygen-test` % Test,
-    )
-
-lazy val `oxygen-http-server`: CrossProject =
-  // crossProject(JSPlatform, JVMPlatform, NativePlatform)
-  crossProject(JVMPlatform) // only publish JVM, for now
-    .crossType(CrossType.Pure)
-    .in(file("modules/http/server"))
-    .settings(
-      publishedProjectSettings,
-      name := "oxygen-http-server",
-      description := "ZIO-based HTTP server for scala.",
-    )
-    .dependsOn(
-      `oxygen-http-core` % testAndCompile,
-      `oxygen-zio` % testAndCompile,
-      `oxygen-test` % Test,
-    )
-
-lazy val `oxygen-http-client`: CrossProject =
-  // crossProject(JSPlatform, JVMPlatform, NativePlatform)
-  crossProject(JVMPlatform) // only publish JVM, for now
-    .crossType(CrossType.Pure)
-    .in(file("modules/http/client"))
-    .settings(
-      publishedProjectSettings,
-      name := "oxygen-http-client",
-      description := "ZIO-based HTTP client for scala.",
-    )
-    .dependsOn(
-      `oxygen-http-core` % testAndCompile,
+      `oxygen-schema` % testAndCompile,
       `oxygen-zio` % testAndCompile,
       `oxygen-test` % Test,
     )
@@ -434,8 +403,7 @@ lazy val `http-it`: Project =
     .dependsOn(
       // TODO (KR) : replace
       // `oxygen-http-test`
-      `oxygen-http-client`.jvm % testAndCompile,
-      `oxygen-http-server`.jvm % testAndCompile,
+      `oxygen-http`.jvm % testAndCompile,
     )
 
 lazy val `ut`: CrossProject =
@@ -464,3 +432,5 @@ addCommandAlias("js-test", "oxygen-modules-js/test")
 addCommandAlias("native-compile", "oxygen-modules-native/compile")
 addCommandAlias("native-test-compile", "oxygen-modules-native/test:compile")
 addCommandAlias("native-test", "oxygen-modules-native/test")
+
+addCommandAlias("fmt", "scalafmtAll")
