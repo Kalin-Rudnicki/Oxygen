@@ -83,4 +83,4 @@ jobs:
           distribution: temurin
           java-version: 11
       - name: Check formatting
-        run: sbt +scalafmtCheckAll +it/scalafmtCheckAll
+        run: sbt +scalafmtSbtCheck +scalafmtCheckAll +it/scalafmtCheckAll

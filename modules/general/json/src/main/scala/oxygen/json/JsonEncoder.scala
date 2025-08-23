@@ -160,7 +160,7 @@ object JsonEncoder extends K0.Derivable[JsonEncoder.ObjectEncoder], JsonEncoderL
   given specified: [A] => (encoder: JsonEncoder[A]) => JsonEncoder[Specified[A]] = SpecifiedEncoder(encoder)
 
   given arraySeq: [A] => (encoder: JsonEncoder[A]) => JsonEncoder[ArraySeq[A]] = ArraySeqEncoder(encoder)
-  given seq: [S[_], A: ClassTag] => (seqOps: SeqOps[S], encoder: JsonEncoder[A]) => JsonEncoder[S[A]] = ArraySeqEncoder(encoder).contramap(_.toArraySeq)
+  given seq: [S[_], A] => (seqOps: SeqOps[S], encoder: JsonEncoder[A], ct: ClassTag[A]) => JsonEncoder[S[A]] = ArraySeqEncoder(encoder).contramap(_.toArraySeq)
 
   given map: [K, V] => (k: JsonFieldEncoder[K], v: JsonEncoder[V]) => JsonEncoder[Map[K, V]] = MapEncoder(k, v)
 
