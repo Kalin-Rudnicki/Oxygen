@@ -63,17 +63,21 @@ lazy val `oxygen-modules-jvm`: Project =
       `oxygen-meta`.jvm,
       `oxygen-quoted`.jvm,
       `oxygen-schema`.jvm,
+      `oxygen-zio`.jvm,
+
+      // sql
       `oxygen-sql`,
       `oxygen-sql-migration`,
+      `oxygen-sql-test`,
+
+      // http
       `oxygen-http`.jvm,
-      `oxygen-zio`.jvm,
+      // TODO (KR) : add
+      // `oxygen-http-test`.jvm,
 
       // Testing
       `oxygen-test`.jvm,
       `oxygen-test-container`,
-      `oxygen-sql-test`,
-      // TODO (KR) : add
-      // `oxygen-http-test`.jvm,
 
       // Internal
       `ut`.jvm,
@@ -96,8 +100,13 @@ lazy val `oxygen-modules-js`: Project =
       `oxygen-meta`.js,
       `oxygen-quoted`.js,
       `oxygen-schema`.js,
-      `oxygen-http`.js,
       `oxygen-zio`.js,
+
+      // http
+      `oxygen-http`.js,
+
+      // ui
+      `oxygen-ui-web`,
 
       // Testing
       `oxygen-test`.js,
@@ -274,6 +283,23 @@ lazy val `oxygen-http`: CrossProject =
       `oxygen-test` % Test,
     )
 
+lazy val `oxygen-ui-web`: Project =
+  project
+    .in(file("modules/ui/web"))
+    .enablePlugins(ScalaJSPlugin)
+    .settings(
+      publishedProjectSettings,
+      name := "oxygen-ui-web",
+      description := "Make your web-ui using scala and FP principles!",
+      libraryDependencies ++= Seq(
+        monocle.organization %%% monocle.core % monocle.version,
+        monocle.organization %%% monocle.`macro` % monocle.version,
+      ),
+    )
+    .dependsOn(
+      `oxygen-http`.js % testAndCompile,
+    )
+
 lazy val `oxygen-zio`: CrossProject =
   crossProject(JSPlatform, JVMPlatform, NativePlatform)
     .crossType(CrossType.Pure)
@@ -420,6 +446,38 @@ lazy val `ut`: CrossProject =
       `oxygen-zio` % testAndCompile,
       `oxygen-test` % Test,
     )
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////
+//      Example Project
+//////////////////////////////////////////////////////////////////////////////////////////////////////
+
+lazy val `example`: Project =
+  project
+    .in(file("example/modules"))
+    .settings(
+      nonPublishedProjectSettings,
+      name := "oxygen-example",
+      description := "oxygen-example",
+    )
+    .aggregate(
+      `example-ui`,
+    )
+
+lazy val `example-ui`: Project =
+  project
+    .in(file("example/modules/ui"))
+    .enablePlugins(ScalaJSPlugin)
+    .settings(
+      nonPublishedProjectSettings,
+      name := "oxygen-example-ui",
+      description := "oxygen-example-ui",
+      scalaJSUseMainModuleInitializer := true,
+    )
+    .dependsOn(`oxygen-ui-web`)
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////
+//      Commands
+//////////////////////////////////////////////////////////////////////////////////////////////////////
 
 addCommandAlias("jvm-compile", "oxygen-modules-jvm/compile")
 addCommandAlias("jvm-test-compile", "oxygen-modules-jvm/test:compile")

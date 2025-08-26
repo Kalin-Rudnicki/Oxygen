@@ -8,6 +8,17 @@ object Dependencies {
 
   }
 
+  object monocle {
+
+    val organization = "dev.optics"
+
+    val version = "3.3.0"
+
+    val core = "monocle-core"
+    val `macro` = "monocle-macro"
+
+  }
+
   object postgres {
 
     val organization = "org.postgresql"

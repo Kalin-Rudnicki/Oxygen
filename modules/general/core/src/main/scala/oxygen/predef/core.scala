@@ -1,7 +1,7 @@
 package oxygen.predef
 
 object core {
-  export oxygen.core.{EitherNel, Enum, IndentedString, Ior, Lazy, Specified, ThrowableRepr, TypeTag}
+  export oxygen.core.{EitherNel, Enum, IndentedString, Ior, Lazy, PlatformCompat, Specified, ThrowableRepr, TypeTag}
   export oxygen.core.collection.{Growable, NonEmptyList}
   export oxygen.core.idToSpecified
   export oxygen.core.syntax.common.*
