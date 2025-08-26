@@ -20,7 +20,7 @@ jobs:
         uses: actions/setup-java@v3
         with:
           distribution: temurin
-          java-version: 11
+          java-version: 17
       - name: Build and Test
         run: sbt +test:compile
 
@@ -38,7 +38,7 @@ jobs:
         uses: actions/setup-java@v3
         with:
           distribution: temurin
-          java-version: 11
+          java-version: 17
       - name: Build and Test
         run: sbt +jvm-test
 
@@ -56,7 +56,7 @@ jobs:
         uses: actions/setup-java@v3
         with:
           distribution: temurin
-          java-version: 11
+          java-version: 17
       - name: Build and Test
         run: sbt +it/test
 
@@ -81,6 +81,6 @@ jobs:
         uses: actions/setup-java@v3
         with:
           distribution: temurin
-          java-version: 11
+          java-version: 17
       - name: Check formatting
         run: sbt +scalafmtSbtCheck +scalafmtCheckAll +it/scalafmtCheckAll

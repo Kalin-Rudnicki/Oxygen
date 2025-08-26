@@ -51,4 +51,16 @@ object Ior {
 
   }
 
+  def zippedMapIterator[K, A, B](a: Map[K, A], b: Map[K, B]): Iterator[(K, Ior[A, B])] =
+    (a.keysIterator ++ b.keysIterator).distinct.map { k =>
+      (a.get(k), b.get(k)) match {
+        case (Some(a), Some(b)) => (k, Ior.Both(a, b))
+        case (Some(a), None)    => (k, Ior.Left(a))
+        case (None, Some(b))    => (k, Ior.Right(b))
+        case (None, None)       => throw new RuntimeException("not possible...")
+      }
+    }
+
+  def zippedMap[K, A, B](a: Map[K, A], b: Map[K, B]): Map[K, Ior[A, B]] = zippedMapIterator(a, b).toMap
+
 }

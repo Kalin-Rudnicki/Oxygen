@@ -27,7 +27,7 @@ object PartialPathCodec extends PartialPathCodecLowPriority.LowPriority1 {
 
     given singleString: PartialPathCodec.Plain[String] = PartialPathCodec.Plain.SingleString
     given restString: PartialPathCodec.Plain[List[String]] = PartialPathCodec.Plain.RestString
-    given restNonEmptyString: PartialPathCodec.Plain[NonEmptyList[String]] = PartialPathCodec.Plain.NonEmptyRestString
+    given nonEmptyRestString: PartialPathCodec.Plain[NonEmptyList[String]] = PartialPathCodec.Plain.NonEmptyRestString
 
     // =====| Instances |=====
 
@@ -116,7 +116,7 @@ object PartialPathCodec extends PartialPathCodecLowPriority.LowPriority1 {
     // =====| Givens |=====
 
     given restEncoded: [A: JsonSchema as schema] => PartialPathCodec.Json[List[A]] = PartialPathCodec.Json.RestEncoded(schema)
-    given restNonEmptyEncoded: [A: JsonSchema as schema] => PartialPathCodec.Json[NonEmptyList[A]] = PartialPathCodec.Json.NonEmptyRestEncoded(schema)
+    given nonEmptyRestEncoded: [A: JsonSchema as schema] => PartialPathCodec.Json[NonEmptyList[A]] = PartialPathCodec.Json.NonEmptyRestEncoded(schema)
 
     // =====| Instances |=====
 
@@ -182,7 +182,7 @@ object PartialPathCodecLowPriority {
   trait PlainLowPriority1 extends PlainLowPriority2 {
 
     given restEncoded: [A: PlainTextSchema as schema] => PartialPathCodec.Plain[List[A]] = PartialPathCodec.Plain.RestEncoded(schema)
-    given restNonEmptyEncoded: [A: PlainTextSchema as schema] => PartialPathCodec.Plain[NonEmptyList[A]] = PartialPathCodec.Plain.NonEmptyRestEncoded(schema)
+    given nonEmptyRestEncoded: [A: PlainTextSchema as schema] => PartialPathCodec.Plain[NonEmptyList[A]] = PartialPathCodec.Plain.NonEmptyRestEncoded(schema)
 
   }
 

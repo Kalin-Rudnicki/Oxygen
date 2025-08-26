@@ -2,7 +2,6 @@ package oxygen.zio.logging
 
 import oxygen.predef.color.*
 import oxygen.predef.core.*
-import oxygen.predef.json.*
 import scala.collection.mutable
 import zio.*
 
@@ -226,28 +225,5 @@ object Logger {
 
   val oxygenDefault: Logger =
     oxygen(ColorMode.Extended, true, true, true, true, true, true)
-
-  val json: Logger =
-    Logger("json-logger") {
-      (
-          trace: Trace,
-          fiberId: FiberId,
-          logLevel: LogLevel,
-          message0: () => String,
-          cause: Cause[Any],
-          _: FiberRefs,
-          spans0: List[LogSpan],
-          annotations: Map[String, String],
-      ) =>
-        EncodedLogEvent(
-          logLevel = logLevel,
-          message = message0(),
-          trace = trace,
-          fiberId = fiberId,
-          annotations = annotations,
-          spans = spans0.map { s => (s.label, s.startTime) }.toMap,
-          EncodedLogCause.fromAnyCause(cause, true), // TODO (KR) : configurable
-        ).toJsonStringCompact
-    }
 
 }

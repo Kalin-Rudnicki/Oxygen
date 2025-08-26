@@ -49,7 +49,7 @@ object RequestNonPathCodec {
     override val schemaAggregator: RequestSchemaAggregator = RequestSchemaAggregator.query(RequestQueryParamSchema(name, partial.partialParamSchema.tpe, partial.partialParamSchema.schema, doc))
 
     override def decode(queryParams: QueryParams, headers: Headers, body: Body): ZIO[Scope, RequestDecodingFailure, A] =
-      ZIO.fromEither { partial.decode(queryParams.getAll(name).toList).leftMap(RequestDecodingFailure(sources, _)) }
+      ZIO.fromEither { partial.decode(queryParams.getAll(name).toList).leftMap(RequestDecodingFailure(sources.toList, _)) }
 
     override private[http] def encodeInternal(value: A, acc: Builder): Builder = {
       val encoded = partial.encode(value)
@@ -65,7 +65,7 @@ object RequestNonPathCodec {
     override val schemaAggregator: RequestSchemaAggregator = RequestSchemaAggregator.header(RequestHeaderSchema(name, partial.partialParamSchema.tpe, partial.partialParamSchema.schema, doc))
 
     override def decode(queryParams: QueryParams, headers: Headers, body: Body): ZIO[Scope, RequestDecodingFailure, A] =
-      ZIO.fromEither { partial.decode(headers.rawHeaders(name).toList).leftMap(RequestDecodingFailure(sources, _)) }
+      ZIO.fromEither { partial.decode(headers.rawHeaders(name).toList).leftMap(RequestDecodingFailure(sources.toList, _)) }
 
     override private[http] def encodeInternal(value: A, acc: Builder): Builder = {
       val encoded = partial.encode(value)
@@ -105,7 +105,7 @@ object RequestNonPathCodec {
     override val schemaAggregator: RequestSchemaAggregator = RequestSchemaAggregator.body(RequestBodySchema.Single(name, partial.partialBodySchema.schema, doc))
 
     override def decode(queryParams: QueryParams, headers: Headers, body: Body): ZIO[Scope, RequestDecodingFailure, A] =
-      partial.decode(body).mapError(RequestDecodingFailure(sources, _))
+      partial.decode(body).mapError(RequestDecodingFailure(sources.toList, _))
 
     override private[http] def encodeInternal(value: A, acc: Builder): Builder =
       acc.copy(body = partial.encode(value))
@@ -149,7 +149,7 @@ object RequestNonPathCodec {
     override val schemaAggregator: RequestSchemaAggregator = a.schemaAggregator
 
     override def decode(queryParams: QueryParams, headers: Headers, body: Body): ZIO[Scope, RequestDecodingFailure, B] =
-      a.decode(queryParams, headers, body).flatMap { aValue => ZIO.fromEither(ab(aValue).leftMap(e => RequestDecodingFailure(sources, DecodingFailureCause.DecodeError(e)))) }
+      a.decode(queryParams, headers, body).flatMap { aValue => ZIO.fromEither(ab(aValue).leftMap(e => RequestDecodingFailure(sources.toList, DecodingFailureCause.DecodeError(e)))) }
 
     override private[http] def encodeInternal(value: B, acc: Builder): Builder =
       a.encodeInternal(ba(value), acc)

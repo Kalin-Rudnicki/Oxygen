@@ -1,12 +1,12 @@
 package oxygen.schema
 
 import java.util.UUID
-import oxygen.core.TypeTag
+import oxygen.core.{PlatformCompat, TypeTag}
 import scala.util.Try
 
 trait SchemaLike[A] { self =>
 
-  private[schema] final val schemaId: UUID = UUID.randomUUID() // used in the detection of recursive schemas
+  private[schema] final val schemaId: UUID = PlatformCompat.randomUUID() // used in the detection of recursive schemas
 
   type S[a] <: SchemaLike[a]
 

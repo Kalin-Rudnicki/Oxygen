@@ -5,13 +5,14 @@ import oxygen.predef.core.*
 import oxygen.schema.JsonSchema
 
 final case class RequestDecodingFailure(
-    sources: NonEmptyList[RequestDecodingFailure.Source],
+    sources: List[RequestDecodingFailure.Source],
     cause: DecodingFailureCause,
 ) extends Throwable derives JsonSchema {
 
   private def showSources: String = sources match
-    case NonEmptyList(source, Nil) => source.toString
-    case _                         => sources.toList.mkString("[", ", ", "]")
+    case Nil           => "(no sources)"
+    case source :: Nil => source.toString
+    case _             => sources.mkString("[", ", ", "]")
 
   override def getMessage: String = s"Error decoding http-request $showSources : $cause"
 
