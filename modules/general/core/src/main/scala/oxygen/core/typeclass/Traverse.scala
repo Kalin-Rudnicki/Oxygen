@@ -56,7 +56,7 @@ object Traverse extends TraverseLowPriority.LowPriority1 {
 
 object TraverseLowPriority {
 
-  trait LowPriority1 {
+  trait LowPriority1 extends LowPriority2 {
 
     given functorOption: [F[_]] => (functor: Functor[F]) => Traverse[F, Option] =
       new Traverse[F, Option] {
@@ -126,6 +126,21 @@ object TraverseLowPriority {
                 }
               }
               .asRight[Left]
+          }
+
+      }
+
+  }
+
+  trait LowPriority2 {
+
+    given optionApplicative: [F[_]] => (app: Applicative[F]) => Traverse[Option, F] =
+      new Traverse[Option, F] {
+
+        override def traverse[A, B](self: Option[A])(f: A => F[B]): F[Option[B]] =
+          self match {
+            case Some(value) => app.map(f(value))(Some(_))
+            case None        => app.pure(None)
           }
 
       }
