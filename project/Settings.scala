@@ -24,6 +24,7 @@ object Settings {
       organization := Dependencies.kalinRudnicki.organization,
       scalacOptions ++= Seq("-source:future", "-Ycheck-all-patmat", "-Wunused:all", "-Werror", "-language:implicitConversions", "-deprecation", "-feature", "-Yretain-trees"),
       name := { throw new RuntimeException("You must define a project name!!!") },
+      javacOptions ++= Seq("-source", "17", "-target", "17"),
       usePipelining := false,
       description := { throw new RuntimeException("You must define a project description!!!") },
       testFrameworks := Seq(new TestFramework("zio.test.sbt.ZTestFramework")),

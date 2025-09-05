@@ -1,57 +1,58 @@
 package oxygen.ui.web.internal
 
+import oxygen.predef.core.*
 import oxygen.ui.web.{PageMessage, PageMessages, UIError}
+import oxygen.zio.ExtractedCauses
 import zio.*
 
 trait RootErrorHandler {
 
-  def handleError(errorLocation: RootErrorHandler.ErrorLocation, error: UIError.NonRedirect): UIO[Unit]
-  def handleDefect(errorLocation: RootErrorHandler.ErrorLocation, error: Throwable): UIO[Unit]
+  protected def handleErrorCauseInternal(errorLocation: RootErrorHandler.ErrorLocation, error: Cause[UIError.NonRedirect]): UIO[Unit]
 
-  // TODO (KR) : might be worth inverting this, and having this be what is implemented, and the others are helpers
+  final def handleError(errorLocation: RootErrorHandler.ErrorLocation, error: UIError.NonRedirect): UIO[Unit] =
+    handleErrorCause(errorLocation, Cause.fail(error))
+
+  final def handleDefect(errorLocation: RootErrorHandler.ErrorLocation, error: Throwable): UIO[Unit] =
+    handleErrorCause(errorLocation, Cause.die(error))
+
   final def handleErrorCause(errorLocation: RootErrorHandler.ErrorLocation, error: Cause[UIError.NonRedirect]): UIO[Unit] =
     ZIO.logDebugCause(s"Handling error in $errorLocation", error) *>
-      (error.failures match {
-        case Nil =>
-          error.defects match {
-            case Nil =>
-              if (error.isInterruptedOnly) ZIO.logDebugCause(s"Interrupted: $errorLocation", error)
-              else ZIO.logErrorCause(s"Unhandled error in $errorLocation", error)
-            case defects =>
-              ZIO.foreachDiscard(defects)(handleDefect(errorLocation, _))
-          }
-        case failures =>
-          ZIO.foreachDiscard(failures)(handleError(errorLocation, _))
-      })
+      handleErrorCauseInternal(errorLocation, error)
 
 }
 object RootErrorHandler {
 
   final case class Default[Env](defaultPages: DefaultPages[Env]) extends RootErrorHandler {
 
-    // TODO (KR) : 404 handling
-    override def handleError(errorLocation: ErrorLocation, error: UIError.NonRedirect): UIO[Unit] =
-      errorLocation match {
-        case ErrorLocation.BrowserLoad    => Router.route(NavigationEvent.renderPage(defaultPages.error)(Cause.fail(error)))
-        case loc: ErrorLocation.HasPageId => PageMessages.PageLocal.update(loc.pageReference)(_ :+ PageMessage.error(error.toString))
+    private def showErrors(pageInstance: PageInstance.Untyped, errors: NonEmptyList[PageMessage]): UIO[Unit] =
+      PageMessages.PageLocal.update(pageInstance)(_ :++ errors.toList)
+
+    private def handleCauses(pageInstance: PageInstance.Untyped, causes: ExtractedCauses[UIError.NonRedirect]): UIO[Unit] =
+      causes match {
+        case ExtractedCauses.Failures(failures, _) =>
+          failures.collectFirst { case Cause.Fail(UIError.Internal.UrlNotFound(url), _) => url } match {
+            case Some(url) => Router.route(NavigationEvent.renderPage(defaultPages.notFound)(url))
+            case None      => showErrors(pageInstance, failures.flatMap(_.value.toPageMessages))
+          }
+        case ExtractedCauses.Defects(defects) => showErrors(pageInstance, defects.flatMap(e => UIError.ClientSide.InternalDefect.somethingWentWrong(e.value).toPageMessages))
+        case ExtractedCauses.Other(_)         => showErrors(pageInstance, UIError.ClientSide.InternalDefect.somethingWentWrong("ExtractedCauses.Other").toPageMessages)
       }
 
-    override def handleDefect(errorLocation: ErrorLocation, error: Throwable): UIO[Unit] =
-      errorLocation match {
-        case ErrorLocation.BrowserLoad    => Router.route(NavigationEvent.renderPage(defaultPages.error)(Cause.die(error)))
-        case loc: ErrorLocation.HasPageId => PageMessages.PageLocal.update(loc.pageReference)(_ :+ PageMessage.error(error.toString))
-      }
+    override protected def handleErrorCauseInternal(errorLocation: RootErrorHandler.ErrorLocation, error: Cause[UIError.NonRedirect]): UIO[Unit] =
+      errorLocation match
+        case ErrorLocation.BrowserLoad    => Router.route(NavigationEvent.renderPage(defaultPages.error)(error))
+        case loc: ErrorLocation.HasPageId => handleCauses(loc.pageInstance, ExtractedCauses.fromCause(error))
 
   }
 
   sealed trait ErrorLocation
   object ErrorLocation {
     case object BrowserLoad extends ErrorLocation
-    sealed abstract class HasPageId(final val pageReference: PageReference) extends ErrorLocation
+    sealed abstract class HasPageId(final val pageInstance: PageInstance.Untyped) extends ErrorLocation
 
-    final case class NavigationAttempt(prevPageReference: PageReference) extends ErrorLocation.HasPageId(prevPageReference)
-    final case class NavigationPagePostLoad(currentPageReference: PageReference) extends ErrorLocation.HasPageId(currentPageReference)
-    final case class PageEvent(currentPageReference: PageReference) extends ErrorLocation.HasPageId(currentPageReference)
+    final case class NavigationAttempt(prevPageInstance: PageInstance.Untyped) extends ErrorLocation.HasPageId(prevPageInstance)
+    final case class NavigationPagePostLoad(currentPageInstance: PageInstance.Untyped) extends ErrorLocation.HasPageId(currentPageInstance)
+    final case class PageEvent(currentPageInstance: PageInstance.Untyped) extends ErrorLocation.HasPageId(currentPageInstance)
   }
 
   final case class ErrorWithLocation(loc: ErrorLocation, error: Cause[UIError.NonRedirect])

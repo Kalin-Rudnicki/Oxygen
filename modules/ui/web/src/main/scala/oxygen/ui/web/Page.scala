@@ -1,8 +1,10 @@
 package oxygen.ui.web
 
+import oxygen.ui.web.create.*
 import oxygen.ui.web.internal.*
 import zio.*
 
+// TODO (KR) : try to eliminate contravariance from Env. potentially add `.widen` and implicit conversion for `.widen`
 sealed trait Page[-Env] { page =>
 
   ///////  ///////////////////////////////////////////////////////////////
@@ -10,24 +12,29 @@ sealed trait Page[-Env] { page =>
   type Params
   type State
 
+  final type PageWidgetState = WidgetState[State]
+
   ///////  ///////////////////////////////////////////////////////////////
 
   def title(state: State): String
 
   def initialLoad(params: Params): ZIO[Env & Scope, UIError, State]
-  def postLoad(state: State, rh: RaiseHandler.Stateful[Nothing, State]): ZIO[Env & Scope, UIError, Unit]
+  def postLoad(state: WidgetState[State]): ZIO[Env & Scope, UIError, Unit]
 
   ///////  ///////////////////////////////////////////////////////////////
 
   private[web] object InternalPageState extends PageLocalState[State](s"InternalPageState[$pageName]")(null.asInstanceOf[State])
 
-  protected def component(state: State): Widget.Stateful[Env, Nothing, State]
+  protected def component(state: State): WidgetES[Env, State]
 
-  private[web] final def render[Env2 <: Env: HasNoScope](rh: RaiseHandler.Root[Env2, Params, State], navType: NavigationEvent.NavType): URIO[Env2 & Scope, Unit] = {
-    val state: State = InternalPageState.getValue(rh.pageInstance.pageReference).get()
+  private[web] final def render[Env2 <: Env: HasNoScope](
+      pageInstance: PageInstance.TypedEnv[Env2, Params, State],
+      navType: NavigationEvent.NavType,
+  ): URIO[Env2 & Scope, Unit] = {
+    val state: WidgetState[State] = pageInstance.pageState
     ZIO.logTrace(s"rendering page $page") *>
-      rh.pageInstance.recordNewValues(state, navType) *>
-      Renderer.renderBody(component(state).build[Env2](state, rh, rh.pageInstance, rh.uiRuntime))
+      pageInstance.recordNewValues(state.renderTimeValue, navType) *>
+      Renderer.renderBody(component(state.renderTimeValue).build[Env2](state, RaiseHandler.Empty, pageInstance, pageInstance.uiRuntime))
   }
 
   final def pageName: String = getClass.getSimpleName.stripSuffix("$")
@@ -56,9 +63,9 @@ object NonRoutablePage {
   trait StateSameAsParams[-Env] extends NonRoutablePage[Env] {
 
     override final type State = Params
-    override final def initialLoad(params: Params): ZIO[Env & Scope, Nothing, Params] = ZIO.succeed(params)
 
-    override def postLoad(state: Params, rh: RaiseHandler.Stateful[Nothing, Params]): ZIO[Env & Scope, UIError, Unit] = ZIO.unit
+    override def initialLoad(params: Params): ZIO[Env & Scope, Nothing, Params] = ZIO.succeed(params)
+    override def postLoad(state: WidgetState[Params]): ZIO[Env & Scope, UIError, Unit] = ZIO.unit
 
   }
 

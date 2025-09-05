@@ -1,6 +1,8 @@
 package oxygen.http.server
 
+import oxygen.http.core.BodyUtil
 import oxygen.predef.core.*
+import oxygen.zio.syntax.log.*
 import zio.*
 import zio.http.{Server as _, *}
 
@@ -29,7 +31,12 @@ trait CompiledEndpoints {
       .scoped[Any] {
         Handler.fromFunctionHandler[Request] { request =>
           Handler.fromZIO[Scope, Response, Response] {
-            handle(EndpointInput(request, config.exposeInternalErrors))
+            ZIO.scope.flatMap { scope =>
+              CurrentRequest.ref.locallyScoped(CurrentRequest(request, scope).some) *>
+                ZIO.logInfoAnnotated("Handling http request", "method" -> request.method.name, "path" -> request.path.encode) *>
+                handle(EndpointInput(request, config.exposeInternalErrors))
+                  .tapDefect { ZIO.logErrorCause("Unhandled defect", _) }
+            }
           }
         }
       }
@@ -68,7 +75,7 @@ object CompiledEndpoints {
           case None         => idx = idx + 1
       }
 
-      ZIO.fail(Response(status = Status.NotFound, body = Body.fromString(Status.NotFound.text)))
+      ZIO.fail(Response(status = Status.NotFound, body = BodyUtil.fromString(Status.NotFound.text)))
     }
 
   }

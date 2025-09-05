@@ -32,6 +32,14 @@ trait SeqRead[F[_]] {
 }
 object SeqRead extends SeqReadLowPriority.LowPriority1 {
 
+  given option: SeqRead[Option] =
+    new SeqRead[Option] {
+      override def newIterator[A](self: Option[A]): Iterator[A] = self.iterator
+      override def toIterable[A](self: Option[A]): Iterable[A] = self
+      override def knownSize[A](self: Option[A]): Int = self.knownSize
+      override def size[A](self: Option[A]): Int = self.size
+    }
+
   given arraySeq: SeqRead[ArraySeq] =
     new SeqRead[ArraySeq] {
       override def newIterator[A](self: ArraySeq[A]): Iterator[A] = self.iterator

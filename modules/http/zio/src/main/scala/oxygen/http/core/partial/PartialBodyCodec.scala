@@ -1,6 +1,6 @@
 package oxygen.http.core.partial
 
-import oxygen.http.core.DecodingFailureCause
+import oxygen.http.core.{BodyUtil, DecodingFailureCause}
 import oxygen.http.schema.partial.PartialBodySchema
 import oxygen.predef.core.*
 import oxygen.schema.*
@@ -53,7 +53,7 @@ object PartialBodyCodec extends PartialBodyCodecLowPriority.LowPriority1 {
         .flatMap { stringBody => ZIO.fromEither(schema.decode(stringBody)).mapError(DecodingFailureCause.DecodeError(_)) }
 
     override def encode(value: A): Body =
-      Body.fromString(schema.encode(value)).contentType(Body.ContentType(MediaType.text.plain))
+      BodyUtil.fromString(schema.encode(value), MediaType.text.plain)
 
   }
   object Plain {
@@ -70,7 +70,7 @@ object PartialBodyCodec extends PartialBodyCodecLowPriority.LowPriority1 {
         .flatMap { stringBody => ZIO.fromEither(schema.decode(stringBody).leftMap(DecodingFailureCause.DecodeError(_))) }
 
     override def encode(value: A): Body =
-      Body.fromString(schema.encode(value)).contentType(Body.ContentType(MediaType.application.json))
+      BodyUtil.fromString(schema.encode(value), MediaType.application.json)
 
   }
   object Json {

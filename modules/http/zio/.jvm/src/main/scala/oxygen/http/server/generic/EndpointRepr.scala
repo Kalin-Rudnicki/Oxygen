@@ -67,8 +67,8 @@ final class EndpointRepr[Api](val route: RouteRepr[Api])(using Quotes) {
       expr: Expr[ZIO[Scope, route.ErrorOut, route.SuccessOut]],
   ): Expr[URIO[Scope, Response]] =
     '{
-      $expr.foldZIO(
-        error => ZIO.succeed(${ ctx.routeHandler }.errorResponse(error)),
+      $expr.foldCauseZIO(
+        error => ${ ctx.routeHandler }.convertCause(error, ${ ctx.requestContext }.exposeInternalErrors),
         success => ZIO.succeed(${ ctx.routeHandler }.successResponse(success)),
       )
     }
@@ -93,7 +93,9 @@ final class EndpointRepr[Api](val route: RouteRepr[Api])(using Quotes) {
         }
       case Nil =>
         val parsedTerms: List[Term] = parsed.to[List].sortBy(_._1.paramIdx).map(_._2)
-        val unhandledExpr: Expr[ZIO[Scope, route.ErrorOut, route.SuccessOut]] = makeReturn(ctx, parsedTerms)
+        val unhandledExpr: Expr[ZIO[Scope, route.ErrorOut, route.SuccessOut]] = '{
+          ${ makeReturn(ctx, parsedTerms) } @@ ZIOAspect.annotated("endpoint", ${ Expr(s"${route.derivedApiName}.${route.derivedEndpointName}") })
+        }
         val handledExpr: Expr[URIO[Scope, Response]] = mapReturn(ctx, unhandledExpr)
         handledExpr
     }

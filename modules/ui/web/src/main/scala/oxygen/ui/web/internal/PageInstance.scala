@@ -1,9 +1,9 @@
 package oxygen.ui.web.internal
 
 import java.util.UUID
-import org.scalajs.dom.{document, window}
 import oxygen.predef.core.*
-import oxygen.ui.web.{NonRoutablePage, Page, PageURL, RaiseHandler, RoutablePage, UIError}
+import oxygen.ui.web.{NonRoutablePage, Page, PageURL, RoutablePage, UIError, WidgetState}
+import oxygen.ui.web.service.Window
 import zio.*
 
 trait PageInstance[Params, State] {
@@ -14,19 +14,20 @@ trait PageInstance[Params, State] {
 
   private[web] final lazy val pageReference: PageReference = PageReference(pageId, page.getClass.getSimpleName.stripSuffix("$"))
 
-  private[web] final lazy val pageState: GlobalStateManager.Value[State] = page.InternalPageState.getValue(pageReference)
+  private[web] final lazy val pageStateValue: GlobalStateManager.Value[State] = page.InternalPageState.getValue(pageReference)
+  private[web] final def pageState: WidgetState[State] = WidgetState.GlobalValue(pageStateValue, this)
 
   private[web] def recordNewValues(state: State, navType: NavigationEvent.NavType): UIO[Unit]
 
-  private[web] def reRender: UIO[Unit]
+  private[web] def render(navType: NavigationEvent.NavType): UIO[Unit]
 
   private[web] def close: UIO[Unit]
 
   def runForked[Env: HasNoScope](effect: URIO[Env & Scope, Unit]): URIO[Env, Unit]
 
-  final def runForkedHandleErrors[Env: HasNoScope](toLoc: PageReference => RootErrorHandler.ErrorLocation)(effect: ZIO[Env & Scope, UIError, Unit]): URIO[Env, Unit] =
+  final def runForkedHandleErrors[Env: HasNoScope](toLoc: PageInstance.Untyped => RootErrorHandler.ErrorLocation)(effect: ZIO[Env & Scope, UIError, Unit]): URIO[Env, Unit] =
     runForked {
-      RootErrorHandler.rootError(toLoc(pageReference))(effect).catchAll {
+      RootErrorHandler.rootError(toLoc(this))(effect).catchAll {
         case RootErrorHandler.ErrorWithLocation(loc, error) => errorHandler.handleErrorCause(loc, error)
         case UIError.Redirect(navEvent)                     => Router.route(navEvent)
       }
@@ -47,14 +48,11 @@ object PageInstance {
     val activeRef: Ref[ActiveState]
 
     override protected val page: Page.AuxE[Env, Params, State]
-    protected val uiRuntime: UIRuntime[Env]
+    protected[web] val uiRuntime: UIRuntime[Env]
 
-    private[web] final lazy val raiseHandler: RaiseHandler.Root[Env, Params, State] =
-      RaiseHandler.Root[Env, Params, State](page, this, uiRuntime)
-
-    override private[web] final def reRender: UIO[Unit] =
+    override private[web] final def render(navType: NavigationEvent.NavType): UIO[Unit] =
       activeRef.get.flatMap {
-        case ActiveState.Active(scope) => uiRuntime.execute(scope.extend[Env](page.render[Env](raiseHandler, NavigationEvent.NavType.Replace)))
+        case ActiveState.Active(scope) => uiRuntime.execute(scope.extend[Env](page.render[Env](this, navType)))
         case ActiveState.Closed        => ZIO.logWarning(s"[PageExecutor.runForked] pageId=$pageId is closed")
       }
 
@@ -82,14 +80,11 @@ object PageInstance {
 
   }
 
-  private def setTitle(title: String): UIO[Unit] =
-    ZIO.succeed { document.title = title }
-
   private def nav(url: PageURL, title: String, navType: NavigationEvent.NavType): UIO[Unit] =
     navType match
-      case NavigationEvent.NavType.Push    => ZIO.succeed { window.history.pushState(null, title, url.formatted) }
-      case NavigationEvent.NavType.Replace => ZIO.succeed { window.history.replaceState(null, title, url.formatted) }
-      case NavigationEvent.NavType.None    => setTitle(title)
+      case NavigationEvent.NavType.Push    => Window.history.push(url, title)
+      case NavigationEvent.NavType.Replace => Window.history.replace(url, title)
+      case NavigationEvent.NavType.None    => Window.setTitle(title)
 
   final case class Routable[Env: HasNoScope, Params, State](
       pageId: UUID,
@@ -106,7 +101,7 @@ object PageInstance {
 
       lastEvalRef.get.flatMap {
         case Some(lastEval) if lastEval.params == params =>
-          setTitle(title).whenDiscard(title != lastEval.title) *>
+          Window.setTitle(title).whenDiscard(title != lastEval.title) *>
             lastEvalRef.set(Routable.LastEval(params, state, lastEval.url, title).some)
         case _ =>
           val newUrl = page.paramCodec.encode(params)
@@ -141,10 +136,10 @@ object PageInstance {
 
       lastEvalRef.get.flatMap {
         case Some(lastEval) =>
-          setTitle(title).whenDiscard(title != lastEval.title) *>
+          Window.setTitle(title).whenDiscard(title != lastEval.title) *>
             lastEvalRef.set(NonRoutable.LastEval(state, title).some)
         case None =>
-          setTitle(title) *>
+          Window.setTitle(title) *>
             lastEvalRef.set(NonRoutable.LastEval(state, title).some)
       }
     }

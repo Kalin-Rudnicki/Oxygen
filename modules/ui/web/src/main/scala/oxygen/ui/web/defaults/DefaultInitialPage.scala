@@ -1,8 +1,8 @@
 package oxygen.ui.web.defaults
 
 import oxygen.ui.web.*
-import oxygen.ui.web.component.{*, given}
-import zio.*
+import oxygen.ui.web.component.*
+import oxygen.ui.web.create.{*, given}
 
 object DefaultInitialPage extends NonRoutablePage.StateSameAsParams[Any] {
 
@@ -10,11 +10,9 @@ object DefaultInitialPage extends NonRoutablePage.StateSameAsParams[Any] {
 
   override def title(state: Unit): String = "Oxygen Web UI"
 
-  override def postLoad(state: Unit, rh: RaiseHandler.Stateful[Nothing, Unit]): ZIO[Scope, UIError, Unit] = ZIO.unit
-
-  override protected def component(state: State): Widget.Stateful[Any, Nothing, State] =
+  override protected def component(state: State): WidgetS[State] =
     fragment(
-      PageErrorsBottomCorner.lifted,
+      PageMessagesBottomCorner.attached,
       h1("Oxygen Web UI"),
     )
 

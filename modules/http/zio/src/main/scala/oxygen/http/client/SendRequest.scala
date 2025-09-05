@@ -1,6 +1,6 @@
 package oxygen.http.client
 
-import oxygen.http.core.{RequestNonPathCodec, RequestPathCodec}
+import oxygen.http.core.{BodyUtil, RequestNonPathCodec, RequestPathCodec}
 import oxygen.predef.core.*
 import scala.annotation.tailrec
 import zio.http.*
@@ -24,7 +24,7 @@ object SendRequest {
       Path(path),
       QueryParams.empty,
       Headers.empty,
-      Body.fromString(body),
+      BodyUtil.fromString(body),
     )
 
   enum AppliedValue[A] {

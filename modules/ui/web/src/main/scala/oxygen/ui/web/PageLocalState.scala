@@ -2,7 +2,8 @@ package oxygen.ui.web
 
 import java.util.UUID
 import oxygen.predef.core.*
-import oxygen.ui.web.internal.{GlobalStateManager, PageManager, PageReference, StateReference}
+import oxygen.ui.web.create.*
+import oxygen.ui.web.internal.*
 import zio.*
 
 /**
@@ -10,22 +11,20 @@ import zio.*
   */
 abstract class PageLocalState[S](final val name: String)(initial: => S) {
   private val stateId: UUID = PlatformCompat.randomUUID()
-
   private[web] final val stateReference: StateReference = StateReference(stateId, name)
 
   private[web] final def getValue(pageReference: PageReference): GlobalStateManager.Value[S] =
     GlobalStateManager.getPageLocal(pageReference).getValue(stateReference, initial)
 
-  final def get(pageReference: PageReference): UIO[S] = ZIO.succeed { unsafeGet(pageReference) } <* PageManager.reRenderCurrentPage
-  final def set(pageReference: PageReference)(value: S): UIO[Unit] = ZIO.succeed { unsafeSet(pageReference)(value) } <* PageManager.reRenderCurrentPage
-  final def update(pageReference: PageReference)(f: S => S): UIO[Unit] = ZIO.succeed { unsafeUpdate(pageReference)(f) } <* PageManager.reRenderCurrentPage
+  def attach[Env, Action](f: WidgetState[S] => WidgetEAS[Env, Action, S]): WidgetEA[Env, Action] =
+    Widget.state[S].attach(this)(f)
+  def detach[Env, Action, InnerStateGet, InnerStateSet <: InnerStateGet](
+      f: WidgetState[S] => Widget.Polymorphic[Env, Action, InnerStateGet, InnerStateSet],
+  ): Widget.Polymorphic[Env, Action, InnerStateGet, InnerStateSet] =
+    Widget.state[S].detach(this)(f)
 
-  final def getCurrentPage: UIO[S] = PageManager.currentPageRef.flatMap(get(_))
-  final def setCurrentPage(value: S): UIO[Unit] = PageManager.currentPageRef.flatMap(set(_)(value))
-  final def updateCurrentPage(f: S => S): UIO[Unit] = PageManager.currentPageRef.flatMap(update(_)(f))
-
-  final def unsafeGet(pageReference: PageReference)(using Unsafe): S = getValue(pageReference).get()
-  final def unsafeSet(pageReference: PageReference)(value: S)(using Unsafe): Unit = getValue(pageReference).set(value)
-  final def unsafeUpdate(pageReference: PageReference)(f: S => S)(using Unsafe): Unit = getValue(pageReference).modify(f)
+  final def get(pageInstance: PageInstance.Untyped): UIO[S] = ZIO.succeed { getValue(pageInstance.pageReference).get() }
+  final def set(pageInstance: PageInstance.Untyped)(value: S): UIO[Unit] = WidgetState.GlobalValue.fromPageLocalState(this, pageInstance).set(value)
+  final def update(pageInstance: PageInstance.Untyped)(f: S => S): UIO[Unit] = WidgetState.GlobalValue.fromPageLocalState(this, pageInstance).update(f)
 
 }

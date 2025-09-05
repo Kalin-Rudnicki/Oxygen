@@ -13,7 +13,7 @@ sealed trait PlainTextSchema[A] extends SchemaLike[A] {
   override final def transformOrFail[B: TypeTag as newTypeTag](ab: A => Either[String, B], ba: B => A): PlainTextSchema[B] = PlainTextSchema.TransformOrFail(this, newTypeTag, ab, ba)
 
 }
-object PlainTextSchema {
+object PlainTextSchema extends PlainTextSchemaLowPriority.LowPriority1 {
 
   //////////////////////////////////////////////////////////////////////////////////////////////////////
   //      Givens
@@ -45,7 +45,9 @@ object PlainTextSchema {
   given timeZone: PlainTextSchema[TimeZone] = PlainTextSchema.string.transformAttempt(TimeZone.getTimeZone, _.getID)
 
   given bearerToken: PlainTextSchema[BearerToken] = PlainTextSchema.BearerTokenSchema
-  given jwt: [A: JsonSchema as payloadSchema] => (typeTag: TypeTag[JWT[A]]) => PlainTextSchema[JWT[A]] = PlainTextSchema.JWTSchema(typeTag, payloadSchema)
+
+  given standardJWT: [A: JsonSchema] => (jwtTypeTag: TypeTag[JWT.Std[A]], payloadTypeTag: TypeTag[JWT.StandardPayload[A]]) => PlainTextSchema[JWT.Std[A]] =
+    PlainTextSchema.JWTSchema(jwtTypeTag, instances.standardJWTPayloadSchema[A])
 
   //////////////////////////////////////////////////////////////////////////////////////////////////////
   //      Instances
@@ -91,6 +93,16 @@ object PlainTextSchema {
   final case class TransformOrFail[A, B](underlying: PlainTextSchema[A], typeTag: TypeTag[B], ab: A => Either[String, B], ba: B => A) extends PlainTextSchema[B] {
     override def decode(string: String): Either[String, B] = underlying.decode(string).flatMap(ab)
     override def encode(value: B): String = underlying.encode(ba(value))
+  }
+
+}
+
+object PlainTextSchemaLowPriority {
+
+  trait LowPriority1 {
+
+    given jwt: [A: JsonSchema as payloadSchema] => (typeTag: TypeTag[JWT[A]]) => PlainTextSchema[JWT[A]] = PlainTextSchema.JWTSchema(typeTag, payloadSchema)
+
   }
 
 }

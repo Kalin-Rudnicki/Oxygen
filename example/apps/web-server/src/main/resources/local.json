@@ -1,0 +1,41 @@
+{
+  "http": {
+    "exposeInternalErrors": true,
+    "port": 3010
+  },
+  "token": {
+    "key": {
+      "alg": "HS256",
+      "base64Key": "HS256ExampleKey"
+    },
+    "timeToLive": "P3650D"
+  },
+  "db": {
+    "target": {
+      "database": "oxygen_example",
+      "host": "localhost",
+      "port": 5010
+    },
+    "credentials": {
+      "username": "dbadmin",
+      "password": "password"
+    },
+    "pool": {
+      "minConnections": "2",
+      "maxConnections": "16",
+      "duration":  "PT5M"
+    },
+    "logging": {
+      "queryLogLevel": "Trace",
+      "logSql": true
+    },
+    "execution": {
+      "bufferChunkSize": [16, 64, 64, 256],
+      "bufferNumChunks": 2
+    }
+  },
+  "ui": {
+    "htmlPath": "example/apps/web-server/src/main/resources/res/html/index.html",
+    "resourcePath": "example/apps/web-server/src/main/resources/res"
+  }
+}
