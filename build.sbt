@@ -402,25 +402,6 @@ lazy val `oxygen-sql-test`: Project =
       `oxygen-sql` % testAndCompile,
     )
 
-// TODO (KR) : add this when there is something to put here
-/*
-lazy val `oxygen-http-test`: CrossProject =
-  // crossProject(JSPlatform, JVMPlatform, NativePlatform)
-  crossProject(JVMPlatform) // only publish JVM, for now
-    .crossType(CrossType.Pure)
-    .in(file("modules/http-test"))
-    .settings(
-      publishedProjectSettings,
-      name := "oxygen-http-test",
-      description := "Test utils for oxygen-http-*.",
-    )
-    .dependsOn(
-      `oxygen-http-client` % testAndCompile,
-      `oxygen-http-server` % testAndCompile,
-      `oxygen-test` % testAndCompile,
-    )
- */
-
 //////////////////////////////////////////////////////////////////////////////////////////////////////
 //      Internal
 //////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -491,27 +472,201 @@ lazy val `ut`: CrossProject =
 
 lazy val `example`: Project =
   project
-    .in(file("example/modules"))
+    .in(file("example"))
     .settings(
       nonPublishedProjectSettings,
       name := "oxygen-example",
       description := "oxygen-example",
     )
     .aggregate(
+      // cross
+      `example-core`.jvm,
+      `example-core`.js,
+      `example-api-models`.jvm,
+      `example-api-models`.js,
+      `example-api`.jvm,
+      `example-api`.js,
+      // jvm-only
+      `example-domain-models`,
+      `example-domain`,
+      `example-domain-impl`,
+      `example-web-server`,
+      // js-only
       `example-ui`,
     )
 
+lazy val `example-core`: CrossProject =
+  crossProject(JSPlatform, JVMPlatform)
+    .crossType(CrossType.Pure)
+    .in(file("example/modules/core"))
+    .settings(
+      nonPublishedProjectSettings,
+      scalacOptions += "-experimental",
+      name := "oxygen-example-core",
+      description := "oxygen-example-core",
+    )
+    .dependsOn(
+      `oxygen-core` % testAndCompile,
+    )
+
+lazy val `example-api-models`: CrossProject =
+  crossProject(JSPlatform, JVMPlatform)
+    .crossType(CrossType.Pure)
+    .in(file("example/modules/api-models"))
+    .settings(
+      nonPublishedProjectSettings,
+      scalacOptions += "-experimental",
+      name := "oxygen-example-api-models",
+      description := "oxygen-example-api-models",
+    )
+    .dependsOn(
+      `example-core` % testAndCompile,
+      `oxygen-http` % testAndCompile,
+    )
+
+lazy val `example-api`: CrossProject =
+  crossProject(JSPlatform, JVMPlatform)
+    .crossType(CrossType.Pure)
+    .in(file("example/modules/api"))
+    .settings(
+      nonPublishedProjectSettings,
+      scalacOptions += "-experimental",
+      name := "oxygen-example-api",
+      description := "oxygen-example-api",
+    )
+    .dependsOn(
+      `example-api-models` % testAndCompile,
+    )
+
+lazy val `example-domain-models`: Project =
+  project
+    .in(file("example/modules/domain-models"))
+    .settings(
+      nonPublishedProjectSettings,
+      scalacOptions += "-experimental",
+      name := "oxygen-example-domain-models",
+      description := "oxygen-example-domain-models",
+    )
+    .dependsOn(
+      `example-core`.jvm % testAndCompile,
+    )
+
+lazy val `example-domain`: Project =
+  project
+    .in(file("example/modules/domain"))
+    .settings(
+      nonPublishedProjectSettings,
+      scalacOptions += "-experimental",
+      name := "oxygen-example-domain",
+      description := "oxygen-example-domain",
+      libraryDependencies ++= Seq(
+        "org.mindrot" % "jbcrypt" % "0.4",
+      ),
+    )
+    .dependsOn(
+      `example-domain-models` % testAndCompile,
+      `oxygen-zio`.jvm % testAndCompile,
+    )
+
+lazy val `example-domain-impl`: Project =
+  project
+    .in(file("example/modules/domain-impl"))
+    .settings(
+      nonPublishedProjectSettings,
+      scalacOptions += "-experimental",
+      name := "oxygen-example-domain-impl",
+      description := "oxygen-example-domain-impl",
+    )
+    .dependsOn(
+      `oxygen-sql` % testAndCompile,
+      `oxygen-sql-migration` % testAndCompile,
+      `example-domain` % testAndCompile,
+    )
+
+lazy val `example-web-server`: Project =
+  project
+    .in(file("example/apps/web-server"))
+    .settings(
+      nonPublishedProjectSettings,
+      scalacOptions += "-experimental",
+      name := "oxygen-example-web-server",
+      description := "oxygen-example-web-server",
+    )
+    .dependsOn(
+      `oxygen-crypto-service` % testAndCompile,
+      `oxygen-executable`.jvm % testAndCompile,
+      `example-api`.jvm % testAndCompile,
+      `example-domain-impl` % testAndCompile,
+    )
+
+val webComp: InputKey[Unit] = inputKey("webComp")
+val webCompDirs = settingKey[Seq[File]]("webCompDirs")
+
 lazy val `example-ui`: Project =
   project
-    .in(file("example/modules/ui"))
+    .in(file("example/apps/ui"))
     .enablePlugins(ScalaJSPlugin)
     .settings(
       nonPublishedProjectSettings,
+      scalacOptions += "-experimental",
       name := "oxygen-example-ui",
       description := "oxygen-example-ui",
       scalaJSUseMainModuleInitializer := true,
+      // webComp
+      webCompDirs := Seq(
+        file("example/apps/web-server/src/main/resources/res/js"),
+      ),
+      webComp :=
+        Def.inputTaskDyn {
+          import complete.DefaultParsers._
+
+          val args: List[String] = spaceDelimited("<arg>").parsed.toList
+          val (task, taskName) =
+            if (args.contains("--full")) (fullLinkJS, "opt")
+            else (fastLinkJS, "fastopt")
+
+          val copySourceMap = !args.contains("--no-source-map")
+
+          Def.sequential(
+            Def
+              .inputTask { println("Running 'webComp'...") }
+              .toTask(""),
+            Compile / task,
+            Def
+              .inputTask {
+                def jsFile(name: String): File = {
+                  val targetDir = (Compile / task / crossTarget).value
+                  val projectName = normalizedName.value
+                  new File(s"$targetDir/$projectName-$taskName/$name")
+                }
+
+                val files =
+                  jsFile("main.js") ::
+                    (if (copySourceMap) jsFile("main.js.map") :: Nil else Nil)
+
+                webCompDirs.value.foreach { moveToDir =>
+                  println(s"copying scripts to '$moveToDir'")
+
+                  moveToDir.mkdirs()
+                  moveToDir.listFiles.foreach { f =>
+                    if (f.name.contains("main.js"))
+                      f.delete()
+                  }
+                  files.foreach { f =>
+                    IO.copyFile(f, new File(moveToDir, f.getName))
+                  }
+                }
+
+                ()
+              }
+              .toTask(""),
+          )
+        }.evaluated,
     )
-    .dependsOn(`oxygen-ui-web`)
+    .dependsOn(
+      `example-api`.js,
+      `oxygen-ui-web`,
+    )
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////
 //      Commands

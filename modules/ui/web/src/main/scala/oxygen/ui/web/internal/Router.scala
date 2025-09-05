@@ -84,7 +84,7 @@ object Router {
       uiRuntime <- UIRuntime.make[Env]
       router = Inst(pages, pageManager, uiRuntime, rootErrorHandler)
       _ <- currentRouterRef.set(router.some)
-      _ <- ZIO.succeed { window.onpopstate = _ => uiRuntime.unsafeExecute { router.routeWindowURL } }
+      _ <- ZIO.succeed { window.onpopstate = { _ => uiRuntime.unsafeExecute { router.routeWindowURL } } }
     } yield router
 
 }

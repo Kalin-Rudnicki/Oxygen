@@ -37,7 +37,7 @@ object ApiError {
 
   given ServerErrorHandler[ApiError] =
     new ServerErrorHandler[ApiError] {
-      override def wrapDeath(error: Throwable, exposeInternalErrors: Boolean): Option[ApiError] =
+      override def wrapDeath(error: Throwable, trace: StackTrace, exposeInternalErrors: Boolean): Option[ApiError] =
         InternalError(Option.when(exposeInternalErrors)(error.safeGetMessage)).some
       override def wrapDecodingFailure(error: RequestDecodingFailure): Option[ApiError] =
         DecodingFailure(error).some

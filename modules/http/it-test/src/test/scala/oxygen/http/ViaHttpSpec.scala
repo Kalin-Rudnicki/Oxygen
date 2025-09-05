@@ -10,28 +10,17 @@ object ViaHttpSpec extends OxygenContractSpec[UserApi]("ViaHttpSpec", UserApiCon
 
   // override def defaultLogLevel: LogLevel = LogLevel.Info
 
-  private val serverLayer: RLayer[Int, Unit] =
-    ZLayer.makeSome[Int, Unit](
-      Server.layer.simple,
-      Endpoints.layer(
-        UserApiImpl.layer,
-      ),
-      CompiledEndpoints.endpointLayer(),
-      Server.Config.defaultLayer,
-      Server.layer.serving,
-    )
-
-  private val clientLayer: RLayer[Int, UserApi] =
-    ZLayer.makeSome[Int, UserApi](
-      Client.layer.localPort,
-      DeriveClient.clientLayer[UserApi],
-    )
-
   override def layerProvider: LayerProvider[R] =
     LayerProvider.providePerTest[Env](
       ZLayer { Random.RandomLive.nextIntBetween(6000, 7000) },
-      serverLayer,
-      clientLayer,
+      Server.layer.simple,
+      EndpointAndClientBuilder.layer {
+        _.add[UserApi](UserApiImpl.layer)
+      },
+      CompiledEndpoints.endpointLayer(),
+      Client.layer.localPort,
+      Server.Config.defaultLayer,
+      Server.layer.serving,
     )
 
 }

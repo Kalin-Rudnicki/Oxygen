@@ -1,5 +1,6 @@
 package oxygen.core.collection
 
+import oxygen.core.Ior
 import oxygen.core.syntax.groupBy.*
 import oxygen.core.syntax.option.*
 import oxygen.core.typeclass.SeqRead
@@ -48,6 +49,22 @@ final case class NonEmptyList[+A](head: A, tail: List[A]) extends PartialFunctio
   def groupBy[K](f: A => K): Map[K, NonEmptyList[A]] = toList.groupByNE(f)
   def groupMap[K, B](key: A => K)(f: A => B): Map[K, NonEmptyList[B]] = toList.groupMapNE(key)(f)
   def groupMapReduce[K, B](key: A => K)(f: A => B)(reduce: (B, B) => B): Map[K, B] = toList.groupMapReduce(key)(f)(reduce)
+
+  def partition(p: A => Boolean): Ior[NonEmptyList[A], NonEmptyList[A]] =
+    this.toList.partition(p) match {
+      case (lHead :: lTail, rHead :: rTail) => Ior.Both(NonEmptyList(lHead, lTail), NonEmptyList(rHead, rTail))
+      case (lHead :: lTail, Nil)            => Ior.Left(NonEmptyList(lHead, lTail))
+      case (Nil, rHead :: rTail)            => Ior.Right(NonEmptyList(rHead, rTail))
+      case (Nil, Nil)                       => throw new RuntimeException("not possible...")
+    }
+
+  def partitionMap[T, F](p: A => Either[T, F]): Ior[NonEmptyList[T], NonEmptyList[F]] =
+    this.toList.partitionMap(p) match {
+      case (lHead :: lTail, rHead :: rTail) => Ior.Both(NonEmptyList(lHead, lTail), NonEmptyList(rHead, rTail))
+      case (lHead :: lTail, Nil)            => Ior.Left(NonEmptyList(lHead, lTail))
+      case (Nil, rHead :: rTail)            => Ior.Right(NonEmptyList(rHead, rTail))
+      case (Nil, Nil)                       => throw new RuntimeException("not possible...")
+    }
 
   def distinct: NonEmptyList[A] = unsafeTransformList(_.distinct)
   def distinctBy[B](f: A => B): NonEmptyList[A] = unsafeTransformList(_.distinctBy(f))

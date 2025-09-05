@@ -32,13 +32,13 @@ object Renderer {
   private def makeBody(elements: => Growable[DOMElement]): DOMElement.Node =
     elements.toArraySeq match
       case ArraySeq(node: DOMElement.Node) if node.tag == "body" => node
-      case other                                                 => DOMElement.Node("body", other)
+      case other                                                 => DOMElement.Node(None, "body", other)
 
   private def diff(currentEntity: RenderedEntity, newEntity: DOMElement.Entity): RenderedEntity =
     (currentEntity, newEntity) match {
-      case (currentEntity: RenderedEntity.Node, newEntity: DOMElement.Node) if currentEntity.preRendered.tag == newEntity.tag =>
+      case (currentEntity: RenderedEntity.Node, newEntity: DOMElement.Node) if currentEntity.preRendered.isSameNodeType(newEntity) =>
         val newChildren = patch(currentEntity, newEntity)
-        RenderedEntity.Node(newEntity, currentEntity.rendered, newChildren, newEntity.cssStr, newEntity.htmlAttrMap, newEntity.objectAttrMap)
+        RenderedEntity.Node(newEntity, currentEntity.rendered, newChildren, newEntity.cssStr, newEntity.htmlAttrMap, newEntity.objectAttrMap, newEntity.classes)
       case (currentEntity: RenderedEntity.Text, newEntity: DOMElement.Text) if currentEntity.preRendered.text == newEntity.text =>
         currentEntity
       case (currentEntity: RenderedEntity.Text, newEntity: DOMElement.Text) =>
@@ -47,7 +47,7 @@ object Renderer {
       case (currentEntity: RenderedEntity.Canvas, newEntity: DOMElement.Canvas) =>
         val newChildren = patch(currentEntity, newEntity)
         newEntity.draw(currentEntity.ctx)
-        RenderedEntity.Canvas(newEntity, currentEntity.rendered, currentEntity.ctx, newChildren, newEntity.cssStr, newEntity.htmlAttrMap, newEntity.objectAttrMap)
+        RenderedEntity.Canvas(newEntity, currentEntity.rendered, currentEntity.ctx, newChildren, newEntity.cssStr, newEntity.htmlAttrMap, newEntity.objectAttrMap, newEntity.classes)
       case _ =>
         val newRendered: RenderedEntity = render(newEntity)
         currentEntity.rendered.parentNode.replaceChild(newRendered.rendered, currentEntity.rendered)
@@ -84,6 +84,10 @@ object Renderer {
       case (Some(_), None) =>
         currentEntity.rendered.removeAttribute("style")
     }
+    if (currentEntity.classes != newEntity.classes) {
+      (currentEntity.classes &~ newEntity.classes).foreach { currentEntity.rendered.classList.remove }
+      (newEntity.classes &~ currentEntity.classes).foreach { currentEntity.rendered.classList.add }
+    }
 
     val minLen = currentEntity.children.length min newEntity.entityChildren.length
     val array: Array[RenderedEntity] = new Array(newEntity.entityChildren.length)
@@ -117,12 +121,16 @@ object Renderer {
     case tac: DOMElement.WithTagAndChildren => render(tac)
 
   private def render(tac: DOMElement.WithTagAndChildren): RenderedEntity.WithTagAndChildren = {
-    val node: Element = document.createElement(tac.tag)
+    val node: Element = tac.xmlns match
+      case None        => document.createElement(tac.tag)
+      case Some(xmlns) => document.createElementNS(xmlns, tac.tag)
+
     val nodeDynamic: Dynamic = node.asInstanceOf[Dynamic]
 
     tac.htmlAttrMap.foreach { case (k, v) => node.setAttribute(k, v) }
     tac.objectAttrMap.foreach { case (k, v) => nodeDynamic.updateDynamic(k)(v) }
     tac.cssStr.foreach { css => node.setAttribute("style", css) }
+    tac.classes.foreach { node.classList.add }
 
     val builtChildren: ArraySeq[RenderedEntity] = tac.entityChildren.map(render)
 
@@ -137,6 +145,7 @@ object Renderer {
           tac.cssStr,
           tac.htmlAttrMap,
           tac.objectAttrMap,
+          tac.classes,
         )
       case tac: DOMElement.Canvas =>
         val typedNode: HTMLCanvasElement = node.asInstanceOf[HTMLCanvasElement]
@@ -152,6 +161,7 @@ object Renderer {
           tac.cssStr,
           tac.htmlAttrMap,
           tac.objectAttrMap,
+          tac.classes,
         )
     }
   }

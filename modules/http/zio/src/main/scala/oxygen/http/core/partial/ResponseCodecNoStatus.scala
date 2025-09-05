@@ -1,12 +1,13 @@
 package oxygen.http.core.partial
 
-import oxygen.http.core.ResponseDecodingFailure
+import oxygen.http.core.{DecodingFailureCause, ResponseDecodingFailure}
 import oxygen.http.core.partial.{PartialBodyCodec, PartialParamCodec}
 import oxygen.http.schema.{ResponseBodySchema, ResponseHeaderSchema}
 import oxygen.http.schema.partial.ResponseSchemaAggregator
 import oxygen.predef.core.*
+import oxygen.schema.*
 import zio.*
-import zio.http.{Body, Header, Headers}
+import zio.http.{Body, Header, Headers, MediaType}
 
 sealed trait ResponseCodecNoStatus[A] {
 
@@ -19,6 +20,9 @@ sealed trait ResponseCodecNoStatus[A] {
   final def encode(value: A): (Headers, Body) = encodeInternal(value, ResponseCodecNoStatus.Builder.empty).build
 
   final def ++[B](that: ResponseCodecNoStatus[B])(using zip: Zip[A, B]): ResponseCodecNoStatus[zip.Out] = ResponseCodecNoStatus.And(this, that, zip)
+
+  final def transform[B](ab: A => B, ba: B => A): ResponseCodecNoStatus[B] = ResponseCodecNoStatus.Transform(this, ab, ba)
+  final def transformOrFail[B](ab: A => Either[String, B], ba: B => A): ResponseCodecNoStatus[B] = ResponseCodecNoStatus.TransformOrFail(this, ab, ba)
 
 }
 object ResponseCodecNoStatus {
@@ -43,6 +47,42 @@ object ResponseCodecNoStatus {
 
   given unit: ResponseCodecNoStatus[Unit] = ResponseCodecNoStatus.Empty
   given fromBody: [A: PartialBodyCodec as codec] => ResponseCodecNoStatus[A] = ResponseCodecNoStatus.ApplyPartialBody(codec)
+
+  object header {
+
+    object plain {
+
+      def required[A: PlainTextSchema](name: String, doc: Option[String] = None): ResponseCodecNoStatus[A] =
+        ResponseCodecNoStatus.ApplyPartialHeader(PartialParamCodec.Plain.required[A], name, doc)
+
+      def optional[A: PlainTextSchema](name: String, doc: Option[String] = None): ResponseCodecNoStatus[Option[A]] =
+        ResponseCodecNoStatus.ApplyPartialHeader(PartialParamCodec.Plain.optional[A], name, doc)
+
+      def manyNonEmpty[A: PlainTextSchema](name: String, doc: Option[String] = None): ResponseCodecNoStatus[NonEmptyList[A]] =
+        ResponseCodecNoStatus.ApplyPartialHeader(PartialParamCodec.Plain.manyNonEmpty[A], name, doc)
+
+      def many[S[_]: SeqOps, A: PlainTextSchema](name: String, doc: Option[String] = None): ResponseCodecNoStatus[S[A]] =
+        ResponseCodecNoStatus.ApplyPartialHeader(PartialParamCodec.Plain.many[S, A], name, doc)
+
+    }
+
+    object json {
+
+      def required[A: JsonSchema](name: String, doc: Option[String] = None): ResponseCodecNoStatus[A] =
+        ResponseCodecNoStatus.ApplyPartialHeader(PartialParamCodec.Json.required[A], name, doc)
+
+      def optional[A: JsonSchema](name: String, doc: Option[String] = None): ResponseCodecNoStatus[Option[A]] =
+        ResponseCodecNoStatus.ApplyPartialHeader(PartialParamCodec.Json.optional[A], name, doc)
+
+      def manyNonEmpty[A: JsonSchema](name: String, doc: Option[String] = None): ResponseCodecNoStatus[NonEmptyList[A]] =
+        ResponseCodecNoStatus.ApplyPartialHeader(PartialParamCodec.Json.manyNonEmpty[A], name, doc)
+
+      def many[S[_]: SeqOps, A: JsonSchema](name: String, doc: Option[String] = None): ResponseCodecNoStatus[S[A]] =
+        ResponseCodecNoStatus.ApplyPartialHeader(PartialParamCodec.Json.many[S, A], name, doc)
+
+    }
+
+  }
 
   //////////////////////////////////////////////////////////////////////////////////////////////////////
   //      Impls
@@ -76,6 +116,20 @@ object ResponseCodecNoStatus {
       else acc
     }
 
+  }
+
+  final case class SetHeader(name: String, value: String) extends ResponseCodecNoStatus[Unit] {
+    override val sources: List[ResponseDecodingFailure.Source] = Nil
+    override val schemaAggregator: ResponseSchemaAggregator = ResponseSchemaAggregator.empty
+    override def decode(headers: Headers, body: Body): ZIO[Scope, ResponseDecodingFailure, Unit] = ZIO.unit
+    override private[ResponseCodecNoStatus] def encodeInternal(value: Unit, acc: Builder): Builder = acc.copy(headers = acc.headers :+ Header.Custom(this.name, this.value))
+  }
+
+  final case class SetContentType(contentType: MediaType) extends ResponseCodecNoStatus[Unit] {
+    override val sources: List[ResponseDecodingFailure.Source] = Nil
+    override val schemaAggregator: ResponseSchemaAggregator = ResponseSchemaAggregator.empty
+    override def decode(headers: Headers, body: Body): ZIO[Scope, ResponseDecodingFailure, Unit] = ZIO.unit
+    override private[ResponseCodecNoStatus] def encodeInternal(value: Unit, acc: Builder): Builder = acc.copy(body = acc.body.contentType(contentType))
   }
 
   sealed trait ApplyPartialBody[A] extends ResponseCodecNoStatus[A]
@@ -130,6 +184,34 @@ object ResponseCodecNoStatus {
       val (aValue, bValue) = zip.unzip(value)
       b.encodeInternal(bValue, a.encodeInternal(aValue, acc))
     }
+
+  }
+
+  final case class Transform[A, B](a: ResponseCodecNoStatus[A], ab: A => B, ba: B => A) extends ResponseCodecNoStatus[B] {
+
+    override val sources: List[ResponseDecodingFailure.Source] = a.sources
+    override val schemaAggregator: ResponseSchemaAggregator = a.schemaAggregator
+
+    override def decode(headers: Headers, body: Body): ZIO[Scope, ResponseDecodingFailure, B] =
+      a.decode(headers, body).map(ab)
+
+    override private[ResponseCodecNoStatus] def encodeInternal(value: B, acc: Builder): Builder =
+      a.encodeInternal(ba(value), acc)
+
+  }
+
+  final case class TransformOrFail[A, B](a: ResponseCodecNoStatus[A], ab: A => Either[String, B], ba: B => A) extends ResponseCodecNoStatus[B] {
+
+    override val sources: List[ResponseDecodingFailure.Source] = a.sources
+    override val schemaAggregator: ResponseSchemaAggregator = a.schemaAggregator
+
+    override def decode(headers: Headers, body: Body): ZIO[Scope, ResponseDecodingFailure, B] =
+      a.decode(headers, body).flatMap { aValue =>
+        ZIO.fromEither { ab(aValue).leftMap { error => ResponseDecodingFailure(sources, DecodingFailureCause.DecodeError(error)) } }
+      }
+
+    override private[ResponseCodecNoStatus] def encodeInternal(value: B, acc: Builder): Builder =
+      a.encodeInternal(ba(value), acc)
 
   }
 

@@ -1,0 +1,57 @@
+package oxygen.ui.web.component
+
+import oxygen.ui.web.create.*
+
+object PageLayout {
+
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
+  //      Props
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
+
+  // TODO (KR) : collapse/expand
+  // TODO (KR) : resize
+  final case class SideMenuProps(
+      collapseStyle: SideMenuProps.CollapseStyle,
+  )
+  object SideMenuProps {
+
+    enum CollapseStyle {
+      case None
+    }
+
+  }
+
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
+  //      NavBar
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
+
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
+  //      Layouts
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
+
+  private val pageBase: Node =
+    div(
+      overflow.hidden,
+      width := 100.vw,
+      height := 100.vh,
+      display.flex,
+      flexDirection.column,
+    )
+
+  private val pageBodyBase: Node =
+    div(
+      flex := "1 0 auto",
+    )
+
+  def layout[Env, Action, State](
+      navBar: NavBar.Stateful[Env, Action, State],
+      // TODO (KR) : add left/right SideMenu
+  )(
+      contents: WidgetEAS[Env, Action, State]*,
+  ): WidgetEAS[Env, Action, State] =
+    pageBase(
+      navBar.widget,
+      pageBodyBase(contents*),
+    )
+
+}

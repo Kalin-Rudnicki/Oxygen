@@ -1,7 +1,8 @@
 package oxygen.ui.web.defaults
 
 import oxygen.ui.web.*
-import oxygen.ui.web.component.{*, given}
+import oxygen.ui.web.component.*
+import oxygen.ui.web.create.{*, given}
 import zio.*
 
 object DefaultNotFoundPage extends NonRoutablePage.StateSameAsParams[Any] {
@@ -10,13 +11,13 @@ object DefaultNotFoundPage extends NonRoutablePage.StateSameAsParams[Any] {
 
   override def title(state: PageURL): String = "404 Not Found"
 
-  override def postLoad(state: PageURL, rh: RaiseHandler.Stateful[Nothing, PageURL]): ZIO[Scope, UIError, Unit] = ZIO.unit
+  override def postLoad(state: WidgetState[State]): ZIO[Scope, UIError, Unit] = ZIO.unit
 
-  override protected def component(state: State): Widget.Stateful[Any, Nothing, State] =
+  override protected def component(state: PageURL): WidgetES[Any, PageURL] =
     fragment(
-      PageErrorsBottomCorner.lifted,
-      h1("Error"),
-      p(state.formatted),
+      PageMessagesBottomCorner.attached,
+      h1("404 Not Found"),
+      p(s"url: ${state.formatted}"),
     )
 
 }

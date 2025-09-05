@@ -21,6 +21,7 @@ object RenderedEntity {
     val cssStr: Option[String]
     val htmlAttrMap: Map[String, String]
     val objectAttrMap: Map[String, js.Any]
+    val classes: Set[String]
 
   }
 
@@ -36,6 +37,7 @@ object RenderedEntity {
       cssStr: Option[String],
       htmlAttrMap: Map[String, String],
       objectAttrMap: Map[String, js.Any],
+      classes: Set[String],
   ) extends RenderedEntity.WithTagAndChildren
 
   final case class Canvas(
@@ -46,6 +48,7 @@ object RenderedEntity {
       cssStr: Option[String],
       htmlAttrMap: Map[String, String],
       objectAttrMap: Map[String, js.Any],
+      classes: Set[String],
   ) extends RenderedEntity.WithTagAndChildren
 
 }

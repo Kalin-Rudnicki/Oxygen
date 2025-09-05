@@ -19,10 +19,10 @@ final case class ZioHttpServer(
   private def serveInternal(endpoints: CompiledEndpoints, config: Server.Config): RIO[ZServer & Scope, Unit] =
     for {
       server <- ZIO.service[ZServer]
-      _ <- ZIO.logInfo("starting...")
+      _ <- ZIO.logInfo("starting web-server...")
       _ <- server.install[Any](endpoints.toRoutes(config))
       p <- server.port
-      _ <- ZIO.logInfo(s"started: $p")
+      _ <- ZIO.logInfo(s"web-server started on port `$p`")
     } yield ()
 
   override def serve(endpoints: CompiledEndpoints, config: Server.Config): RIO[Scope, Unit] =

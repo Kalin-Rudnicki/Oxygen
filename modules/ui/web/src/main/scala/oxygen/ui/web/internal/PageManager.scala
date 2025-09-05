@@ -32,7 +32,7 @@ object PageManager {
 
     override def currentErrorLocation: UIO[RootErrorHandler.ErrorLocation] =
       currentRef.get.map {
-        case Some(current) => RootErrorHandler.ErrorLocation.NavigationAttempt(current.pageReference)
+        case Some(current) => RootErrorHandler.ErrorLocation.NavigationAttempt(current)
         case None          => RootErrorHandler.ErrorLocation.BrowserLoad
       }
 
@@ -79,7 +79,7 @@ object PageManager {
         _ <- ZIO.logTrace(s"----- Loading Page - ${target.page} ---")
         currentPageInstance <- currentRef.get
         loc = currentPageInstance match
-          case Some(currentPageInstance) => RootErrorHandler.ErrorLocation.NavigationAttempt(currentPageInstance.pageReference)
+          case Some(currentPageInstance) => RootErrorHandler.ErrorLocation.NavigationAttempt(currentPageInstance)
           case None                      => RootErrorHandler.ErrorLocation.BrowserLoad
 
         newScope <- Scope.make
@@ -87,9 +87,8 @@ object PageManager {
 
         _ <- ZIO.logTrace("Loading state")
         initialState <- RootErrorHandler.rootError(loc) {
-          target.page
-            .initialLoad(target.params)
-            .provideSomeEnvironment[Env](_.add(newScope))
+          newScope
+            .extend[Env] { target.page.initialLoad(target.params) }
             .tapErrorCause { cause => newScope.close(Exit.Failure(cause)) }
         }
 
@@ -99,19 +98,19 @@ object PageManager {
 
           _ <- ZIO.logTrace("Creating page instance")
           pageInstance <- makeRaw[Env, target.page.Params, target.page.State](newScope, uiRuntime, target.page) // TODO (KR) : thread Params and State into `makeRaw`
-          _ <- ZIO.succeed { pageInstance.pageState.set(initialState) }
+          _ <- ZIO.succeed { pageInstance.pageStateValue.set(initialState) }
 
           _ <- ZIO.logTrace("Switching current and closing previous")
           _ <- currentRef.set(pageInstance.some)
           _ <- ZIO.foreachDiscard(currentPageInstance)(_.close)
 
-          _ <- pageInstance.reRender
+          _ <- pageInstance.render(navType)
 
           _ <- ZIO.logTrace("PageManager.postLoad.start")
           _ <-
             RootErrorHandler
-              .rootError(RootErrorHandler.ErrorLocation.NavigationPagePostLoad(pageInstance.pageReference)) {
-                newScope.extend[Env] { target.page.postLoad(initialState, pageInstance.raiseHandler.eraseEnv) }
+              .rootError(RootErrorHandler.ErrorLocation.NavigationPagePostLoad(pageInstance)) {
+                newScope.extend[Env] { target.page.postLoad(pageInstance.pageState) }
               }
               .catchAll {
                 case RootErrorHandler.ErrorWithLocation(loc, error) => errorHandler.handleErrorCause(loc, error)
@@ -123,7 +122,7 @@ object PageManager {
 
     override def reRenderCurrentPage: UIO[Unit] =
       currentRef.get.flatMap {
-        case Some(current) => current.reRender
+        case Some(current) => current.render(NavigationEvent.NavType.Replace)
         case None          => ZIO.logWarning("No current page to render")
       }
 
