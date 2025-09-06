@@ -271,6 +271,7 @@ lazy val `oxygen-schema`: CrossProject =
       description := "Schemas are like things, but instead of being things, they just talk about things.",
     )
     .dependsOn(
+      `oxygen-crypto-model` % testAndCompile,
       `oxygen-json` % testAndCompile,
     )
 
