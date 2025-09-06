@@ -75,6 +75,10 @@ lazy val `oxygen-modules-jvm`: Project =
       // TODO (KR) : add
       // `oxygen-http-test`.jvm,
 
+      // jwt
+      `oxygen-crypto-model`.jvm,
+      `oxygen-crypto-service`,
+
       // Testing
       `oxygen-test`.jvm,
       `oxygen-test-container`,
@@ -108,6 +112,9 @@ lazy val `oxygen-modules-js`: Project =
       // ui
       `oxygen-ui-web`,
 
+      // jwt
+      `oxygen-crypto-model`.js,
+
       // Testing
       `oxygen-test`.js,
 
@@ -133,6 +140,9 @@ lazy val `oxygen-modules-native`: Project =
       `oxygen-quoted`.native,
       `oxygen-schema`.native,
       `oxygen-zio`.native,
+
+      // jwt
+      `oxygen-crypto-model`.native,
 
       // Testing
       `oxygen-test`.native,
@@ -198,6 +208,33 @@ lazy val `oxygen-json`: CrossProject =
     )
     .dependsOn(
       `oxygen-meta` % testAndCompile,
+    )
+
+lazy val `oxygen-crypto-model`: CrossProject =
+  crossProject(JSPlatform, JVMPlatform, NativePlatform)
+    .crossType(CrossType.Pure)
+    .in(file("modules/crypto/model"))
+    .settings(
+      publishedProjectSettings,
+      name := "oxygen-crypto-model",
+      description := "Oxygen Crypto Model",
+    )
+    .dependsOn(
+      `oxygen-json` % testAndCompile,
+      `oxygen-test` % Test,
+    )
+
+lazy val `oxygen-crypto-service`: Project =
+  project
+    .in(file("modules/crypto/service"))
+    .settings(
+      publishedProjectSettings,
+      name := "oxygen-crypto-service",
+      description := "Oxygen Crypto Service",
+    )
+    .dependsOn(
+      `oxygen-crypto-model`.jvm % testAndCompile,
+      `oxygen-zio`.jvm % testAndCompile,
     )
 
 lazy val `oxygen-meta`: CrossProject =
