@@ -2,6 +2,7 @@ package oxygen.schema
 
 import java.time.*
 import java.util.{TimeZone, UUID}
+import oxygen.crypto.model.{BearerToken, JWT}
 import oxygen.predef.core.*
 
 sealed trait PlainTextSchema[A] extends SchemaLike[A] {
@@ -43,6 +44,9 @@ object PlainTextSchema {
   given zoneOffset: PlainTextSchema[ZoneOffset] = PlainTextSchema.string.transformAttempt(ZoneOffset.of, _.toString)
   given timeZone: PlainTextSchema[TimeZone] = PlainTextSchema.string.transformAttempt(TimeZone.getTimeZone, _.getID)
 
+  given bearerToken: PlainTextSchema[BearerToken] = PlainTextSchema.BearerTokenSchema
+  given jwt: [A: JsonSchema as payloadSchema] => (typeTag: TypeTag[JWT[A]]) => PlainTextSchema[JWT[A]] = PlainTextSchema.JWTSchema(typeTag, payloadSchema)
+
   //////////////////////////////////////////////////////////////////////////////////////////////////////
   //      Instances
   //////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -66,6 +70,17 @@ object PlainTextSchema {
     override def encode(value: A): String =
       encodeValue(value)
 
+  }
+
+  case object BearerTokenSchema extends PlainTextSchema[BearerToken] {
+    override val typeTag: TypeTag[BearerToken] = TypeTag[BearerToken]
+    override def decode(string: String): Either[String, BearerToken] = BearerToken.decodeBearer(string)
+    override def encode(value: BearerToken): String = value.bearer
+  }
+
+  final case class JWTSchema[A](typeTag: TypeTag[JWT[A]], payloadSchema: JsonSchema[A]) extends PlainTextSchema[JWT[A]] {
+    override def decode(string: String): Either[String, JWT[A]] = JWT.decodeBearer[A](string)(using payloadSchema.jsonDecoder)
+    override def encode(value: JWT[A]): String = value.token.bearer
   }
 
   final case class Transform[A, B](underlying: PlainTextSchema[A], typeTag: TypeTag[B], ab: A => B, ba: B => A) extends PlainTextSchema[B] {
