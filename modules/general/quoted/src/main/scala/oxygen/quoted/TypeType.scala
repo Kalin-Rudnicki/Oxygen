@@ -20,6 +20,10 @@ sealed abstract class TypeType(final val isScala2: Boolean, final val isEnum: Bo
     case self: TypeType.Case.Object => Some(self)
     case _                          => None
 
+  final def baseType: String = this match
+    case _: TypeType.Case   => "product type"
+    case _: TypeType.Sealed => "sum type"
+
 }
 object TypeType {
 

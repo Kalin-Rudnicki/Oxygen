@@ -2,6 +2,7 @@ package oxygen.example.conversion
 
 import oxygen.example.db.model as Db
 import oxygen.example.domain.model as Domain
+import oxygen.transform.*
 
 object domainToDb {
 
@@ -12,7 +13,7 @@ object domainToDb {
   extension (self: Domain.user.FullUser)
     def toDb: Db.UserRow =
       Db.UserRow(
-        userId = self.id,
+        id = self.id,
         email = self.email,
         referenceEmail = self.email.referenceEmail,
         firstName = self.firstName,
@@ -33,24 +34,10 @@ object domainToDb {
   //      Post
   //////////////////////////////////////////////////////////////////////////////////////////////////////
 
-  extension (self: Domain.post.Post)
-    def toDb: Db.PostRow =
-      Db.PostRow(
-        id = self.id,
-        userId = self.userId,
-        title = self.title,
-        body = self.body,
-        createdAt = self.createdAt,
-      )
+  given Transform[Domain.post.Post, Db.PostRow] = Transform.derived
+  given Transform[Domain.post.Comment, Db.CommentRow] = Transform.derived
 
-  extension (self: Domain.post.Comment)
-    def toDb: Db.CommentRow =
-      Db.CommentRow(
-        id = self.id,
-        postId = self.postId,
-        userId = self.userId,
-        comment = self.comment,
-        createdAt = self.createdAt,
-      )
+  extension (self: Domain.post.Post) def toDb: Db.PostRow = self.transformInto
+  extension (self: Domain.post.Comment) def toDb: Db.CommentRow = self.transformInto
 
 }
