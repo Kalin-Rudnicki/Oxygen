@@ -36,7 +36,7 @@ object RegisterPage extends RoutablePage[UserApi & LocalService] {
   }
 
   override lazy val paramCodec: PageCodec[Params] =
-    ("page" / "register" / PageCodec.query.plain.optional[String]("email")).transform(Params.apply, _.email)
+    ("page" / "register" / PageCodec.query.plain.optional[String]("email")).autoTransform
 
   override def paramsFromState(state: State): Params =
     Params(state.optEmail)
