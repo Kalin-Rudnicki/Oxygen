@@ -220,6 +220,17 @@ final class ValDefCompanion(using quotes: Quotes) {
   def letExpr[A: Type, B: Type](name: String, rhs: Expr[A], valType: ValDef.ValType)(body: Expr[A] => Expr[B])(using Quotes): Expr[B] =
     letExpr[A, B](Symbol.spliceOwner, name, rhs, valType)(body)
 
+  def newVal(owner: Symbol, name: String, valType: ValDef.ValType, privateWithin: Symbol)(rhs: Term): ValDef = {
+    val valSym = Symbol.newVal(owner, name, rhs.tpe.widen, valType.toFlags, privateWithin)
+    apply(valSym, Some(rhs.changeOwner(valSym)))
+  }
+
+  def newVal(name: String, valType: ValDef.ValType)(rhs: Term): ValDef =
+    newVal(Symbol.spliceOwner, name, valType, Symbol.noSymbol)(rhs)
+
+  def newVal(name: String)(rhs: Term): ValDef =
+    newVal(Symbol.spliceOwner, name, ValDef.ValType.Val, Symbol.noSymbol)(rhs)
+
 }
 
 final class TermCompanion(using quotes: Quotes) {

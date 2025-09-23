@@ -8,7 +8,7 @@ trait Pure[F[_]] {
   def pure[A](self: A): F[A]
 
 }
-object Pure {
+object Pure extends PureLowPriority.LowPriority1 {
 
   inline def apply[F[_]](implicit ev: Pure[F]): ev.type = ev
 
@@ -31,5 +31,15 @@ object Pure {
     new Pure[Seq] {
       override def pure[A](self: A): Seq[A] = Seq(self)
     }
+
+}
+
+object PureLowPriority {
+
+  trait LowPriority1 {
+
+    given fromApplicative: [F[_]] => (applicative: Applicative[F]) => Pure[F] = applicative
+
+  }
 
 }

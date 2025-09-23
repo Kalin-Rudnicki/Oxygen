@@ -4,7 +4,7 @@ import oxygen.quoted.companion.*
 import scala.annotation.experimental
 import scala.quoted.*
 
-final class Symbol private (using val quotes: Quotes)(val unwrap: quotes.reflect.Symbol) extends Model {
+final class Symbol private (using val quotes: Quotes)(val unwrap: quotes.reflect.Symbol) extends Model, HasTypeType {
   def unwrapWithin(using newQuotes: Quotes): newQuotes.reflect.Symbol = this.unwrap.asInstanceOf[newQuotes.reflect.Symbol]
 
   /** Owner of this symbol. The owner is the symbol in which this symbol is defined. Throws if this symbol does not have an owner. */
@@ -276,11 +276,8 @@ final class Symbol private (using val quotes: Quotes)(val unwrap: quotes.reflect
 
   def asQuotesUsing[A](f: Quotes ?=> A): A = f(using this.asQuotes)
 
-  def typeType: Option[TypeType] = TypeType.fromSym(this)
-  def typeTypeSealed: Option[TypeType.Sealed] = TypeType.Sealed.fromSym(this)
-  def typeTypeCase: Option[TypeType.Case] = TypeType.Case.fromSym(this)
-  def typeTypeCaseClass: Option[TypeType.Case.Class] = TypeType.Case.Class.fromSym(this)
-  def typeTypeCaseObject: Option[TypeType.Case.Object] = TypeType.Case.Object.fromSym(this)
+  override protected def showSelf: String = fullName
+  override protected def typeTypeInternal: Option[TypeType] = TypeType.fromSym(this)
 
   def annotations: Annotations = new Annotations(this.unwrap.annotations.map(Term.wrap(_)), this.unwrap.toString)
 

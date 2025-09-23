@@ -509,11 +509,9 @@ object K0 {
     def of[A](config: Derivable.Config)(using Type[A], Quotes): ProductOrSumGeneric[A] = {
       val repr: TypeRepr = TypeRepr.of[A]
       val sym: Symbol = repr.typeOrTermSymbol
-      sym.typeType match {
-        case Some(_: TypeType.Case)   => ProductGeneric.unsafeOf[A](repr, sym, config)
-        case Some(_: TypeType.Sealed) => SumGeneric.unsafeOf[A](repr, sym, config)
-        case None                     => report.errorAndAbort(s"Type ${TypeRepr.of[A].show} is not a product or sum type")
-      }
+      sym.typeType.required match
+        case _: TypeType.Case   => ProductGeneric.unsafeOf[A](repr, sym, config)
+        case _: TypeType.Sealed => SumGeneric.unsafeOf[A](repr, sym, config)
     }
 
   }
@@ -723,7 +721,8 @@ object K0 {
           override val label: String = _termSym.name
           override val sym: Symbol = _termSym
           override val typeRepr: TypeRepr = _typeRepr
-          override val typeType: TypeType.Case.Object = _typeRepr.typeTypeCaseObject.get
+
+          override val typeType: TypeType.Case.Object = _typeRepr.typeType.caseObject.required(using typeRepr.quotes)
           override val derivedFromConfig: Derivable.Config = config
 
           override def fieldsToInstance0(using Quotes): Expr[A] =
@@ -812,7 +811,7 @@ object K0 {
           override val label: String = _typeSym.name
           override val sym: Symbol = _typeSym
           override val typeRepr: TypeRepr = _typeRepr
-          override val typeType: TypeType.Case.Class = _typeSym.typeTypeCaseClass.get
+          override val typeType: TypeType.Case.Class = _typeSym.typeType.caseClass.required(using typeRepr.quotes)
           override val derivedFromConfig: Derivable.Config = config
 
           override val fields: ArraySeq[Field[?]] =
@@ -1081,8 +1080,8 @@ object K0 {
         sym: Symbol,
         config: Derivable.Config,
     )(using Quotes): ProductGeneric[A] =
-      sym.typeTypeCase match {
-        case Some(_: TypeType.Case.Class) =>
+      sym.typeType.product.required match {
+        case _: TypeType.Case.Class =>
           repr.typeSymbol.tree match {
             case cdef: ClassDef if cdef.parents.headOption.flatMap(_.narrowOpt[TypeTree]).exists(_.tpe =:= TypeRepr.of[AnyVal]) =>
               AnyValGeneric.unsafeOf[A](repr, sym, config)
@@ -1091,9 +1090,8 @@ object K0 {
             case _ =>
               CaseClassGeneric.unsafeOf[A](repr, sym, config)
           }
-        case Some(_: TypeType.Case.Object) =>
+        case _: TypeType.Case.Object =>
           CaseObjectGeneric.unsafeOf[A](repr, sym, config)
-        case None => report.errorAndAbort(s"Not a product type: ${repr.show}")
       }
 
     def of[A](using Type[A], Quotes): ProductGeneric[A] = ProductGeneric.of[A](Derivable.Config())
@@ -1468,7 +1466,7 @@ object K0 {
           case UnrollStrategy.Nested => isRoot
 
       def childGenericsRec(isRoot: Boolean, sym: Symbol): Growable[ProductOrSumGeneric[? <: A]] =
-        sym.typeType match {
+        sym.typeType.option match {
           case Some(_: TypeType.Case.Class) =>
             val classDef: ClassDef = sym.tree.narrow[ClassDef]
             if (classDef.constructor.paramss.exists { case _: TypeParamClause => true; case _ => false })
@@ -1535,7 +1533,7 @@ object K0 {
             override val label: String = _typeSym.name
             override val sym: Symbol = _typeSym
             override val typeRepr: TypeRepr = _typeRepr
-            override val typeType: TypeType.Sealed = _typeSym.typeTypeSealed.get
+            override val typeType: TypeType.Sealed = _typeSym.typeType.sum.required(using typeRepr.quotes)
             override val derivedFromConfig: Derivable.Config = config
             override val cases: ArraySeq[Case[? <: A]] = enums.toArraySeq.zipWithIndex.map { case (g, i) => Case(i, g) }
           }
@@ -1544,7 +1542,7 @@ object K0 {
             override val label: String = _typeSym.name
             override val sym: Symbol = _typeSym
             override val typeRepr: TypeRepr = _typeRepr
-            override val typeType: TypeType.Sealed = _typeSym.typeTypeSealed.get
+            override val typeType: TypeType.Sealed = _typeSym.typeType.sum.required(using typeRepr.quotes)
             override val derivedFromConfig: Derivable.Config = config
             override val cases: ArraySeq[Case[? <: A]] = products.toArraySeq.zipWithIndex.map { case (g, i) => Case(i, g) }
           }
@@ -1553,7 +1551,7 @@ object K0 {
             override val label: String = _typeSym.name
             override val sym: Symbol = _typeSym
             override val typeRepr: TypeRepr = _typeRepr
-            override val typeType: TypeType.Sealed = _typeSym.typeTypeSealed.get
+            override val typeType: TypeType.Sealed = _typeSym.typeType.sum.required(using typeRepr.quotes)
             override val derivedFromConfig: Derivable.Config = config
             override val cases: ArraySeq[Case[? <: A]] = generics.toArraySeq.zipWithIndex.map { case (g, i) => Case(i, g) }
           }

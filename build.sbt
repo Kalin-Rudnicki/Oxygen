@@ -63,6 +63,7 @@ lazy val `oxygen-modules-jvm`: Project =
       `oxygen-meta`.jvm,
       `oxygen-quoted`.jvm,
       `oxygen-schema`.jvm,
+      `oxygen-transform`.jvm,
       `oxygen-zio`.jvm,
 
       // sql
@@ -104,6 +105,7 @@ lazy val `oxygen-modules-js`: Project =
       `oxygen-meta`.js,
       `oxygen-quoted`.js,
       `oxygen-schema`.js,
+      `oxygen-transform`.js,
       `oxygen-zio`.js,
 
       // http
@@ -139,6 +141,7 @@ lazy val `oxygen-modules-native`: Project =
       `oxygen-meta`.native,
       `oxygen-quoted`.native,
       `oxygen-schema`.native,
+      `oxygen-transform`.native,
       `oxygen-zio`.native,
 
       // jwt
@@ -301,6 +304,20 @@ lazy val `oxygen-sql-migration`: Project =
     )
     .dependsOn(
       `oxygen-sql` % testAndCompile,
+    )
+
+lazy val `oxygen-transform`: CrossProject =
+  crossProject(JSPlatform, JVMPlatform, NativePlatform)
+    .crossType(CrossType.Pure)
+    .in(file("modules/general/transform"))
+    .settings(
+      publishedProjectSettings,
+      name := "oxygen-transform",
+      description := "Transform models between api/domain, domain/db, etc",
+    )
+    .dependsOn(
+      `oxygen-meta` % testAndCompile,
+      `oxygen-test` % Test,
     )
 
 lazy val `oxygen-http`: CrossProject =
@@ -580,6 +597,7 @@ lazy val `example-domain-impl`: Project =
     .dependsOn(
       `oxygen-sql` % testAndCompile,
       `oxygen-sql-migration` % testAndCompile,
+      `oxygen-transform`.jvm % testAndCompile,
       `example-domain` % testAndCompile,
     )
 

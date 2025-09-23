@@ -1,6 +1,7 @@
 package oxygen.meta
 
 import oxygen.core.*
+import oxygen.core.typeclass.Monad
 import scala.quoted.*
 
 trait ExprMonad[F[_]] {
@@ -19,6 +20,19 @@ trait ExprMonad[F[_]] {
 
 }
 object ExprMonad {
+
+  final case class RuntimeMonad[F[_]](monad: Expr[Monad[F]]) extends ExprMonad[F] {
+
+    override def map[A, B](a: Expr[F[A]])(f: Expr[A => B])(using quotes: Quotes, fType: Type[F], aType: Type[A], bType: Type[B]): Expr[F[B]] =
+      '{ $monad.map($a)($f) }
+
+    override def pure[A](a: Expr[A])(using quotes: Quotes, fType: Type[F], aType: Type[A]): Expr[F[A]] =
+      '{ $monad.pure($a) }
+
+    override def flatMap[A, B](a: Expr[F[A]])(f: Expr[A => F[B]])(using quotes: Quotes, fType: Type[F], aType: Type[A], bType: Type[B]): Expr[F[B]] =
+      '{ $monad.flatMap($a)($f) }
+
+  }
 
   given option: ExprMonad[Option] =
     new ExprMonad[Option] {

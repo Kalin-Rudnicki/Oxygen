@@ -2,6 +2,7 @@ package oxygen.example.conversion
 
 import oxygen.example.api.model as Api
 import oxygen.example.domain.model as Domain
+import oxygen.transform.*
 
 object domainToApi {
 
@@ -43,38 +44,18 @@ object domainToApi {
   //      User
   //////////////////////////////////////////////////////////////////////////////////////////////////////
 
-  extension (self: Domain.user.SimpleUser)
-    def toApi: Api.user.User =
-      Api.user.User(
-        id = self.id,
-        email = self.email,
-        firstName = self.firstName,
-        lastName = self.lastName,
-        createdAt = self.createdAt,
-      )
+  given Transform[Domain.user.SimpleUser, Api.user.User] = Transform.derived
+
+  extension (self: Domain.user.SimpleUser) def toApi: Api.user.User = self.transformInto
 
   //////////////////////////////////////////////////////////////////////////////////////////////////////
   //      Post
   //////////////////////////////////////////////////////////////////////////////////////////////////////
 
-  extension (self: Domain.post.Post)
-    def toApi: Api.post.Post =
-      Api.post.Post(
-        id = self.id,
-        userId = self.userId,
-        title = self.title,
-        body = self.body,
-        createdAt = self.createdAt,
-      )
+  given Transform[Domain.post.Post, Api.post.Post] = Transform.derived
+  given Transform[Domain.post.Comment, Api.post.Comment] = Transform.derived
 
-  extension (self: Domain.post.Comment)
-    def toApi: Api.post.Comment =
-      Api.post.Comment(
-        id = self.id,
-        postId = self.postId,
-        userId = self.userId,
-        comment = self.comment,
-        createdAt = self.createdAt,
-      )
+  extension (self: Domain.post.Post) def toApi: Api.post.Post = self.transformInto
+  extension (self: Domain.post.Comment) def toApi: Api.post.Comment = self.transformInto
 
 }

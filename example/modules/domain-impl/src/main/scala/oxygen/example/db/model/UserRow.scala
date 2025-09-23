@@ -9,7 +9,7 @@ import oxygen.sql.schema.*
 
 @tableName("user")
 final case class UserRow(
-    @primaryKey userId: UserId,
+    @primaryKey @columnName("user_id") id: UserId,
     email: Email,
     referenceEmail: Email,
     firstName: String,
@@ -32,7 +32,7 @@ object UserRow extends TableCompanion[UserRow, UserId](TableRepr.derived[UserRow
     for {
       userId <- input[UserId]
       c <- select[ConnectionRow]
-      u <- join[UserRow] if u.userId == c.otherUserId
+      u <- join[UserRow] if u.id == c.otherUserId
       _ <- where if c.currentUserId == userId
     } yield u
 

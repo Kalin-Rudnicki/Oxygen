@@ -5,7 +5,7 @@ import oxygen.quoted.error.UnknownCase
 import scala.annotation.experimental
 import scala.quoted.*
 
-sealed trait TypeRepr extends Model {
+sealed trait TypeRepr extends Model, HasTypeType {
   type This <: TypeRepr
   val quotes: Quotes
   val unwrap: quotes.reflect.TypeRepr
@@ -186,11 +186,8 @@ sealed trait TypeRepr extends Model {
 
   final def typeOrTermSymbol: Symbol = if (this.isSingleton) this.termSymbol else this.typeSymbol
 
-  final def typeType: Option[TypeType] = this.typeOrTermSymbol.typeType
-  final def typeTypeSealed: Option[TypeType.Sealed] = this.typeOrTermSymbol.typeTypeSealed
-  final def typeTypeCase: Option[TypeType.Case] = this.typeOrTermSymbol.typeTypeCase
-  final def typeTypeCaseClass: Option[TypeType.Case.Class] = this.typeOrTermSymbol.typeTypeCaseClass
-  final def typeTypeCaseObject: Option[TypeType.Case.Object] = this.typeOrTermSymbol.typeTypeCaseObject
+  override protected def showSelf: String = showAnsiCode
+  override protected def typeTypeInternal: Option[TypeType] = typeOrTermSymbol.typeType.option
 
   final def annotations: Annotations = new Annotations(this.typeOrTermSymbol.annotations.all, show)
 
