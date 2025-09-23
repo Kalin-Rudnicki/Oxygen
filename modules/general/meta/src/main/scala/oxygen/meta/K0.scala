@@ -1110,6 +1110,73 @@ object K0 {
       ProductGeneric.unsafeOf[A](typeRepr, typeSym, config)
     }
 
+    /**
+      * Derives a transformation between [[SourceT]] and [[TargetT]].
+      *
+      * [[TargetT]] must be a type representable by a [[ProductGeneric]].
+      *
+      * Depending on the number of fields [[TargetT]] has, [[SourceT]] should be:
+      *   0  : Unit
+      *   1  : The type of single field withing [[TargetT]]
+      *   2+ : Ordered tuple of fields within [[TargetT]]
+      */
+    inline def deriveTransform[SourceT, TargetT]: (SourceT => TargetT, TargetT => SourceT) = ${ deriveTransformImpl[SourceT, TargetT] }
+
+    def deriveTransformImpl[SourceT: Type, TargetT: Type](using Quotes): Expr[(SourceT => TargetT, TargetT => SourceT)] = {
+      val productGeneric: ProductGeneric[TargetT] = ProductGeneric.of[TargetT]
+      val sourceTypeRepr: TypeRepr = TypeRepr.of[SourceT].widen
+
+      def fail(explanation: String, exp: TypeRepr): Nothing =
+        report.errorAndAbort(
+          s"""Error deriving auto-transformation between:
+             |  target            : ${productGeneric.typeRepr.showAnsiCode}
+             |  source   (actual) : ${sourceTypeRepr.showAnsiCode}
+             |  source (expected) : ${exp.showAnsiCode}
+             |
+             |  explanation: $explanation""".stripMargin,
+        )
+
+      productGeneric.fields.toList match {
+        case Nil =>
+          val unitRepr: TypeRepr = TypeRepr.of[Unit]
+          if (!(sourceTypeRepr =:= unitRepr))
+            fail("Target type has 0 fields, therefore source type needs to be Unit", unitRepr)
+
+          val typedUnitExpr: Expr[SourceT] = '{ () }.asExprOf[SourceT]
+
+          val abExpr: Expr[SourceT => TargetT] = '{ { (_: SourceT) => ${ productGeneric.instantiate.fieldsToInstance(Nil) } } }
+          val baExpr: Expr[TargetT => SourceT] = '{ { (_: TargetT) => $typedUnitExpr } }
+
+          '{ ($abExpr, $baExpr) }
+        case field :: Nil =>
+          if (!(field.typeRepr =:= sourceTypeRepr))
+            fail(s"Target type has 1 field (${field.name}: ${field.typeRepr.showAnsiCode}), therefore source type must match that single field", field.typeRepr)
+
+          val abExpr: Expr[SourceT => TargetT] = '{ { (source: SourceT) => ${ productGeneric.instantiate.fieldsToInstance('source :: Nil) } } }
+          val baExpr: Expr[TargetT => SourceT] = '{ { (target: TargetT) => ${ field.fromParent('target).asExprOf[SourceT] } } }
+
+          '{ ($abExpr, $baExpr) }
+        case fields =>
+          type TupleT
+          val tupleGeneric: ProductGeneric[TupleT] = ProductGeneric.ofTuple[TupleT](fields.map(_.typeRepr))
+          if (!(tupleGeneric.typeRepr =:= sourceTypeRepr))
+            fail(s"Target type has 2+ fields, therefore source type must be a tuple of those fields", tupleGeneric.typeRepr)
+
+          val reTypedTupleGeneric: ProductGeneric[SourceT] = tupleGeneric.typedAs[SourceT]
+
+          def transformGeneric[A, B](a: ProductGeneric[A], b: ProductGeneric[B]): Expr[A => B] = {
+            import a.tpe as aTpe
+            import b.tpe as bTpe
+            '{ { (in: A) => ${ b.instantiate.fieldsToInstance(a.fields.map(_.fromParent('in))) } } }
+          }
+
+          val abExpr: Expr[SourceT => TargetT] = transformGeneric(reTypedTupleGeneric, productGeneric)
+          val baExpr: Expr[TargetT => SourceT] = transformGeneric(productGeneric, reTypedTupleGeneric)
+
+          '{ ($abExpr, $baExpr) }
+      }
+    }
+
   }
 
   //////////////////////////////////////////////////////////////////////////////////////////////////////

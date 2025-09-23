@@ -2,6 +2,7 @@ package oxygen.ui.web
 
 import oxygen.http.core.RequestDecodingFailure
 import oxygen.http.core.partial.{PartialParamCodec, PartialPathCodec}
+import oxygen.meta.K0
 import oxygen.predef.core.*
 import oxygen.schema.*
 import scala.annotation.tailrec
@@ -28,6 +29,11 @@ trait PageCodec[A] {
   final def /[B](that: PageCodec[B])(using zip: Zip[A, B]): PageCodec[zip.Out] = PageCodec.Zipped(this, that, zip)
 
   final def transform[B](ab: A => B, ba: B => A): PageCodec[B] = PageCodec.Transform(this, ab, ba)
+
+  inline final def autoTransform[B]: PageCodec[B] = {
+    val (ab, ba) = K0.ProductGeneric.deriveTransform[A, B]
+    transform(ab, ba)
+  }
 
 }
 object PageCodec {

@@ -33,6 +33,25 @@ object MacroSpec extends OxygenSpecDefault {
 
   type Sum5 = Sum1.Case1.type
 
+  object ProductTransforms {
+
+    case object CaseObject0
+
+    final case class CaseClass0()
+    final case class CaseClass1(i: Int)
+    final case class CaseClass2(i: Int, s: String, b: Boolean)
+
+  }
+
+  private inline def transformTest[Source, Target](source: Source, target: Target): TestSpec =
+    test(s"$source <-> $target") {
+      val (ab, ba) = K0.ProductGeneric.deriveTransform[Source, Target]
+      assertTrue(
+        ab(source) == target,
+        ba(target) == source,
+      )
+    }
+
   override def testSpec: TestSpec =
     suite("MacroSpec")(
       suite("seq")(
@@ -92,6 +111,12 @@ object MacroSpec extends OxygenSpecDefault {
               Set(Sum1.Case1),
           )
         },
+      ),
+      suite("product transform")(
+        transformTest((), ProductTransforms.CaseObject0),
+        transformTest((), ProductTransforms.CaseClass0()),
+        transformTest(5, ProductTransforms.CaseClass1(5)),
+        transformTest((5, "s", true), ProductTransforms.CaseClass2(5, "s", true)),
       ),
     )
 
