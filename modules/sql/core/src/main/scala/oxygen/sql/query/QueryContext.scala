@@ -58,7 +58,7 @@ final case class QueryContext(
 }
 object QueryContext {
 
-  enum QueryType { case Select, Insert, Update, Delete, Transaction, Truncate, Migrate }
+  enum QueryType { case Select, Insert, Update, Upsert, Delete, Transaction, Truncate, Migrate }
 
   enum ExecutionType {
     case Query

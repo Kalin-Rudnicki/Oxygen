@@ -17,6 +17,35 @@ abstract class TableCompanion[A, K](derivedRepr: TableRepr.AuxPK[A, K]) {
       } yield ()
     }
 
+  final lazy val upsert: QueryI[A] = {
+    val pkCols = tableRepr.pk.rowRepr.columns.columns
+    val npkCols = tableRepr.npk.rowRepr.columns.columns
+
+    if (pkCols.isEmpty) throw new RuntimeException("Can not generate upsert query for table with no primary-key columns")
+
+    val onConflictClause: String = s"ON CONFLICT (${pkCols.map(_.name).mkString(", ")})"
+
+    val onConflict: String =
+      if (npkCols.nonEmpty)
+        s"""
+           |    $onConflictClause
+           |    DO UPDATE
+           |    SET ${npkCols.map { c => s"${c.name} = EXCLUDED.${c.name}" }.mkString(",\n        ")}""".stripMargin
+      else
+        s"""
+           |    $onConflictClause
+           |    DO NOTHING""".stripMargin
+
+    QueryI(
+      insert.ctx.copy(
+        queryName = "upsertByPK",
+        queryType = QueryContext.QueryType.Upsert,
+        sql = insert.ctx.sql + onConflict,
+      ),
+      insert.encoder,
+    )
+  }
+
   final val selectAll: QueryO[A] =
     QueryO.compile("selectAll") {
       for {

@@ -317,6 +317,7 @@ private[sql] object ParsedQuery extends Parser[Term, ParsedQuery] {
         case QueryContext.QueryType.Select      => '{ QueryContext.QueryType.Select }
         case QueryContext.QueryType.Insert      => '{ QueryContext.QueryType.Insert }
         case QueryContext.QueryType.Update      => '{ QueryContext.QueryType.Update }
+        case QueryContext.QueryType.Upsert      => '{ QueryContext.QueryType.Upsert }
         case QueryContext.QueryType.Delete      => '{ QueryContext.QueryType.Delete }
         case QueryContext.QueryType.Transaction => '{ QueryContext.QueryType.Transaction }
         case QueryContext.QueryType.Truncate    => '{ QueryContext.QueryType.Truncate }

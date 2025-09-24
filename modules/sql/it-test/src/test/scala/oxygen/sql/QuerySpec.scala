@@ -80,6 +80,18 @@ object QuerySpec extends OxygenSpec[Database] {
           p1Get2 == updatedP1,
         )
       },
+      test("can upsert") {
+        for {
+          groupId <- Random.nextUUID
+          p1 <- Person.generate(groupId)()
+          p2 = p1.copy(age = p1.age + 1)
+
+          _ <- Person.insert.execute(p1).unit
+          err1 <- Person.insert.execute(p2).unit.exit
+          _ <- Person.upsert.execute(p2).unit
+          res1 <- Person.selectByPK.execute(p1.id).single
+        } yield assert(err1)(fails(anything)) && assertTrue(res1 == p2)
+      },
     )
 
   private def customQuerySpec: TestSpec =
