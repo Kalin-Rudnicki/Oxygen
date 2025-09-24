@@ -25,7 +25,7 @@ sealed trait QueryLike {
 
 final class Query(
     val ctx: QueryContext,
-    encoder: Option[InputEncoder[Any]],
+    private[sql] val encoder: Option[InputEncoder[Any]],
 ) extends QueryLike { self =>
 
   def apply(): QueryResult.Update[QueryError] = execute()
@@ -59,7 +59,7 @@ object Query {
 
 final class QueryI[I](
     val ctx: QueryContext,
-    encoder: InputEncoder[I],
+    private[sql] val encoder: InputEncoder[I],
 ) extends QueryLike { self =>
 
   def apply(input: I): QueryResult.Update[QueryError] = execute(input)
@@ -145,8 +145,8 @@ object QueryI {
 
 final class QueryO[O](
     val ctx: QueryContext,
-    encoder: Option[InputEncoder[Any]],
-    decoder: ResultDecoder[O],
+    private[sql] val encoder: Option[InputEncoder[Any]],
+    private[sql] val decoder: ResultDecoder[O],
 ) extends QueryLike { self =>
 
   def apply(): QueryResult.Returning[QueryError, O] = execute()
@@ -182,8 +182,8 @@ object QueryO {
 
 final class QueryIO[I, O](
     val ctx: QueryContext,
-    encoder: InputEncoder[I],
-    decoder: ResultDecoder[O],
+    private[sql] val encoder: InputEncoder[I],
+    private[sql] val decoder: ResultDecoder[O],
 ) extends QueryLike { self =>
 
   def apply(input: I): QueryResult.Returning[QueryError, O] = execute(input)

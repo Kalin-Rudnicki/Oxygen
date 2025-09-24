@@ -11,7 +11,6 @@ object Q {
   }
 
   def insert[A](using t: TableRepr[A]): T.Insert[A] = macroOnly
-  // TODO (KR) : upsert
   def select[A](using t: TableRepr[A]): T.Select[A] = macroOnly
   def update[A](using t: TableRepr[A]): T.Update[A] = macroOnly
   def delete[A](using t: TableRepr[A]): T.Delete[A] = macroOnly
