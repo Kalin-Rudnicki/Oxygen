@@ -1,26 +1,23 @@
 package oxygen.sql.generic.parsing.part
 
-import oxygen.core.typeclass.Zip3
 import oxygen.predef.core.*
 import oxygen.quoted.*
 import oxygen.sql.generic.model.*
 import oxygen.sql.generic.parsing.*
-import oxygen.sql.query.dsl.{Q, T}
-import oxygen.sql.schema.*
-import scala.annotation.tailrec
+import oxygen.sql.query.dsl.T
 import scala.quoted.*
 
-final case class Set(
-    parts: NonEmptyList[Set.SetPart],
+final case class SetPart(
+    parts: NonEmptyList[SetPart.SingleSet],
 ) {
 
   def show(using Quotes): String =
     s"    SET ${parts.head.show}${parts.tail.map { p => s"\n        ${p.show}" }.mkString}"
 
 }
-object Set extends QueryParser[Set] {
+object SetPart extends QueryParser[SetPart] {
 
-  final case class SetPart(
+  final case class SingleSet(
       lhsExpr: QueryExpr.QueryLike,
       rhsExpr: QueryExpr.Unary,
   ) {
@@ -29,7 +26,7 @@ object Set extends QueryParser[Set] {
 
   }
 
-  private def parseSetPart(term: Term, refs: RefMap, rootQueryRef: QueryReference.Query)(using ParseContext, Quotes): ParseResult[SetPart] =
+  private def parseSetPart(term: Term, refs: RefMap, rootQueryRef: QueryReference.Query)(using ParseContext, Quotes): ParseResult[SingleSet] =
     for {
       fun <- Function.parse(term).unknownAsError
       p1 <- fun.parseParam1
@@ -54,9 +51,9 @@ object Set extends QueryParser[Set] {
       rhsExpr <- QueryExpr.Unary.parse(rhsExpr).unknownAsError
 
       _ <- ParseResult.validate(widenedLhsTpe <:< widenedRhsTpe)(fun.body, s"set types do not match:  ${widenedLhsTpe.showAnsiCode} := ${widenedRhsTpe.showAnsiCode}")
-    } yield SetPart(lhsExpr, rhsExpr)
+    } yield SingleSet(lhsExpr, rhsExpr)
 
-  override def parse(term: Term, refs: RefMap, prevFunction: String)(using ParseContext, Quotes): ParseResult[(Set, String, RefMap, Term)] =
+  override def parse(term: Term, refs: RefMap, prevFunction: String)(using ParseContext, Quotes): ParseResult[(SetPart, String, RefMap, Term)] =
     for {
       fc1 <- FunctionCall.parseTyped[T.UpdateSet](term, "function 1").ignore
       _ <- fc1.funct.parseEmptyParams
@@ -68,6 +65,6 @@ object Set extends QueryParser[Set] {
 
       rootQueryRef <- refs.getRootQueryRef(fc1.lhs)
       parts <- setTerms.traverse(parseSetPart(_, refs, rootQueryRef))
-    } yield (Set(parts), f1Name, refs, fc1.funct.body)
+    } yield (SetPart(parts), f1Name, refs, fc1.funct.body)
 
 }

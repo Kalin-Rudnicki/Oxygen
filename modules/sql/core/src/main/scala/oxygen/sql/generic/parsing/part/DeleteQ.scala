@@ -1,13 +1,10 @@
 package oxygen.sql.generic.parsing.part
 
-import oxygen.core.typeclass.Zip3
-import oxygen.predef.core.*
 import oxygen.quoted.*
 import oxygen.sql.generic.model.*
 import oxygen.sql.generic.parsing.*
 import oxygen.sql.query.dsl.{Q, T}
 import oxygen.sql.schema.*
-import scala.annotation.tailrec
 import scala.quoted.*
 
 final case class DeleteQ(

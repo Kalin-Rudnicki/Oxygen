@@ -3,10 +3,7 @@ package oxygen.sql.generic.parsing
 import oxygen.core.typeclass.Zip3
 import oxygen.predef.core.*
 import oxygen.quoted.*
-import oxygen.sql.generic.model.*
 import oxygen.sql.generic.parsing.part.*
-import oxygen.sql.query.dsl.{Q, T}
-import oxygen.sql.schema.*
 import scala.annotation.tailrec
 import scala.quoted.*
 
@@ -49,7 +46,7 @@ private[generic] object QueryParser {
         update: UpdateQ,
         joins: List[Join],
         where: Option[Where],
-        set: Set,
+        set: SetPart,
     )
 
     case DeleteQuery(
@@ -78,7 +75,7 @@ private[generic] object QueryParser {
       UpdateQ.withContext("Update") >>>
         Join.many.withContext("Join") >>>
         Where.maybe.withContext("Where") >>>
-        Set.withContext("Set")
+        SetPart.withContext("Set")
     ).withContext("Update Query").map { PartialQuery.UpdateQuery.apply }
 
   val partialDelete: QueryParser[PartialQuery.DeleteQuery] =

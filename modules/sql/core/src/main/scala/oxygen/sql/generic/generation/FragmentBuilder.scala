@@ -5,10 +5,11 @@ import oxygen.predef.core.{*, given}
 import oxygen.quoted.*
 import oxygen.sql.generic.model.*
 import oxygen.sql.generic.parsing.*
+import oxygen.sql.generic.parsing.part.*
 import oxygen.sql.schema.*
 import scala.quoted.*
 
-final case class FragmentBuilder(inputs: List[QueryParser.Input])(using Quotes) {
+final case class FragmentBuilder(inputs: List[Input])(using Quotes) {
 
   private val nonConstInputParams: List[QueryReference.InputParam] =
     inputs.map(_.queryRef).flatMap {
@@ -121,7 +122,7 @@ final case class FragmentBuilder(inputs: List[QueryParser.Input])(using Quotes) 
 
   // =====|  |=====
 
-  def insert(i: QueryParser.InsertQ)(using Quotes): ParseResult[GeneratedFragment] =
+  def insert(i: InsertQ)(using Quotes): ParseResult[GeneratedFragment] =
     ParseResult.success(
       GeneratedFragment.of(
         "INSERT INTO ",
@@ -134,7 +135,7 @@ final case class FragmentBuilder(inputs: List[QueryParser.Input])(using Quotes) 
       ),
     )
 
-  def select(s: QueryParser.SelectQ)(using Quotes): ParseResult[GeneratedFragment] =
+  def select(s: SelectQ)(using Quotes): ParseResult[GeneratedFragment] =
     ParseResult.success(
       GeneratedFragment.of(
         "\n    FROM ",
@@ -143,7 +144,7 @@ final case class FragmentBuilder(inputs: List[QueryParser.Input])(using Quotes) 
       ),
     )
 
-  def update(u: QueryParser.UpdateQ)(using Quotes): ParseResult[GeneratedFragment] =
+  def update(u: UpdateQ)(using Quotes): ParseResult[GeneratedFragment] =
     ParseResult.success(
       GeneratedFragment.of(
         "UPDATE ",
@@ -156,7 +157,7 @@ final case class FragmentBuilder(inputs: List[QueryParser.Input])(using Quotes) 
       ),
     )
 
-  def delete(d: QueryParser.DeleteQ)(using Quotes): ParseResult[GeneratedFragment] =
+  def delete(d: DeleteQ)(using Quotes): ParseResult[GeneratedFragment] =
     ParseResult.success(
       GeneratedFragment.of(
         "DELETE FROM ",
@@ -165,7 +166,7 @@ final case class FragmentBuilder(inputs: List[QueryParser.Input])(using Quotes) 
       ),
     )
 
-  def ret(r: QueryParser.Returning, idt: String)(using ParseContext, GenerationContext, Quotes): ParseResult[Option[GeneratedFragment]] =
+  def ret(r: Returning, idt: String)(using ParseContext, GenerationContext, Quotes): ParseResult[Option[GeneratedFragment]] =
     Option.when(r.exprs.nonEmpty)(r.exprs).traverse {
       _.traverse {
         case query: QueryExpr.QueryLike => GenerationContext.updated(query = GenerationContext.Parens.Never) { convertQuery(query) }
@@ -174,13 +175,13 @@ final case class FragmentBuilder(inputs: List[QueryParser.Input])(using Quotes) 
         .map { res => GeneratedFragment.flatten(res.intersperse(GeneratedFragment.sql(s",\n$idt"))) }
     }
 
-  def requiredRet(r: QueryParser.Returning, idt: String)(using ParseContext, GenerationContext, Quotes): ParseResult[GeneratedFragment] =
+  def requiredRet(r: Returning, idt: String)(using ParseContext, GenerationContext, Quotes): ParseResult[GeneratedFragment] =
     ret(r, idt).flatMap {
       case Some(value) => ParseResult.success(value)
       case None        => ParseResult.error(r.tree, "expected non-empty return")
     }
 
-  def join(j: QueryParser.Join)(using ParseContext, GenerationContext, Quotes): ParseResult[GeneratedFragment] =
+  def join(j: Join)(using ParseContext, GenerationContext, Quotes): ParseResult[GeneratedFragment] =
     for {
       onFrag <- convert(j.on)
     } yield GeneratedFragment.of(
@@ -193,7 +194,7 @@ final case class FragmentBuilder(inputs: List[QueryParser.Input])(using Quotes) 
       onFrag,
     )
 
-  def where(w: QueryParser.Where)(using ParseContext, GenerationContext, Quotes): ParseResult[GeneratedFragment] =
+  def where(w: Where)(using ParseContext, GenerationContext, Quotes): ParseResult[GeneratedFragment] =
     for {
       whereFrag <- convert(w.where)
     } yield GeneratedFragment.of(
@@ -201,7 +202,7 @@ final case class FragmentBuilder(inputs: List[QueryParser.Input])(using Quotes) 
       whereFrag,
     )
 
-  def values(ins: QueryParser.InsertQ, i: QueryParser.Into)(using ParseContext, GenerationContext, Quotes): ParseResult[GeneratedFragment] =
+  def values(ins: InsertQ, i: Into)(using ParseContext, GenerationContext, Quotes): ParseResult[GeneratedFragment] =
     for {
       valuesFrag <- GenerationContext.updated(input = GenerationContext.Parens.Always) { convertInput(i.queryExpr, ins.rowRepr) }
     } yield GeneratedFragment.of(
@@ -209,7 +210,7 @@ final case class FragmentBuilder(inputs: List[QueryParser.Input])(using Quotes) 
       valuesFrag,
     )
 
-  def setPart(s: QueryParser.Set.SetPart)(using ParseContext, Quotes): ParseResult[GeneratedFragment] = {
+  def setPart(s: Set.SetPart)(using ParseContext, Quotes): ParseResult[GeneratedFragment] = {
     val rowRepr: Expr[RowRepr[?]] = s.lhsExpr.rowRepr
     val lhsParts: Expr[ArraySeq[String]] = '{ $rowRepr.columns.columns.map(_.name) }
 
@@ -241,7 +242,7 @@ final case class FragmentBuilder(inputs: List[QueryParser.Input])(using Quotes) 
     }
   }
 
-  def set(s: QueryParser.Set)(using ParseContext, Quotes): ParseResult[GeneratedFragment] =
+  def set(s: Set)(using ParseContext, Quotes): ParseResult[GeneratedFragment] =
     for {
       partsFrag <- s.parts.toList.traverse(setPart).map { res => GeneratedFragment.flatten(res.intersperse(GeneratedFragment.sql(",\n        "))) }
     } yield GeneratedFragment.of(

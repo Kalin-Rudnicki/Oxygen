@@ -4,6 +4,7 @@ import oxygen.predef.core.*
 import oxygen.quoted.*
 import oxygen.sql.generic.generation.*
 import oxygen.sql.generic.parsing.*
+import oxygen.sql.generic.parsing.part.*
 import oxygen.sql.query.*
 import oxygen.sql.query.QueryContext.QueryType
 import oxygen.sql.schema.*
@@ -11,8 +12,8 @@ import scala.quoted.*
 
 private[sql] sealed trait ParsedQuery extends Product {
 
-  val inputs: List[QueryParser.Input]
-  val ret: QueryParser.Returning
+  val inputs: List[Input]
+  val ret: Returning
   val refs: RefMap
 
   def show(using Quotes): String
@@ -36,10 +37,10 @@ private[sql] object ParsedQuery extends Parser[Term, ParsedQuery] {
   //////////////////////////////////////////////////////////////////////////////////////////////////////
 
   final case class InsertQuery(
-      inputs: List[QueryParser.Input],
-      insert: QueryParser.InsertQ,
-      into: QueryParser.Into,
-      ret: QueryParser.Returning,
+      inputs: List[Input],
+      insert: InsertQ,
+      into: Into,
+      ret: Returning,
       refs: RefMap,
   ) extends ParsedQuery {
 
@@ -98,11 +99,11 @@ private[sql] object ParsedQuery extends Parser[Term, ParsedQuery] {
   //////////////////////////////////////////////////////////////////////////////////////////////////////
 
   final case class SelectQuery(
-      inputs: List[QueryParser.Input],
-      select: QueryParser.SelectQ,
-      joins: List[QueryParser.Join],
-      where: Option[QueryParser.Where],
-      ret: QueryParser.Returning,
+      inputs: List[Input],
+      select: SelectQ,
+      joins: List[Join],
+      where: Option[Where],
+      ret: Returning,
       refs: RefMap,
   ) extends ParsedQuery {
 
@@ -156,12 +157,12 @@ private[sql] object ParsedQuery extends Parser[Term, ParsedQuery] {
   //////////////////////////////////////////////////////////////////////////////////////////////////////
 
   final case class UpdateQuery(
-      inputs: List[QueryParser.Input],
-      update: QueryParser.UpdateQ,
-      joins: List[QueryParser.Join],
-      where: Option[QueryParser.Where],
-      set: QueryParser.Set,
-      ret: QueryParser.Returning,
+      inputs: List[Input],
+      update: UpdateQ,
+      joins: List[Join],
+      where: Option[Where],
+      set: SetPart,
+      ret: Returning,
       refs: RefMap,
   ) extends ParsedQuery {
 
@@ -221,11 +222,11 @@ private[sql] object ParsedQuery extends Parser[Term, ParsedQuery] {
   //////////////////////////////////////////////////////////////////////////////////////////////////////
 
   final case class DeleteQuery(
-      inputs: List[QueryParser.Input],
-      delete: QueryParser.DeleteQ,
-      joins: List[QueryParser.Join],
-      where: Option[QueryParser.Where], // TODO (KR) : make this required?
-      ret: QueryParser.Returning,
+      inputs: List[Input],
+      delete: DeleteQ,
+      joins: List[Join],
+      where: Option[Where], // TODO (KR) : make this required?
+      ret: Returning,
       refs: RefMap,
   ) extends ParsedQuery {
 
@@ -300,7 +301,7 @@ private[sql] object ParsedQuery extends Parser[Term, ParsedQuery] {
         val usedQueryRefs: Set[QueryReference.InputLike] = parsed.allQueryRefs.collect { case ref: QueryReference.InputLike => ref }.to[Set]
         val unusedQueryRefs: Set[QueryReference.InputLike] = specifiedQueryRefs &~ usedQueryRefs
         unusedQueryRefs.foreach { ref => report.warning("unused query input param", ref.param.tree.pos) }
-        
+
         parsed
       }
 
@@ -312,7 +313,7 @@ private[sql] object ParsedQuery extends Parser[Term, ParsedQuery] {
       } yield (parsed, res)
     }
 
-  // FIX-PRE-MERGE (KR) : derive 
+  // FIX-PRE-MERGE (KR) : derive
   private given ToExpr[QueryContext.QueryType] =
     new ToExpr[QueryContext.QueryType] {
       override def apply(x: QueryContext.QueryType)(using Quotes): Expr[QueryContext.QueryType] = x match
