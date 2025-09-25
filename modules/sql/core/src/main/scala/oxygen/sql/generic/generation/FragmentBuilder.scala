@@ -237,6 +237,14 @@ final case class FragmentBuilder(inputs: List[InputPart])(using Quotes) {
       limitFrag,
     )
 
+  def offset(o: OffsetPart)(using ParseContext, GenerationContext, Quotes): ParseResult[GeneratedFragment] =
+    for {
+      offsetFrag <- convertConstOrInput(o.offsetQueryExpr, TypeclassExpr.RowRepr { '{ RowRepr.int } })
+    } yield GeneratedFragment.of(
+      "\n    OFFSET ",
+      offsetFrag,
+    )
+
   def values(ins: InsertPart, i: IntoPart)(using ParseContext, GenerationContext, Quotes): ParseResult[GeneratedFragment] =
     for {
       valuesFrag <- GenerationContext.updated(input = GenerationContext.Parens.Always) { convertConstOrInput(i.queryExpr, ins.rowRepr) }

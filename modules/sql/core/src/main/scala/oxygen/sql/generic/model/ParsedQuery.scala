@@ -106,6 +106,7 @@ private[sql] object ParsedQuery extends Parser[Term, ParsedQuery] {
       where: Option[WherePart],
       orderBy: Option[OrderByPart],
       limit: Option[LimitPart],
+      offset: Option[OffsetPart],
       ret: ReturningPart,
       refs: RefMap,
   ) extends ParsedQuery {
@@ -113,7 +114,7 @@ private[sql] object ParsedQuery extends Parser[Term, ParsedQuery] {
     override def show(using Quotes): String =
       s"""$showInputs
          |SELECT ${ret.showOpt.getOrElse("<ERROR>")}
-         |    ${select.show}${joins.map(_.show).mkString}${where.map(_.show).mkString}${orderBy.map(_.show).mkString}${limit.map(_.show).mkString}
+         |    ${select.show}${joins.map(_.show).mkString}${where.map(_.show).mkString}${orderBy.map(_.show).mkString}${limit.map(_.show).mkString}${offset.map(_.show).mkString}
          |""".stripMargin
 
     override protected def allQueryRefs: Growable[QueryParam] =
@@ -123,6 +124,7 @@ private[sql] object ParsedQuery extends Parser[Term, ParsedQuery] {
         Growable.option(where).flatMap(_.filterExpr.queryRefs),
         Growable.option(orderBy).flatMap(p => Growable.many(p.orderByExprs).map(_.queryExpr.queryRef)),
         Growable.option(limit).flatMap(_.limitQueryExpr.queryRefs),
+        Growable.option(offset).flatMap(_.offsetQueryExpr.queryRefs),
         Growable.many(ret.returningExprs).flatMap(_.queryRefs),
       ).flatten
 
@@ -138,6 +140,7 @@ private[sql] object ParsedQuery extends Parser[Term, ParsedQuery] {
         whereFrag <- where.traverse(fragmentBuilder.where).map(GeneratedFragment.option)
         orderByFrag <- orderBy.traverse(fragmentBuilder.orderBy).map(GeneratedFragment.option)
         limitFrag <- limit.traverse(fragmentBuilder.limit).map(GeneratedFragment.option)
+        offsetFrag <- offset.traverse(fragmentBuilder.offset).map(GeneratedFragment.option)
         frag = GeneratedFragment.of(
           "SELECT ",
           returningFrag,
@@ -146,6 +149,7 @@ private[sql] object ParsedQuery extends Parser[Term, ParsedQuery] {
           whereFrag,
           orderByFrag,
           limitFrag,
+          offsetFrag,
         )
         (builtSql, builtEncoder) = frag.buildExpr
 
@@ -298,8 +302,8 @@ private[sql] object ParsedQuery extends Parser[Term, ParsedQuery] {
       .map {
         case FullQueryResult(inputs, PartialQuery.InsertQuery(insert, into), ret, refs) =>
           ParsedQuery.InsertQuery(inputs, insert, into, ret, refs)
-        case FullQueryResult(inputs, PartialQuery.SelectQuery(select, joins, where, orderBy, limit), ret, refs) =>
-          ParsedQuery.SelectQuery(inputs, select, joins, where, orderBy, limit, ret, refs)
+        case FullQueryResult(inputs, PartialQuery.SelectQuery(select, joins, where, orderBy, limit, offset), ret, refs) =>
+          ParsedQuery.SelectQuery(inputs, select, joins, where, orderBy, limit, offset, ret, refs)
         case FullQueryResult(inputs, PartialQuery.UpdateQuery(update, joins, where, set), ret, refs) =>
           ParsedQuery.UpdateQuery(inputs, update, joins, where, set, ret, refs)
         case FullQueryResult(inputs, PartialQuery.DeleteQuery(delete, joins, where), ret, refs) =>
