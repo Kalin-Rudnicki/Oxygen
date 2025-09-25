@@ -3,6 +3,15 @@ package oxygen.sql.generic.parsing
 import oxygen.quoted.*
 import scala.quoted.*
 
+/**
+  * ------------------------- ... -------------------------
+  * ((fc2.lhs))
+  *     .((fc2.nameRef)) { ((fc2.funct.params)) => ((fc2.funct.body)) }
+  *     .((fc1.nameRef)) { ((fc1.funct.params)) => ((fc1.funct.body)) }
+  * ------------------------- ... -------------------------
+  * ((fc1.lhs))
+  *     .((fc1.nameRef)) { ((fc1.funct.params)) => ((fc1.funct.body)) }
+  */
 private[generic] final case class FunctionCall(
     lhs: Term,
     nameRef: Ref,

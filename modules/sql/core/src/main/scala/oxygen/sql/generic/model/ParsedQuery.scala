@@ -300,6 +300,7 @@ private[sql] object ParsedQuery extends Parser[Term, ParsedQuery] {
         val usedQueryRefs: Set[QueryReference.InputLike] = parsed.allQueryRefs.collect { case ref: QueryReference.InputLike => ref }.to[Set]
         val unusedQueryRefs: Set[QueryReference.InputLike] = specifiedQueryRefs &~ usedQueryRefs
         unusedQueryRefs.foreach { ref => report.warning("unused query input param", ref.param.tree.pos) }
+        
         parsed
       }
 
@@ -311,6 +312,7 @@ private[sql] object ParsedQuery extends Parser[Term, ParsedQuery] {
       } yield (parsed, res)
     }
 
+  // FIX-PRE-MERGE (KR) : derive 
   private given ToExpr[QueryContext.QueryType] =
     new ToExpr[QueryContext.QueryType] {
       override def apply(x: QueryContext.QueryType)(using Quotes): Expr[QueryContext.QueryType] = x match

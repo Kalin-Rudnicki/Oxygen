@@ -38,6 +38,26 @@ object Person extends TableCompanion[Person, UUID](TableRepr.derived[Person]) {
 
 }
 
+final case class Note(
+    @primaryKey id: UUID,
+    personId: UUID,
+    note: String,
+)
+object Note extends TableCompanion[Note, UUID](TableRepr.derived[Note]) {
+
+  private val randomNote: UIO[String] = RandomGen.lowerCaseString(5).replicateZIO(10).map(_.mkString(" "))
+
+  def generate(personId: UUID)(
+      id: Specified[UUID] = Specified.WasNotSpecified,
+      note: Specified[String] = Specified.WasNotSpecified,
+  ): UIO[Note] =
+    for {
+      id <- id.orGen { Random.nextUUID }
+      note <- note.orGen { randomNote }
+    } yield Note(id, personId, note)
+
+}
+
 @experimental
 object queries {
 
@@ -53,6 +73,21 @@ object queries {
       _ <- where if p1.groupId == i
     } yield p1
 
+  // FIX-PRE-MERGE (KR) : remove
+  /*
+  input[UUID].flatMap { i =>
+    select[Person].flatMap { p1 =>
+      join[Person]
+        .withFilter { p2 => p2.last == p1.last && p2.id != p1.id }
+        .flatMap { p2 =>
+          where
+            .withFilter { _ => p1.id == i }
+            .map { _ => p2 }
+        }
+    }
+  }
+   */
+
   @compile
   val othersWithSameLastNameAsId: QueryIO[UUID, Person] =
     for {
@@ -61,6 +96,33 @@ object queries {
       p2 <- join[Person] if p2.last == p1.last && p2.id != p1.id
       _ <- where if p1.id == i
     } yield p2
+
+  // FIX-PRE-MERGE (KR) : remove
+  /*
+  input[UUID].flatMap { i =>
+    select[Person].flatMap { p1 =>
+      leftJoin[Note]
+        .withFilter { n1 => n1.personId == p1.id } // if
+        .flatMap { n1 =>
+          where
+            .withFilter { _ => p1.groupId == i } // if
+            .map { _ => (p1, n1) } // yield
+        }
+    }
+  }
+   */
+
+  // FIX-PRE-MERGE (KR) :
+  /*
+  @compile
+  val personAndNotesForGroupId: QueryIO[UUID, (Person, Option[Note])] =
+    for {
+      i <- input[UUID]
+      p1 <- select[Person]
+      n1 <- leftJoin[Note] if n1.personId == p1.id
+      _ <- where if p1.groupId == i
+    } yield (p1, n1)
+   */
 
   //////////////////////////////////////////////////////////////////////////////////////////////////////
   //      Update
