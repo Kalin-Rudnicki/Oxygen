@@ -25,6 +25,7 @@ object Q {
   // def natural: Boolean = macroOnly
 
   def limit(lim: Int): T.Limit = macroOnly
+  def offset(off: Int): T.Offset = macroOnly
 
   def orderBy(parts: T.Partial.OrderByPart*): T.OrderBy = macroOnly
 

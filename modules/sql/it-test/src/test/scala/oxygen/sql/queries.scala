@@ -148,6 +148,17 @@ object queries {
       _ <- limit(l)
     } yield i
 
+  @compile
+  val intsOrderByABOffset: QueryIO[(Int, Int), Ints] =
+    for {
+      l <- input[Int]
+      o <- input[Int]
+      i <- select[Ints]
+      _ <- orderBy(i.a.asc, i.b.desc)
+      _ <- limit(l)
+      _ <- offset(o)
+    } yield i
+
   //////////////////////////////////////////////////////////////////////////////////////////////////////
   //      Update
   //////////////////////////////////////////////////////////////////////////////////////////////////////

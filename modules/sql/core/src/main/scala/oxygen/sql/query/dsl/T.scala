@@ -88,6 +88,13 @@ object T {
 
   }
 
+  final class Offset private {
+
+    def map[B](f: Unit => B): Ret[B] = macroOnly
+    def flatMap[B](f: Unit => Ret[B]): Ret[B] = macroOnly
+
+  }
+
   final class OrderBy private {
 
     def map[B](f: Unit => B): Ret[B] = macroOnly

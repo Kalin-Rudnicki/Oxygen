@@ -214,7 +214,7 @@ object QuerySpec extends OxygenSpec[Database] {
           ),
         )
       },
-      test("limit") {
+      test("orderBy / limit / offset") {
         val i11 = Ints(1, 1)
         val i12 = Ints(1, 2)
         val i13 = Ints(1, 3)
@@ -236,6 +236,9 @@ object QuerySpec extends OxygenSpec[Database] {
           res5 <- queries.intsOrderByAB.execute(5).to[List]
           res6 <- queries.intsOrderByBA.execute(5).to[List]
 
+          res7 <- queries.intsOrderByABOffset.execute(5, 2).to[List]
+          res8 <- queries.intsOrderByABOffset.execute(5, 6).to[List]
+
         } yield assertTrue(
           res1.length == 5,
           res2.length == 3,
@@ -243,6 +246,8 @@ object QuerySpec extends OxygenSpec[Database] {
           res4 == Set(i11, i12, i13),
           res5 == List(i13, i12, i11, i23, i22),
           res6 == List(i13, i23, i33, i12, i22),
+          res7 == List(i11, i23, i22, i21, i33),
+          res8 == List(i33, i32, i31),
         )
       },
     )
