@@ -13,6 +13,7 @@ final class DecoderBuilder {
   def convert(queryExpr: QueryExpr)(using ParseContext, Quotes): ParseResult[GeneratedResultDecoder] =
     queryExpr match {
       case input: QueryExpr.UnaryInput => ParseResult.error(input.fullTerm, "no query reference to compare input to")
+      case input: QueryExpr.ConstValue => ParseResult.error(input.fullTerm, "no query reference to compare input to")
       case query: QueryExpr.UnaryQuery => ParseResult.success(GeneratedResultDecoder.single('{ ${ query.rowRepr.expr }.decoder }, query.fullTerm.tpe.widen))
       case _: QueryExpr.BinaryAndOr    => ParseResult.success(GeneratedResultDecoder.single('{ RowRepr.boolean.decoder }, TypeRepr.of[Boolean]))
       case _: QueryExpr.BinaryComp     => ParseResult.success(GeneratedResultDecoder.single('{ RowRepr.boolean.decoder }, TypeRepr.of[Boolean]))

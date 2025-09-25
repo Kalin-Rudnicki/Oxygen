@@ -178,7 +178,7 @@ private[sql] object ParsedQuery extends Parser[Term, ParsedQuery] {
         Growable(update.queryRefOrPlaceholder),
         Growable.many(joins).flatMap(_.queryRefs),
         Growable.option(where).flatMap(_.filterExpr.queryRefs),
-        Growable.many(set.setExprs.toList).flatMap(p => Growable(p.fieldToSetExpr.queryRef, p.setValueExpr.queryRef)),
+        Growable.many(set.setExprs.toList).flatMap(p => p.fieldToSetExpr.queryRef +: p.setValueExpr.queryRefs),
         Growable.many(ret.returningExprs).flatMap(_.queryRefs),
       ).flatten
 

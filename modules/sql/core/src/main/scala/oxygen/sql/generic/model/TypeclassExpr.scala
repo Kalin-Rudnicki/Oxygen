@@ -72,6 +72,15 @@ object TypeclassExpr {
     def columns: TypeclassExpr.Columns =
       TypeclassExpr.Columns { '{ $expr.columns } }
 
+    def constEncoder(term: Term)(using Quotes): Expr[S.InputEncoder[Any]] = {
+      type T
+      given Type[T] = term.tpe.widen.asTypeOf
+
+      val termExpr: Expr[T] = term.asExprOf[T]
+
+      '{ S.InputEncoder.Const[T](${ expr.asExprOf[S.RowRepr[T]] }.encoder, $termExpr) }
+    }
+
     def show(using Quotes): String = expr.showAnsiCode
 
   }

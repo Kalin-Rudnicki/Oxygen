@@ -44,7 +44,8 @@ object SetPart extends MapChainParser[SetPart] {
       lhsExpr <- QueryExpr.Unary.parse(lhsExpr).unknownAsError
       lhsExpr <- lhsExpr match {
         case lhsExpr: QueryExpr.UnaryQuery if lhsExpr.param.sym == rootQueryRef.param.sym => ParseResult.Success(lhsExpr)
-        case _                                                                            => ParseResult.error(lhsExpr.rootIdent, "root of set lhs is not the update table?")
+        case lhsExpr: QueryExpr.UnaryParam                                                => ParseResult.error(lhsExpr.rootIdent, "root of set lhs is not the update table?")
+        case _                                                                            => ParseResult.error(lhsExpr.fullTerm, "lhsExpr is not a unary param")
       }
 
       rhsExpr <- RawQueryExpr.Unary.parse((rhs, refs)).unknownAsError
