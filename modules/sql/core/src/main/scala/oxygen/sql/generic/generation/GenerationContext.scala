@@ -1,7 +1,7 @@
 package oxygen.sql.generic.generation
 
 import oxygen.predef.core.*
-import oxygen.sql.schema.*
+import oxygen.sql.generic.model.TypeclassExpr
 import scala.quoted.*
 import scala.util.NotGiven
 
@@ -16,20 +16,9 @@ object GenerationContext {
   enum Parens {
     case Always, IfMulti, Never
 
-    final def `ref.a, ref.b, ref.c`(expr: Expr[Columns[?]], ref: Expr[String])(using Quotes): GeneratedSql = this match
-      case Parens.Always  => GeneratedSql.of("(", '{ $expr.`ref.a, ref.b, ref.c`($ref) }, ")")
-      case Parens.IfMulti => GeneratedSql.of('{ $expr.`(ref.a, ref.b, ref.c)`($ref) })
-      case Parens.Never   => GeneratedSql.of('{ $expr.`ref.a, ref.b, ref.c`($ref) })
-
-    final def `a, b, c`(expr: Expr[Columns[?]])(using Quotes): GeneratedSql = this match
-      case Parens.Always  => GeneratedSql.of("(", '{ $expr.`a, b, c` }, ")")
-      case Parens.IfMulti => GeneratedSql.of('{ $expr.`(a, b, c)` })
-      case Parens.Never   => GeneratedSql.of('{ $expr.`a, b, c` })
-
-    final def `?, ?, ?`(expr: Expr[Columns[?]])(using Quotes): GeneratedSql = this match
-      case Parens.Always  => GeneratedSql.of("(", '{ $expr.`?, ?, ?` }, ")")
-      case Parens.IfMulti => GeneratedSql.of('{ $expr.`(?, ?, ?)` })
-      case Parens.Never   => GeneratedSql.of('{ $expr.`?, ?, ?` })
+    final def `ref.a, ref.b, ref.c`(cols: TypeclassExpr.Columns, ref: Expr[String])(using Quotes): GeneratedSql = cols.`ref.a, ref.b, ref.c`(this, ref)
+    final def `a, b, c`(cols: TypeclassExpr.Columns)(using Quotes): GeneratedSql = cols.`a, b, c`(this)
+    final def `?, ?, ?`(cols: TypeclassExpr.Columns)(using Quotes): GeneratedSql = cols.`?, ?, ?`(this)
 
   }
 

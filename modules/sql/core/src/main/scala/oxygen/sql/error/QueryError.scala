@@ -123,6 +123,7 @@ object QueryError {
           IndentedString.section("Generic:")(
             s"type: ${cause.getClass.getName}",
             s"cause: ${cause.safeGetMessage}",
+            s"trace: ${cause.getStackTrace.map(t => s"\n  - $t").mkString}",
           )
       }
 

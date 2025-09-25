@@ -43,11 +43,11 @@ private[generic] object RawQueryExpr extends Parser[(Term, RefMap), RawQueryExpr
   }
 
   /**
-    * An [[Ident]] which points at the given [[QueryReference]].
+    * An [[Ident]] which points at the given [[QueryParam]].
     * val a: ? = ???
     * `a`
     */
-  final case class QueryRefIdent(ident: Ident, queryRef: QueryReference) extends RawQueryExpr.Unary {
+  final case class QueryRefIdent(ident: Ident, queryParam: QueryParam) extends RawQueryExpr.Unary {
     override val fullTerm: Term = ident
   }
   object QueryRefIdent extends Parser[(Term, RefMap), QueryRefIdent] {
@@ -117,28 +117,32 @@ private[generic] object RawQueryExpr extends Parser[(Term, RefMap), RawQueryExpr
 
   }
 
-  final case class SelectPrimaryKey(apply: Apply, inner: RawQueryExpr.Unary, givenTableRepr: Term) extends RawQueryExpr.Unary {
+  final case class SelectPrimaryKey(apply: Apply, inner: RawQueryExpr.Unary, givenTableRepr: TypeclassExpr.TableRepr) extends RawQueryExpr.Unary {
     override val fullTerm: Term = apply
   }
   object SelectPrimaryKey extends Parser[(Term, RefMap), SelectPrimaryKey] {
 
     override def parse(input: (Term, RefMap))(using ParseContext, Quotes): ParseResult[SelectPrimaryKey] =
       input match {
-        case (apply @ Apply(Apply(TypeApply(Ident("tablePK"), _ :: Nil), lhs :: Nil), givenTableRepr :: Nil), refs) => Unary.parse((lhs, refs)).map(SelectPrimaryKey(apply, _, givenTableRepr))
-        case (term, _)                                                                                              => ParseResult.unknown(term, "not a primary-key select")
+        case (apply @ Apply(Apply(TypeApply(Ident("tablePK"), _ :: Nil), lhs :: Nil), givenTableRepr :: Nil), refs) =>
+          Unary.parse((lhs, refs)).map(SelectPrimaryKey(apply, _, TypeclassExpr.TableRepr.wrapTerm(givenTableRepr)))
+        case (term, _) =>
+          ParseResult.unknown(term, "not a primary-key select")
       }
 
   }
 
-  final case class SelectNonPrimaryKey(apply: Apply, inner: RawQueryExpr.Unary, givenTableRepr: Term) extends RawQueryExpr.Unary {
+  final case class SelectNonPrimaryKey(apply: Apply, inner: RawQueryExpr.Unary, givenTableRepr: TypeclassExpr.TableRepr) extends RawQueryExpr.Unary {
     override val fullTerm: Term = apply
   }
   object SelectNonPrimaryKey extends Parser[(Term, RefMap), SelectNonPrimaryKey] {
 
     override def parse(input: (Term, RefMap))(using ParseContext, Quotes): ParseResult[SelectNonPrimaryKey] =
       input match {
-        case (apply @ Apply(Apply(TypeApply(Ident("tableNPK"), _ :: Nil), lhs :: Nil), givenTableRepr :: Nil), refs) => Unary.parse((lhs, refs)).map(SelectNonPrimaryKey(apply, _, givenTableRepr))
-        case (term, _)                                                                                               => ParseResult.unknown(term, "not a non-primary-key select")
+        case (apply @ Apply(Apply(TypeApply(Ident("tableNPK"), _ :: Nil), lhs :: Nil), givenTableRepr :: Nil), refs) =>
+          Unary.parse((lhs, refs)).map(SelectNonPrimaryKey(apply, _, TypeclassExpr.TableRepr.wrapTerm(givenTableRepr)))
+        case (term, _) =>
+          ParseResult.unknown(term, "not a non-primary-key select")
       }
 
   }

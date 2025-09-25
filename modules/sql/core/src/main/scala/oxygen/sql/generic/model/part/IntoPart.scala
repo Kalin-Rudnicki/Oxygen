@@ -7,7 +7,7 @@ import oxygen.sql.query.dsl.T
 import scala.quoted.*
 
 final case class IntoPart(
-    queryExpr: QueryExpr.InputLike.QueryRefIdent,
+    queryExpr: QueryExpr.UnaryInput.QueryRefIdent,
 )
 object IntoPart extends MapChainParser[IntoPart] {
 
@@ -22,7 +22,7 @@ object IntoPart extends MapChainParser[IntoPart] {
       }
 
       mapQueryRef <- refs.getInput(valueIdent)
-      queryExpr = QueryExpr.InputLike.QueryRefIdent(valueIdent, mapQueryRef)
+      queryExpr = QueryExpr.UnaryInput.QueryRefIdent(valueIdent, mapQueryRef)
     } yield MapChainResult(IntoPart(queryExpr), mapFunctName, refs, mapAAFC.appliedFunctionBody)
 
 }

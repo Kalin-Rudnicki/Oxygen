@@ -28,7 +28,7 @@ final class GeneratedResultDecoder private (
         GeneratedResultDecoder.Built(
           single.tpe,
           true,
-          single.buildExpr,
+          single.buildExpr(quotes),
         )
       case _ =>
         type A
@@ -47,13 +47,13 @@ final class GeneratedResultDecoder private (
 }
 object GeneratedResultDecoder {
 
-  private final case class Part(buildExpr: Expr[ResultDecoder[?]], tpe: TypeRepr) {
+  private final case class Part(buildExpr: Quotes => Expr[ResultDecoder[?]], tpe: TypeRepr) {
 
-    def toElem[A](using Quotes): K0.Expressions.Elem[ResultDecoder, A] = {
+    def toElem[A]: K0.Expressions.Elem[ResultDecoder, A] = {
       given typed: Type[A] = tpe.asTypeOf
       K0.Expressions.Elem[ResultDecoder, A](
         typed,
-        buildExpr.asExprOf[ResultDecoder[A]],
+        q ?=> buildExpr(q).asExprOf[ResultDecoder[A]],
       )
     }
 
@@ -67,7 +67,7 @@ object GeneratedResultDecoder {
 
   val empty: GeneratedResultDecoder = GeneratedResultDecoder(Growable.empty)
 
-  def single(dec: Expr[ResultDecoder[?]], tpe: TypeRepr): GeneratedResultDecoder = GeneratedResultDecoder(Growable.single(Part(dec, tpe)))
+  def single(dec: Quotes ?=> Expr[ResultDecoder[?]], tpe: TypeRepr): GeneratedResultDecoder = GeneratedResultDecoder(Growable.single(Part(q => dec(using q), tpe)))
 
   def flatten[S[_]: SeqOps](all: S[GeneratedResultDecoder]): GeneratedResultDecoder = GeneratedResultDecoder(Growable.manyFlatMapped(all)(_.parts))
 

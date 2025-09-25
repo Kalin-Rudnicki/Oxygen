@@ -45,7 +45,7 @@ final case class Note(
 )
 object Note extends TableCompanion[Note, UUID](TableRepr.derived[Note]) {
 
-  private val randomNote: UIO[String] = RandomGen.lowerCaseString(5).replicateZIO(10).map(_.mkString(" "))
+  private val randomNote: UIO[String] = RandomGen.lowerCaseString(5).replicateZIO(5).map(_.mkString(" "))
 
   def generate(personId: UUID)(
       id: Specified[UUID] = Specified.WasNotSpecified,
@@ -81,6 +81,24 @@ object queries {
       p2 <- join[Person] if p2.last == p1.last && p2.id != p1.id
       _ <- where if p1.id == i
     } yield p2
+
+  @compile(debug = true)
+  val personJoinNotes: QueryIO[UUID, (Person, Note)] =
+    for {
+      i <- input[UUID]
+      p1 <- select[Person]
+      n1 <- join[Note] if n1.personId == p1.id
+      _ <- where if p1.groupId == i
+    } yield (p1, n1)
+
+  @compile(debug = true)
+  val personLeftJoinNotes: QueryIO[UUID, (Person, Option[Note])] =
+    for {
+      i <- input[UUID]
+      p1 <- select[Person]
+      n1 <- leftJoin[Note] if n1.personId == p1.id
+      _ <- where if p1.groupId == i
+    } yield (p1, n1)
 
   //////////////////////////////////////////////////////////////////////////////////////////////////////
   //      Update

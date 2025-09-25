@@ -11,10 +11,10 @@ import scala.quoted.*
 
 final case class FragmentBuilder(inputs: List[InputPart])(using Quotes) {
 
-  private val nonConstInputParams: List[QueryReference.InputParam] =
+  private val nonConstInputParams: List[QueryParam.InputParam] =
     inputs.map(_.mapQueryRef).flatMap {
-      case p: QueryReference.InputParam => p.some
-      case _: QueryReference.ConstInput => None
+      case p: QueryParam.InputParam => p.some
+      case _: QueryParam.ConstInput => None
     }
 
   private val symIdxMap: Map[Symbol, Int] =
@@ -34,12 +34,12 @@ final case class FragmentBuilder(inputs: List[InputPart])(using Quotes) {
     inputs.map { i =>
       val either: Either[Term, TermTransformer.Root] =
         (inputTpeTupGen, i.mapQueryRef) match {
-          case (None, QueryReference.InputParam(_)) =>
+          case (None, QueryParam.InputParam(_)) =>
             TermTransformer.Id.asRight
-          case (Some(inputTpeTupGen), QueryReference.InputParam(param)) =>
+          case (Some(inputTpeTupGen), QueryParam.InputParam(param)) =>
             val idx: Int = symIdxMap.getOrElse(param.sym, report.errorAndAbort("sym not found?", param.tree.pos))
             TermTransformer.FromProductGenericField(inputTpeTupGen, inputTpeTupGen.fields(idx)).asRight
-          case (_, QueryReference.ConstInput(_, term, _)) =>
+          case (_, QueryParam.ConstInput(_, term, _)) =>
             term.asLeft
         }
 
@@ -48,42 +48,42 @@ final case class FragmentBuilder(inputs: List[InputPart])(using Quotes) {
 
   def convert(queryExpr: QueryExpr)(using ParseContext, GenerationContext, Quotes): ParseResult[GeneratedFragment] =
     queryExpr match {
-      case input: QueryExpr.InputLike       => ParseResult.error(input.fullTerm, "no query reference to compare input to")
-      case query: QueryExpr.QueryLike       => convertQuery(query)
-      case QueryExpr.AndOr(_, lhs, op, rhs) =>
+      case input: QueryExpr.UnaryInput            => ParseResult.error(input.fullTerm, "no query reference to compare input to")
+      case query: QueryExpr.UnaryQuery            => convertQuery(query)
+      case QueryExpr.BinaryAndOr(_, lhs, op, rhs) =>
         for {
           lhsFrag <- convert(lhs)
           rhsFrag <- convert(rhs)
         } yield GeneratedFragment.of(lhsFrag.wrapInParensIf(lhs.isAndOr), op.sqlPadded, rhsFrag.wrapInParensIf(rhs.isAndOr))
-      case QueryExpr.Comp.QueryQuery(_, lhsQuery, op, rhsQuery) =>
+      case QueryExpr.BinaryComp.QueryQuery(_, lhsQuery, op, rhsQuery) =>
         for {
           lhsFrag <- convertQuery(lhsQuery)
           rhsFrag <- convertQuery(rhsQuery)
         } yield GeneratedFragment.of(lhsFrag, op.sqlPadded, rhsFrag)
-      case QueryExpr.Comp.QueryInput(_, lhsQuery, op, rhsInput) =>
+      case QueryExpr.BinaryComp.QueryInput(_, lhsQuery, op, rhsInput) =>
         for {
           lhsFrag <- convertQuery(lhsQuery)
           rhsFrag <- convertInput(rhsInput, lhsQuery)
         } yield GeneratedFragment.of(lhsFrag, op.sqlPadded, rhsFrag)
-      case QueryExpr.Comp.InputQuery(_, lhsInput, op, rhsQuery) =>
+      case QueryExpr.BinaryComp.InputQuery(_, lhsInput, op, rhsQuery) =>
         for {
           lhsFrag <- convertInput(lhsInput, rhsQuery)
           rhsFrag <- convertQuery(rhsQuery)
         } yield GeneratedFragment.of(lhsFrag, op.sqlPadded, rhsFrag)
     }
 
-  private def convertQuery(query: QueryExpr.QueryLike)(using Quotes, GenerationContext): ParseResult[GeneratedFragment] =
+  private def convertQuery(query: QueryExpr.UnaryQuery)(using Quotes, GenerationContext): ParseResult[GeneratedFragment] =
     ParseResult.success {
       GeneratedFragment.both(
-        GenerationContext.get.query.`ref.a, ref.b, ref.c`('{ ${ query.rowRepr }.columns }, Expr(query.rootIdent.name.camelToSnake)),
+        GenerationContext.get.query.`ref.a, ref.b, ref.c`(query.rowRepr.columns, Expr(query.rootIdent.name.camelToSnake)),
         GeneratedInputEncoder.empty,
       )
     }
 
-  private def convertInput(input: QueryExpr.InputLike, query: QueryExpr.QueryLike)(using ParseContext, GenerationContext, Quotes): ParseResult[GeneratedFragment] =
+  private def convertInput(input: QueryExpr.UnaryInput, query: QueryExpr.UnaryQuery)(using ParseContext, GenerationContext, Quotes): ParseResult[GeneratedFragment] =
     convertInput(input, query.rowRepr)
 
-  private def inputToEncoder(input: QueryExpr.InputLike, rowRepr: Expr[RowRepr[?]])(using ParseContext, Quotes): ParseResult[GeneratedInputEncoder] =
+  private def inputToEncoder(input: QueryExpr.UnaryInput, rowRepr: TypeclassExpr.RowRepr)(using ParseContext, Quotes): ParseResult[GeneratedInputEncoder] =
     for {
       either <- symMap.get(input.queryRef.param.sym) match {
         case Some(value) => ParseResult.success(value)
@@ -94,29 +94,29 @@ final case class FragmentBuilder(inputs: List[InputPart])(using Quotes) {
           (inputTransformer >>> input) match {
             case TermTransformer.Die => ParseResult.error(input.fullTerm, "Expected to not call input transform?")
             case TermTransformer.Id  =>
-              ParseResult.success(GeneratedInputEncoder.nonConst('{ $rowRepr.encoder }, input.inTpe))
+              ParseResult.success(GeneratedInputEncoder.nonConst('{ ${ rowRepr.expr }.encoder }, input.inTpe))
             case transform: TermTransformer.Transform =>
               type A
               type B
               given Type[A] = transform.inTpe.asTypeOf
               given Type[B] = transform.outTpe.asTypeOf
-              val typedQueryRowRepr: Expr[RowRepr[B]] = rowRepr.asExprOf[RowRepr[B]]
+              val typedQueryRowRepr: Expr[RowRepr[B]] = rowRepr.expr.asExprOf[RowRepr[B]]
               ParseResult.success(GeneratedInputEncoder.nonConst('{ $typedQueryRowRepr.encoder.contramap[A](${ transform.convertExprF[A, B] }) }, transform.inTpe))
           }
         case Left(const) =>
           type A
           given Type[A] = const.tpe.widen.asTypeOf
-          val typedQueryRowRepr: Expr[RowRepr[A]] = rowRepr.asExprOf[RowRepr[A]]
+          val typedQueryRowRepr: Expr[RowRepr[A]] = rowRepr.expr.asExprOf[RowRepr[A]]
           val expr: Expr[A] = const.asExprOf[A]
 
           ParseResult.success(GeneratedInputEncoder.const('{ InputEncoder.Const($typedQueryRowRepr.encoder, $expr) }))
       }
     } yield enc
 
-  private def convertInput(input: QueryExpr.InputLike, rowRepr: Expr[RowRepr[?]])(using ParseContext, GenerationContext, Quotes): ParseResult[GeneratedFragment] =
+  private def convertInput(input: QueryExpr.UnaryInput, rowRepr: TypeclassExpr.RowRepr)(using ParseContext, GenerationContext, Quotes): ParseResult[GeneratedFragment] =
     for {
       enc: GeneratedInputEncoder <- inputToEncoder(input, rowRepr)
-      qMarkStrings = GenerationContext.get.input.`?, ?, ?`('{ $rowRepr.columns })
+      qMarkStrings = GenerationContext.get.input.`?, ?, ?`(rowRepr.columns)
       frag = GeneratedFragment.both(qMarkStrings, enc)
     } yield frag
 
@@ -126,11 +126,11 @@ final case class FragmentBuilder(inputs: List[InputPart])(using Quotes) {
     ParseResult.success(
       GeneratedFragment.of(
         "INSERT INTO ",
-        '{ ${ i.tableRepr }.ref },
+        i.tableRepr.tableRef,
         s" AS ",
         i.mapQueryRef match {
           case Some(queryRef) => Expr(queryRef.param.name.camelToSnake)
-          case None           => '{ ${ i.tableRepr }.tableName.head.toString }
+          case None           => i.tableRepr.tableNameFirstChar
         },
       ),
     )
@@ -139,7 +139,7 @@ final case class FragmentBuilder(inputs: List[InputPart])(using Quotes) {
     ParseResult.success(
       GeneratedFragment.of(
         "\n    FROM ",
-        '{ ${ s.tableRepr }.ref },
+        s.tableRepr.tableRef,
         s" ${s.mapQueryRef.param.name.camelToSnake}",
       ),
     )
@@ -148,11 +148,11 @@ final case class FragmentBuilder(inputs: List[InputPart])(using Quotes) {
     ParseResult.success(
       GeneratedFragment.of(
         "UPDATE ",
-        '{ ${ u.tableRepr }.ref },
+        u.tableRepr.tableRef,
         " ",
         u.queryRef match {
           case Some(queryRef) => Expr(queryRef.param.name.camelToSnake)
-          case None           => '{ ${ u.tableRepr }.tableName.head.toString }
+          case None           => u.tableRepr.tableNameFirstChar
         },
       ),
     )
@@ -161,7 +161,7 @@ final case class FragmentBuilder(inputs: List[InputPart])(using Quotes) {
     ParseResult.success(
       GeneratedFragment.of(
         "DELETE FROM ",
-        '{ ${ d.tableRepr }.ref },
+        d.tableRepr.tableRef,
         s" ${d.mapQueryRef.param.name.camelToSnake}",
       ),
     )
@@ -169,8 +169,8 @@ final case class FragmentBuilder(inputs: List[InputPart])(using Quotes) {
   def ret(r: ReturningPart, idt: String)(using ParseContext, GenerationContext, Quotes): ParseResult[Option[GeneratedFragment]] =
     Option.when(r.returningExprs.nonEmpty)(r.returningExprs).traverse {
       _.traverse {
-        case query: QueryExpr.QueryLike => GenerationContext.updated(query = GenerationContext.Parens.Never) { convertQuery(query) }
-        case queryExpr                  => convert(queryExpr)
+        case query: QueryExpr.UnaryQuery => GenerationContext.updated(query = GenerationContext.Parens.Never) { convertQuery(query) }
+        case queryExpr                   => convert(queryExpr)
       }
         .map { res => GeneratedFragment.flatten(res.intersperse(GeneratedFragment.sql(s",\n$idt"))) }
     }
@@ -186,8 +186,10 @@ final case class FragmentBuilder(inputs: List[InputPart])(using Quotes) {
       onFrag <- convert(j.filterExpr)
     } yield GeneratedFragment.of(
       // join
-      "\n    JOIN ",
-      '{ ${ j.tableRepr }.ref },
+      j.joinType match
+        case JoinPart.JoinType.Inner     => "\n    JOIN "
+        case JoinPart.JoinType.LeftOuter => "\n    LEFT JOIN ",
+      j.tableRepr.tableRef,
       s" ${j.mapQueryRef.param.name.camelToSnake}",
       // on
       " ON ",
@@ -211,17 +213,17 @@ final case class FragmentBuilder(inputs: List[InputPart])(using Quotes) {
     )
 
   def setPart(s: SetPart.SetExpr)(using ParseContext, Quotes): ParseResult[GeneratedFragment] = {
-    val rowRepr: Expr[RowRepr[?]] = s.fieldToSetExpr.rowRepr
-    val lhsParts: Expr[ArraySeq[String]] = '{ $rowRepr.columns.columns.map(_.name) }
+    val rowRepr: TypeclassExpr.RowRepr = s.fieldToSetExpr.rowRepr
+    val lhsParts: Expr[ArraySeq[String]] = rowRepr.columns.exprSeqNames
 
     val rhsParts: ParseResult[(Expr[ArraySeq[String]], GeneratedInputEncoder)] =
       s.setValueExpr match {
-        case input: QueryExpr.InputLike =>
-          inputToEncoder(input, rowRepr).map(('{ $rowRepr.columns.columns.map(_ => "?") }, _))
-        case query: QueryExpr.QueryLike =>
+        case input: QueryExpr.UnaryInput =>
+          inputToEncoder(input, rowRepr).map((rowRepr.columns.exprSeqQMark, _))
+        case query: QueryExpr.UnaryQuery =>
           ParseResult.success(
             (
-              '{ ${ query.rowRepr }.columns.columns.map(c => s"${${ Expr(query.queryRef.param.name.camelToSnake) }}.${c.name}") },
+              query.rowRepr.columns.exprSeqRefNames(query.queryRef.param.name.camelToSnake),
               GeneratedInputEncoder.empty,
             ),
           )
