@@ -88,7 +88,16 @@ object T {
 
   }
 
+  final class OrderBy private {
+
+    def map[B](f: Unit => B): Ret[B] = macroOnly
+    def flatMap[B](f: Unit => Ret[B]): Ret[B] = macroOnly
+
+  }
+
   object Partial {
+
+    final class OrderByPart private {}
 
     final class SetValue private {}
 

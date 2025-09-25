@@ -211,6 +211,24 @@ final case class FragmentBuilder(inputs: List[InputPart])(using Quotes) {
       whereFrag,
     )
 
+  private def orderByPart(l: OrderByPart.OrderByExpr)(using GenerationContext, Quotes): ParseResult[GeneratedFragment] =
+    for {
+      queryExprFrag <- convertQuery(l.queryExpr)
+    } yield GeneratedFragment.of(
+      queryExprFrag,
+      " ",
+      l.ord.toString.toUpperCase,
+    )
+
+  def orderBy(l: OrderByPart)(using GenerationContext, Quotes): ParseResult[GeneratedFragment] =
+    for {
+      partFrags <- l.orderByExprs.traverse(orderByPart)
+      withCommas = partFrags.toList.intersperse(GeneratedFragment.sql(", "))
+    } yield GeneratedFragment.of(
+      "\n    ORDER BY ",
+      GeneratedFragment.flatten(withCommas),
+    )
+
   def limit(l: LimitPart)(using ParseContext, GenerationContext, Quotes): ParseResult[GeneratedFragment] =
     for {
       limitFrag <- convertConstOrInput(l.limitQueryExpr, TypeclassExpr.RowRepr { '{ RowRepr.int } })
