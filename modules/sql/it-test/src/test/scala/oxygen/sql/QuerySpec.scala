@@ -115,15 +115,25 @@ object QuerySpec extends OxygenSpec[Database] {
         for {
           groupId <- Random.nextUUID
           p1 <- Person.generate(groupId)()
+          p2 <- Person.generate(groupId)()
 
-          _ <- Person.insert(p1).unit
-          get1 <- Person.selectByPK(p1.id).single
-          set1 <- queries.setAgeTo0(p1).single
-          get2 <- Person.selectByPK(p1.id).single
+          _ <- Person.insert.all(p1, p2).unit
+
+          oldGetBefore <- Person.selectByPK(p1.id).single
+          oldSet <- queries.setAgeTo0_oldSyntax(p1).single
+          oldGetAfter <- Person.selectByPK(p1.id).single
+
+          newGetBefore <- Person.selectByPK(p2.id).single
+          newSet <- queries.setAgeTo0_oldSyntax(p2).single
+          newGetAfter <- Person.selectByPK(p2.id).single
+
         } yield assertTrue(
-          get1 == p1,
-          get2 == p1.copy(age = 0),
-          set1 == get2,
+          oldGetBefore == p1,
+          oldGetAfter == p1.copy(age = 0),
+          oldSet == oldGetAfter,
+          newGetBefore == p2,
+          newGetAfter == p2.copy(age = 0),
+          newSet == newGetAfter,
         )
       },
       test("deleteByGroupId") {

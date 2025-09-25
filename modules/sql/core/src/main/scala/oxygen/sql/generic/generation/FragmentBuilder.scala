@@ -49,6 +49,7 @@ final case class FragmentBuilder(inputs: List[InputPart])(using Quotes) {
   def convert(queryExpr: QueryExpr)(using ParseContext, GenerationContext, Quotes): ParseResult[GeneratedFragment] =
     queryExpr match {
       case input: QueryExpr.UnaryInput            => ParseResult.error(input.fullTerm, "no query reference to compare input to")
+      case input: QueryExpr.ConstValue            => ParseResult.error(input.fullTerm, "no query reference to compare input to")
       case query: QueryExpr.UnaryQuery            => convertQuery(query)
       case QueryExpr.BinaryAndOr(_, lhs, op, rhs) =>
         for {
@@ -63,11 +64,11 @@ final case class FragmentBuilder(inputs: List[InputPart])(using Quotes) {
       case QueryExpr.BinaryComp.QueryInput(_, lhsQuery, op, rhsInput) =>
         for {
           lhsFrag <- convertQuery(lhsQuery)
-          rhsFrag <- convertInput(rhsInput, lhsQuery)
+          rhsFrag <- convertConstOrInput(rhsInput, lhsQuery)
         } yield GeneratedFragment.of(lhsFrag, op.sqlPadded, rhsFrag)
       case QueryExpr.BinaryComp.InputQuery(_, lhsInput, op, rhsQuery) =>
         for {
-          lhsFrag <- convertInput(lhsInput, rhsQuery)
+          lhsFrag <- convertConstOrInput(lhsInput, rhsQuery)
           rhsFrag <- convertQuery(rhsQuery)
         } yield GeneratedFragment.of(lhsFrag, op.sqlPadded, rhsFrag)
     }
@@ -80,8 +81,14 @@ final case class FragmentBuilder(inputs: List[InputPart])(using Quotes) {
       )
     }
 
-  private def convertInput(input: QueryExpr.UnaryInput, query: QueryExpr.UnaryQuery)(using ParseContext, GenerationContext, Quotes): ParseResult[GeneratedFragment] =
-    convertInput(input, query.rowRepr)
+  private def convertConstOrInput(input: QueryExpr.ConstOrUnaryInput, query: QueryExpr.UnaryQuery)(using ParseContext, GenerationContext, Quotes): ParseResult[GeneratedFragment] =
+    convertConstOrInput(input, query.rowRepr)
+
+  private def constOrInputToEncoder(input: QueryExpr.ConstOrUnaryInput, rowRepr: TypeclassExpr.RowRepr)(using ParseContext, Quotes): ParseResult[GeneratedInputEncoder] =
+    input match {
+      case QueryExpr.ConstValue(_, term) => ParseResult.Success(GeneratedInputEncoder.const(rowRepr.constEncoder(term)))
+      case input: QueryExpr.UnaryInput   => inputToEncoder(input, rowRepr)
+    }
 
   private def inputToEncoder(input: QueryExpr.UnaryInput, rowRepr: TypeclassExpr.RowRepr)(using ParseContext, Quotes): ParseResult[GeneratedInputEncoder] =
     for {
@@ -113,9 +120,9 @@ final case class FragmentBuilder(inputs: List[InputPart])(using Quotes) {
       }
     } yield enc
 
-  private def convertInput(input: QueryExpr.UnaryInput, rowRepr: TypeclassExpr.RowRepr)(using ParseContext, GenerationContext, Quotes): ParseResult[GeneratedFragment] =
+  private def convertConstOrInput(input: QueryExpr.ConstOrUnaryInput, rowRepr: TypeclassExpr.RowRepr)(using ParseContext, GenerationContext, Quotes): ParseResult[GeneratedFragment] =
     for {
-      enc: GeneratedInputEncoder <- inputToEncoder(input, rowRepr)
+      enc: GeneratedInputEncoder <- constOrInputToEncoder(input, rowRepr)
       qMarkStrings = GenerationContext.get.input.`?, ?, ?`(rowRepr.columns)
       frag = GeneratedFragment.both(qMarkStrings, enc)
     } yield frag
@@ -206,7 +213,7 @@ final case class FragmentBuilder(inputs: List[InputPart])(using Quotes) {
 
   def values(ins: InsertPart, i: IntoPart)(using ParseContext, GenerationContext, Quotes): ParseResult[GeneratedFragment] =
     for {
-      valuesFrag <- GenerationContext.updated(input = GenerationContext.Parens.Always) { convertInput(i.queryExpr, ins.rowRepr) }
+      valuesFrag <- GenerationContext.updated(input = GenerationContext.Parens.Always) { convertConstOrInput(i.queryExpr, ins.rowRepr) }
     } yield GeneratedFragment.of(
       "\n    VALUES ",
       valuesFrag,
@@ -218,8 +225,8 @@ final case class FragmentBuilder(inputs: List[InputPart])(using Quotes) {
 
     val rhsParts: ParseResult[(Expr[ArraySeq[String]], GeneratedInputEncoder)] =
       s.setValueExpr match {
-        case input: QueryExpr.UnaryInput =>
-          inputToEncoder(input, rowRepr).map((rowRepr.columns.exprSeqQMark, _))
+        case input: QueryExpr.ConstOrUnaryInput =>
+          constOrInputToEncoder(input, rowRepr).map((rowRepr.columns.exprSeqQMark, _))
         case query: QueryExpr.UnaryQuery =>
           ParseResult.success(
             (

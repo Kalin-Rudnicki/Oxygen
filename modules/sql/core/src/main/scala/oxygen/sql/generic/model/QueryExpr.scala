@@ -24,6 +24,7 @@ private[generic] sealed trait QueryExpr {
     case QueryExpr.UnaryQuery.QueryRefIdent(_, QueryParam.Query(param, _, _, false)) => param.name.hexFg("#540D6E").toString
     case QueryExpr.UnaryQuery.ProductFieldSelect(select, inner)                      => s"${inner.show}.${select.name.cyanFg}"
     case QueryExpr.UnaryQuery.OptionGet(_, inner)                                    => s"${inner.show}.${"get".blueFg}"
+    case QueryExpr.ConstValue(_, term)                                               => s"{ ${term.showCode} }".cyanFg.toString
     case sel @ QueryExpr.UnaryQuery.SelectPrimaryKey(_, inner, _)                    => s"${inner.show}.${"tablePK".hexFg("#35A7FF")}(using ${sel.rowRepr.show})"
     case sel @ QueryExpr.UnaryQuery.SelectNonPrimaryKey(_, inner, _)                 => s"${inner.show}.${"tableNPK".hexFg("#35A7FF")}(using ${sel.rowRepr.show})"
     case QueryExpr.BinaryAndOr(_, lhs, op, rhs)                                      => s"${lhs.showWrapAndOr} ${op.show} ${rhs.showWrapAndOr}"
@@ -40,12 +41,7 @@ private[generic] sealed trait QueryExpr {
 }
 private[generic] object QueryExpr extends Parser[RawQueryExpr, QueryExpr] {
 
-  sealed trait Unary extends QueryExpr {
-    val rootIdent: Ident
-    val queryRef: QueryParam
-    override final def queryRefs: Growable[QueryParam] = Growable.single(queryRef)
-    final lazy val param: Function.NamedParam = queryRef.param
-  }
+  sealed trait Unary extends QueryExpr
   object Unary extends Parser[RawQueryExpr.Unary, QueryExpr.Unary] {
 
     override def parse(expr: RawQueryExpr.Unary)(using ParseContext, Quotes): ParseResult[QueryExpr.Unary] =
@@ -60,12 +56,14 @@ private[generic] object QueryExpr extends Parser[RawQueryExpr, QueryExpr] {
             case inner: QueryExpr.UnaryInput.CanSelect    => ParseResult.Success(QueryExpr.UnaryInput.ProductFieldSelect(select, inner))
             case inner: QueryExpr.UnaryQuery.CanNotSelect => ParseResult.error(inner.fullTerm, "select not allowed")
             case inner: QueryExpr.UnaryInput.CanNotSelect => ParseResult.error(inner.fullTerm, "select not allowed")
+            case inner: QueryExpr.ConstValue              => ParseResult.error(inner.fullTerm, "select not allowed")
           }
         case RawQueryExpr.OptionGet(select, inner) =>
           parse(inner).flatMap {
             case inner: QueryExpr.UnaryQuery.CanSelect    => ParseResult.Success(QueryExpr.UnaryQuery.OptionGet(select, inner))
             case inner: QueryExpr.UnaryQuery.CanNotSelect => ParseResult.error(inner.fullTerm, "select not allowed")
             case _: QueryExpr.UnaryInput                  => ParseResult.error(select, "not supported: `Option.get` on input")
+            case _: QueryExpr.ConstValue                  => ParseResult.error(select, "not supported: `Option.get` on const value")
           }
         case RawQueryExpr.SelectPrimaryKey(apply, inner, givenTableRepr) =>
           parse(inner).flatMap {
@@ -73,6 +71,7 @@ private[generic] object QueryExpr extends Parser[RawQueryExpr, QueryExpr] {
             case inner: QueryExpr.UnaryInput.CanSelect    => ParseResult.Success(QueryExpr.UnaryInput.SelectPrimaryKey(apply, inner, givenTableRepr))
             case inner: QueryExpr.UnaryQuery.CanNotSelect => ParseResult.error(inner.fullTerm, "select not allowed")
             case inner: QueryExpr.UnaryInput.CanNotSelect => ParseResult.error(inner.fullTerm, "select not allowed")
+            case inner: QueryExpr.ConstValue              => ParseResult.error(inner.fullTerm, "select not allowed")
           }
         case RawQueryExpr.SelectNonPrimaryKey(apply, inner, givenTableRepr) =>
           parse(inner).flatMap {
@@ -80,12 +79,27 @@ private[generic] object QueryExpr extends Parser[RawQueryExpr, QueryExpr] {
             case inner: QueryExpr.UnaryInput.CanSelect    => ParseResult.Success(QueryExpr.UnaryInput.SelectNonPrimaryKey(apply, inner, givenTableRepr))
             case inner: QueryExpr.UnaryQuery.CanNotSelect => ParseResult.error(inner.fullTerm, "select not allowed")
             case inner: QueryExpr.UnaryInput.CanNotSelect => ParseResult.error(inner.fullTerm, "select not allowed")
+            case inner: QueryExpr.ConstValue              => ParseResult.error(inner.fullTerm, "select not allowed")
           }
+        case RawQueryExpr.ConstValue(fullTerm, constTerm) => ParseResult.Success(QueryExpr.ConstValue(fullTerm, constTerm))
       }
 
   }
 
-  sealed trait UnaryInput extends Unary, TermTransformer {
+  type ConstOrUnaryInput = ConstValue | UnaryInput
+
+  final case class ConstValue(fullTerm: Term, constTerm: Term) extends Unary {
+    override def queryRefs: Growable[QueryParam] = Growable.empty
+  }
+
+  sealed trait UnaryParam extends Unary {
+    val rootIdent: Ident
+    val queryRef: QueryParam
+    override final def queryRefs: Growable[QueryParam] = Growable.single(queryRef)
+    final lazy val param: Function.NamedParam = queryRef.param
+  }
+
+  sealed trait UnaryInput extends UnaryParam, TermTransformer {
     def inTpe: TypeRepr
     def outTpe: TypeRepr
     override val queryRef: QueryParam.InputLike
@@ -148,7 +162,7 @@ private[generic] object QueryExpr extends Parser[RawQueryExpr, QueryExpr] {
 
   }
 
-  sealed trait UnaryQuery extends Unary {
+  sealed trait UnaryQuery extends UnaryParam {
     def rowRepr(using Quotes): TypeclassExpr.RowRepr
     override val queryRef: QueryParam.Query
     final lazy val isRoot: Boolean = queryRef.isRoot
@@ -209,8 +223,8 @@ private[generic] object QueryExpr extends Parser[RawQueryExpr, QueryExpr] {
   }
   object BinaryComp {
     final case class QueryQuery(fullTerm: Term, lhs: UnaryQuery, op: BinOp.Comp, rhs: UnaryQuery) extends BinaryComp
-    final case class QueryInput(fullTerm: Term, lhs: UnaryQuery, op: BinOp.Comp, rhs: UnaryInput) extends BinaryComp
-    final case class InputQuery(fullTerm: Term, lhs: UnaryInput, op: BinOp.Comp, rhs: UnaryQuery) extends BinaryComp
+    final case class QueryInput(fullTerm: Term, lhs: UnaryQuery, op: BinOp.Comp, rhs: ConstOrUnaryInput) extends BinaryComp
+    final case class InputQuery(fullTerm: Term, lhs: ConstOrUnaryInput, op: BinOp.Comp, rhs: UnaryQuery) extends BinaryComp
   }
 
   override def parse(expr: RawQueryExpr)(using ParseContext, Quotes): ParseResult[QueryExpr] =
@@ -230,10 +244,10 @@ private[generic] object QueryExpr extends Parser[RawQueryExpr, QueryExpr] {
           lhs <- Unary.parse(lhs)
           rhs <- Unary.parse(rhs)
           expr <- (lhs, rhs) match {
-            case (lhs: UnaryQuery, rhs: UnaryQuery) => ParseResult.Success(BinaryComp.QueryQuery(term, lhs, op, rhs))
-            case (lhs: UnaryQuery, rhs: UnaryInput) => ParseResult.Success(BinaryComp.QueryInput(term, lhs, op, rhs))
-            case (lhs: UnaryInput, rhs: UnaryQuery) => ParseResult.Success(BinaryComp.InputQuery(term, lhs, op, rhs))
-            case (_: UnaryInput, _: UnaryInput)     => ParseResult.error(term, "can not compare 2 inputs")
+            case (lhs: UnaryQuery, rhs: UnaryQuery)           => ParseResult.Success(BinaryComp.QueryQuery(term, lhs, op, rhs))
+            case (lhs: UnaryQuery, rhs: ConstOrUnaryInput)    => ParseResult.Success(BinaryComp.QueryInput(term, lhs, op, rhs))
+            case (lhs: ConstOrUnaryInput, rhs: UnaryQuery)    => ParseResult.Success(BinaryComp.InputQuery(term, lhs, op, rhs))
+            case (_: ConstOrUnaryInput, _: ConstOrUnaryInput) => ParseResult.error(term, "can not compare 2 inputs")
           }
         } yield expr
       case RawQueryExpr.Binary(term, lhs, op: BinOp.AndOr, rhs) =>

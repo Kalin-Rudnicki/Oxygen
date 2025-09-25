@@ -4,6 +4,8 @@ import oxygen.sql.schema.*
 
 object Q {
 
+  def const[I](i: I): I = macroOnly
+
   object input {
     def apply[I]: T.Input[I] = macroOnly
     // TODO (KR) : def option[A]: T.OptionalInput[I] = macroOnly

@@ -82,7 +82,7 @@ object queries {
       _ <- where if p1.id == i
     } yield p2
 
-  @compile(debug = true)
+  @compile
   val personJoinNotes: QueryIO[UUID, (Person, Note)] =
     for {
       i <- input[UUID]
@@ -91,7 +91,7 @@ object queries {
       _ <- where if p1.groupId == i
     } yield (p1, n1)
 
-  @compile(debug = true)
+  @compile
   val personLeftJoinNotes: QueryIO[UUID, (Person, Option[Note])] =
     for {
       i <- input[UUID]
@@ -105,13 +105,22 @@ object queries {
   //////////////////////////////////////////////////////////////////////////////////////////////////////
 
   @compile
-  val setAgeTo0: QueryIO[Person, Person] =
+  val setAgeTo0_oldSyntax: QueryIO[Person, Person] =
     for {
       zero <- input.const(0)
       i <- input[Person]
       (p, set) <- update[Person]
       _ <- where if p.tablePK == i.tablePK
       _ <- set(_.age := zero)
+    } yield p
+
+  @compile
+  val setAgeTo0_newSyntax: QueryIO[Person, Person] =
+    for {
+      i <- input[Person]
+      (p, set) <- update[Person]
+      _ <- where if p.tablePK == i.tablePK
+      _ <- set(_.age := const(0))
     } yield p
 
   //////////////////////////////////////////////////////////////////////////////////////////////////////

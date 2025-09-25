@@ -4,6 +4,7 @@ import oxygen.meta.*
 import oxygen.predef.color.given
 import oxygen.quoted.*
 import oxygen.sql.generic.model.*
+import oxygen.sql.query.dsl.Q
 import scala.quoted.*
 
 private[generic] sealed trait RawQueryExpr {
@@ -20,6 +21,7 @@ private[generic] sealed trait RawQueryExpr {
 
   final def show: String = this match {
     case RawQueryExpr.QueryRefIdent(_, ref)                         => ref.show
+    case RawQueryExpr.ConstValue(_, term)                           => s"{ ${term.showCode} }".cyanFg.toString
     case RawQueryExpr.ProductField(select, inner)                   => s"${inner.show}.${select.name.magentaFg}"
     case RawQueryExpr.OptionGet(_, inner)                           => s"${inner.show}.${"get".hexFg("#35A7FF")}"
     case RawQueryExpr.SelectPrimaryKey(_, inner, _)                 => s"${inner.show}.${"tablePK".hexFg("#35A7FF")}"
@@ -57,6 +59,18 @@ private[generic] object RawQueryExpr extends Parser[(Term, RefMap), RawQueryExpr
         case (ident: Ident, refs) => refs.get(ident).map(QueryRefIdent(ident, _))
         case (term, _)            => ParseResult.unknown(term, "not a QueryRefIdent")
       }
+
+  }
+
+  final case class ConstValue(fullTerm: Term, constTerm: Term) extends RawQueryExpr.Unary
+  object ConstValue extends Parser[(Term, RefMap), ConstValue] {
+
+    override def parse(input: (Term, RefMap))(using ParseContext, Quotes): ParseResult[ConstValue] = {
+      val (term, _) = input
+      term.asExpr match
+        case '{ Q.const($constExpr) } => ParseResult.Success(ConstValue(term, constExpr.toTerm))
+        case _                        => ParseResult.unknown(term, "not a ConstValue")
+    }
 
   }
 
@@ -177,6 +191,7 @@ private[generic] object RawQueryExpr extends Parser[(Term, RefMap), RawQueryExpr
 
   override def parse(input: (Term, RefMap))(using ParseContext, Quotes): ParseResult[RawQueryExpr] = input match
     case QueryRefIdent.optional(res)       => res
+    case ConstValue.optional(res)          => res
     case SelectPrimaryKey.optional(res)    => res
     case SelectNonPrimaryKey.optional(res) => res
     case OptionGet.optional(res)           => res
