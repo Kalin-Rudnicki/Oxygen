@@ -152,7 +152,6 @@ private[generic] object QueryExpr extends Parser[RawQueryExpr, QueryExpr] {
   sealed trait QueryLike extends Unary {
     def rowRepr(using Quotes): Expr[RowRepr[?]]
     override val queryRef: QueryReference.Query
-    final lazy val tableRepr: Expr[TableRepr[?]] = queryRef.tableRepr
     final lazy val isRoot: Boolean = queryRef.isRoot
   }
   object QueryLike {
@@ -163,7 +162,7 @@ private[generic] object QueryExpr extends Parser[RawQueryExpr, QueryExpr] {
     final case class QueryRefIdent(ident: Ident, queryRef: QueryReference.Query) extends CanSelect {
       override val fullTerm: Term = ident
       override val rootIdent: Ident = ident
-      override def rowRepr(using Quotes): Expr[RowRepr[?]] = '{ $tableRepr.rowRepr }
+      override def rowRepr(using Quotes): Expr[RowRepr[?]] = '{ ${ queryRef.tableRepr }.rowRepr }
     }
 
     final case class ProductFieldSelect(select: Select, inner: CanSelect) extends CanSelect {
