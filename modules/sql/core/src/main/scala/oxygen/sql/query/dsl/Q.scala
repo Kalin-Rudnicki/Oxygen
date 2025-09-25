@@ -24,6 +24,8 @@ object Q {
   // TODO (KR) : support auto generated natural joins
   // def natural: Boolean = macroOnly
 
+  def limit(lim: Int): T.Limit = macroOnly
+
   extension [A](self: A) {
     def tablePK(using ev: TableRepr[A]): ev.PrimaryKeyT = ev.pk.get(self)
     def tableNPK(using ev: TableRepr[A]): ev.NonPrimaryKeyT = ev.npk.get(self)

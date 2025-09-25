@@ -58,6 +58,12 @@ object Note extends TableCompanion[Note, UUID](TableRepr.derived[Note]) {
 
 }
 
+final case class Ints(
+    a: Int,
+    b: Int,
+)
+object Ints extends TableCompanion[Ints, Unit](TableRepr.derived[Ints])
+
 @experimental
 object queries {
 
@@ -99,6 +105,21 @@ object queries {
       n1 <- leftJoin[Note] if n1.personId == p1.id
       _ <- where if p1.groupId == i
     } yield (p1, n1)
+
+  @compile
+  val intsConstLimit: QueryO[Ints] =
+    for {
+      i <- select[Ints]
+      _ <- limit(const(5))
+    } yield i
+
+  @compile
+  val intsDynamicLimit: QueryIO[Int, Ints] =
+    for {
+      l <- input[Int]
+      i <- select[Ints]
+      _ <- limit(l)
+    } yield i
 
   //////////////////////////////////////////////////////////////////////////////////////////////////////
   //      Update

@@ -86,6 +86,7 @@ private[generic] object QueryExpr extends Parser[RawQueryExpr, QueryExpr] {
 
   }
 
+  type ConstOrDirectUnaryInput = ConstValue | UnaryInput.QueryRefIdent
   type ConstOrUnaryInput = ConstValue | UnaryInput
 
   final case class ConstValue(fullTerm: Term, constTerm: Term) extends Unary {

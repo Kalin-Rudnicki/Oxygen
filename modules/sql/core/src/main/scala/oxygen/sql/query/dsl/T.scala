@@ -81,6 +81,13 @@ object T {
 
   }
 
+  final class Limit private {
+
+    def map[B](f: Unit => B): Ret[B] = macroOnly
+    def flatMap[B](f: Unit => Ret[B]): Ret[B] = macroOnly
+
+  }
+
   object Partial {
 
     final class SetValue private {}
