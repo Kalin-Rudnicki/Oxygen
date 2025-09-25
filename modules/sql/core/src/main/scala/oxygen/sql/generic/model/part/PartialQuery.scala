@@ -23,6 +23,7 @@ object PartialQuery extends PartialQueryParsers[PartialQuery] {
       select: SelectPart,
       joins: List[JoinPart],
       where: Option[WherePart],
+      orderBy: Option[OrderByPart],
       limit: Option[LimitPart],
   ) extends PartialQuery
   object SelectQuery extends PartialQueryParsers[SelectQuery] {
@@ -32,6 +33,7 @@ object PartialQuery extends PartialQueryParsers[PartialQuery] {
         SelectPart.withContext("Select") >>>
           JoinPart.many.withContext("Join") >>>
           WherePart.maybe.withContext("Where") >>>
+          OrderByPart.maybe.withContext("OrderBy") >>>
           LimitPart.maybe.withContext("Limit")
       ).withContext("Select Query").map { PartialQuery.SelectQuery.apply }
 

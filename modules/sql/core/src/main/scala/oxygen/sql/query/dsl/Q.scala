@@ -26,18 +26,16 @@ object Q {
 
   def limit(lim: Int): T.Limit = macroOnly
 
+  def orderBy(parts: T.Partial.OrderByPart*): T.OrderBy = macroOnly
+
   extension [A](self: A) {
     def tablePK(using ev: TableRepr[A]): ev.PrimaryKeyT = ev.pk.get(self)
     def tableNPK(using ev: TableRepr[A]): ev.NonPrimaryKeyT = ev.npk.get(self)
   }
 
   extension [A](self: A)
-    def :=(value: A): T.Partial.SetValue =
-      macroOnly
-
-  // TODO (KR) :
-  // extension [I, O](self: QueryIO[I, O])
-  //   def subQueryAll(i: I): Contiguous[O] =
-  //     macroOnly
+    def :=(value: A): T.Partial.SetValue = macroOnly
+    def asc: T.Partial.OrderByPart = macroOnly
+    def desc: T.Partial.OrderByPart = macroOnly
 
 }

@@ -121,6 +121,33 @@ object queries {
       _ <- limit(l)
     } yield i
 
+  @compile
+  val intsOrderByA: QueryIO[Int, Ints] =
+    for {
+      l <- input[Int]
+      i <- select[Ints]
+      _ <- orderBy(i.a.asc)
+      _ <- limit(l)
+    } yield i
+
+  @compile
+  val intsOrderByAB: QueryIO[Int, Ints] =
+    for {
+      l <- input[Int]
+      i <- select[Ints]
+      _ <- orderBy(i.a.asc, i.b.desc)
+      _ <- limit(l)
+    } yield i
+
+  @compile
+  val intsOrderByBA: QueryIO[Int, Ints] =
+    for {
+      l <- input[Int]
+      i <- select[Ints]
+      _ <- orderBy(i.b.desc, i.a.asc)
+      _ <- limit(l)
+    } yield i
+
   //////////////////////////////////////////////////////////////////////////////////////////////////////
   //      Update
   //////////////////////////////////////////////////////////////////////////////////////////////////////

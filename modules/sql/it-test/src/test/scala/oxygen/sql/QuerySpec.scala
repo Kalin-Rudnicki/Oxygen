@@ -232,10 +232,17 @@ object QuerySpec extends OxygenSpec[Database] {
           res2 <- queries.intsDynamicLimit.execute(3).arraySeq
           res3 <- queries.intsDynamicLimit.execute(10).arraySeq
 
+          res4 <- queries.intsOrderByA.execute(3).to[Set]
+          res5 <- queries.intsOrderByAB.execute(5).to[List]
+          res6 <- queries.intsOrderByBA.execute(5).to[List]
+
         } yield assertTrue(
           res1.length == 5,
           res2.length == 3,
           res3.length == 9,
+          res4 == Set(i11, i12, i13),
+          res5 == List(i13, i12, i11, i23, i22),
+          res6 == List(i13, i23, i33, i12, i22),
         )
       },
     )
