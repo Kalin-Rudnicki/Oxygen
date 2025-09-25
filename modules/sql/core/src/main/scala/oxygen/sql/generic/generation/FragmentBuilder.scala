@@ -211,6 +211,14 @@ final case class FragmentBuilder(inputs: List[InputPart])(using Quotes) {
       whereFrag,
     )
 
+  def limit(l: LimitPart)(using ParseContext, GenerationContext, Quotes): ParseResult[GeneratedFragment] =
+    for {
+      limitFrag <- convertConstOrInput(l.limitQueryExpr, TypeclassExpr.RowRepr { '{ RowRepr.int } })
+    } yield GeneratedFragment.of(
+      "\n    LIMIT ",
+      limitFrag,
+    )
+
   def values(ins: InsertPart, i: IntoPart)(using ParseContext, GenerationContext, Quotes): ParseResult[GeneratedFragment] =
     for {
       valuesFrag <- GenerationContext.updated(input = GenerationContext.Parens.Always) { convertConstOrInput(i.queryExpr, ins.rowRepr) }

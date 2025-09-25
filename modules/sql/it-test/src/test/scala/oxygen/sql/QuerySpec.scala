@@ -214,6 +214,30 @@ object QuerySpec extends OxygenSpec[Database] {
           ),
         )
       },
+      test("limit") {
+        val i11 = Ints(1, 1)
+        val i12 = Ints(1, 2)
+        val i13 = Ints(1, 3)
+        val i21 = Ints(2, 1)
+        val i22 = Ints(2, 2)
+        val i23 = Ints(2, 3)
+        val i31 = Ints(3, 1)
+        val i32 = Ints(3, 2)
+        val i33 = Ints(3, 3)
+
+        for {
+          _ <- Ints.insert.all(i11, i12, i13, i21, i22, i23, i31, i32, i33).unit
+
+          res1 <- queries.intsConstLimit.execute().arraySeq
+          res2 <- queries.intsDynamicLimit.execute(3).arraySeq
+          res3 <- queries.intsDynamicLimit.execute(10).arraySeq
+
+        } yield assertTrue(
+          res1.length == 5,
+          res2.length == 3,
+          res3.length == 9,
+        )
+      },
     )
 
   private def perfSpec: TestSpec =
@@ -336,7 +360,7 @@ object QuerySpec extends OxygenSpec[Database] {
       MigrationConfig.defaultLayer,
       MigrationService.migrateLayer(
         Migrations(
-          PlannedMigration.auto(1)(Person.tableRepr, Note.tableRepr),
+          PlannedMigration.auto(1)(Person.tableRepr, Note.tableRepr, Ints.tableRepr),
         ),
       ),
       Atomically.LiveDB.layer,
