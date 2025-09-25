@@ -1,8 +1,10 @@
 package oxygen.sql.generic.model
 
+import oxygen.meta.{*, given}
 import oxygen.predef.core.*
 import oxygen.quoted.*
 import oxygen.sql.generic.generation.*
+import oxygen.sql.generic.model.part.*
 import oxygen.sql.generic.parsing.*
 import oxygen.sql.query.*
 import oxygen.sql.query.QueryContext.QueryType
@@ -11,8 +13,8 @@ import scala.quoted.*
 
 private[sql] sealed trait ParsedQuery extends Product {
 
-  val inputs: List[QueryParser.Input]
-  val ret: QueryParser.Returning
+  val inputs: List[InputPart]
+  val ret: ReturningPart
   val refs: RefMap
 
   def show(using Quotes): String
@@ -36,10 +38,10 @@ private[sql] object ParsedQuery extends Parser[Term, ParsedQuery] {
   //////////////////////////////////////////////////////////////////////////////////////////////////////
 
   final case class InsertQuery(
-      inputs: List[QueryParser.Input],
-      insert: QueryParser.InsertQ,
-      into: QueryParser.Into,
-      ret: QueryParser.Returning,
+      inputs: List[InputPart],
+      insert: InsertPart,
+      into: IntoPart,
+      ret: ReturningPart,
       refs: RefMap,
   ) extends ParsedQuery {
 
@@ -51,9 +53,9 @@ private[sql] object ParsedQuery extends Parser[Term, ParsedQuery] {
 
     override protected def allQueryRefs: Growable[QueryReference] =
       Growable[Growable[QueryReference]](
-        Growable.option(insert.queryRef),
+        Growable.option(insert.mapQueryRef),
         Growable(into.queryExpr.queryRef),
-        Growable.many(ret.exprs).flatMap(_.queryRefs),
+        Growable.many(ret.returningExprs).flatMap(_.queryRefs),
       ).flatten
 
     override def toTerm(queryName: Expr[String])(using ParseContext, GenerationContext, Quotes): ParseResult[Term] =
@@ -98,11 +100,11 @@ private[sql] object ParsedQuery extends Parser[Term, ParsedQuery] {
   //////////////////////////////////////////////////////////////////////////////////////////////////////
 
   final case class SelectQuery(
-      inputs: List[QueryParser.Input],
-      select: QueryParser.SelectQ,
-      joins: List[QueryParser.Join],
-      where: Option[QueryParser.Where],
-      ret: QueryParser.Returning,
+      inputs: List[InputPart],
+      select: SelectPart,
+      joins: List[JoinPart],
+      where: Option[WherePart],
+      ret: ReturningPart,
       refs: RefMap,
   ) extends ParsedQuery {
 
@@ -114,10 +116,10 @@ private[sql] object ParsedQuery extends Parser[Term, ParsedQuery] {
 
     override protected def allQueryRefs: Growable[QueryReference] =
       Growable[Growable[QueryReference]](
-        Growable(select.queryRef),
+        Growable(select.mapQueryRef),
         Growable.many(joins).flatMap(_.queryRefs),
-        Growable.option(where).flatMap(_.where.queryRefs),
-        Growable.many(ret.exprs).flatMap(_.queryRefs),
+        Growable.option(where).flatMap(_.filterExpr.queryRefs),
+        Growable.many(ret.returningExprs).flatMap(_.queryRefs),
       ).flatten
 
     override def toTerm(queryName: Expr[String])(using ParseContext, GenerationContext, Quotes): ParseResult[Term] =
@@ -143,7 +145,7 @@ private[sql] object ParsedQuery extends Parser[Term, ParsedQuery] {
         decoderBuilder = new DecoderBuilder
         retA <- decoderBuilder.ret(ret)
         builtDecoder = retA.buildExpr
-        _ <- ParseResult.validate(builtDecoder.nonEmpty)(ret.tree, "expected non-empty return")
+        _ <- ParseResult.validate(builtDecoder.nonEmpty)(ret.fullTree, "expected non-empty return")
 
         // Combine
         expr = makeQuery(queryName, QueryContext.QueryType.Select, select.tableRepr)(builtSql, builtEncoder, builtDecoder)
@@ -156,12 +158,12 @@ private[sql] object ParsedQuery extends Parser[Term, ParsedQuery] {
   //////////////////////////////////////////////////////////////////////////////////////////////////////
 
   final case class UpdateQuery(
-      inputs: List[QueryParser.Input],
-      update: QueryParser.UpdateQ,
-      joins: List[QueryParser.Join],
-      where: Option[QueryParser.Where],
-      set: QueryParser.Set,
-      ret: QueryParser.Returning,
+      inputs: List[InputPart],
+      update: UpdatePart,
+      joins: List[JoinPart],
+      where: Option[WherePart],
+      set: SetPart,
+      ret: ReturningPart,
       refs: RefMap,
   ) extends ParsedQuery {
 
@@ -175,9 +177,9 @@ private[sql] object ParsedQuery extends Parser[Term, ParsedQuery] {
       Growable[Growable[QueryReference]](
         Growable(update.queryRefOrPlaceholder),
         Growable.many(joins).flatMap(_.queryRefs),
-        Growable.option(where).flatMap(_.where.queryRefs),
-        Growable.many(set.parts.toList).flatMap(p => Growable(p.lhsExpr.queryRef, p.rhsExpr.queryRef)),
-        Growable.many(ret.exprs).flatMap(_.queryRefs),
+        Growable.option(where).flatMap(_.filterExpr.queryRefs),
+        Growable.many(set.setExprs.toList).flatMap(p => Growable(p.fieldToSetExpr.queryRef, p.setValueExpr.queryRef)),
+        Growable.many(ret.returningExprs).flatMap(_.queryRefs),
       ).flatten
 
     override def toTerm(queryName: Expr[String])(using ParseContext, GenerationContext, Quotes): ParseResult[Term] =
@@ -221,11 +223,11 @@ private[sql] object ParsedQuery extends Parser[Term, ParsedQuery] {
   //////////////////////////////////////////////////////////////////////////////////////////////////////
 
   final case class DeleteQuery(
-      inputs: List[QueryParser.Input],
-      delete: QueryParser.DeleteQ,
-      joins: List[QueryParser.Join],
-      where: Option[QueryParser.Where], // TODO (KR) : make this required?
-      ret: QueryParser.Returning,
+      inputs: List[InputPart],
+      delete: DeletePart,
+      joins: List[JoinPart],
+      where: Option[WherePart], // TODO (KR) : make this required?
+      ret: ReturningPart,
       refs: RefMap,
   ) extends ParsedQuery {
 
@@ -236,10 +238,10 @@ private[sql] object ParsedQuery extends Parser[Term, ParsedQuery] {
 
     override protected def allQueryRefs: Growable[QueryReference] =
       Growable[Growable[QueryReference]](
-        Growable(delete.queryRef),
+        Growable(delete.mapQueryRef),
         Growable.many(joins).flatMap(_.queryRefs),
-        Growable.option(where).flatMap(_.where.queryRefs),
-        Growable.many(ret.exprs).flatMap(_.queryRefs),
+        Growable.option(where).flatMap(_.filterExpr.queryRefs),
+        Growable.many(ret.returningExprs).flatMap(_.queryRefs),
       ).flatten
 
     override def toTerm(queryName: Expr[String])(using ParseContext, GenerationContext, Quotes): ParseResult[Term] =
@@ -283,16 +285,16 @@ private[sql] object ParsedQuery extends Parser[Term, ParsedQuery] {
   //////////////////////////////////////////////////////////////////////////////////////////////////////
 
   override def parse(input: Term)(using ParseContext, Quotes): ParseResult[ParsedQuery] =
-    QueryParser.finished
+    PartialQuery.fullParser
       .parse(input)
       .map {
-        case (inputs, QueryParser.PartialQuery.InsertQuery(insert, into), ret, refs) =>
+        case FullQueryResult(inputs, PartialQuery.InsertQuery(insert, into), ret, refs) =>
           ParsedQuery.InsertQuery(inputs, insert, into, ret, refs)
-        case (inputs, QueryParser.PartialQuery.SelectQuery(select, joins, where), ret, refs) =>
+        case FullQueryResult(inputs, PartialQuery.SelectQuery(select, joins, where), ret, refs) =>
           ParsedQuery.SelectQuery(inputs, select, joins, where, ret, refs)
-        case (inputs, QueryParser.PartialQuery.UpdateQuery(update, joins, where, set), ret, refs) =>
+        case FullQueryResult(inputs, PartialQuery.UpdateQuery(update, joins, where, set), ret, refs) =>
           ParsedQuery.UpdateQuery(inputs, update, joins, where, set, ret, refs)
-        case (inputs, QueryParser.PartialQuery.DeleteQuery(delete, joins, where), ret, refs) =>
+        case FullQueryResult(inputs, PartialQuery.DeleteQuery(delete, joins, where), ret, refs) =>
           ParsedQuery.DeleteQuery(inputs, delete, joins, where, ret, refs)
       }
       .map { parsed =>
@@ -300,6 +302,7 @@ private[sql] object ParsedQuery extends Parser[Term, ParsedQuery] {
         val usedQueryRefs: Set[QueryReference.InputLike] = parsed.allQueryRefs.collect { case ref: QueryReference.InputLike => ref }.to[Set]
         val unusedQueryRefs: Set[QueryReference.InputLike] = specifiedQueryRefs &~ usedQueryRefs
         unusedQueryRefs.foreach { ref => report.warning("unused query input param", ref.param.tree.pos) }
+
         parsed
       }
 
@@ -311,18 +314,7 @@ private[sql] object ParsedQuery extends Parser[Term, ParsedQuery] {
       } yield (parsed, res)
     }
 
-  private given ToExpr[QueryContext.QueryType] =
-    new ToExpr[QueryContext.QueryType] {
-      override def apply(x: QueryContext.QueryType)(using Quotes): Expr[QueryContext.QueryType] = x match
-        case QueryContext.QueryType.Select      => '{ QueryContext.QueryType.Select }
-        case QueryContext.QueryType.Insert      => '{ QueryContext.QueryType.Insert }
-        case QueryContext.QueryType.Update      => '{ QueryContext.QueryType.Update }
-        case QueryContext.QueryType.Upsert      => '{ QueryContext.QueryType.Upsert }
-        case QueryContext.QueryType.Delete      => '{ QueryContext.QueryType.Delete }
-        case QueryContext.QueryType.Transaction => '{ QueryContext.QueryType.Transaction }
-        case QueryContext.QueryType.Truncate    => '{ QueryContext.QueryType.Truncate }
-        case QueryContext.QueryType.Migrate     => '{ QueryContext.QueryType.Migrate }
-    }
+  private given ToExprT[QueryContext.QueryType] = ToExprT.derived[QueryContext.QueryType]
 
   private def makeQuery(
       queryName: Expr[String],

@@ -4,14 +4,15 @@ import oxygen.meta.*
 import oxygen.predef.core.{*, given}
 import oxygen.quoted.*
 import oxygen.sql.generic.model.*
+import oxygen.sql.generic.model.part.*
 import oxygen.sql.generic.parsing.*
 import oxygen.sql.schema.*
 import scala.quoted.*
 
-final case class FragmentBuilder(inputs: List[QueryParser.Input])(using Quotes) {
+final case class FragmentBuilder(inputs: List[InputPart])(using Quotes) {
 
   private val nonConstInputParams: List[QueryReference.InputParam] =
-    inputs.map(_.queryRef).flatMap {
+    inputs.map(_.mapQueryRef).flatMap {
       case p: QueryReference.InputParam => p.some
       case _: QueryReference.ConstInput => None
     }
@@ -32,7 +33,7 @@ final case class FragmentBuilder(inputs: List[QueryParser.Input])(using Quotes) 
   private val symMap: Map[Symbol, Either[Term, TermTransformer.Root]] =
     inputs.map { i =>
       val either: Either[Term, TermTransformer.Root] =
-        (inputTpeTupGen, i.queryRef) match {
+        (inputTpeTupGen, i.mapQueryRef) match {
           case (None, QueryReference.InputParam(_)) =>
             TermTransformer.Id.asRight
           case (Some(inputTpeTupGen), QueryReference.InputParam(param)) =>
@@ -42,7 +43,7 @@ final case class FragmentBuilder(inputs: List[QueryParser.Input])(using Quotes) 
             term.asLeft
         }
 
-      i.queryRef.param.sym -> either
+      i.mapQueryRef.param.sym -> either
     }.toMap
 
   def convert(queryExpr: QueryExpr)(using ParseContext, GenerationContext, Quotes): ParseResult[GeneratedFragment] =
@@ -121,29 +122,29 @@ final case class FragmentBuilder(inputs: List[QueryParser.Input])(using Quotes) 
 
   // =====|  |=====
 
-  def insert(i: QueryParser.InsertQ)(using Quotes): ParseResult[GeneratedFragment] =
+  def insert(i: InsertPart)(using Quotes): ParseResult[GeneratedFragment] =
     ParseResult.success(
       GeneratedFragment.of(
         "INSERT INTO ",
         '{ ${ i.tableRepr }.ref },
         s" AS ",
-        i.queryRef match {
+        i.mapQueryRef match {
           case Some(queryRef) => Expr(queryRef.param.name.camelToSnake)
           case None           => '{ ${ i.tableRepr }.tableName.head.toString }
         },
       ),
     )
 
-  def select(s: QueryParser.SelectQ)(using Quotes): ParseResult[GeneratedFragment] =
+  def select(s: SelectPart)(using Quotes): ParseResult[GeneratedFragment] =
     ParseResult.success(
       GeneratedFragment.of(
         "\n    FROM ",
         '{ ${ s.tableRepr }.ref },
-        s" ${s.queryRef.param.name.camelToSnake}",
+        s" ${s.mapQueryRef.param.name.camelToSnake}",
       ),
     )
 
-  def update(u: QueryParser.UpdateQ)(using Quotes): ParseResult[GeneratedFragment] =
+  def update(u: UpdatePart)(using Quotes): ParseResult[GeneratedFragment] =
     ParseResult.success(
       GeneratedFragment.of(
         "UPDATE ",
@@ -156,17 +157,17 @@ final case class FragmentBuilder(inputs: List[QueryParser.Input])(using Quotes) 
       ),
     )
 
-  def delete(d: QueryParser.DeleteQ)(using Quotes): ParseResult[GeneratedFragment] =
+  def delete(d: DeletePart)(using Quotes): ParseResult[GeneratedFragment] =
     ParseResult.success(
       GeneratedFragment.of(
         "DELETE FROM ",
         '{ ${ d.tableRepr }.ref },
-        s" ${d.queryRef.param.name.camelToSnake}",
+        s" ${d.mapQueryRef.param.name.camelToSnake}",
       ),
     )
 
-  def ret(r: QueryParser.Returning, idt: String)(using ParseContext, GenerationContext, Quotes): ParseResult[Option[GeneratedFragment]] =
-    Option.when(r.exprs.nonEmpty)(r.exprs).traverse {
+  def ret(r: ReturningPart, idt: String)(using ParseContext, GenerationContext, Quotes): ParseResult[Option[GeneratedFragment]] =
+    Option.when(r.returningExprs.nonEmpty)(r.returningExprs).traverse {
       _.traverse {
         case query: QueryExpr.QueryLike => GenerationContext.updated(query = GenerationContext.Parens.Never) { convertQuery(query) }
         case queryExpr                  => convert(queryExpr)
@@ -174,34 +175,34 @@ final case class FragmentBuilder(inputs: List[QueryParser.Input])(using Quotes) 
         .map { res => GeneratedFragment.flatten(res.intersperse(GeneratedFragment.sql(s",\n$idt"))) }
     }
 
-  def requiredRet(r: QueryParser.Returning, idt: String)(using ParseContext, GenerationContext, Quotes): ParseResult[GeneratedFragment] =
+  def requiredRet(r: ReturningPart, idt: String)(using ParseContext, GenerationContext, Quotes): ParseResult[GeneratedFragment] =
     ret(r, idt).flatMap {
       case Some(value) => ParseResult.success(value)
-      case None        => ParseResult.error(r.tree, "expected non-empty return")
+      case None        => ParseResult.error(r.fullTree, "expected non-empty return")
     }
 
-  def join(j: QueryParser.Join)(using ParseContext, GenerationContext, Quotes): ParseResult[GeneratedFragment] =
+  def join(j: JoinPart)(using ParseContext, GenerationContext, Quotes): ParseResult[GeneratedFragment] =
     for {
-      onFrag <- convert(j.on)
+      onFrag <- convert(j.filterExpr)
     } yield GeneratedFragment.of(
       // join
       "\n    JOIN ",
       '{ ${ j.tableRepr }.ref },
-      s" ${j.escapingParam.param.name.camelToSnake}",
+      s" ${j.mapQueryRef.param.name.camelToSnake}",
       // on
       " ON ",
       onFrag,
     )
 
-  def where(w: QueryParser.Where)(using ParseContext, GenerationContext, Quotes): ParseResult[GeneratedFragment] =
+  def where(w: WherePart)(using ParseContext, GenerationContext, Quotes): ParseResult[GeneratedFragment] =
     for {
-      whereFrag <- convert(w.where)
+      whereFrag <- convert(w.filterExpr)
     } yield GeneratedFragment.of(
       "\n    WHERE ",
       whereFrag,
     )
 
-  def values(ins: QueryParser.InsertQ, i: QueryParser.Into)(using ParseContext, GenerationContext, Quotes): ParseResult[GeneratedFragment] =
+  def values(ins: InsertPart, i: IntoPart)(using ParseContext, GenerationContext, Quotes): ParseResult[GeneratedFragment] =
     for {
       valuesFrag <- GenerationContext.updated(input = GenerationContext.Parens.Always) { convertInput(i.queryExpr, ins.rowRepr) }
     } yield GeneratedFragment.of(
@@ -209,12 +210,12 @@ final case class FragmentBuilder(inputs: List[QueryParser.Input])(using Quotes) 
       valuesFrag,
     )
 
-  def setPart(s: QueryParser.Set.SetPart)(using ParseContext, Quotes): ParseResult[GeneratedFragment] = {
-    val rowRepr: Expr[RowRepr[?]] = s.lhsExpr.rowRepr
+  def setPart(s: SetPart.SetExpr)(using ParseContext, Quotes): ParseResult[GeneratedFragment] = {
+    val rowRepr: Expr[RowRepr[?]] = s.fieldToSetExpr.rowRepr
     val lhsParts: Expr[ArraySeq[String]] = '{ $rowRepr.columns.columns.map(_.name) }
 
     val rhsParts: ParseResult[(Expr[ArraySeq[String]], GeneratedInputEncoder)] =
-      s.rhsExpr match {
+      s.setValueExpr match {
         case input: QueryExpr.InputLike =>
           inputToEncoder(input, rowRepr).map(('{ $rowRepr.columns.columns.map(_ => "?") }, _))
         case query: QueryExpr.QueryLike =>
@@ -241,9 +242,9 @@ final case class FragmentBuilder(inputs: List[QueryParser.Input])(using Quotes) 
     }
   }
 
-  def set(s: QueryParser.Set)(using ParseContext, Quotes): ParseResult[GeneratedFragment] =
+  def set(s: SetPart)(using ParseContext, Quotes): ParseResult[GeneratedFragment] =
     for {
-      partsFrag <- s.parts.toList.traverse(setPart).map { res => GeneratedFragment.flatten(res.intersperse(GeneratedFragment.sql(",\n        "))) }
+      partsFrag <- s.setExprs.toList.traverse(setPart).map { res => GeneratedFragment.flatten(res.intersperse(GeneratedFragment.sql(",\n        "))) }
     } yield GeneratedFragment.of(
       "\n    SET ",
       partsFrag,

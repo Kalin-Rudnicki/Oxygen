@@ -16,4 +16,13 @@ private[generic] trait Parser[-A, +B] {
       parse(input).toKnown
   }
 
+  final def map[C](f: B => C): Parser[A, C] = Parser.Mapped(this, f)
+
+}
+object Parser {
+
+  final case class Mapped[A, B, C](inner: Parser[A, B], f: B => C) extends Parser[A, C] {
+    override def parse(input: A)(using ParseContext, Quotes): ParseResult[C] = inner.parse(input).map(f)
+  }
+
 }

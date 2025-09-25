@@ -3,6 +3,7 @@ package oxygen.sql.generic.generation
 import oxygen.predef.core.*
 import oxygen.quoted.*
 import oxygen.sql.generic.model.*
+import oxygen.sql.generic.model.part.*
 import oxygen.sql.generic.parsing.*
 import oxygen.sql.schema.*
 import scala.quoted.*
@@ -17,7 +18,7 @@ final class DecoderBuilder {
       case _: QueryExpr.Comp          => ParseResult.success(GeneratedResultDecoder.single('{ RowRepr.boolean.decoder }, TypeRepr.of[Boolean]))
     }
 
-  def ret(r: QueryParser.Returning)(using ParseContext, Quotes): ParseResult[GeneratedResultDecoder] =
-    r.exprs.traverse(convert).map(GeneratedResultDecoder.flatten(_))
+  def ret(r: ReturningPart)(using ParseContext, Quotes): ParseResult[GeneratedResultDecoder] =
+    r.returningExprs.traverse(convert).map(GeneratedResultDecoder.flatten(_))
 
 }
