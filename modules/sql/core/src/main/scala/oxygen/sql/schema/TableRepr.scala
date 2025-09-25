@@ -55,6 +55,9 @@ object TableRepr {
 
     def get(a: A): B = _get(a)
 
+    /**
+      * [[InputEncoder]] which accepts an [[A]], and encodes the fields in [[B]].
+      */
     def aEncoder: InputEncoder[A] =
       rowRepr.encoder.contramap(_get)
 

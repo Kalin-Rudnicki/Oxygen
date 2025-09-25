@@ -38,6 +38,26 @@ object Person extends TableCompanion[Person, UUID](TableRepr.derived[Person]) {
 
 }
 
+final case class Note(
+    @primaryKey id: UUID,
+    personId: UUID,
+    note: String,
+)
+object Note extends TableCompanion[Note, UUID](TableRepr.derived[Note]) {
+
+  private val randomNote: UIO[String] = RandomGen.lowerCaseString(5).replicateZIO(10).map(_.mkString(" "))
+
+  def generate(personId: UUID)(
+      id: Specified[UUID] = Specified.WasNotSpecified,
+      note: Specified[String] = Specified.WasNotSpecified,
+  ): UIO[Note] =
+    for {
+      id <- id.orGen { Random.nextUUID }
+      note <- note.orGen { randomNote }
+    } yield Note(id, personId, note)
+
+}
+
 @experimental
 object queries {
 

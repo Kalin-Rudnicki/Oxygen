@@ -702,4 +702,5 @@ addCommandAlias("native-compile", "oxygen-modules-native/compile")
 addCommandAlias("native-test-compile", "oxygen-modules-native/test:compile")
 addCommandAlias("native-test", "oxygen-modules-native/test")
 
-addCommandAlias("fmt", "scalafmtAll")
+addCommandAlias("fmt", "scalafmtSbt; scalafmtAll; it/scalafmtAll; example/scalafmtAll;")
+addCommandAlias("fmt-check", "scalafmtSbtCheck; scalafmtCheckAll; it/scalafmtCheckAll; example/scalafmtCheckAll;")
