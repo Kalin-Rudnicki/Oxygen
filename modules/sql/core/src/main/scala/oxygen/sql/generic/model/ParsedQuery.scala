@@ -26,7 +26,7 @@ private[sql] sealed trait ParsedQuery extends Product {
   protected final def showReturning(using Quotes): String =
     ret.showOpt.map { ret => s"\n    RETURNING $ret" }.mkString
 
-  protected def allQueryRefs: Growable[QueryReference]
+  protected def allQueryRefs: Growable[QueryParam]
 
   def toTerm(queryName: Expr[String])(using ParseContext, GenerationContext, Quotes): ParseResult[Term]
 
@@ -51,8 +51,8 @@ private[sql] object ParsedQuery extends Parser[Term, ParsedQuery] {
          |    VALUES ${into.queryExpr.show}$showReturning
          |""".stripMargin
 
-    override protected def allQueryRefs: Growable[QueryReference] =
-      Growable[Growable[QueryReference]](
+    override protected def allQueryRefs: Growable[QueryParam] =
+      Growable[Growable[QueryParam]](
         Growable.option(insert.mapQueryRef),
         Growable(into.queryExpr.queryRef),
         Growable.many(ret.returningExprs).flatMap(_.queryRefs),
@@ -70,7 +70,7 @@ private[sql] object ParsedQuery extends Parser[Term, ParsedQuery] {
         frag = GeneratedFragment.of(
           insertFrag,
           "\n    (",
-          '{ ${ insert.tableRepr }.rowRepr.columns.`a, b, c` },
+          '{ ${ insert.tableRepr.expr }.rowRepr.columns.`a, b, c` },
           ")",
           valuesFrag,
           GeneratedFragment.option(
@@ -114,8 +114,8 @@ private[sql] object ParsedQuery extends Parser[Term, ParsedQuery] {
          |    ${select.show}${joins.map(_.show).mkString}${where.map(_.show).mkString}
          |""".stripMargin
 
-    override protected def allQueryRefs: Growable[QueryReference] =
-      Growable[Growable[QueryReference]](
+    override protected def allQueryRefs: Growable[QueryParam] =
+      Growable[Growable[QueryParam]](
         Growable(select.mapQueryRef),
         Growable.many(joins).flatMap(_.queryRefs),
         Growable.option(where).flatMap(_.filterExpr.queryRefs),
@@ -173,8 +173,8 @@ private[sql] object ParsedQuery extends Parser[Term, ParsedQuery] {
          |${set.show}$showReturning
          |""".stripMargin
 
-    override protected def allQueryRefs: Growable[QueryReference] =
-      Growable[Growable[QueryReference]](
+    override protected def allQueryRefs: Growable[QueryParam] =
+      Growable[Growable[QueryParam]](
         Growable(update.queryRefOrPlaceholder),
         Growable.many(joins).flatMap(_.queryRefs),
         Growable.option(where).flatMap(_.filterExpr.queryRefs),
@@ -236,8 +236,8 @@ private[sql] object ParsedQuery extends Parser[Term, ParsedQuery] {
          |DELETE FROM ${delete.show}${joins.map(_.show).mkString}${where.map(_.show).mkString}$showReturning
          |""".stripMargin
 
-    override protected def allQueryRefs: Growable[QueryReference] =
-      Growable[Growable[QueryReference]](
+    override protected def allQueryRefs: Growable[QueryParam] =
+      Growable[Growable[QueryParam]](
         Growable(delete.mapQueryRef),
         Growable.many(joins).flatMap(_.queryRefs),
         Growable.option(where).flatMap(_.filterExpr.queryRefs),
@@ -298,9 +298,9 @@ private[sql] object ParsedQuery extends Parser[Term, ParsedQuery] {
           ParsedQuery.DeleteQuery(inputs, delete, joins, where, ret, refs)
       }
       .map { parsed =>
-        val specifiedQueryRefs: Set[QueryReference.InputLike] = parsed.refs.allQueryRefs.collect { case ref: QueryReference.InputLike => ref }.to[Set]
-        val usedQueryRefs: Set[QueryReference.InputLike] = parsed.allQueryRefs.collect { case ref: QueryReference.InputLike => ref }.to[Set]
-        val unusedQueryRefs: Set[QueryReference.InputLike] = specifiedQueryRefs &~ usedQueryRefs
+        val specifiedQueryRefs: Set[QueryParam.InputLike] = parsed.refs.allQueryRefs.collect { case ref: QueryParam.InputLike => ref }.to[Set]
+        val usedQueryRefs: Set[QueryParam.InputLike] = parsed.allQueryRefs.collect { case ref: QueryParam.InputLike => ref }.to[Set]
+        val unusedQueryRefs: Set[QueryParam.InputLike] = specifiedQueryRefs &~ usedQueryRefs
         unusedQueryRefs.foreach { ref => report.warning("unused query input param", ref.param.tree.pos) }
 
         parsed
@@ -319,7 +319,7 @@ private[sql] object ParsedQuery extends Parser[Term, ParsedQuery] {
   private def makeQuery(
       queryName: Expr[String],
       queryType: QueryContext.QueryType,
-      mainTable: Expr[TableRepr[?]],
+      mainTable: TypeclassExpr.TableRepr,
   )(
       sql: GeneratedSql.Built,
       encoder: GeneratedInputEncoder.Built,
@@ -336,7 +336,7 @@ private[sql] object ParsedQuery extends Parser[Term, ParsedQuery] {
           queryName = $queryName,
           sql = ${ sql.sql },
           queryType = ${ Expr(queryType) },
-          mainTable = $mainTable.some,
+          mainTable = ${ mainTable.expr }.some,
         )
       }
 

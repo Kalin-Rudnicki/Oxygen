@@ -38,7 +38,7 @@ private[generic] object TermTransformer {
   }
 
   trait DeferToParam extends Defer {
-    val param: Function.Param
+    val param: Function.NamedParam
     override protected final def defer: TermTransformer = param
   }
 

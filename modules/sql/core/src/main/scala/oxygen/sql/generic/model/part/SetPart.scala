@@ -18,7 +18,7 @@ final case class SetPart(
 object SetPart extends MapChainParser[SetPart] {
 
   final case class SetExpr(
-      fieldToSetExpr: QueryExpr.QueryLike,
+      fieldToSetExpr: QueryExpr.UnaryQuery,
       setValueExpr: QueryExpr.Unary,
   ) {
 
@@ -26,7 +26,7 @@ object SetPart extends MapChainParser[SetPart] {
 
   }
 
-  private def parseSingleSet(term: Term, refs: RefMap, rootQueryRef: QueryReference.Query)(using ParseContext, Quotes): ParseResult[SetExpr] =
+  private def parseSingleSet(term: Term, refs: RefMap, rootQueryRef: QueryParam.Query)(using ParseContext, Quotes): ParseResult[SetExpr] =
     for {
       fun <- Function.parse(term).unknownAsError
       p1 <- fun.parseParam1
@@ -43,8 +43,8 @@ object SetPart extends MapChainParser[SetPart] {
       lhsExpr <- RawQueryExpr.Unary.parse((lhs, refsWithParam)).unknownAsError
       lhsExpr <- QueryExpr.Unary.parse(lhsExpr).unknownAsError
       lhsExpr <- lhsExpr match {
-        case lhsExpr: QueryExpr.QueryLike if lhsExpr.param.sym == rootQueryRef.param.sym => ParseResult.Success(lhsExpr)
-        case _                                                                           => ParseResult.error(lhsExpr.rootIdent, "root of set lhs is not the update table?")
+        case lhsExpr: QueryExpr.UnaryQuery if lhsExpr.param.sym == rootQueryRef.param.sym => ParseResult.Success(lhsExpr)
+        case _                                                                            => ParseResult.error(lhsExpr.rootIdent, "root of set lhs is not the update table?")
       }
 
       rhsExpr <- RawQueryExpr.Unary.parse((rhs, refs)).unknownAsError

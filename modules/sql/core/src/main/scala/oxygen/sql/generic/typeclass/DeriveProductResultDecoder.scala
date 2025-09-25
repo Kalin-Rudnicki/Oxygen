@@ -12,14 +12,14 @@ final class DeriveProductResultDecoder[A](
 )(using Quotes, Type[ResultDecoder], Type[A], K0.ProductGeneric[A])
     extends K0.Derivable.ProductDeriver[ResultDecoder, A] {
 
-  private def makeSize: Expr[Int] =
+  private def makeSize(using Quotes): Expr[Int] =
     generic.mapChildren.foldLeftExpr[Int](Expr(0)) { [i] => (_, _) ?=> (field: generic.Field[i], acc: Expr[Int]) =>
       '{
         $acc + ${ field.getExpr(instances) }.size
       }
     }
 
-  private def makeDecode(offset: Expr[Int], values: Expr[ArraySeq[Matchable]]): Expr[Either[QueryError.UnableToDecodeRow, A]] =
+  private def makeDecode(offset: Expr[Int], values: Expr[ArraySeq[Matchable]])(using Quotes): Expr[Either[QueryError.UnableToDecodeRow, A]] =
     generic.cacheVals
       .foldLeftDelayed[Int](
         valName = name => s"offset_$name",
@@ -37,14 +37,14 @@ final class DeriveProductResultDecoder[A](
         }
       }
 
-  private def makeToStringHeader(size: Expr[Int]): Growable[Expr[String]] =
+  private def makeToStringHeader(size: Expr[Int])(using Quotes): Growable[Expr[String]] =
     Growable[Expr[String]](
       Expr(s"ResultDecoder.CustomDecoder(type = ${generic.typeRepr.show}, size = "),
       '{ $size.toString },
       Expr(")"),
     )
 
-  private def makeToStringBody: Growable[Expr[String]] =
+  private def makeToStringBody(using Quotes): Growable[Expr[String]] =
     generic.mapChildren.flatMapExpr[Growable, String] { [i] => (_, _) ?=> (field: generic.Field[i]) =>
       Growable(
         Expr("\n    "),

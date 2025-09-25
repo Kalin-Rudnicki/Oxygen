@@ -12,10 +12,10 @@ final class DecoderBuilder {
 
   def convert(queryExpr: QueryExpr)(using ParseContext, Quotes): ParseResult[GeneratedResultDecoder] =
     queryExpr match {
-      case input: QueryExpr.InputLike => ParseResult.error(input.fullTerm, "no query reference to compare input to")
-      case query: QueryExpr.QueryLike => ParseResult.success(GeneratedResultDecoder.single('{ ${ query.rowRepr }.decoder }, query.fullTerm.tpe.widen))
-      case _: QueryExpr.AndOr         => ParseResult.success(GeneratedResultDecoder.single('{ RowRepr.boolean.decoder }, TypeRepr.of[Boolean]))
-      case _: QueryExpr.Comp          => ParseResult.success(GeneratedResultDecoder.single('{ RowRepr.boolean.decoder }, TypeRepr.of[Boolean]))
+      case input: QueryExpr.UnaryInput => ParseResult.error(input.fullTerm, "no query reference to compare input to")
+      case query: QueryExpr.UnaryQuery => ParseResult.success(GeneratedResultDecoder.single('{ ${ query.rowRepr.expr }.decoder }, query.fullTerm.tpe.widen))
+      case _: QueryExpr.BinaryAndOr    => ParseResult.success(GeneratedResultDecoder.single('{ RowRepr.boolean.decoder }, TypeRepr.of[Boolean]))
+      case _: QueryExpr.BinaryComp     => ParseResult.success(GeneratedResultDecoder.single('{ RowRepr.boolean.decoder }, TypeRepr.of[Boolean]))
     }
 
   def ret(r: ReturningPart)(using ParseContext, Quotes): ParseResult[GeneratedResultDecoder] =

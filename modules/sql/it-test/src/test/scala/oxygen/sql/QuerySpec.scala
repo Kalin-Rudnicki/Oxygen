@@ -170,6 +170,40 @@ object QuerySpec extends OxygenSpec[Database] {
           res3 == othersSame,
         )
       },
+      test("join vs left join") {
+        for {
+          groupId <- Random.nextUUID
+          p1 <- Person.generate(groupId)()
+          p2 <- Person.generate(groupId)()
+          p3 <- Person.generate(groupId)()
+
+          n2_1 <- Note.generate(p2.id)()
+          n3_1 <- Note.generate(p3.id)()
+          n3_2 <- Note.generate(p3.id)()
+          n3_3 <- Note.generate(p3.id)()
+
+          _ <- Person.insert.all(p1, p2, p3).unit
+          _ <- Note.insert.all(n2_1, n3_1, n3_2, n3_3).unit
+
+          leftJoinRes <- queries.personLeftJoinNotes.execute(groupId).to[Set]
+          joinRes <- queries.personJoinNotes.execute(groupId).to[Set]
+
+        } yield assertTrue(
+          joinRes == Set(
+            (p2, n2_1),
+            (p3, n3_1),
+            (p3, n3_2),
+            (p3, n3_3),
+          ),
+          leftJoinRes == Set(
+            (p1, None),
+            (p2, n2_1.some),
+            (p3, n3_1.some),
+            (p3, n3_2.some),
+            (p3, n3_3.some),
+          ),
+        )
+      },
     )
 
   private def perfSpec: TestSpec =
@@ -292,7 +326,7 @@ object QuerySpec extends OxygenSpec[Database] {
       MigrationConfig.defaultLayer,
       MigrationService.migrateLayer(
         Migrations(
-          PlannedMigration.auto(1)(Person.tableRepr),
+          PlannedMigration.auto(1)(Person.tableRepr, Note.tableRepr),
         ),
       ),
       Atomically.LiveDB.layer,

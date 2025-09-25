@@ -170,10 +170,12 @@ object K0 {
   }
   object Expressions {
 
-    final case class Elem[F[_], B](
-        bTpe: Type[B],
-        expr: Expr[F[B]],
+    final class Elem[F[_], B](
+        val bTpe: Type[B],
+        ctxExpr: Quotes ?=> Expr[F[B]],
     ) {
+
+      def expr(using q: Quotes): Expr[F[B]] = ctxExpr(using q)
 
       def mapK[G[_]](f: Type[B] ?=> Expr[F[B]] => Expr[G[B]]): Elem[G, B] =
         Elem[G, B](bTpe, f(using bTpe)(expr))

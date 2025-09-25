@@ -16,20 +16,20 @@ private[generic] final case class Function(
     case (_: Function.RootParam.Ignored) :: Nil => ParseResult.Success(())
     case _                                      => ParseResult.error(body, s"expected single function param, but got\n${Function.showParams(params)}") // TODO (KR) : whole function pos
 
-  def parseParam1(using ParseContext): ParseResult.Known[Function.Param] = params match
+  def parseParam1(using ParseContext): ParseResult.Known[Function.NamedParam] = params match
     case (p1: Function.RootParam.Named) :: Nil => ParseResult.Success(p1)
     case _                                     => ParseResult.error(body, s"expected 1 root function param, but got\n${Function.showParams(params)}") // TODO (KR) : whole function pos
 
-  def parseParam2(using ParseContext): ParseResult.Known[(Function.Param, Function.Param)] = params match
+  def parseParam2(using ParseContext): ParseResult.Known[(Function.NamedParam, Function.NamedParam)] = params match
     case (p1: Function.RootParam.Named) :: (p2: Function.RootParam.Named) :: Nil => ParseResult.Success((p1, p2))
     case _ => ParseResult.error(body, s"expected 2 root function params, but got\n${Function.showParams(params)}") // TODO (KR) : whole function pos
 
-  def parseParam2Opt(using ParseContext): ParseResult.Known[(Option[Function.Param], Function.Param)] = params match
+  def parseParam2Opt(using ParseContext): ParseResult.Known[(Option[Function.NamedParam], Function.NamedParam)] = params match
     case (p1: Function.RootParam.Named) :: (p2: Function.RootParam.Named) :: Nil  => ParseResult.Success((p1.some, p2))
     case (_: Function.RootParam.Ignored) :: (p2: Function.RootParam.Named) :: Nil => ParseResult.Success((None, p2))
     case _ => ParseResult.error(body, s"expected 2 root function params, but got\n${Function.showParams(params)}") // TODO (KR) : whole function pos
 
-  def parseParam2Either(using ParseContext): ParseResult.Known[(Either[Function.RootParam.Ignored, Function.Param], Function.Param)] = params match
+  def parseParam2Either(using ParseContext): ParseResult.Known[(Either[Function.RootParam.Ignored, Function.NamedParam], Function.NamedParam)] = params match
     case (p1: Function.RootParam.Named) :: (p2: Function.RootParam.Named) :: Nil   => ParseResult.Success((p1.asRight, p2))
     case (p1: Function.RootParam.Ignored) :: (p2: Function.RootParam.Named) :: Nil => ParseResult.Success((p1.asLeft, p2))
     case _ => ParseResult.error(body, s"expected 2 root function params, but got\n${Function.showParams(params)}") // TODO (KR) : whole function pos
@@ -64,9 +64,11 @@ private[generic] object Function extends Parser[Term, Function] {
   }
 
   /**
-    * Represents a function param that can be referenced and used.
+    * Represents a named function param that can be referenced and used.
+    * [[Function.RootParam.Named]]
+    * [[Function.TupleUnapplyPart.Named]]
     */
-  sealed trait Param extends AnyParam, TermTransformer {
+  sealed trait NamedParam extends AnyParam, TermTransformer {
     def name: String
     def tpe: TypeRepr
     final lazy val sym: Symbol = tree.symbol
@@ -95,7 +97,7 @@ private[generic] object Function extends Parser[Term, Function] {
 
     final case class Ignored(valDef: ValDef) extends RootParam, AnyParam
 
-    final case class Named(valDef: ValDef) extends RootParam, Param, TermTransformer.Id
+    final case class Named(valDef: ValDef) extends RootParam, NamedParam, TermTransformer.Id
 
     final case class TupleUnapply(valDef: ValDef, children: List[TupleUnapplyPart]) extends RootParam, AnyParam
 
@@ -117,7 +119,7 @@ private[generic] object Function extends Parser[Term, Function] {
 
     final case class Ignored(parentValDef: ValDef, tree: Tree, idx: Int) extends TupleUnapplyPart, AnyParam
 
-    final case class Named(parentValDef: ValDef, name: String, treeTpe: TypeRepr, tree: Tree, idx: Int) extends TupleUnapplyPart, Param, TermTransformer.Transform {
+    final case class Named(parentValDef: ValDef, name: String, treeTpe: TypeRepr, tree: Tree, idx: Int) extends TupleUnapplyPart, NamedParam, TermTransformer.Transform {
 
       override val tpe: TypeRepr = treeTpe.widen
       override def inTpe: TypeRepr = parentValDef.tpt.tpe.widen
