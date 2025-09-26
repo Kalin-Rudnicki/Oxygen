@@ -44,4 +44,16 @@ object MigrationStepColumn {
 
   }
 
+  sealed trait AlterForeignKey extends StateDiff
+  object AlterForeignKey {
+
+    final case class CreateForeignKey(fk: MigrationForeignKeyColumn) extends AlterForeignKey
+
+    final case class RenameExplicitlyNamedForeignKey(fkRef: ForeignKeyRef, newName: String) extends AlterForeignKey
+
+    final case class RenameAutoNamedForeignKey(fkRef: ForeignKeyRef, newName: String) extends AlterForeignKey
+
+    final case class DropForeignKey(fkRef: ForeignKeyRef) extends AlterForeignKey
+
+  }
 }

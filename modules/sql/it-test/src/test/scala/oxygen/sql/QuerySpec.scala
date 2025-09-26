@@ -372,7 +372,7 @@ object QuerySpec extends OxygenSpec[Database] {
       MigrationConfig.defaultLayer,
       MigrationService.migrateLayer(
         Migrations(
-          PlannedMigration.auto(1)(Person.tableRepr, Note.tableRepr, Ints.tableRepr),
+          PlannedMigration.auto(1)(Person.tableRepr, Note.tableRepr, Ints.tableRepr, MultiPK1.tableRepr, MultiPK2.tableRepr),
         ),
       ),
       Atomically.LiveDB.layer,

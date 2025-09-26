@@ -40,7 +40,7 @@ object Person extends TableCompanion[Person, UUID](TableRepr.derived[Person]) {
 
 final case class Note(
     @primaryKey id: UUID,
-    personId: UUID,
+    @references[Person] personId: UUID,
     note: String,
 )
 object Note extends TableCompanion[Note, UUID](TableRepr.derived[Note]) {
@@ -57,6 +57,21 @@ object Note extends TableCompanion[Note, UUID](TableRepr.derived[Note]) {
     } yield Note(id, personId, note)
 
 }
+
+final case class MultiPK1(
+    @primaryKey id1: String,
+    @primaryKey id2: String,
+    value: Int,
+)
+object MultiPK1 extends TableCompanion[MultiPK1, (String, String)](TableRepr.derived[MultiPK1])
+
+@foreignKey[MultiPK2, MultiPK1]((_.id1Ref, _.id1), (_.id2Ref, _.id2))
+final case class MultiPK2(
+    id1Ref: String,
+    id2Ref: String,
+    value: Int,
+)
+object MultiPK2 extends TableCompanion[MultiPK2, Unit](TableRepr.derived[MultiPK2])
 
 final case class Ints(
     a: Int,

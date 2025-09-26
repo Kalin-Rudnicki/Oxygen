@@ -38,3 +38,6 @@ final case class inlineColumnNames() extends StaticAnnotation derives FromExprT
   * Denotes that this field should be a primary key for the table.
   */
 final case class primaryKey() extends StaticAnnotation derives FromExprT
+
+final case class references[References]() extends StaticAnnotation
+final class foreignKey[Current, References](refs: (Current => Any, References => Any)*) extends StaticAnnotation

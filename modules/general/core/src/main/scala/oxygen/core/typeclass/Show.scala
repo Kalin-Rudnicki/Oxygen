@@ -10,7 +10,7 @@ trait Show[A] {
   def writeTo(builder: mutable.StringBuilder, value: A): Unit = builder.append(show(value))
 
 }
-object Show {
+object Show extends ShowLowPriority.LowPriority1 {
 
   inline def apply[A: Show as ev]: Show[A] = ev
 
@@ -59,7 +59,7 @@ object Show {
   given option: [A: Show as showA] => Show[Option[A]] =
     showOption("", "", "<none>")
 
-  def showSeq[S[_]: SeqOps as seqOps, A: Show as showA](
+  def showSeq[S[_]: SeqRead as seqOps, A: Show as showA](
       prefix: String,
       join: String,
       suffix: String,
@@ -81,7 +81,15 @@ object Show {
       }
     }
 
-  given seq: [S[_]: SeqOps as seqOps, A: Show as showA] => Show[S[A]] =
-    showSeq("[", ", ", "]")
+}
+
+object ShowLowPriority {
+
+  trait LowPriority1 {
+
+    given seq: [S[_]: SeqRead as seqOps, A: Show as showA] => Show[S[A]] =
+      Show.showSeq[S, A]("[", ", ", "]")
+
+  }
 
 }
