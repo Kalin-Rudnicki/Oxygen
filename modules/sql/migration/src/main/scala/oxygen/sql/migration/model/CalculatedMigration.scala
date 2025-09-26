@@ -21,6 +21,11 @@ final case class CalculatedMigration(
 }
 object CalculatedMigration {
 
+  final case class CalculatedStep(
+      derived: Boolean,
+      step: StepType,
+  )
+
   final case class Step(
       stepNo: Int,
       derived: Boolean,

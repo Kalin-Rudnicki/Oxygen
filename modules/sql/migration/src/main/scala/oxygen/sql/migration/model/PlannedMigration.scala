@@ -24,7 +24,7 @@ object PlannedMigration {
 
   enum StepType {
 
-    case Diff(diff: StateDiff)
+    case Diff(diff: StateDiff.CanBeSpecified)
     case Auto(tables: ArraySeq[TableRepr[?]])
 
     final def toIndentedString: IndentedString = this match
@@ -47,22 +47,22 @@ object PlannedMigration {
 
   }
 
-  type SpecifyStep = StateDiff | SpecifyStep.InheritAuto | StepType
+  type SpecifyStep = StateDiff.CanBeSpecified | SpecifyStep.InheritAuto | StepType
   object SpecifyStep {
 
     type InheritAuto = InheritAuto.type
     case object InheritAuto
 
-    def apply(specify: SpecifyStep, tables: ArraySeq[TableRepr[?]]): StepType = specify match
-      case step: StepType  => step
-      case InheritAuto     => StepType.Auto(tables)
-      case diff: StateDiff => StepType.Diff(diff)
+    def toStepType(specify: SpecifyStep, tables: ArraySeq[TableRepr[?]]): StepType = specify match
+      case step: StepType                 => step
+      case InheritAuto                    => StepType.Auto(tables)
+      case diff: StateDiff.CanBeSpecified => StepType.Diff(diff)
 
   }
 
   def make(version: Int)(tablesN: TableRepr[?]*)(steps: SpecifyStep*): PlannedMigration = {
     val tables = tablesN.toArraySeq
-    PlannedMigration(version, tables, steps.toArraySeq.map(SpecifyStep(_, tables)))
+    PlannedMigration(version, tables, steps.toArraySeq.map(SpecifyStep.toStepType(_, tables)))
   }
 
   def auto(version: Int)(tablesN: TableRepr[?]*): PlannedMigration =

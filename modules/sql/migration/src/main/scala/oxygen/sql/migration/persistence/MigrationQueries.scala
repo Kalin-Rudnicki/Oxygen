@@ -1,6 +1,5 @@
 package oxygen.sql.migration.persistence
 
-import oxygen.predef.core.*
 import oxygen.sql.migration.model.*
 import oxygen.sql.migration.model.StateDiff.*
 import oxygen.sql.query.*
@@ -45,6 +44,30 @@ object MigrationQueries {
         Query.simple("Set Nullability", QueryContext.QueryType.Migrate)(
           s"ALTER TABLE ${columnRef.table} ALTER COLUMN ${columnRef.columnName} ${if (nullable) "SET" else "DROP"} NOT NULL",
         )
+      case AlterForeignKey.CreateForeignKey(fk) =>
+        Query.simple("Create Foreign Key", QueryContext.QueryType.Migrate)(
+          s"""ALTER TABLE ${fk.self}
+             |    ADD CONSTRAINT ${fk.fkName}
+             |    FOREIGN KEY (${fk.columnPairs.map(_.self).mkString(", ")})
+             |    REFERENCES ${fk.references} (${fk.columnPairs.map(_.references).mkString(", ")})""".stripMargin,
+        )
+      case AlterForeignKey.RenameExplicitlyNamedForeignKey(fkRef, newName) =>
+        Query.simple("Rename Foreign Key (explicit)", QueryContext.QueryType.Migrate)(
+          s"""ALTER TABLE ${fkRef.table}
+             |    RENAME CONSTRAINT ${fkRef.fkName}
+             |    TO $newName""".stripMargin,
+        )
+      case AlterForeignKey.RenameAutoNamedForeignKey(fkRef, newName) =>
+        Query.simple("Rename Foreign Key (auto)", QueryContext.QueryType.Migrate)(
+          s"""ALTER TABLE ${fkRef.table}
+             |    RENAME CONSTRAINT ${fkRef.fkName}
+             |    TO $newName""".stripMargin,
+        )
+      case AlterForeignKey.DropForeignKey(fkRef) =>
+        Query.simple("Drop Foreign Key", QueryContext.QueryType.Migrate)(
+          s"""ALTER TABLE ${fkRef.table}
+             |    DROP CONSTRAINT ${fkRef.fkName}""".stripMargin,
+        )
     }
 
   //////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -57,14 +80,27 @@ object MigrationQueries {
     )
 
   def createTable(table: TableState, ifDNE: Boolean): Query = {
-    val columnLines: ArraySeq[String] =
-      table.columns.map { c => s"\n    ${c.toSql}" }
-    val pkLine: String =
-      if (table.primaryKeyColumns.nonEmpty) s",\n\n    PRIMARY KEY (${table.primaryKeyColumns.map(_.name).mkString(", ")})"
-      else ""
+    val columnLines: Seq[String] =
+      table.columns.map { _.toSql }
+
+    val constraintLines: Seq[String] =
+      Seq[IterableOnce[String]](
+        Option.when(table.primaryKeyColumns.nonEmpty) {
+          s"PRIMARY KEY (${table.primaryKeyColumns.map(_.name).mkString(", ")})"
+        },
+        // not adding FKs here because then you need to worry about ordering...
+      ).flatten
+
+    val internalString: String =
+      if (constraintLines.nonEmpty)
+        columnLines.map { str => s"\n    ${str.replaceAll("\n", "\n    ")}," }.mkString +
+          "\n" +
+          constraintLines.map { str => s"\n    ${str.replaceAll("\n", "\n    ")}" }.mkString(",")
+      else
+        columnLines.map { str => s"\n    ${str.replaceAll("\n", "\n    ")}" }.mkString(",")
 
     Query.simple("Create Table", QueryContext.QueryType.Migrate)(
-      s"CREATE TABLE${ifDNEStr(ifDNE)} ${table.tableName}(${columnLines.mkString(", ")}$pkLine\n)",
+      s"CREATE TABLE${ifDNEStr(ifDNE)} ${table.tableName}($internalString\n)",
     )
   }
 

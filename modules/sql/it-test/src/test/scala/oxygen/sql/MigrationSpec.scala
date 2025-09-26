@@ -43,17 +43,32 @@ object MigrationSpec extends OxygenSpec[Database & MigrationService] {
   )
   object ModelA4 extends TableCompanion.NoKey[ModelA4](TableRepr.derived[ModelA4])
 
+  @tableName("model_b")
+  final case class ModelB1(
+      @primaryKey id: Int,
+      aId: Option[Int],
+  )
+  object ModelB1 extends TableCompanion[ModelB1, Int](TableRepr.derived[ModelB1])
+
+  @tableName("model_b")
+  final case class ModelB2(
+      @primaryKey id: Int,
+      @references[ModelA2] aId: Option[Int],
+  )
+  object ModelB2 extends TableCompanion[ModelB2, Int](TableRepr.derived[ModelB2])
+
   override def testSpec: TestSpec =
     suite("MigrationSpec")(
       test("simple migration works") {
         for {
           err1 <- ModelA1.selectAll.execute().arraySeq.exit
-          migration1 = PlannedMigration.auto(1)(ModelA1.tableRepr)
-          migration2 = PlannedMigration.auto(2)(ModelA2.tableRepr)
+          migration1 = PlannedMigration.auto(1)(ModelA1.tableRepr, ModelB1.tableRepr)
+          migration2 = PlannedMigration.auto(2)(ModelA2.tableRepr, ModelB2.tableRepr)
+          migration3 = PlannedMigration.auto(3)(ModelA2.tableRepr, ModelB1.tableRepr)
 
           exe1 <- MigrationService.migrate(Migrations(migration1))
           err2 <- MigrationService.migrate(Migrations()).exit
-          err3 <- MigrationService.migrate(Migrations(PlannedMigration.auto(1)(ModelA2.tableRepr))).exit
+          err3 <- MigrationService.migrate(Migrations(PlannedMigration.auto(1)(ModelA2.tableRepr, ModelB1.tableRepr))).exit
           exe2 <- MigrationService.migrate(Migrations(migration1))
 
           v1 = ModelA1(1, "value-1", true)
@@ -62,7 +77,7 @@ object MigrationSpec extends OxygenSpec[Database & MigrationService] {
           _ <- ModelA1.insert.all(v1, v2).unit
           get1 <- ModelA1.selectAll.execute().to[Seq]
 
-          exe3 <- MigrationService.migrate(Migrations(migration1, migration2))
+          exe3 <- MigrationService.migrate(Migrations(migration1, migration2, migration3))
           get2 <- ModelA2.selectAll.execute().to[Seq]
 
           stage1 = Seq(v1, v2)
@@ -74,7 +89,7 @@ object MigrationSpec extends OxygenSpec[Database & MigrationService] {
           assertTrue(
             exe1.executed.length == 1,
             exe2.executed.length == 0,
-            exe3.executed.length == 1,
+            exe3.executed.length == 2,
             get1.sortBy(_.id) == stage1,
             get2.sortBy(_.id) == stage2,
           )
@@ -109,7 +124,7 @@ object MigrationSpec extends OxygenSpec[Database & MigrationService] {
       MigrationRepo.layer,
     )
 
-  // override def defaultLogLevel: LogLevel = LogLevel.Info
+  override def defaultLogLevel: LogLevel = LogLevel.Trace
 
   override def testAspects: Chunk[TestSpecAspect] = Chunk(TestAspect.withLiveRandom, TestAspect.withLiveClock)
 

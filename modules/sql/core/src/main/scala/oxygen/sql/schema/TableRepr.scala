@@ -17,6 +17,9 @@ trait TableRepr[A] {
   val rowRepr: RowRepr.ProductRepr[A]
   val pk: TableRepr.Partial[A, PrimaryKeyT]
   val npk: TableRepr.Partial[A, NonPrimaryKeyT]
+  val foreignKeys: ArraySeq[ForeignKeyRepr[A, ?]]
+
+  final lazy val builtForeignKeys: ArraySeq[ForeignKeyRepr.Built] = foreignKeys.map(_.built(this))
 
   val ref: String
 
@@ -39,6 +42,7 @@ object TableRepr {
       rowRepr: RowRepr.ProductRepr[A],
       pk: TableRepr.Partial[A, PK],
       npk: TableRepr.Partial[A, NPK],
+      foreignKeys: ArraySeq[ForeignKeyRepr[A, ?]],
   ) extends Typed[A, PK, NPK] {
 
     override val ref: String = s"$schemaName.$tableName"
@@ -72,7 +76,7 @@ object TableRepr {
         DeriveTableRepr[A](_).derive
       }
 
-    MacroUtil.macroShowExprWhen(expr, g.annotations.optionalOf[K0.annotation.showDerivation[TableRepr]])
+    MacroUtil.macroShowExprWhen(expr, g.annotations.optionalOf[K0.annotation.showDerivation[TableRepr]].orElse(g.annotations.optionalOf[K0.annotation.showAllDerivation]))
   }
 
   transparent inline def derived[A]: TableRepr.Typed[A, ?, ?] = ${ derivedImpl[A] }

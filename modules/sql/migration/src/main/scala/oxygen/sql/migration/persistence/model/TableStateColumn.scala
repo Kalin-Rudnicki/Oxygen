@@ -7,4 +7,5 @@ final case class TableStateColumn(
     tableName: EntityRefColumn.TableRef,
     primaryKeyColumns: Set[String],
     columns: ArraySeq[ColumnColumn],
+    foreignKeys: Option[ArraySeq[MigrationForeignKeyColumn]],
 ) derives JsonCodec

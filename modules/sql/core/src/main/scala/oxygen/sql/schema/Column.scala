@@ -1,5 +1,7 @@
 package oxygen.sql.schema
 
+import oxygen.predef.core.*
+
 final case class Column(
     name: String,
     columnType: Column.Type,
@@ -15,6 +17,8 @@ final case class Column(
 
 }
 object Column {
+
+  given Show[Column] = _.toSql
 
   enum Type(final val show: String) {
 
@@ -54,6 +58,9 @@ object Column {
     // Array Types
     // TODO (KR) : ...
 
+  }
+  object Type {
+    given Show[Column.Type] = _.show
   }
 
 }

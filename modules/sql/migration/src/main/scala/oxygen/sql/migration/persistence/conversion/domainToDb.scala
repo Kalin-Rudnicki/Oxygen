@@ -1,5 +1,6 @@
 package oxygen.sql.migration.persistence.conversion
 
+import oxygen.predef.core.*
 import oxygen.sql.migration.model.*
 import oxygen.sql.migration.persistence.model.*
 import oxygen.sql.schema.Column
@@ -17,6 +18,10 @@ object domainToDb {
   extension (self: EntityRef.ColumnRef)
     def toDb: EntityRefColumn.ColumnRef =
       EntityRefColumn.ColumnRef(self.table.schema.schemaName, self.table.tableName, self.columnName)
+
+  extension (self: EntityRef.ForeignKeyRef)
+    def toDb: EntityRefColumn.ForeignKeyRef =
+      EntityRefColumn.ForeignKeyRef(self.table.schema.schemaName, self.table.tableName, self.fkName)
 
   extension (self: Column)
     def toDb: ColumnColumn =
@@ -49,19 +54,41 @@ object domainToDb {
         tableName = self.tableName.toDb,
         primaryKeyColumns = self.primaryKeyColumns.iterator.map(_.name).toSet,
         columns = self.columns.map(_.toDb),
+        foreignKeys = self.foreignKeys.map(_.toDb).some,
       )
 
   extension (self: StateDiff)
     def toDb: MigrationStepColumn.StateDiff = self match
-      case StateDiff.AlterSchema.CreateSchema(schemaRef)          => MigrationStepColumn.AlterSchema.CreateSchema(schemaRef.toDb)
-      case StateDiff.AlterSchema.RenameSchema(schemaRef, newName) => MigrationStepColumn.AlterSchema.RenameSchema(schemaRef.toDb, newName)
-      case StateDiff.AlterSchema.DropSchema(schemaRef)            => MigrationStepColumn.AlterSchema.DropSchema(schemaRef.toDb)
-      case StateDiff.AlterTable.CreateTable(table)                => MigrationStepColumn.AlterTable.CreateTable(table.toDb)
-      case StateDiff.AlterTable.RenameTable(tableRef, newName)    => MigrationStepColumn.AlterTable.RenameTable(tableRef.toDb, newName)
-      case StateDiff.AlterTable.DropTable(tableRef)               => MigrationStepColumn.AlterTable.DropTable(tableRef.toDb)
-      case StateDiff.AlterColumn.CreateColumn(tableRef, column)   => MigrationStepColumn.AlterColumn.CreateColumn(tableRef.toDb, column.toDb)
-      case StateDiff.AlterColumn.DropColumn(columnRef)            => MigrationStepColumn.AlterColumn.DropColumn(columnRef.toDb)
-      case StateDiff.AlterColumn.RenameColumn(columnRef, newName) => MigrationStepColumn.AlterColumn.RenameColumn(columnRef.toDb, newName)
-      case StateDiff.AlterColumn.SetNullable(columnRef, nullable) => MigrationStepColumn.AlterColumn.SetNullable(columnRef.toDb, nullable)
+      case StateDiff.AlterSchema.CreateSchema(schemaRef)                             => MigrationStepColumn.AlterSchema.CreateSchema(schemaRef.toDb)
+      case StateDiff.AlterSchema.RenameSchema(schemaRef, newName)                    => MigrationStepColumn.AlterSchema.RenameSchema(schemaRef.toDb, newName)
+      case StateDiff.AlterSchema.DropSchema(schemaRef)                               => MigrationStepColumn.AlterSchema.DropSchema(schemaRef.toDb)
+      case StateDiff.AlterTable.CreateTable(table)                                   => MigrationStepColumn.AlterTable.CreateTable(table.toDb)
+      case StateDiff.AlterTable.RenameTable(tableRef, newName)                       => MigrationStepColumn.AlterTable.RenameTable(tableRef.toDb, newName)
+      case StateDiff.AlterTable.DropTable(tableRef)                                  => MigrationStepColumn.AlterTable.DropTable(tableRef.toDb)
+      case StateDiff.AlterColumn.CreateColumn(tableRef, column)                      => MigrationStepColumn.AlterColumn.CreateColumn(tableRef.toDb, column.toDb)
+      case StateDiff.AlterColumn.DropColumn(columnRef)                               => MigrationStepColumn.AlterColumn.DropColumn(columnRef.toDb)
+      case StateDiff.AlterColumn.RenameColumn(columnRef, newName)                    => MigrationStepColumn.AlterColumn.RenameColumn(columnRef.toDb, newName)
+      case StateDiff.AlterColumn.SetNullable(columnRef, nullable)                    => MigrationStepColumn.AlterColumn.SetNullable(columnRef.toDb, nullable)
+      case StateDiff.AlterForeignKey.CreateForeignKey(fk)                            => MigrationStepColumn.AlterForeignKey.CreateForeignKey(fk.toDb)
+      case StateDiff.AlterForeignKey.RenameExplicitlyNamedForeignKey(fkRef, newName) => MigrationStepColumn.AlterForeignKey.RenameExplicitlyNamedForeignKey(fkRef.toDb, newName)
+      case StateDiff.AlterForeignKey.RenameAutoNamedForeignKey(fkRef, newName)       => MigrationStepColumn.AlterForeignKey.RenameAutoNamedForeignKey(fkRef.toDb, newName)
+      case StateDiff.AlterForeignKey.DropForeignKey(fkRef)                           => MigrationStepColumn.AlterForeignKey.DropForeignKey(fkRef.toDb)
+
+  extension (self: ForeignKeyState.Pair)
+    def toDb: MigrationForeignKeyColumn.Pair =
+      MigrationForeignKeyColumn.Pair(
+        self = self.self,
+        references = self.references,
+      )
+
+  extension (self: ForeignKeyState)
+    def toDb: MigrationForeignKeyColumn =
+      MigrationForeignKeyColumn(
+        fkName = self.fkName,
+        fkNameIsExplicit = self.explicitFKName.nonEmpty,
+        self = self.self.toDb,
+        references = self.references.toDb,
+        columnPairs = self.columnPairs.map(_.toDb),
+      )
 
 }

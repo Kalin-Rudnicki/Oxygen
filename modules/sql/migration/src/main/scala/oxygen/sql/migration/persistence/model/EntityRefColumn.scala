@@ -19,4 +19,10 @@ object EntityRefColumn {
       column: String,
   ) derives JsonCodec
 
+  final case class ForeignKeyRef(
+      schema: String,
+      table: String,
+      fkName: String,
+  ) derives JsonCodec
+
 }
