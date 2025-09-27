@@ -51,7 +51,7 @@ object JoinPart extends MapChainParser[JoinPart] {
 
       mapQueryRef = joinType match
         case JoinType.Inner     => QueryParam.Query(mapParam, tableRepr, false)
-        case JoinType.LeftOuter => QueryParam.Query.mapRowRepr(mapParam, tableRepr, _.optional, false)
+        case JoinType.LeftOuter => QueryParam.Query(mapParam, tableRepr, tableRepr.tableRowRepr.optional, false)
       filterQueryRef = QueryParam.Query(filterParam, tableRepr, false)
       newRefs = refs.add(
         mapQueryRef,

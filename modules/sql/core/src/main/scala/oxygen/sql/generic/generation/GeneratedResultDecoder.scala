@@ -47,6 +47,7 @@ final class GeneratedResultDecoder private (
 }
 object GeneratedResultDecoder {
 
+  // FIX-PRE-MERGE (KR) : TypeclassExpr.ResultDecoder
   private final case class Part(buildExpr: Quotes => Expr[ResultDecoder[?]], tpe: TypeRepr) {
 
     def toElem[A]: K0.Expressions.Elem[ResultDecoder, A] = {
@@ -67,6 +68,7 @@ object GeneratedResultDecoder {
 
   val empty: GeneratedResultDecoder = GeneratedResultDecoder(Growable.empty)
 
+  // FIX-PRE-MERGE (KR) : TypeclassExpr.ResultDecoder
   def single(dec: Quotes ?=> Expr[ResultDecoder[?]], tpe: TypeRepr): GeneratedResultDecoder = GeneratedResultDecoder(Growable.single(Part(q => dec(using q), tpe)))
 
   def flatten[S[_]: SeqOps](all: S[GeneratedResultDecoder]): GeneratedResultDecoder = GeneratedResultDecoder(Growable.manyFlatMapped(all)(_.parts))

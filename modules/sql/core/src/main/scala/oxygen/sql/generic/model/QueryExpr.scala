@@ -89,7 +89,7 @@ private[generic] object QueryExpr extends Parser[RawQueryExpr, QueryExpr] {
             case inner: QueryExpr.Static                  => ParseResult.error(inner.fullTerm, "select not allowed")
           }
         case RawQueryExpr.ConstValue(fullTerm, constTerm) => ParseResult.Success(QueryExpr.ConstValue(fullTerm, constTerm))
-        case RawQueryExpr.StaticCount(fullTerm, out)      => ParseResult.Success(QueryExpr.Static(fullTerm, s"COUNT($out)", TypeclassExpr.RowRepr { '{ RowRepr.int } }))
+        case RawQueryExpr.StaticCount(fullTerm, out)      => ParseResult.Success(QueryExpr.Static(fullTerm, s"COUNT($out)", TypeclassExpr.RowRepr.int))
         case RawQueryExpr.CountWithArg(fullTerm, inner)   =>
           parse(inner).flatMap {
             case inner: QueryExpr.UnaryQuery => ParseResult.Success(QueryExpr.UnaryQuery.CountWithArg(fullTerm, inner))
@@ -233,7 +233,7 @@ private[generic] object QueryExpr extends Parser[RawQueryExpr, QueryExpr] {
     final case class CountWithArg(fullTerm: Term, inner: UnaryQuery) extends CanNotSelect {
       override val rootIdent: Ident = inner.rootIdent
       override val queryRef: QueryParam.Query = inner.queryRef
-      override def rowRepr(using Quotes): TypeclassExpr.RowRepr = TypeclassExpr.RowRepr { '{ RowRepr.int } }
+      override def rowRepr(using Quotes): TypeclassExpr.RowRepr = TypeclassExpr.RowRepr.int
     }
 
   }
