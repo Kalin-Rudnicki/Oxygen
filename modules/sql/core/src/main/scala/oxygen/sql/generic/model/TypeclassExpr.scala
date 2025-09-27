@@ -72,14 +72,11 @@ object TypeclassExpr {
     def columns: TypeclassExpr.Columns =
       TypeclassExpr.Columns { '{ $expr.columns } }
 
-    def constEncoder(term: Term)(using Quotes): Expr[S.InputEncoder[Any]] = {
-      type T
-      given Type[T] = term.tpe.widen.asTypeOf
+    def inputEncoder: TypeclassExpr.InputEncoder =
+      TypeclassExpr.InputEncoder { '{ $expr.encoder } }
 
-      val termExpr: Expr[T] = term.asExprOf[T]
-
-      '{ S.InputEncoder.Const[T](${ expr.asExprOf[S.RowRepr[T]] }.encoder, $termExpr) }
-    }
+    def resultDecoder: TypeclassExpr.ResultDecoder =
+      TypeclassExpr.ResultDecoder { '{ $expr.decoder } }
 
     def show(using Quotes): String = expr.showAnsiCode
 
@@ -112,6 +109,32 @@ object TypeclassExpr {
 
     def exprSeqRefNames(refStr: String)(using Quotes): Expr[ArraySeq[String]] =
       '{ $expr.columns.map(c => s"${${ Expr(refStr) }}.${c.name}") }
+
+  }
+
+  final class InputEncoder(ctxExpr: Quotes ?=> Expr[S.InputEncoder[?]]) {
+
+    def expr(using quotes: Quotes): Expr[S.InputEncoder[?]] = ctxExpr(using quotes)
+
+    def optional: TypeclassExpr.InputEncoder =
+      TypeclassExpr.InputEncoder { '{ $expr.optional } }
+
+    def constEncoder(term: Term)(using Quotes): Expr[S.InputEncoder[Any]] = {
+      type T
+      given Type[T] = term.tpe.widen.asTypeOf
+
+      val termExpr: Expr[T] = term.asExprOf[T]
+
+      '{ S.InputEncoder.Const[T](${ expr.asExprOf[S.InputEncoder[T]] }, $termExpr) }
+    }
+  }
+
+  final class ResultDecoder(ctxExpr: Quotes ?=> Expr[S.ResultDecoder[?]]) {
+
+    def expr(using quotes: Quotes): Expr[S.ResultDecoder[?]] = ctxExpr(using quotes)
+
+    def optional: TypeclassExpr.ResultDecoder =
+      TypeclassExpr.ResultDecoder { '{ $expr.optional } }
 
   }
 

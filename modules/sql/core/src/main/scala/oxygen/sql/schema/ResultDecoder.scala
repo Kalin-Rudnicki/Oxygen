@@ -33,6 +33,8 @@ trait ResultDecoder[+A] {
     case ResultDecoder.MapOrFailDecoder(a, ab2)            => ResultDecoder.MapOrFailDecoder(a, aValue => ab2(aValue).flatMap(ab))
     case _                                                 => ResultDecoder.MapOrFailDecoder(this, ab)
 
+  final def optional: ResultDecoder[Option[A]] = ResultDecoder.OptionalDecoder(this)
+
 }
 object ResultDecoder extends K0.Derivable[ResultDecoder] {
 
