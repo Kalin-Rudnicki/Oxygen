@@ -18,6 +18,13 @@ object T {
     def flatMap[I2, O](f: I => QueryIO[I2, O])(using zip: Zip[I, I2]): QueryIO[zip.Out, O] = macroOnly
   }
 
+  final class OptionalInput[I] private extends InputLike {
+    def flatMap(f: I => Query): QueryI[Option[I]] = macroOnly
+    def flatMap[I2](f: I => QueryI[I2])(using zip: Zip[Option[I], I2]): QueryI[zip.Out] = macroOnly
+    def flatMap[O](f: I => QueryO[O]): QueryIO[Option[I], O] = macroOnly
+    def flatMap[I2, O](f: I => QueryIO[I2, O])(using zip: Zip[Option[I], I2]): QueryIO[zip.Out, O] = macroOnly
+  }
+
   final class ConstInput[I] private extends InputLike {
     def flatMap(f: I => Query): Query = macroOnly
     def flatMap[I2](f: I => QueryI[I2]): QueryI[I2] = macroOnly

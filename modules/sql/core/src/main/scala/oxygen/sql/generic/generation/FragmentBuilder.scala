@@ -11,39 +11,61 @@ import scala.quoted.*
 
 final case class FragmentBuilder(inputs: List[InputPart])(using Quotes) {
 
-  private val nonConstInputParams: List[QueryParam.InputParam] =
+  private val nonConstInputParams: List[QueryParam.NonConstInput] =
     inputs.map(_.mapQueryRef).flatMap {
-      case p: QueryParam.InputParam => p.some
-      case _: QueryParam.ConstInput => None
+      case p: QueryParam.InputParam         => p.some
+      case p: QueryParam.OptionalInputParam => p.some
+      case _: QueryParam.ConstInput         => None
     }
 
   private val symIdxMap: Map[Symbol, Int] =
     nonConstInputParams.map(_.param.sym).zipWithIndex.toMap
 
-  val tmp: (TypeRepr, Option[K0.ProductGeneric[?]]) =
+  private val tmp: (TypeRepr, Option[K0.ProductGeneric[?]]) =
     nonConstInputParams match {
       case Nil      => (TypeRepr.of[Any], None)
       case i :: Nil => (i.param.tpe, None)
       case is       =>
-        val gen = K0.ProductGeneric.ofTuple(is.map(_.param.tpe))
+        val gen = K0.ProductGeneric.ofTuple(is.map(_.nonConstInputType))
         (gen.typeRepr, gen.some)
     }
-  private val (_, inputTpeTupGen) = tmp
 
-  private val symMap: Map[Symbol, Either[Term, TermTransformer.Root]] =
+  /**
+    * when you have inputs like:
+    * a <- input[A]
+    * b <- input[B]
+    * C <- input[C]
+    *
+    * you will end up with a query input type of (A, B, C)
+    *
+    * this tuple generic assists in selecting the individual A/B/C fields
+    */
+  private val (_, multiInputTupleGeneric) = tmp
+
+  private enum InputRepr {
+    case Const(term: Term)
+    case NonConst(transformer: TermTransformer, isOptional: Boolean)
+  }
+
+  private val inputSymToInputRepr: Map[Symbol, InputRepr] =
     inputs.map { i =>
-      val either: Either[Term, TermTransformer.Root] =
-        (inputTpeTupGen, i.mapQueryRef) match {
+      val inputRepr: InputRepr =
+        (multiInputTupleGeneric, i.mapQueryRef) match {
           case (None, QueryParam.InputParam(_)) =>
-            TermTransformer.Id.asRight
+            InputRepr.NonConst(TermTransformer.Id, false)
           case (Some(inputTpeTupGen), QueryParam.InputParam(param)) =>
             val idx: Int = symIdxMap.getOrElse(param.sym, report.errorAndAbort("sym not found?", param.tree.pos))
-            TermTransformer.FromProductGenericField(inputTpeTupGen, inputTpeTupGen.fields(idx)).asRight
+            InputRepr.NonConst(TermTransformer.FromProductGenericField(inputTpeTupGen, inputTpeTupGen.fields(idx)), false)
+          case (None, QueryParam.OptionalInputParam(_)) =>
+            InputRepr.NonConst(TermTransformer.Id, true)
+          case (Some(inputTpeTupGen), QueryParam.OptionalInputParam(param)) =>
+            val idx: Int = symIdxMap.getOrElse(param.sym, report.errorAndAbort("sym not found?", param.tree.pos))
+            InputRepr.NonConst(TermTransformer.FromProductGenericField(inputTpeTupGen, inputTpeTupGen.fields(idx)), true)
           case (_, QueryParam.ConstInput(_, term, _)) =>
-            term.asLeft
+            InputRepr.Const(term)
         }
 
-      i.mapQueryRef.param.sym -> either
+      i.mapQueryRef.param.sym -> inputRepr
     }.toMap
 
   def convert(queryExpr: QueryExpr)(using ParseContext, GenerationContext, Quotes): ParseResult[GeneratedFragment] =
@@ -61,6 +83,16 @@ final case class FragmentBuilder(inputs: List[InputPart])(using Quotes) {
           lhsFrag <- convertQuery(lhsQuery)
           rhsFrag <- convertQuery(rhsQuery)
         } yield GeneratedFragment.of(lhsFrag, op.sqlPadded, rhsFrag)
+      case QueryExpr.BinaryComp.QueryInput(_, lhsQuery, op, rhsInput: QueryExpr.UnaryInput) if rhsInput.isOptional =>
+        for {
+          lhsFrag <- convertQuery(lhsQuery)
+          rhsFrag <- GenerationContext.updated(allowOptionalInput = true) { convertConstOrInput(rhsInput, lhsQuery) }
+        } yield GeneratedFragment.of("( ? OR ( ", lhsFrag, op.sqlPadded, rhsFrag, " ) )")
+      case QueryExpr.BinaryComp.InputQuery(_, lhsInput: QueryExpr.UnaryInput, op, rhsQuery) if lhsInput.isOptional =>
+        for {
+          lhsFrag <- GenerationContext.updated(allowOptionalInput = true) { convertConstOrInput(lhsInput, rhsQuery) }
+          rhsFrag <- convertQuery(rhsQuery)
+        } yield GeneratedFragment.of("( ? OR ( ", lhsFrag, op.sqlPadded, rhsFrag, " ) )")
       case QueryExpr.BinaryComp.QueryInput(_, lhsQuery, op, rhsInput) =>
         for {
           lhsFrag <- convertQuery(lhsQuery)
@@ -84,33 +116,57 @@ final case class FragmentBuilder(inputs: List[InputPart])(using Quotes) {
   private def convertConstOrInput(input: QueryExpr.ConstOrUnaryInput, query: QueryExpr.UnaryQuery)(using ParseContext, GenerationContext, Quotes): ParseResult[GeneratedFragment] =
     convertConstOrInput(input, query.rowRepr)
 
-  private def constOrInputToEncoder(input: QueryExpr.ConstOrUnaryInput, rowRepr: TypeclassExpr.RowRepr)(using ParseContext, Quotes): ParseResult[GeneratedInputEncoder] =
+  private def constOrInputToEncoder(input: QueryExpr.ConstOrUnaryInput, rowRepr: TypeclassExpr.RowRepr)(using ParseContext, GenerationContext, Quotes): ParseResult[GeneratedInputEncoder] =
     input match {
-      case QueryExpr.ConstValue(_, term) => ParseResult.Success(GeneratedInputEncoder.const(rowRepr.constEncoder(term)))
       case input: QueryExpr.UnaryInput   => inputToEncoder(input, rowRepr)
+      case QueryExpr.ConstValue(_, term) => ParseResult.Success(GeneratedInputEncoder.const(rowRepr.constEncoder(term)))
     }
 
-  private def inputToEncoder(input: QueryExpr.UnaryInput, rowRepr: TypeclassExpr.RowRepr)(using ParseContext, Quotes): ParseResult[GeneratedInputEncoder] =
+  private def inputToEncoder(input: QueryExpr.UnaryInput, rowRepr: TypeclassExpr.RowRepr)(using ParseContext, GenerationContext, Quotes): ParseResult[GeneratedInputEncoder] =
     for {
-      either <- symMap.get(input.queryRef.param.sym) match {
+      _ <-
+        if (input.isOptional) GenerationContext.enforceOptionalInputAllowed(input.fullTerm)
+        else ParseResult.Success(())
+
+      inputRepr <- inputSymToInputRepr.get(input.queryRef.param.sym) match {
         case Some(value) => ParseResult.success(value)
         case None        => ParseResult.error(input.rootIdent, "Not able to find in symMap?")
       }
-      enc: GeneratedInputEncoder <- either match {
-        case Right(inputTransformer) =>
+      enc: GeneratedInputEncoder <- inputRepr match {
+        case InputRepr.NonConst(inputTransformer, false) =>
           (inputTransformer >>> input) match {
             case TermTransformer.Die => ParseResult.error(input.fullTerm, "Expected to not call input transform?")
             case TermTransformer.Id  =>
               ParseResult.success(GeneratedInputEncoder.nonConst('{ ${ rowRepr.expr }.encoder }, input.inTpe))
             case transform: TermTransformer.Transform =>
-              type A
-              type B
-              given Type[A] = transform.inTpe.asTypeOf
-              given Type[B] = transform.outTpe.asTypeOf
-              val typedQueryRowRepr: Expr[RowRepr[B]] = rowRepr.expr.asExprOf[RowRepr[B]]
-              ParseResult.success(GeneratedInputEncoder.nonConst('{ $typedQueryRowRepr.encoder.contramap[A](${ transform.convertExprF[A, B] }) }, transform.inTpe))
+              type FullInputT
+              type ThisParamT
+              given Type[FullInputT] = transform.inTpe.asTypeOf
+              given Type[ThisParamT] = transform.outTpe.asTypeOf
+
+              val typedQueryRowRepr: Expr[RowRepr[ThisParamT]] = rowRepr.expr.asExprOf[RowRepr[ThisParamT]]
+              ParseResult.success(GeneratedInputEncoder.nonConst('{ $typedQueryRowRepr.encoder.contramap[FullInputT](${ transform.convertExprF[FullInputT, ThisParamT] }) }, transform.inTpe))
           }
-        case Left(const) =>
+        case InputRepr.NonConst(inputTransformer, true) =>
+          (inputTransformer >>> input) match {
+            case TermTransformer.Die => ParseResult.error(input.fullTerm, "Expected to not call input transform?")
+            case TermTransformer.Id  =>
+              ParseResult.success(GeneratedInputEncoder.nonConst('{ ${ rowRepr.expr }.encoder.optional }, input.inTpe))
+            case transform: TermTransformer.Transform =>
+              type FullInputT
+              type ThisParamT
+              given Type[FullInputT] = transform.inTpe.asTypeOf
+              given Type[ThisParamT] = transform.outTpe.asTypeOf
+
+              val enc1: Expr[InputEncoder[ThisParamT]] = '{ InputEncoder.isNullEncoder }.asExprOf[InputEncoder[ThisParamT]]
+              val enc2: Expr[InputEncoder[ThisParamT]] = '{ ${ rowRepr.expr }.encoder.optional }.asExprOf[InputEncoder[ThisParamT]]
+              val combinedInc: Expr[InputEncoder[ThisParamT]] = '{ $enc1 ~ $enc2 }
+
+              ParseResult.success(
+                GeneratedInputEncoder.nonConst('{ $combinedInc.contramap[FullInputT](${ transform.convertExprF[FullInputT, ThisParamT] }) }, transform.inTpe),
+              )
+          }
+        case InputRepr.Const(const) =>
           type A
           given Type[A] = const.tpe.widen.asTypeOf
           val typedQueryRowRepr: Expr[RowRepr[A]] = rowRepr.expr.asExprOf[RowRepr[A]]
@@ -253,12 +309,14 @@ final case class FragmentBuilder(inputs: List[InputPart])(using Quotes) {
       valuesFrag,
     )
 
-  def setPart(s: SetPart.SetExpr)(using ParseContext, Quotes): ParseResult[GeneratedFragment] = {
+  def setPart(s: SetPart.SetExpr)(using ParseContext, GenerationContext, Quotes): ParseResult[GeneratedFragment] = {
     val rowRepr: TypeclassExpr.RowRepr = s.fieldToSetExpr.rowRepr
     val lhsParts: Expr[ArraySeq[String]] = rowRepr.columns.exprSeqNames
 
     val rhsParts: ParseResult[(Expr[ArraySeq[String]], GeneratedInputEncoder)] =
       s.setValueExpr match {
+        case input: QueryExpr.UnaryInput if input.isOptional =>
+          report.errorAndAbort("You can not use an optional input in a set expression")
         case input: QueryExpr.ConstOrUnaryInput =>
           constOrInputToEncoder(input, rowRepr).map((rowRepr.columns.exprSeqQMark, _))
         case query: QueryExpr.UnaryQuery =>
@@ -285,7 +343,7 @@ final case class FragmentBuilder(inputs: List[InputPart])(using Quotes) {
     }
   }
 
-  def set(s: SetPart)(using ParseContext, Quotes): ParseResult[GeneratedFragment] =
+  def set(s: SetPart)(using ParseContext, GenerationContext, Quotes): ParseResult[GeneratedFragment] =
     for {
       partsFrag <- s.setExprs.toList.traverse(setPart).map { res => GeneratedFragment.flatten(res.intersperse(GeneratedFragment.sql(",\n        "))) }
     } yield GeneratedFragment.of(

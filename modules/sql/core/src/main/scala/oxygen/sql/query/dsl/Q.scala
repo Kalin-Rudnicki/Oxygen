@@ -8,7 +8,7 @@ object Q {
 
   object input {
     def apply[I]: T.Input[I] = macroOnly
-    // TODO (KR) : def option[A]: T.OptionalInput[I] = macroOnly
+    def optional[I]: T.OptionalInput[I] = macroOnly
     def const[I](i: I): T.ConstInput[I] = macroOnly
   }
 

@@ -104,6 +104,11 @@ private[generic] object QueryExpr extends Parser[RawQueryExpr, QueryExpr] {
     def inTpe: TypeRepr
     def outTpe: TypeRepr
     override val queryRef: QueryParam.InputLike
+
+    final def isOptional: Boolean = queryRef match
+      case _: QueryParam.OptionalInputParam => true
+      case _                                => false
+
   }
   object UnaryInput {
 

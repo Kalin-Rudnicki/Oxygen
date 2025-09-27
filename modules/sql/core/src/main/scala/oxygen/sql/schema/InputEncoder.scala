@@ -21,6 +21,8 @@ trait InputEncoder[-A] {
   final def ~[A2 <: A](that: InputEncoder[A2]): InputEncoder[A2] =
     InputEncoder.Zip(this, that)
 
+  final def optional: InputEncoder[Option[A]] = InputEncoder.OptionalEncoder(this)
+
 }
 object InputEncoder extends K0.Derivable[InputEncoder] {
 
@@ -100,6 +102,9 @@ object InputEncoder extends K0.Derivable[InputEncoder] {
     override val size: Int = 0
     override def unsafeEncode(writer: InputWriter, value: Any): Unit = ()
   }
+
+  val isNullEncoder: InputEncoder[Option[Any]] =
+    RowRepr.boolean.encoder.contramap[Option[Any]] { _.isEmpty }
 
   trait CustomEncoder[A] extends InputEncoder[A]
 

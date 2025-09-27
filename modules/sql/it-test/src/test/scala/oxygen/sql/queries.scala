@@ -174,6 +174,15 @@ object queries {
       _ <- offset(o)
     } yield i
 
+  @compile
+  val personSearch: QueryIO[(Option[String], Option[String]), Person] =
+    for {
+      first <- input.optional[String]
+      last <- input.optional[String]
+      p <- select[Person]
+      _ <- where if p.first == first && p.last == last
+    } yield p
+
   //////////////////////////////////////////////////////////////////////////////////////////////////////
   //      Update
   //////////////////////////////////////////////////////////////////////////////////////////////////////
