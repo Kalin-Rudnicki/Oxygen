@@ -21,6 +21,8 @@ trait InputEncoder[-A] {
   final def ~[A2 <: A](that: InputEncoder[A2]): InputEncoder[A2] =
     InputEncoder.Zip(this, that)
 
+  def toArrayElem(value: A): AnyRef = value.asInstanceOf[AnyRef]
+
   final def optional: InputEncoder[Option[A]] = InputEncoder.OptionalEncoder(this)
 
 }
@@ -72,9 +74,23 @@ object InputEncoder extends K0.Derivable[InputEncoder] {
 
   }
 
+  final case class ArraySeqEncoder[A](inner: InputEncoder[A], colType: Column.Type) extends InputEncoder[ArraySeq[A]] {
+
+    override val size: Int = inner.size
+
+    override def unsafeEncode(writer: InputWriter, value: ArraySeq[A]): Unit = {
+      writer.unsafeWriteArray(colType, value.map(inner.toArrayElem).toArray)
+    }
+
+    override def toArrayElem(value: ArraySeq[A]): AnyRef =
+      value.map(inner.toArrayElem).toArray
+
+  }
+
   final case class ContramapEncoder[A, B] private[InputEncoder] (a: InputEncoder[A], ba: B => A) extends InputEncoder[B] {
     override val size: Int = a.size
     override def unsafeEncode(writer: InputWriter, value: B): Unit = a.unsafeEncode(writer, ba(value))
+    override def toArrayElem(value: B): AnyRef = a.toArrayElem(ba(value))
   }
 
   final case class ConcatAll[A](encoders: ArraySeq[InputEncoder[A]]) extends InputEncoder[A] {

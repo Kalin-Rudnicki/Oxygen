@@ -146,7 +146,7 @@ object MigrationSpec extends OxygenSpec[Database & MigrationService] {
       MigrationRepo.layer,
     )
 
-  override def defaultLogLevel: LogLevel = LogLevel.Trace
+  // override def defaultLogLevel: LogLevel = LogLevel.Trace
 
   override def testAspects: Chunk[TestSpecAspect] = Chunk(TestAspect.withLiveRandom, TestAspect.withLiveClock)
 
