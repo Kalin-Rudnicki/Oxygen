@@ -11,6 +11,7 @@ private[generic] sealed trait QueryParam {
 
   final def show: String = this match
     case QueryParam.InputParam(param)          => param.name.greenFg.toString
+    case QueryParam.OptionalInputParam(param)  => s"optional(${param.name.greenFg})"
     case QueryParam.ConstInput(param, term, _) => s"const(${param.name.greenFg} = ${term.showAnsiCode})"
     case QueryParam.Query(param, _, _, true)   => param.name.hexFg("#7EB77F").toString
     case QueryParam.Query(param, _, _, false)  => param.name.hexFg("#FFADC6").toString
@@ -22,10 +23,26 @@ private[generic] object QueryParam {
     val param: Function.NamedParam
   }
 
+  sealed trait NonConstInput extends InputLike, TermTransformer.DeferToParam {
+    val nonConstInputType: TypeRepr
+  }
+
   final case class InputParam(
       param: Function.NamedParam,
-  ) extends InputLike,
-        TermTransformer.DeferToParam
+  ) extends NonConstInput {
+    override val nonConstInputType: TypeRepr = param.tpe
+  }
+
+  final case class OptionalInputParam(
+      param: Function.NamedParam,
+  ) extends NonConstInput {
+    override val nonConstInputType: TypeRepr = {
+      given Quotes = param.tpe.quotes
+      type T
+      given Type[T] = param.tpe.asTypeOf
+      TypeRepr.of[Option[T]]
+    }
+  }
 
   final case class ConstInput(
       param: Function.NamedParam,
