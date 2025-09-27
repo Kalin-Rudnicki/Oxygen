@@ -21,7 +21,7 @@ object Q {
 
     def apply[A](using t: TableRepr[A]): T.Select[A] = macroOnly
 
-    def subquery[A](q: QueryO[A]): T.Select[A] = macroOnly
+    def subquery[A](q: QueryO[A]): T.SelectSubQuery[A] = macroOnly
 
   }
 

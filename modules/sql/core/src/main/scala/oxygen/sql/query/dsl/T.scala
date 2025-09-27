@@ -45,6 +45,11 @@ object T {
     def map[B](f: A => B): QueryO[B] = macroOnly
     def flatMap[B](f: A => Ret[B]): QueryO[B] = macroOnly
   }
+  
+  final class SelectSubQuery[A] private {
+    def map[B](f: A => B): QueryO[B] = macroOnly
+    def flatMap[B](f: A => Ret[B]): QueryO[B] = macroOnly
+  }
 
   final class Update[A] private {
     def map[B](f: (A, Partial.UpdateSet[A]) => Unit)(using retTpe: RetTpe[B]): retTpe.QueryT = macroOnly
