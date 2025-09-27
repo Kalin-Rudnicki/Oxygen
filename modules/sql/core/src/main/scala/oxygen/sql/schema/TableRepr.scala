@@ -18,8 +18,10 @@ trait TableRepr[A] {
   val pk: TableRepr.Partial[A, PrimaryKeyT]
   val npk: TableRepr.Partial[A, NonPrimaryKeyT]
   val foreignKeys: ArraySeq[ForeignKeyRepr[A, ?]]
+  val indices: ArraySeq[IndexRepr[A]]
 
   final lazy val builtForeignKeys: ArraySeq[ForeignKeyRepr.Built] = foreignKeys.map(_.built(this))
+  final lazy val builtIndices: ArraySeq[IndexRepr.Built] = indices.map(_.built(this))
 
   val ref: String
 
@@ -43,6 +45,7 @@ object TableRepr {
       pk: TableRepr.Partial[A, PK],
       npk: TableRepr.Partial[A, NPK],
       foreignKeys: ArraySeq[ForeignKeyRepr[A, ?]],
+      indices: ArraySeq[IndexRepr[A]],
   ) extends Typed[A, PK, NPK] {
 
     override val ref: String = s"$schemaName.$tableName"

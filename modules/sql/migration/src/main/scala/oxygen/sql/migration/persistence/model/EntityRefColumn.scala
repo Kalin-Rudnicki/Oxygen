@@ -25,4 +25,10 @@ object EntityRefColumn {
       fkName: String,
   ) derives JsonCodec
 
+  final case class IndexRef(
+      schema: String,
+      table: String,
+      idxName: String,
+  ) derives JsonCodec
+
 }

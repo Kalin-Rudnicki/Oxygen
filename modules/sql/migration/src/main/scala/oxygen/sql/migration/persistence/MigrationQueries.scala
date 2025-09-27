@@ -68,6 +68,23 @@ object MigrationQueries {
           s"""ALTER TABLE ${fkRef.table}
              |    DROP CONSTRAINT ${fkRef.fkName}""".stripMargin,
         )
+      case AlterIndex.CreateIndex(idx) =>
+        val idxType = if (idx.unique) "UNIQUE INDEX" else "INDEX"
+        Query.simple("Create Index", QueryContext.QueryType.Migrate)(
+          s"CREATE $idxType ${idx.idxName} ON ${idx.self} (${idx.columns.mkString(", ")})",
+        )
+      case AlterIndex.RenameExplicitlyNamedIndex(idxRef, newName) =>
+        Query.simple("Rename Index (explicit)", QueryContext.QueryType.Migrate)(
+          s"ALTER INDEX ${idxRef.idxName} RENAME TO $newName",
+        )
+      case AlterIndex.RenameAutoNamedIndex(idxRef, newName) =>
+        Query.simple("Rename Index (auto)", QueryContext.QueryType.Migrate)(
+          s"ALTER INDEX ${idxRef.idxName} RENAME TO $newName",
+        )
+      case AlterIndex.DropIndex(idxRef) =>
+        Query.simple("Drop Index", QueryContext.QueryType.Migrate)(
+          s"DROP INDEX ${idxRef.idxName}",
+        )
     }
 
   //////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -89,6 +106,7 @@ object MigrationQueries {
           s"PRIMARY KEY (${table.primaryKeyColumns.map(_.name).mkString(", ")})"
         },
         // not adding FKs here because then you need to worry about ordering...
+        // also, apparently indices need to be created as separate queries
       ).flatten
 
     val internalString: String =

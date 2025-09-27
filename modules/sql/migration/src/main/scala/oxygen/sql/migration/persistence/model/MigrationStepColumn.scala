@@ -56,4 +56,18 @@ object MigrationStepColumn {
     final case class DropForeignKey(fkRef: ForeignKeyRef) extends AlterForeignKey
 
   }
+
+  sealed trait AlterIndex extends StateDiff
+  object AlterIndex {
+
+    final case class CreateIndex(idx: IndexColumn) extends AlterIndex
+
+    final case class RenameExplicitlyNamedIndex(idxRef: IndexRef, newName: String) extends AlterIndex
+
+    final case class RenameAutoNamedIndex(idxRef: IndexRef, newName: String) extends AlterIndex
+
+    final case class DropIndex(idxRef: IndexRef) extends AlterIndex
+
+  }
+
 }

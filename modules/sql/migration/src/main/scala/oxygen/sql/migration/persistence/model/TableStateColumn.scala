@@ -8,4 +8,5 @@ final case class TableStateColumn(
     primaryKeyColumns: Set[String],
     columns: ArraySeq[ColumnColumn],
     foreignKeys: Option[ArraySeq[MigrationForeignKeyColumn]],
+    indices: Option[ArraySeq[IndexColumn]],
 ) derives JsonCodec

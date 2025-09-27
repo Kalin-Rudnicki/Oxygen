@@ -57,14 +57,36 @@ object MigrationSpec extends OxygenSpec[Database & MigrationService] {
   )
   object ModelB2 extends TableCompanion[ModelB2, Int](TableRepr.derived[ModelB2])
 
+  @tableName("model_c") @index.unique[ModelC1](_.i3, _.i4)
+  final case class ModelC1(
+      @primaryKey id: Int,
+      aId: Option[Int],
+      @indexed.unique i1: Int,
+      i2: Int,
+      i3: Int,
+      i4: Int,
+  )
+  object ModelC1 extends TableCompanion[ModelC1, Int](TableRepr.derived[ModelC1])
+
+  @tableName("model_c") @index[ModelC2](_.i1, _.i2)
+  final case class ModelC2(
+      @primaryKey id: Int,
+      aId: Option[Int],
+      i1: Int,
+      i2: Int,
+      @indexed i3: Int,
+      i4: Int,
+  )
+  object ModelC2 extends TableCompanion[ModelC2, Int](TableRepr.derived[ModelC2])
+
   override def testSpec: TestSpec =
     suite("MigrationSpec")(
       test("simple migration works") {
         for {
           err1 <- ModelA1.selectAll.execute().arraySeq.exit
           migration1 = PlannedMigration.auto(1)(ModelA1.tableRepr, ModelB1.tableRepr)
-          migration2 = PlannedMigration.auto(2)(ModelA2.tableRepr, ModelB2.tableRepr)
-          migration3 = PlannedMigration.auto(3)(ModelA2.tableRepr, ModelB1.tableRepr)
+          migration2 = PlannedMigration.auto(2)(ModelA2.tableRepr, ModelB2.tableRepr, ModelC1.tableRepr)
+          migration3 = PlannedMigration.auto(3)(ModelA2.tableRepr, ModelB1.tableRepr, ModelC2.tableRepr)
 
           exe1 <- MigrationService.migrate(Migrations(migration1))
           err2 <- MigrationService.migrate(Migrations()).exit

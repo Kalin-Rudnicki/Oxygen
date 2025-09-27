@@ -12,6 +12,7 @@ final case class TableState private[migration] (
     primaryKeyColumns: ArraySeq[Column],
     columns: ArraySeq[Column],
     foreignKeys: ArraySeq[ForeignKeyState],
+    indices: ArraySeq[IndexState],
 ) derives Show {
 
   val pkColNames: Set[String] = primaryKeyColumns.map(_.name).toSet
@@ -38,6 +39,7 @@ object TableState {
         repr.pk.rowRepr.columns.columns,
         cols,
         repr.builtForeignKeys.map(ForeignKeyState.fromRepr),
+        repr.builtIndices.map(IndexState.fromRepr),
       ).asRight
   }
 
