@@ -14,10 +14,10 @@ final class DecoderBuilder {
     queryExpr match {
       case input: QueryExpr.UnaryInput            => ParseResult.error(input.fullTerm, "no query reference to compare input to")
       case input: QueryExpr.ConstValue            => ParseResult.error(input.fullTerm, "no query reference to compare input to")
-      case query: QueryExpr.UnaryQuery            => ParseResult.success(GeneratedResultDecoder.single('{ ${ query.rowRepr.expr }.decoder }, query.fullTerm.tpe.widen))
-      case QueryExpr.Static(fullTerm, _, rowRepr) => ParseResult.success(GeneratedResultDecoder.single('{ ${ rowRepr.expr }.decoder }, fullTerm.tpe.widen))
-      case _: QueryExpr.BinaryAndOr               => ParseResult.success(GeneratedResultDecoder.single('{ RowRepr.boolean.decoder }, TypeRepr.of[Boolean]))
-      case _: QueryExpr.BinaryComp                => ParseResult.success(GeneratedResultDecoder.single('{ RowRepr.boolean.decoder }, TypeRepr.of[Boolean]))
+      case query: QueryExpr.UnaryQuery            => ParseResult.success(GeneratedResultDecoder.single(query.rowRepr.resultDecoder, query.fullTerm.tpe.widen))
+      case QueryExpr.Static(fullTerm, _, rowRepr) => ParseResult.success(GeneratedResultDecoder.single(rowRepr.resultDecoder, fullTerm.tpe.widen))
+      case _: QueryExpr.BinaryAndOr               => ParseResult.success(GeneratedResultDecoder.single(TypeclassExpr.RowRepr.boolean.resultDecoder, TypeRepr.of[Boolean]))
+      case _: QueryExpr.BinaryComp                => ParseResult.success(GeneratedResultDecoder.single(TypeclassExpr.RowRepr.boolean.resultDecoder, TypeRepr.of[Boolean]))
     }
 
   def ret(r: ReturningPart)(using ParseContext, Quotes): ParseResult[GeneratedResultDecoder] =
