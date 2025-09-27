@@ -15,13 +15,17 @@ sealed trait StateDiff { self: StateDiff.CoreType =>
     case _: AlterColumn.CreateColumn                        => 5
     case _: AlterColumn.RenameColumn                        => 6
     case _: AlterForeignKey.DropForeignKey                  => 7
-    case _: AlterForeignKey.RenameExplicitlyNamedForeignKey => 8
-    case _: AlterForeignKey.RenameAutoNamedForeignKey       => 9
-    case _: AlterForeignKey.CreateForeignKey                => 10
-    case _: AlterColumn.SetNullable                         => 11
-    case _: AlterColumn.DropColumn                          => 12
-    case _: AlterTable.DropTable                            => 13
-    case _: AlterSchema.DropSchema                          => 14
+    case _: AlterIndex.DropIndex                            => 8
+    case _: AlterIndex.RenameExplicitlyNamedIndex           => 9
+    case _: AlterIndex.RenameAutoNamedIndex                 => 10
+    case _: AlterIndex.CreateIndex                          => 11
+    case _: AlterForeignKey.RenameExplicitlyNamedForeignKey => 12
+    case _: AlterForeignKey.RenameAutoNamedForeignKey       => 13
+    case _: AlterForeignKey.CreateForeignKey                => 14
+    case _: AlterColumn.SetNullable                         => 15
+    case _: AlterColumn.DropColumn                          => 16
+    case _: AlterTable.DropTable                            => 17
+    case _: AlterSchema.DropSchema                          => 18
 
   // TODO (KR) : improve
   final def toIndentedString: IndentedString = this.toString
@@ -177,6 +181,23 @@ object StateDiff {
     final case class RenameAutoNamedForeignKey(fkRef: ForeignKeyRef, newName: String) extends AlterForeignKey, CanOnlyBeDerived, DerivationPhase.Phase3
 
     final case class DropForeignKey(fkRef: ForeignKeyRef) extends AlterForeignKey, CanBeSpecifiedAndDerived, DerivationPhase.Phase2
+
+  }
+
+  sealed trait AlterIndex extends StateDiff { self: CoreType =>
+    val idxRef: IndexRef
+  }
+  object AlterIndex {
+
+    final case class CreateIndex(idx: IndexState) extends AlterIndex, CanBeSpecifiedAndDerived, DerivationPhase.Phase2 {
+      override val idxRef: IndexRef = idx.ref
+    }
+
+    final case class RenameExplicitlyNamedIndex(idxRef: IndexRef, newName: String) extends AlterIndex, CanOnlyBeSpecified
+
+    final case class RenameAutoNamedIndex(idxRef: IndexRef, newName: String) extends AlterIndex, CanOnlyBeDerived, DerivationPhase.Phase3
+
+    final case class DropIndex(idxRef: IndexRef) extends AlterIndex, CanBeSpecifiedAndDerived, DerivationPhase.Phase2
 
   }
 

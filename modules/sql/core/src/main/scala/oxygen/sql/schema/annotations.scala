@@ -41,3 +41,13 @@ final case class primaryKey() extends StaticAnnotation derives FromExprT
 
 final case class references[References]() extends StaticAnnotation
 final class foreignKey[Current, References](refs: (Current => Any, References => Any)*) extends StaticAnnotation
+
+class indexed extends StaticAnnotation
+object indexed {
+  class unique extends indexed
+}
+
+class index[Current](cols: (Current => Any)*) extends StaticAnnotation
+object index {
+  class unique[Current](cols: (Current => Any)*) extends index[Current](cols*)
+}

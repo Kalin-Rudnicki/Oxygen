@@ -17,8 +17,9 @@ object MigrationPlanner {
       all = (p1 ++ p2).flatMap {
         case StateDiff.AlterTable.CreateTable(table) =>
           // this is done to avoid having to worry about what order tables are created in, and so forth
-          Growable.single(StateDiff.AlterTable.CreateTable(table.copy(foreignKeys = ArraySeq.empty))) ++
-            Growable.many(table.foreignKeys).map(StateDiff.AlterForeignKey.CreateForeignKey(_))
+          Growable.single(StateDiff.AlterTable.CreateTable(table.copy(foreignKeys = ArraySeq.empty, indices = ArraySeq.empty))) ++
+            Growable.many(table.foreignKeys).map(StateDiff.AlterForeignKey.CreateForeignKey(_)) ++
+            Growable.many(table.indices).map(StateDiff.AlterIndex.CreateIndex(_))
         case s => Growable.single(s)
       }
     } yield all.toArraySeq.sortBy(_.applicationOrder)

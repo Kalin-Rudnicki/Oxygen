@@ -23,6 +23,10 @@ object domainToDb {
     def toDb: EntityRefColumn.ForeignKeyRef =
       EntityRefColumn.ForeignKeyRef(self.table.schema.schemaName, self.table.tableName, self.fkName)
 
+  extension (self: EntityRef.IndexRef)
+    def toDb: EntityRefColumn.IndexRef =
+      EntityRefColumn.IndexRef(self.table.schema.schemaName, self.table.tableName, self.idxName)
+
   extension (self: Column)
     def toDb: ColumnColumn =
       ColumnColumn(
@@ -55,6 +59,7 @@ object domainToDb {
         primaryKeyColumns = self.primaryKeyColumns.iterator.map(_.name).toSet,
         columns = self.columns.map(_.toDb),
         foreignKeys = self.foreignKeys.map(_.toDb).some,
+        indices = self.indices.map(_.toDb).some,
       )
 
   extension (self: StateDiff)
@@ -73,6 +78,10 @@ object domainToDb {
       case StateDiff.AlterForeignKey.RenameExplicitlyNamedForeignKey(fkRef, newName) => MigrationStepColumn.AlterForeignKey.RenameExplicitlyNamedForeignKey(fkRef.toDb, newName)
       case StateDiff.AlterForeignKey.RenameAutoNamedForeignKey(fkRef, newName)       => MigrationStepColumn.AlterForeignKey.RenameAutoNamedForeignKey(fkRef.toDb, newName)
       case StateDiff.AlterForeignKey.DropForeignKey(fkRef)                           => MigrationStepColumn.AlterForeignKey.DropForeignKey(fkRef.toDb)
+      case StateDiff.AlterIndex.CreateIndex(idx)                                     => MigrationStepColumn.AlterIndex.CreateIndex(idx.toDb)
+      case StateDiff.AlterIndex.RenameExplicitlyNamedIndex(idxRef, newName)          => MigrationStepColumn.AlterIndex.RenameExplicitlyNamedIndex(idxRef.toDb, newName)
+      case StateDiff.AlterIndex.RenameAutoNamedIndex(idxRef, newName)                => MigrationStepColumn.AlterIndex.RenameAutoNamedIndex(idxRef.toDb, newName)
+      case StateDiff.AlterIndex.DropIndex(idxRef)                                    => MigrationStepColumn.AlterIndex.DropIndex(idxRef.toDb)
 
   extension (self: ForeignKeyState.Pair)
     def toDb: MigrationForeignKeyColumn.Pair =
@@ -89,6 +98,16 @@ object domainToDb {
         self = self.self.toDb,
         references = self.references.toDb,
         columnPairs = self.columnPairs.map(_.toDb),
+      )
+
+  extension (self: IndexState)
+    def toDb: IndexColumn =
+      IndexColumn(
+        idxName = self.idxName,
+        idxNameIsExplicit = self.explicitIdxName.nonEmpty,
+        self = self.self.toDb,
+        unique = self.unique,
+        columns = self.columns,
       )
 
 }

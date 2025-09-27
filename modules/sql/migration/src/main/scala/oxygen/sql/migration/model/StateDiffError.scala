@@ -52,11 +52,13 @@ object StateDiffError {
     case object AlreadyExists extends Cause
     case object InvalidPrimaryKeyAlteration extends Cause
     case object InvalidForeignKeyAlteration extends Cause
+    case object InvalidIndexAlteration extends Cause
     case object NullabilityNotChanged extends Cause
     case object SameNameDifferentType extends Cause
     case object NonDistinctColumnNames extends Cause
     case object ModificationToPublicSchema extends Cause
     case object CreateTableWithFK extends Cause
+    case object CreateTableWithIdx extends Cause
     final case class TableStillInSchema(table: EntityRef.TableRef) extends Cause
   }
 

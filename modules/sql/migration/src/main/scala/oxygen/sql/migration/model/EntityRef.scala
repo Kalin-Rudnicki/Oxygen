@@ -41,4 +41,12 @@ object EntityRef {
     given Ordering[ForeignKeyRef] = Ordering.by(r => (r.table, r.fkName))
   }
 
+  final case class IndexRef(table: TableRef, idxName: String) extends EntityRef derives Show {
+    override def toString: String = s"$table ($idxName)"
+  }
+  object IndexRef {
+    def apply(schemaName: String, tableName: String, idxName: String): IndexRef = new IndexRef(TableRef(schemaName, tableName), idxName)
+    given Ordering[IndexRef] = Ordering.by(r => (r.table, r.idxName))
+  }
+
 }

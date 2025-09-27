@@ -79,9 +79,13 @@ object StateDiffer {
     ): Either[DiffError, Growable[StateDiff.CanBeDerived & StateDiff.DerivationPhase.Phase2]] =
       for {
         diffs1 <- Growable.many(Ior.zippedMapIterator(current.tables, target.tables).map(_._2).toSeq).traverse {
-          case Ior.Both(current, target) => foreignKeyDiffs(current, target)
-          case Ior.Left(_)               => Growable.empty.asRight
-          case Ior.Right(_)              => Growable.empty.asRight
+          case Ior.Both(current, target) =>
+            for {
+              a <- foreignKeyDiffs(current, target)
+              b <- indexDiffs(current, target)
+            } yield a ++ b
+          case Ior.Left(_)  => Growable.empty.asRight
+          case Ior.Right(_) => Growable.empty.asRight
         }
       } yield diffs1.flatten
 
@@ -106,6 +110,27 @@ object StateDiffer {
         .map(_.flatten)
     }
 
+    private def indexDiffs(
+        current: TableState,
+        target: TableState,
+    ): Either[DiffError, Growable[StateDiff.CanBeDerived & StateDiff.DerivationPhase.Phase2 & StateDiff.AlterIndex]] = {
+      val currentIdxMap = current.indices.map { idx => (idx.idxName, idx) }.toMap
+      val targetIdxMap = target.indices.map { idx => (idx.idxName, idx) }.toMap
+
+      Growable
+        .many(Ior.zippedMapIterator(currentIdxMap, targetIdxMap).map(_._2).toSeq)
+        .traverse {
+          case Ior.Both(currentIdx, targetIdx) =>
+            if (currentIdx == targetIdx) Growable.empty.asRight
+            else DiffError(currentIdx.ref, InvalidIndexAlteration).asLeft
+          case Ior.Left(currentIdx) =>
+            Growable.single(StateDiff.AlterIndex.DropIndex(currentIdx.ref)).asRight
+          case Ior.Right(targetIdx) =>
+            Growable.single(StateDiff.AlterIndex.CreateIndex(targetIdx)).asRight
+        }
+        .map(_.flatten)
+    }
+
   }
 
   object phase3 {
@@ -116,7 +141,8 @@ object StateDiffer {
     ): Either[DiffError, Growable[StateDiff.CanBeDerived & StateDiff.DerivationPhase.Phase3]] =
       for {
         diffs1 <- Growable.many(current.tables.values).traverse(foreignKeyDiffs(_, specified))
-      } yield diffs1.flatten
+        diffs2 <- Growable.many(current.tables.values).traverse(indexDiffs(_, specified))
+      } yield diffs1.flatten ++ diffs2.flatten
 
     private def foreignKeyDiffs(
         current: TableState,
@@ -135,10 +161,36 @@ object StateDiffer {
             case StateDiff.AlterTable.RenameTable(tableRef, newName)          => current.renameTable(tableRef, newName).autoRef
             case StateDiff.AlterColumn.RenameColumn(columnRef, newName)       => current.renameColumn(columnRef, newName).autoRef
             case _: StateDiff.AlterForeignKey.RenameExplicitlyNamedForeignKey => current.autoRef
+            case _: StateDiff.AlterIndex.RenameExplicitlyNamedIndex           => current.autoRef
           }
 
         if (newAutoRef == current.autoRef) Growable.empty.asRight
         else Growable.single(StateDiff.AlterForeignKey.RenameAutoNamedForeignKey(current.ref, newAutoRef.autoFKName)).asRight
+      } else
+        Growable.empty.asRight
+
+    private def indexDiffs(
+        current: TableState,
+        specified: StateDiff.CanOnlyBeSpecified,
+    ): Either[DiffError, Growable[StateDiff.CanBeDerived & StateDiff.DerivationPhase.Phase3 & StateDiff.AlterIndex]] =
+      Growable.many(current.indices).traverse(indexDiffs(_, specified)).map(_.flatten)
+
+    private def indexDiffs(
+        current: IndexState,
+        specified: StateDiff.CanOnlyBeSpecified,
+    ): Either[DiffError, Growable[StateDiff.CanBeDerived & StateDiff.DerivationPhase.Phase3 & StateDiff.AlterIndex]] =
+      if (current.explicitIdxName.isEmpty) {
+        val newAutoRef: IndexState.AutoRef =
+          specified match {
+            case StateDiff.AlterSchema.RenameSchema(schemaRef, newName)       => current.renameSchema(schemaRef, newName).autoRef
+            case StateDiff.AlterTable.RenameTable(tableRef, newName)          => current.renameTable(tableRef, newName).autoRef
+            case StateDiff.AlterColumn.RenameColumn(columnRef, newName)       => current.renameColumn(columnRef, newName).autoRef
+            case _: StateDiff.AlterForeignKey.RenameExplicitlyNamedForeignKey => current.autoRef
+            case _: StateDiff.AlterIndex.RenameExplicitlyNamedIndex           => current.autoRef
+          }
+
+        if (newAutoRef == current.autoRef) Growable.empty.asRight
+        else Growable.single(StateDiff.AlterIndex.RenameAutoNamedIndex(current.ref, newAutoRef.autoIdxName)).asRight
       } else
         Growable.empty.asRight
 
