@@ -92,6 +92,15 @@ object TableCompanionQuerySpec extends OxygenSpec[Database] {
           res1 <- Person.selectByPK.execute(p1.id).single
         } yield assert(err1)(fails(anything)) && assertTrue(res1 == p2)
       },
+      test("works for arrays") {
+        val v1 = Arrays(Nil, Set.empty, Nil, None)
+        val v2 = Arrays(Nil, Set.empty, Nil, ArraySeq.empty[String].some)
+        val v3 = Arrays(List(1, 2, 3), Set("D", "E", "F"), List(List(true, true, true), List(false, false, false), List(true, false, true)), ArraySeq("G", "H", "I").some)
+        for {
+          _ <- Arrays.insert.all(v1, v2, v3).unit
+          res1 <- Arrays.selectAll.execute().to[Set]
+        } yield assertTrue(res1 == Set(v1, v2, v3))
+      },
     )
 
   override def testAspects: Chunk[TableCompanionQuerySpec.TestSpecAspect] = Chunk(TestAspect.nondeterministic, TestAspect.withLiveClock)
@@ -104,7 +113,7 @@ object TableCompanionQuerySpec extends OxygenSpec[Database] {
       MigrationConfig.defaultLayer,
       MigrationService.migrateLayer(
         Migrations(
-          PlannedMigration.auto(1)(Person.tableRepr, Note.tableRepr, Ints.tableRepr, MultiPK1.tableRepr, MultiPK2.tableRepr),
+          PlannedMigration.auto(1)(Person.tableRepr, Note.tableRepr, Ints.tableRepr, MultiPK1.tableRepr, MultiPK2.tableRepr, Arrays.tableRepr),
         ),
       ),
       Atomically.LiveDB.layer,

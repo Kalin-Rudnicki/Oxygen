@@ -79,6 +79,14 @@ final case class Ints(
 )
 object Ints extends TableCompanion[Ints, Unit](TableRepr.derived[Ints])
 
+final case class Arrays(
+    _1: List[Int],
+    _2: Set[String],
+    _3: List[List[Boolean]],
+    _4: Option[ArraySeq[String]],
+)
+object Arrays extends TableCompanion[Arrays, Unit](TableRepr.derived[Arrays])
+
 @experimental
 object queries {
 

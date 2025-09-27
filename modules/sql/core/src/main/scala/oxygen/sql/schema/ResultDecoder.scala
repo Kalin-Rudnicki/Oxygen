@@ -93,6 +93,23 @@ object ResultDecoder extends K0.Derivable[ResultDecoder] {
 
   }
 
+  final case class ArraySeqDecoder[A](inner: ResultDecoder[A]) extends ResultDecoder[ArraySeq[A]] {
+
+    override val size: Int = inner.size
+
+    override def __decodeInternal(offset: Int, values: ArraySeq[Matchable]): Either[QueryError.UnableToDecodeRow, ArraySeq[A]] = {
+      val innerArray: Array[Any] = values(offset) match
+        case arr: java.sql.Array => arr.getArray.asInstanceOf[Array[Any]]
+        case arr: Array[Any]     => arr
+        case res                 => throw new RuntimeException(s"not an sql arr: $res")
+
+      val typedArray: ArraySeq[Matchable] = ArraySeq.unsafeWrapArray(innerArray).asInstanceOf[ArraySeq[Matchable]]
+
+      ArraySeq.from(typedArray.indices).traverse(inner.__decodeInternal(_, typedArray))
+    }
+
+  }
+
   final case class WithColumns[A](inner: ResultDecoder[A], columns: Columns[A]) extends ResultDecoder[A] {
     override val size: Int = inner.size
     override def __decodeInternal(offset: Int, values: ArraySeq[Matchable]): Either[QueryError.UnableToDecodeRow, A] =

@@ -51,6 +51,7 @@ object domainToDb {
       case Column.Type.UUID            => ColumnColumn.Type.UUID
       case Column.Type.Json            => ColumnColumn.Type.Json
       case Column.Type.Jsonb           => ColumnColumn.Type.Jsonb
+      case Column.Type.Array(elemType) => ColumnColumn.Type.Array(elemType.toDb)
 
   extension (self: TableState)
     def toDb: TableStateColumn =

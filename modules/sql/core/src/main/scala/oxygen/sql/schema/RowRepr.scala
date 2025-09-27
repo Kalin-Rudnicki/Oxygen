@@ -9,6 +9,7 @@ import oxygen.predef.json.*
 import oxygen.sql.error.*
 import oxygen.sql.generic.typeclass.*
 import scala.quoted.*
+import scala.reflect.ClassTag
 
 trait RowRepr[A] {
 
@@ -61,7 +62,7 @@ trait RowRepr[A] {
     case self                        => throw QueryError.DSLError.NotAnOptionSchema(self)
 
 }
-object RowRepr {
+object RowRepr extends RowReprLowPriority.LowPriority1 {
 
   inline def apply[A](using ev: RowRepr[A]): RowRepr[A] = ev
 
@@ -100,6 +101,28 @@ object RowRepr {
     override def prefixed(prefix: String): RowRepr[Option[A]] = OptionalRepr(inner.prefixed(prefix))
 
     override def prefixedInline(prefix: String): RowRepr[Option[A]] = OptionalRepr(inner.prefixedInline(prefix))
+
+  }
+
+  final case class ArrayRepr[A](inner: RowRepr[A]) extends RowRepr[ArraySeq[A]] {
+
+    private val innerColumn: Column =
+      inner.columns.columns.toList match
+        case head :: Nil if head.nullable => throw new RuntimeException(s"not allowed: array of nullable column -\n\n$head")
+        case head :: Nil                  => head
+        case _                            => throw new RuntimeException(s"not allowed: array of aggregate columns -\n\n${inner.columns.columns.mkString("\n\n")}")
+
+    override val columns: Columns[ArraySeq[A]] = Columns(ArraySeq(Column(innerColumn.name, Column.Type.Array(innerColumn.columnType), false)))
+
+    override val decoder: ResultDecoder[ArraySeq[A]] =
+      ResultDecoder.ArraySeqDecoder(inner.decoder)
+
+    override val encoder: InputEncoder[ArraySeq[A]] =
+      InputEncoder.ArraySeqEncoder(inner.encoder, innerColumn.columnType)
+
+    override def prefixed(prefix: String): RowRepr[ArraySeq[A]] = ArrayRepr(inner.prefixed(prefix))
+
+    override def prefixedInline(prefix: String): RowRepr[ArraySeq[A]] = ArrayRepr(inner.prefixedInline(prefix))
 
   }
 
@@ -307,11 +330,23 @@ object RowRepr {
 
   // =====| Array Types |=====
 
-  // TODO (KR) :
+  given arraySeq: [A: RowRepr as inner] => RowRepr[ArraySeq[A]] =
+    RowRepr.ArrayRepr(inner)
 
   // =====| Other |=====
 
   given option: [A] => (inner: RowRepr[A]) => RowRepr[Option[A]] =
     RowRepr.OptionalRepr(inner)
+
+}
+
+object RowReprLowPriority {
+
+  trait LowPriority1 {
+
+    given seq: [F[_]: SeqOps as seqOps, A: {RowRepr, ClassTag}] => RowRepr[F[A]] =
+      RowRepr.arraySeq[A].transform(_.into[F], _.toArraySeq)
+
+  }
 
 }
