@@ -60,6 +60,11 @@ object T {
   //      Other Root
   //////////////////////////////////////////////////////////////////////////////////////////////////////
 
+  final class PlainLateral[A] private {
+    def map[B](f: A => B): Ret[B] = macroOnly
+    def flatMap[B](f: A => Ret[B]): Ret[B] = macroOnly
+  }
+
   final class Join[A] private {
 
     def map[B](f: A => B): Ret[B] = macroOnly

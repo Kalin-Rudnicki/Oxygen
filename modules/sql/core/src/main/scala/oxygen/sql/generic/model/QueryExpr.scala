@@ -4,6 +4,7 @@ import oxygen.predef.color.given
 import oxygen.predef.core.*
 import oxygen.quoted.*
 import oxygen.sql.generic.parsing.*
+import oxygen.sql.schema.RowRepr
 import scala.quoted.*
 
 private[generic] sealed trait QueryExpr {
@@ -24,7 +25,9 @@ private[generic] sealed trait QueryExpr {
     case QueryExpr.UnaryQuery.QueryRefIdent(_, QueryParam.Query(param, _, _, false)) => param.name.hexFg("#540D6E").toString
     case QueryExpr.UnaryQuery.ProductFieldSelect(select, inner)                      => s"${inner.show}.${select.name.cyanFg}"
     case QueryExpr.UnaryQuery.OptionGet(_, inner)                                    => s"${inner.show}.${"get".blueFg}"
+    case QueryExpr.UnaryQuery.CountWithArg(_, inner)                                 => s"${"COUNT".cyanFg}( ${inner.show} )"
     case QueryExpr.ConstValue(_, term)                                               => s"{ ${term.showCode} }".cyanFg.toString
+    case QueryExpr.Static(_, out, _)                                                 => out.cyanFg.toString
     case sel @ QueryExpr.UnaryQuery.SelectPrimaryKey(_, inner, _)                    => s"${inner.show}.${"tablePK".hexFg("#35A7FF")}(using ${sel.rowRepr.show})"
     case sel @ QueryExpr.UnaryQuery.SelectNonPrimaryKey(_, inner, _)                 => s"${inner.show}.${"tableNPK".hexFg("#35A7FF")}(using ${sel.rowRepr.show})"
     case QueryExpr.BinaryAndOr(_, lhs, op, rhs)                                      => s"${lhs.showWrapAndOr} ${op.show} ${rhs.showWrapAndOr}"
@@ -57,6 +60,7 @@ private[generic] object QueryExpr extends Parser[RawQueryExpr, QueryExpr] {
             case inner: QueryExpr.UnaryQuery.CanNotSelect => ParseResult.error(inner.fullTerm, "select not allowed")
             case inner: QueryExpr.UnaryInput.CanNotSelect => ParseResult.error(inner.fullTerm, "select not allowed")
             case inner: QueryExpr.ConstValue              => ParseResult.error(inner.fullTerm, "select not allowed")
+            case inner: QueryExpr.Static                  => ParseResult.error(inner.fullTerm, "select not allowed")
           }
         case RawQueryExpr.OptionGet(select, inner) =>
           parse(inner).flatMap {
@@ -64,6 +68,7 @@ private[generic] object QueryExpr extends Parser[RawQueryExpr, QueryExpr] {
             case inner: QueryExpr.UnaryQuery.CanNotSelect => ParseResult.error(inner.fullTerm, "select not allowed")
             case _: QueryExpr.UnaryInput                  => ParseResult.error(select, "not supported: `Option.get` on input")
             case _: QueryExpr.ConstValue                  => ParseResult.error(select, "not supported: `Option.get` on const value")
+            case inner: QueryExpr.Static                  => ParseResult.error(inner.fullTerm, "not supported: `Option.get` on static output")
           }
         case RawQueryExpr.SelectPrimaryKey(apply, inner, givenTableRepr) =>
           parse(inner).flatMap {
@@ -72,6 +77,7 @@ private[generic] object QueryExpr extends Parser[RawQueryExpr, QueryExpr] {
             case inner: QueryExpr.UnaryQuery.CanNotSelect => ParseResult.error(inner.fullTerm, "select not allowed")
             case inner: QueryExpr.UnaryInput.CanNotSelect => ParseResult.error(inner.fullTerm, "select not allowed")
             case inner: QueryExpr.ConstValue              => ParseResult.error(inner.fullTerm, "select not allowed")
+            case inner: QueryExpr.Static                  => ParseResult.error(inner.fullTerm, "select not allowed")
           }
         case RawQueryExpr.SelectNonPrimaryKey(apply, inner, givenTableRepr) =>
           parse(inner).flatMap {
@@ -80,16 +86,28 @@ private[generic] object QueryExpr extends Parser[RawQueryExpr, QueryExpr] {
             case inner: QueryExpr.UnaryQuery.CanNotSelect => ParseResult.error(inner.fullTerm, "select not allowed")
             case inner: QueryExpr.UnaryInput.CanNotSelect => ParseResult.error(inner.fullTerm, "select not allowed")
             case inner: QueryExpr.ConstValue              => ParseResult.error(inner.fullTerm, "select not allowed")
+            case inner: QueryExpr.Static                  => ParseResult.error(inner.fullTerm, "select not allowed")
           }
         case RawQueryExpr.ConstValue(fullTerm, constTerm) => ParseResult.Success(QueryExpr.ConstValue(fullTerm, constTerm))
+        case RawQueryExpr.StaticCount(fullTerm, out)      => ParseResult.Success(QueryExpr.Static(fullTerm, s"COUNT($out)", TypeclassExpr.RowRepr { '{ RowRepr.int } }))
+        case RawQueryExpr.CountWithArg(fullTerm, inner)   =>
+          parse(inner).flatMap {
+            case inner: QueryExpr.UnaryQuery => ParseResult.Success(QueryExpr.UnaryQuery.CountWithArg(fullTerm, inner))
+            case inner                       => ParseResult.error(inner.fullTerm, "can only count( _ ) a unary query")
+          }
       }
 
   }
 
   type ConstOrDirectUnaryInput = ConstValue | UnaryInput.QueryRefIdent
   type ConstOrUnaryInput = ConstValue | UnaryInput
+  type NonQuery = ConstValue | UnaryInput
 
   final case class ConstValue(fullTerm: Term, constTerm: Term) extends Unary {
+    override def queryRefs: Growable[QueryParam] = Growable.empty
+  }
+
+  final case class Static(fullTerm: Term, out: String, rowRepr: TypeclassExpr.RowRepr) extends Unary {
     override def queryRefs: Growable[QueryParam] = Growable.empty
   }
 
@@ -212,6 +230,12 @@ private[generic] object QueryExpr extends Parser[RawQueryExpr, QueryExpr] {
       override def rowRepr(using Quotes): TypeclassExpr.RowRepr = givenTableRepr.npkRowRepr(fullTerm)
     }
 
+    final case class CountWithArg(fullTerm: Term, inner: UnaryQuery) extends CanNotSelect {
+      override val rootIdent: Ident = inner.rootIdent
+      override val queryRef: QueryParam.Query = inner.queryRef
+      override def rowRepr(using Quotes): TypeclassExpr.RowRepr = TypeclassExpr.RowRepr { '{ RowRepr.int } }
+    }
+
   }
 
   sealed trait Binary extends QueryExpr {
@@ -254,6 +278,9 @@ private[generic] object QueryExpr extends Parser[RawQueryExpr, QueryExpr] {
             case (lhs: UnaryQuery, rhs: ConstOrUnaryInput)    => ParseResult.Success(BinaryComp.QueryInput(term, lhs, op, rhs))
             case (lhs: ConstOrUnaryInput, rhs: UnaryQuery)    => ParseResult.Success(BinaryComp.InputQuery(term, lhs, op, rhs))
             case (_: ConstOrUnaryInput, _: ConstOrUnaryInput) => ParseResult.error(term, "can not compare 2 inputs")
+            // TODO (KR) : might want to support this...
+            case (_: Static, _) => ParseResult.error(term, "can not compare static output")
+            case (_, _: Static) => ParseResult.error(term, "can not compare static output")
           }
         } yield expr
       case RawQueryExpr.Binary(term, lhs, op: BinOp.AndOr, rhs) =>

@@ -73,6 +73,7 @@ final case class FragmentBuilder(inputs: List[InputPart])(using Quotes) {
       case input: QueryExpr.UnaryInput            => ParseResult.error(input.fullTerm, "no query reference to compare input to")
       case input: QueryExpr.ConstValue            => ParseResult.error(input.fullTerm, "no query reference to compare input to")
       case query: QueryExpr.UnaryQuery            => convertQuery(query)
+      case QueryExpr.Static(_, out, _)            => ParseResult.Success(GeneratedFragment.sql(out))
       case QueryExpr.BinaryAndOr(_, lhs, op, rhs) =>
         for {
           lhsFrag <- convert(lhs)
@@ -315,14 +316,19 @@ final case class FragmentBuilder(inputs: List[InputPart])(using Quotes) {
 
     val rhsParts: ParseResult[(Expr[ArraySeq[String]], GeneratedInputEncoder)] =
       s.setValueExpr match {
-        case input: QueryExpr.UnaryInput if input.isOptional =>
-          report.errorAndAbort("You can not use an optional input in a set expression")
         case input: QueryExpr.ConstOrUnaryInput =>
           constOrInputToEncoder(input, rowRepr).map((rowRepr.columns.exprSeqQMark, _))
         case query: QueryExpr.UnaryQuery =>
           ParseResult.success(
             (
               query.rowRepr.columns.exprSeqRefNames(query.queryRef.param.name.camelToSnake),
+              GeneratedInputEncoder.empty,
+            ),
+          )
+        case QueryExpr.Static(_, out, _) =>
+          ParseResult.success(
+            (
+              '{ ArraySeq(${ Expr(out) }) },
               GeneratedInputEncoder.empty,
             ),
           )

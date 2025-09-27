@@ -191,6 +191,40 @@ object queries {
       _ <- where if p.first == first && p.last == last
     } yield p
 
+  @compile
+  val subqueryCount: QueryIO[(Int, Int), Int] =
+    for {
+      l <- input[Int]
+      o <- input[Int]
+      i2 <- select.subquery {
+        for {
+          i1 <- select[Ints]
+          _ <- limit(l)
+          _ <- offset(o)
+        } yield i1
+      }
+    } yield count(i2)
+
+  @compile
+  val subqueryLateralCount: QueryIO[(Int, Int), (Ints, Int)] =
+    for {
+      l <- input[Int]
+      o <- input[Int]
+      i2 <- select.subquery {
+        for {
+          i1 <- select[Ints]
+          _ <- limit(l)
+          _ <- offset(o)
+        } yield i1
+      }
+      c <- lateral {
+        for {
+          i3 <- select[Ints]
+          _ <- where if i3.a == i2.a
+        } yield count(i3)
+      }
+    } yield (i2, c)
+
   //////////////////////////////////////////////////////////////////////////////////////////////////////
   //      Update
   //////////////////////////////////////////////////////////////////////////////////////////////////////
