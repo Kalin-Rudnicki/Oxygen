@@ -191,6 +191,24 @@ object queries {
       _ <- where if p.first == first && p.last == last
     } yield p
 
+  @compile
+  val personSearchCountConst: QueryIO[(Option[String], Option[String]), Long] =
+    for {
+      first <- input.optional[String]
+      last <- input.optional[String]
+      p <- select[Person]
+      _ <- where if p.first == first && p.last == last
+    } yield count.*
+
+  @compile
+  val personSearchCountNonConst: QueryIO[(Option[String], Option[String]), Long] =
+    for {
+      first <- input.optional[String]
+      last <- input.optional[String]
+      p <- select[Person]
+      _ <- where if p.first == first && p.last == last
+    } yield count(p)
+
   //////////////////////////////////////////////////////////////////////////////////////////////////////
   //      Update
   //////////////////////////////////////////////////////////////////////////////////////////////////////

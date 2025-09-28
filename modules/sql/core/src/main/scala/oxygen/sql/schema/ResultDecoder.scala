@@ -33,6 +33,8 @@ trait ResultDecoder[+A] {
     case ResultDecoder.MapOrFailDecoder(a, ab2)            => ResultDecoder.MapOrFailDecoder(a, aValue => ab2(aValue).flatMap(ab))
     case _                                                 => ResultDecoder.MapOrFailDecoder(this, ab)
 
+  final def optional: ResultDecoder[Option[A]] = ResultDecoder.OptionalDecoder(this)
+
 }
 object ResultDecoder extends K0.Derivable[ResultDecoder] {
 
@@ -78,7 +80,7 @@ object ResultDecoder extends K0.Derivable[ResultDecoder] {
 
     private[sql] def makeSimplePF[A](column: Column, decodeSingle: PartialFunction[Matchable, A]): ColumnDecoder[A] = {
       val lifted: Matchable => Option[A] = decodeSingle.lift
-      ColumnDecoder(column, lifted(_).toRight(s"Invalid type, expected: ${column.columnType}"))
+      ColumnDecoder(column, i => lifted(i).toRight(s"Invalid type (${i.getClass.getName}), expected: ${column.columnType}"))
     }
 
   }

@@ -191,11 +191,16 @@ object CustomQuerySpec extends OxygenSpec[Database] {
           res3 <- queries.personSearch.execute(None, l1.some).to[Set]
           res4 <- queries.personSearch.execute(f1.some, l1.some).to[Set]
 
+          res5 <- queries.personSearchCountConst.execute(f1.some, None).single
+          res6 <- queries.personSearchCountConst.execute(None, l1.some).single
+
         } yield assertTrue(
           res1 == Set(p1, p2, p3, p4),
           res2 == Set(p1, p2),
           res3 == Set(p1, p3),
           res4 == Set(p1),
+          res5 == 2,
+          res6 == 2,
         )
       },
     )

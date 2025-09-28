@@ -7,13 +7,22 @@ object Q {
   def const[I](i: I): I = macroOnly
 
   object input {
+
     def apply[I]: T.Input[I] = macroOnly
+
     def optional[I]: T.OptionalInput[I] = macroOnly
+
     def const[I](i: I): T.ConstInput[I] = macroOnly
+
+  }
+
+  object select {
+
+    def apply[A](using t: TableRepr[A]): T.Select[A] = macroOnly
+
   }
 
   def insert[A](using t: TableRepr[A]): T.Insert[A] = macroOnly
-  def select[A](using t: TableRepr[A]): T.Select[A] = macroOnly
   def update[A](using t: TableRepr[A]): T.Update[A] = macroOnly
   def delete[A](using t: TableRepr[A]): T.Delete[A] = macroOnly
 
@@ -28,6 +37,12 @@ object Q {
   def offset(off: Int): T.Offset = macroOnly
 
   def orderBy(parts: T.Partial.OrderByPart*): T.OrderBy = macroOnly
+
+  object count {
+    def apply[A](toCount: A): Long = macroOnly
+    def * : Long = macroOnly
+    def _1: Long = macroOnly
+  }
 
   extension [A](self: A) {
     def tablePK(using ev: TableRepr[A]): ev.PrimaryKeyT = ev.pk.get(self)

@@ -3,6 +3,7 @@ package oxygen.sql.generic.generation
 import oxygen.meta.*
 import oxygen.predef.core.*
 import oxygen.quoted.*
+import oxygen.sql.generic.model.TypeclassExpr
 import oxygen.sql.schema.InputEncoder
 import scala.quoted.*
 
@@ -29,14 +30,14 @@ final class GeneratedInputEncoder private (
           single.tpe,
           !single.isConst,
           true,
-          single.buildExpr,
+          single.buildExpr.expr,
         )
       case _ =>
         type A
         val repr = TypeRepr.contravariantJoin(many.map(_.tpe))
         given Type[A] = repr.asTypeOf
 
-        val encs: ArraySeq[Expr[InputEncoder[A]]] = many.map(_.buildExpr.asExprOf[InputEncoder[A]])
+        val encs: ArraySeq[Expr[InputEncoder[A]]] = many.map(_.buildExpr.expr.asExprOf[InputEncoder[A]])
 
         GeneratedInputEncoder.Built(
           repr,
@@ -50,7 +51,7 @@ final class GeneratedInputEncoder private (
 }
 object GeneratedInputEncoder {
 
-  private final case class Part(buildExpr: Expr[InputEncoder[?]], isConst: Boolean, tpe: TypeRepr)
+  private final case class Part(buildExpr: TypeclassExpr.InputEncoder, isConst: Boolean, tpe: TypeRepr)
 
   final case class Built(
       tpe: TypeRepr,
@@ -61,9 +62,10 @@ object GeneratedInputEncoder {
 
   val empty: GeneratedInputEncoder = GeneratedInputEncoder(Growable.empty)
 
-  def const(inputEncoder: Expr[InputEncoder[Any]])(using Quotes): GeneratedInputEncoder = GeneratedInputEncoder(Growable.single(Part(inputEncoder, true, TypeRepr.of[Any])))
+  def const(inputEncoder: TypeclassExpr.InputEncoder, constTerm: Term)(using Quotes): GeneratedInputEncoder =
+    GeneratedInputEncoder(Growable.single(Part(inputEncoder.constEncoder(constTerm), true, TypeRepr.of[Any])))
 
-  def nonConst(inputEncoder: Expr[InputEncoder[?]], tpe: TypeRepr): GeneratedInputEncoder = GeneratedInputEncoder(Growable.single(Part(inputEncoder, false, tpe)))
+  def nonConst(inputEncoder: TypeclassExpr.InputEncoder, tpe: TypeRepr): GeneratedInputEncoder = GeneratedInputEncoder(Growable.single(Part(inputEncoder, false, tpe)))
 
   def option(fragment: Option[GeneratedInputEncoder]): GeneratedInputEncoder = fragment.getOrElse(GeneratedInputEncoder.empty)
 

@@ -46,6 +46,11 @@ object T {
     def flatMap[B](f: A => Ret[B]): QueryO[B] = macroOnly
   }
 
+  final class SelectSubQuery[A] private {
+    def map[B](f: A => B): QueryO[B] = macroOnly
+    def flatMap[B](f: A => Ret[B]): QueryO[B] = macroOnly
+  }
+
   final class Update[A] private {
     def map[B](f: (A, Partial.UpdateSet[A]) => Unit)(using retTpe: RetTpe[B]): retTpe.QueryT = macroOnly
     def flatMap[B](f: (A, Partial.UpdateSet[A]) => Ret[B])(using retTpe: RetTpe[B]): retTpe.QueryT = macroOnly
@@ -59,6 +64,11 @@ object T {
   //////////////////////////////////////////////////////////////////////////////////////////////////////
   //      Other Root
   //////////////////////////////////////////////////////////////////////////////////////////////////////
+
+  final class PlainLateral[A] private {
+    def map[B](f: A => B): Ret[B] = macroOnly
+    def flatMap[B](f: A => Ret[B]): Ret[B] = macroOnly
+  }
 
   final class Join[A] private {
 
