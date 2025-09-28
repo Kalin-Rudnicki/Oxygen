@@ -3,6 +3,7 @@ package oxygen.sql.generic.generation
 import oxygen.meta.*
 import oxygen.predef.core.*
 import oxygen.quoted.*
+import oxygen.sql.generic.model.TypeclassExpr
 import oxygen.sql.generic.typeclass.*
 import oxygen.sql.schema.*
 import scala.quoted.*
@@ -28,13 +29,13 @@ final class GeneratedResultDecoder private (
         GeneratedResultDecoder.Built(
           single.tpe,
           true,
-          single.buildExpr(quotes),
+          single.buildExpr.expr,
         )
       case _ =>
         type A
         given tupGeneric: K0.ProductGeneric[A] = K0.ProductGeneric.ofTuple[A](many.map(_.tpe).toList)
         val fTpe: Type[ResultDecoder] = Type.of[ResultDecoder]
-        val instances: K0.Expressions[ResultDecoder, A] = K0.Expressions(Type.of[ResultDecoder], tupGeneric.tpe, many.map(_.toElem))
+        val instances: K0.Expressions[ResultDecoder, A] = K0.Expressions(fTpe, tupGeneric.tpe, many.map(_.toElem))
 
         GeneratedResultDecoder.Built(
           tupGeneric.typeRepr,
@@ -47,13 +48,13 @@ final class GeneratedResultDecoder private (
 }
 object GeneratedResultDecoder {
 
-  private final case class Part(buildExpr: Quotes => Expr[ResultDecoder[?]], tpe: TypeRepr) {
+  private final case class Part(buildExpr: TypeclassExpr.ResultDecoder, tpe: TypeRepr) {
 
     def toElem[A]: K0.Expressions.Elem[ResultDecoder, A] = {
       given typed: Type[A] = tpe.asTypeOf
       K0.Expressions.Elem[ResultDecoder, A](
         typed,
-        q ?=> buildExpr(q).asExprOf[ResultDecoder[A]],
+        buildExpr.expr.asExprOf[ResultDecoder[A]],
       )
     }
 
@@ -67,7 +68,7 @@ object GeneratedResultDecoder {
 
   val empty: GeneratedResultDecoder = GeneratedResultDecoder(Growable.empty)
 
-  def single(dec: Quotes ?=> Expr[ResultDecoder[?]], tpe: TypeRepr): GeneratedResultDecoder = GeneratedResultDecoder(Growable.single(Part(q => dec(using q), tpe)))
+  def single(dec: TypeclassExpr.ResultDecoder, tpe: TypeRepr): GeneratedResultDecoder = GeneratedResultDecoder(Growable.single(Part(dec, tpe)))
 
   def flatten[S[_]: SeqOps](all: S[GeneratedResultDecoder]): GeneratedResultDecoder = GeneratedResultDecoder(Growable.manyFlatMapped(all)(_.parts))
 

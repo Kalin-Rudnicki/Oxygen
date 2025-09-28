@@ -22,6 +22,8 @@ private[generic] sealed trait RawQueryExpr {
   final def show: String = this match {
     case RawQueryExpr.QueryRefIdent(_, ref)                         => ref.show
     case RawQueryExpr.ConstValue(_, term)                           => s"{ ${term.showCode} }".cyanFg.toString
+    case RawQueryExpr.StaticCount(_, out)                           => s"${"COUNT".cyanFg}( ${out.magentaFg} )"
+    case RawQueryExpr.CountWithArg(_, inner)                        => s"${"COUNT".cyanFg}( ${inner.show} )"
     case RawQueryExpr.ProductField(select, inner)                   => s"${inner.show}.${select.name.magentaFg}"
     case RawQueryExpr.OptionGet(_, inner)                           => s"${inner.show}.${"get".hexFg("#35A7FF")}"
     case RawQueryExpr.SelectPrimaryKey(_, inner, _)                 => s"${inner.show}.${"tablePK".hexFg("#35A7FF")}"
@@ -70,6 +72,33 @@ private[generic] object RawQueryExpr extends Parser[(Term, RefMap), RawQueryExpr
       term.asExpr match
         case '{ Q.const($constExpr) } => ParseResult.Success(ConstValue(term, constExpr.toTerm))
         case _                        => ParseResult.unknown(term, "not a ConstValue")
+    }
+
+  }
+
+  final case class StaticCount(fullTerm: Term, out: String) extends RawQueryExpr.Unary
+  object StaticCount extends Parser[(Term, RefMap), StaticCount] {
+
+    override def parse(input: (Term, RefMap))(using ParseContext, Quotes): ParseResult[StaticCount] = {
+      val (term, _) = input
+
+      term.asExpr match
+        case '{ Q.count.* }  => ParseResult.Success(StaticCount(term, "*"))
+        case '{ Q.count._1 } => ParseResult.Success(StaticCount(term, "1"))
+        case _               => ParseResult.unknown(term, "not a static count")
+    }
+
+  }
+
+  final case class CountWithArg(fullTerm: Term, inner: RawQueryExpr.Unary) extends RawQueryExpr.Unary
+  object CountWithArg extends Parser[(Term, RefMap), CountWithArg] {
+
+    override def parse(input: (Term, RefMap))(using ParseContext, Quotes): ParseResult[CountWithArg] = {
+      val (term, refs) = input
+
+      term.asExpr match
+        case '{ Q.count { $innerExpr } } => RawQueryExpr.Unary.parse((innerExpr.toTerm, refs)).map(CountWithArg(term, _))
+        case _                           => ParseResult.unknown(term, "not a count with arg")
     }
 
   }
@@ -171,7 +200,7 @@ private[generic] object RawQueryExpr extends Parser[(Term, RefMap), RawQueryExpr
           for {
             op <- op match
               case BinOp.Scala(op) => ParseResult.Success(op)
-              case _               => ParseResult.error(select, s"invalid binary operator: $op")
+              case _               => ParseResult.unknown(select, s"invalid binary operator: $op")
             lhs <- RawQueryExpr.parse((lhs, refs))
             rhs <- RawQueryExpr.parse((rhs, refs))
           } yield Binary(rootTerm, lhs, op, rhs)
@@ -179,7 +208,7 @@ private[generic] object RawQueryExpr extends Parser[(Term, RefMap), RawQueryExpr
           for {
             op <- op match
               case BinOp.Scala(op) => ParseResult.Success(op)
-              case _               => ParseResult.error(ident, s"invalid binary operator: $op")
+              case _               => ParseResult.unknown(ident, s"invalid binary operator: $op")
             lhs <- RawQueryExpr.parse((lhs, refs))
             rhs <- RawQueryExpr.parse((rhs, refs))
           } yield Binary(rootTerm, lhs, op, rhs)
@@ -192,6 +221,8 @@ private[generic] object RawQueryExpr extends Parser[(Term, RefMap), RawQueryExpr
   override def parse(input: (Term, RefMap))(using ParseContext, Quotes): ParseResult[RawQueryExpr] = input match
     case QueryRefIdent.optional(res)       => res
     case ConstValue.optional(res)          => res
+    case StaticCount.optional(res)         => res
+    case CountWithArg.optional(res)        => res
     case SelectPrimaryKey.optional(res)    => res
     case SelectNonPrimaryKey.optional(res) => res
     case OptionGet.optional(res)           => res

@@ -3,6 +3,7 @@ package oxygen.sql.generic.model
 import oxygen.predef.core.*
 import oxygen.quoted.*
 import oxygen.sql.generic.generation.*
+import oxygen.sql.generic.parsing.TermTransformer
 import oxygen.sql.schema as S
 import scala.quoted.*
 
@@ -72,16 +73,20 @@ object TypeclassExpr {
     def columns: TypeclassExpr.Columns =
       TypeclassExpr.Columns { '{ $expr.columns } }
 
-    def constEncoder(term: Term)(using Quotes): Expr[S.InputEncoder[Any]] = {
-      type T
-      given Type[T] = term.tpe.widen.asTypeOf
+    def inputEncoder: TypeclassExpr.InputEncoder =
+      TypeclassExpr.InputEncoder { '{ $expr.encoder } }
 
-      val termExpr: Expr[T] = term.asExprOf[T]
-
-      '{ S.InputEncoder.Const[T](${ expr.asExprOf[S.RowRepr[T]] }.encoder, $termExpr) }
-    }
+    def resultDecoder: TypeclassExpr.ResultDecoder =
+      TypeclassExpr.ResultDecoder { '{ $expr.decoder } }
 
     def show(using Quotes): String = expr.showAnsiCode
+
+  }
+  object RowRepr {
+
+    val int: TypeclassExpr.RowRepr = TypeclassExpr.RowRepr { '{ S.RowRepr.int } }
+    val long: TypeclassExpr.RowRepr = TypeclassExpr.RowRepr { '{ S.RowRepr.long } }
+    val boolean: TypeclassExpr.RowRepr = TypeclassExpr.RowRepr { '{ S.RowRepr.boolean } }
 
   }
 
@@ -112,6 +117,63 @@ object TypeclassExpr {
 
     def exprSeqRefNames(refStr: String)(using Quotes): Expr[ArraySeq[String]] =
       '{ $expr.columns.map(c => s"${${ Expr(refStr) }}.${c.name}") }
+
+  }
+
+  final class InputEncoder(ctxExpr: Quotes ?=> Expr[S.InputEncoder[?]]) {
+
+    def expr(using quotes: Quotes): Expr[S.InputEncoder[?]] = ctxExpr(using quotes)
+
+    def optional: TypeclassExpr.InputEncoder =
+      TypeclassExpr.InputEncoder { '{ $expr.optional } }
+
+    def constEncoder(term: Term): TypeclassExpr.InputEncoder =
+      TypeclassExpr.InputEncoder {
+        type T
+        given Type[T] = term.tpe.widen.asTypeOf
+
+        val termExpr: Expr[T] = term.asExprOf[T]
+
+        '{ S.InputEncoder.Const[T](${ expr.asExprOf[S.InputEncoder[T]] }, $termExpr) }
+      }
+
+    def contramap(transform: TermTransformer.Transform): TypeclassExpr.InputEncoder =
+      TypeclassExpr.InputEncoder {
+        type In
+        type Out
+        given Type[In] = transform.inTpe.asTypeOf
+        given Type[Out] = transform.outTpe.asTypeOf
+
+        val typed: Expr[S.InputEncoder[Out]] = expr.asExprOf[S.InputEncoder[Out]]
+        '{ $typed.contramap[In](${ transform.convertExprF[In, Out] }) }
+      }
+
+    def ~[T: Type](that: TypeclassExpr.InputEncoder): TypeclassExpr.InputEncoder = {
+      TypeclassExpr.InputEncoder { '{ ${ this.expr.asExprOf[S.InputEncoder[T]] } ~ ${ that.expr.asExprOf[S.InputEncoder[T]] } } }
+    }
+
+    def typedAs(tpe: TypeRepr): TypeclassExpr.InputEncoder =
+      TypeclassExpr.InputEncoder {
+        type T
+        given Type[T] = tpe.asTypeOf
+        expr.asExprOf[S.InputEncoder[T]]
+      }
+    def typedAs[T: Type]: TypeclassExpr.InputEncoder =
+      TypeclassExpr.InputEncoder { expr.asExprOf[S.InputEncoder[T]] }
+
+  }
+  object InputEncoder {
+
+    val isNullEncoder: TypeclassExpr.InputEncoder = TypeclassExpr.InputEncoder { '{ S.InputEncoder.isNullEncoder } }
+
+  }
+
+  final class ResultDecoder(ctxExpr: Quotes ?=> Expr[S.ResultDecoder[?]]) {
+
+    def expr(using quotes: Quotes): Expr[S.ResultDecoder[?]] = ctxExpr(using quotes)
+
+    def optional: TypeclassExpr.ResultDecoder =
+      TypeclassExpr.ResultDecoder { '{ $expr.optional } }
 
   }
 

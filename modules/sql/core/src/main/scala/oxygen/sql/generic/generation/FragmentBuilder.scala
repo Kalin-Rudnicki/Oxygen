@@ -6,7 +6,6 @@ import oxygen.quoted.*
 import oxygen.sql.generic.model.*
 import oxygen.sql.generic.model.part.*
 import oxygen.sql.generic.parsing.*
-import oxygen.sql.schema.*
 import scala.quoted.*
 
 final case class FragmentBuilder(inputs: List[InputPart])(using Quotes) {
@@ -73,6 +72,7 @@ final case class FragmentBuilder(inputs: List[InputPart])(using Quotes) {
       case input: QueryExpr.UnaryInput            => ParseResult.error(input.fullTerm, "no query reference to compare input to")
       case input: QueryExpr.ConstValue            => ParseResult.error(input.fullTerm, "no query reference to compare input to")
       case query: QueryExpr.UnaryQuery            => convertQuery(query)
+      case QueryExpr.Static(_, out, _)            => ParseResult.Success(GeneratedFragment.sql(out))
       case QueryExpr.BinaryAndOr(_, lhs, op, rhs) =>
         for {
           lhsFrag <- convert(lhs)
@@ -119,7 +119,7 @@ final case class FragmentBuilder(inputs: List[InputPart])(using Quotes) {
   private def constOrInputToEncoder(input: QueryExpr.ConstOrUnaryInput, rowRepr: TypeclassExpr.RowRepr)(using ParseContext, GenerationContext, Quotes): ParseResult[GeneratedInputEncoder] =
     input match {
       case input: QueryExpr.UnaryInput   => inputToEncoder(input, rowRepr)
-      case QueryExpr.ConstValue(_, term) => ParseResult.Success(GeneratedInputEncoder.const(rowRepr.constEncoder(term)))
+      case QueryExpr.ConstValue(_, term) => ParseResult.Success(GeneratedInputEncoder.const(rowRepr.inputEncoder, term))
     }
 
   private def inputToEncoder(input: QueryExpr.UnaryInput, rowRepr: TypeclassExpr.RowRepr)(using ParseContext, GenerationContext, Quotes): ParseResult[GeneratedInputEncoder] =
@@ -137,42 +137,37 @@ final case class FragmentBuilder(inputs: List[InputPart])(using Quotes) {
           (inputTransformer >>> input) match {
             case TermTransformer.Die => ParseResult.error(input.fullTerm, "Expected to not call input transform?")
             case TermTransformer.Id  =>
-              ParseResult.success(GeneratedInputEncoder.nonConst('{ ${ rowRepr.expr }.encoder }, input.inTpe))
+              ParseResult.success(GeneratedInputEncoder.nonConst(rowRepr.inputEncoder, input.inTpe))
             case transform: TermTransformer.Transform =>
-              type FullInputT
               type ThisParamT
-              given Type[FullInputT] = transform.inTpe.asTypeOf
               given Type[ThisParamT] = transform.outTpe.asTypeOf
 
-              val typedQueryRowRepr: Expr[RowRepr[ThisParamT]] = rowRepr.expr.asExprOf[RowRepr[ThisParamT]]
-              ParseResult.success(GeneratedInputEncoder.nonConst('{ $typedQueryRowRepr.encoder.contramap[FullInputT](${ transform.convertExprF[FullInputT, ThisParamT] }) }, transform.inTpe))
+              val enc1: TypeclassExpr.InputEncoder = rowRepr.inputEncoder.typedAs[ThisParamT]
+              val contramapped: TypeclassExpr.InputEncoder = enc1.contramap(transform)
+
+              ParseResult.success(GeneratedInputEncoder.nonConst(contramapped, transform.inTpe))
           }
         case InputRepr.NonConst(inputTransformer, true) =>
           (inputTransformer >>> input) match {
             case TermTransformer.Die => ParseResult.error(input.fullTerm, "Expected to not call input transform?")
             case TermTransformer.Id  =>
-              ParseResult.success(GeneratedInputEncoder.nonConst('{ ${ rowRepr.expr }.encoder.optional }, input.inTpe))
+              // TODO (KR) : this needs  `InputEncoder.isNullEncoder` too...
+              // TODO (KR) : add test with single optional input
+
+              ParseResult.success(GeneratedInputEncoder.nonConst(rowRepr.inputEncoder.optional, input.inTpe))
             case transform: TermTransformer.Transform =>
-              type FullInputT
               type ThisParamT
-              given Type[FullInputT] = transform.inTpe.asTypeOf
               given Type[ThisParamT] = transform.outTpe.asTypeOf
 
-              val enc1: Expr[InputEncoder[ThisParamT]] = '{ InputEncoder.isNullEncoder }.asExprOf[InputEncoder[ThisParamT]]
-              val enc2: Expr[InputEncoder[ThisParamT]] = '{ ${ rowRepr.expr }.encoder.optional }.asExprOf[InputEncoder[ThisParamT]]
-              val combinedInc: Expr[InputEncoder[ThisParamT]] = '{ $enc1 ~ $enc2 }
+              val enc1: TypeclassExpr.InputEncoder = TypeclassExpr.InputEncoder.isNullEncoder
+              val enc2: TypeclassExpr.InputEncoder = rowRepr.inputEncoder.optional
+              val combinedInc: TypeclassExpr.InputEncoder = enc1.~[ThisParamT](enc2)
+              val contramapped: TypeclassExpr.InputEncoder = combinedInc.contramap(transform)
 
-              ParseResult.success(
-                GeneratedInputEncoder.nonConst('{ $combinedInc.contramap[FullInputT](${ transform.convertExprF[FullInputT, ThisParamT] }) }, transform.inTpe),
-              )
+              ParseResult.success(GeneratedInputEncoder.nonConst(contramapped, transform.inTpe))
           }
         case InputRepr.Const(const) =>
-          type A
-          given Type[A] = const.tpe.widen.asTypeOf
-          val typedQueryRowRepr: Expr[RowRepr[A]] = rowRepr.expr.asExprOf[RowRepr[A]]
-          val expr: Expr[A] = const.asExprOf[A]
-
-          ParseResult.success(GeneratedInputEncoder.const('{ InputEncoder.Const($typedQueryRowRepr.encoder, $expr) }))
+          ParseResult.success(GeneratedInputEncoder.const(rowRepr.inputEncoder, const))
       }
     } yield enc
 
@@ -287,7 +282,7 @@ final case class FragmentBuilder(inputs: List[InputPart])(using Quotes) {
 
   def limit(l: LimitPart)(using ParseContext, GenerationContext, Quotes): ParseResult[GeneratedFragment] =
     for {
-      limitFrag <- convertConstOrInput(l.limitQueryExpr, TypeclassExpr.RowRepr { '{ RowRepr.int } })
+      limitFrag <- convertConstOrInput(l.limitQueryExpr, TypeclassExpr.RowRepr.int)
     } yield GeneratedFragment.of(
       "\n    LIMIT ",
       limitFrag,
@@ -295,7 +290,7 @@ final case class FragmentBuilder(inputs: List[InputPart])(using Quotes) {
 
   def offset(o: OffsetPart)(using ParseContext, GenerationContext, Quotes): ParseResult[GeneratedFragment] =
     for {
-      offsetFrag <- convertConstOrInput(o.offsetQueryExpr, TypeclassExpr.RowRepr { '{ RowRepr.int } })
+      offsetFrag <- convertConstOrInput(o.offsetQueryExpr, TypeclassExpr.RowRepr.int)
     } yield GeneratedFragment.of(
       "\n    OFFSET ",
       offsetFrag,
@@ -315,14 +310,19 @@ final case class FragmentBuilder(inputs: List[InputPart])(using Quotes) {
 
     val rhsParts: ParseResult[(Expr[ArraySeq[String]], GeneratedInputEncoder)] =
       s.setValueExpr match {
-        case input: QueryExpr.UnaryInput if input.isOptional =>
-          report.errorAndAbort("You can not use an optional input in a set expression")
         case input: QueryExpr.ConstOrUnaryInput =>
           constOrInputToEncoder(input, rowRepr).map((rowRepr.columns.exprSeqQMark, _))
         case query: QueryExpr.UnaryQuery =>
           ParseResult.success(
             (
               query.rowRepr.columns.exprSeqRefNames(query.queryRef.param.name.camelToSnake),
+              GeneratedInputEncoder.empty,
+            ),
+          )
+        case QueryExpr.Static(_, out, _) =>
+          ParseResult.success(
+            (
+              '{ ArraySeq(${ Expr(out) }) },
               GeneratedInputEncoder.empty,
             ),
           )

@@ -25,4 +25,9 @@ object Parser {
     override def parse(input: A)(using ParseContext, Quotes): ParseResult[C] = inner.parse(input).map(f)
   }
 
+  abstract class Deferred[A, B] extends Parser[A, B] {
+    val parser: Parser[A, B]
+    override final def parse(input: A)(using ParseContext, Quotes): ParseResult[B] = parser.parse(input)
+  }
+
 }

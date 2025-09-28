@@ -1,6 +1,7 @@
 package oxygen.sql.generic.model
 
 import oxygen.predef.color.given
+import oxygen.predef.core.*
 import oxygen.quoted.*
 import oxygen.sql.generic.parsing.*
 import scala.quoted.*
@@ -53,21 +54,20 @@ private[generic] object QueryParam {
 
   final case class Query(
       param: Function.NamedParam,
-      tableRepr: TypeclassExpr.TableRepr,
-      mapRowRepr: Quotes => TypeclassExpr.RowRepr => TypeclassExpr.RowRepr,
+      optTableRepr: Option[TypeclassExpr.TableRepr],
+      rowRepr: TypeclassExpr.RowRepr,
       isRoot: Boolean,
-  ) extends QueryParam {
-
-    def rowRepr(using quotes: Quotes): TypeclassExpr.RowRepr = mapRowRepr(quotes)(tableRepr.tableRowRepr)
-
-  }
+  ) extends QueryParam
   object Query {
 
     def apply(param: Function.NamedParam, tableRepr: TypeclassExpr.TableRepr, isRoot: Boolean): Query =
-      Query(param, tableRepr, _ => identity, isRoot)
+      Query(param, tableRepr.some, tableRepr.tableRowRepr, isRoot)
 
-    def mapRowRepr(param: Function.NamedParam, tableRepr: TypeclassExpr.TableRepr, f: Quotes ?=> TypeclassExpr.RowRepr => TypeclassExpr.RowRepr, isRoot: Boolean): Query =
-      Query(param, tableRepr, q => f(using q), isRoot)
+    def apply(param: Function.NamedParam, tableRepr: TypeclassExpr.TableRepr, roweRepr: TypeclassExpr.RowRepr, isRoot: Boolean): Query =
+      Query(param, tableRepr.some, roweRepr, isRoot)
+
+    def apply(param: Function.NamedParam, roweRepr: TypeclassExpr.RowRepr, isRoot: Boolean): Query =
+      Query(param, None, roweRepr, isRoot)
 
   }
 

@@ -164,6 +164,14 @@ private[sql] object ParsedQuery extends Parser[Term, ParsedQuery] {
       } yield expr.toTerm
 
   }
+  object SelectQuery extends Parser[Term, SelectQuery] {
+
+    override def parse(input: Term)(using ParseContext, Quotes): ParseResult[SelectQuery] =
+      PartialQuery.SelectQuery.fullParser.parse(input).map { case FullQueryResult(inputs, PartialQuery.SelectQuery(select, joins, where, orderBy, limit, offset), ret, refs) =>
+        ParsedQuery.SelectQuery(inputs, select, joins, where, orderBy, limit, offset, ret, refs)
+      }
+
+  }
 
   //////////////////////////////////////////////////////////////////////////////////////////////////////
   //      Update
