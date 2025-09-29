@@ -3,7 +3,9 @@ package oxygen.http.core
 import oxygen.http.core.partial.{PartialBodyCodec, PartialParamCodec}
 import oxygen.http.schema.{RequestBodySchema, RequestHeaderSchema, RequestQueryParamSchema}
 import oxygen.http.schema.partial.RequestSchemaAggregator
+import oxygen.meta.K0
 import oxygen.predef.core.*
+import oxygen.schema.*
 import zio.*
 import zio.http.{Body, Header, Headers, QueryParams}
 
@@ -21,8 +23,88 @@ sealed trait RequestNonPathCodec[A] {
 
   final def ++[B](that: RequestNonPathCodec[B])(using zip: Zip[A, B]): RequestNonPathCodec[zip.Out] = RequestNonPathCodec.And(this, that, zip)
 
+  final def transform[B](ab: A => B, ba: B => A): RequestNonPathCodec[B] = RequestNonPathCodec.Transform(this, ab, ba)
+  final def transformOrFail[B](ab: A => Either[String, B], ba: B => A): RequestNonPathCodec[B] = RequestNonPathCodec.TransformOrFail(this, ab, ba)
+
+  inline final def autoTransform[B]: RequestNonPathCodec[B] = {
+    val (ab, ba) = K0.ProductGeneric.deriveTransform[A, B]
+    transform(ab, ba)
+  }
+
 }
 object RequestNonPathCodec {
+
+  object query {
+
+    object plain {
+
+      def required[A: PlainTextSchema](name: String, doc: Option[String] = None): RequestNonPathCodec[A] =
+        RequestNonPathCodec.ApplyPartialQueryParam(PartialParamCodec.Plain.required[A], name, doc)
+
+      def optional[A: PlainTextSchema](name: String, doc: Option[String] = None): RequestNonPathCodec[Option[A]] =
+        RequestNonPathCodec.ApplyPartialQueryParam(PartialParamCodec.Plain.optional[A], name, doc)
+
+      def many[S[_]: SeqOps, A: PlainTextSchema](name: String, doc: Option[String] = None): RequestNonPathCodec[S[A]] =
+        RequestNonPathCodec.ApplyPartialQueryParam(PartialParamCodec.Plain.many[S, A], name, doc)
+
+      def manyNonEmpty[A: PlainTextSchema](name: String, doc: Option[String] = None): RequestNonPathCodec[NonEmptyList[A]] =
+        RequestNonPathCodec.ApplyPartialQueryParam(PartialParamCodec.Plain.manyNonEmpty[A], name, doc)
+
+    }
+
+    object json {
+
+      def required[A: JsonSchema](name: String, doc: Option[String] = None): RequestNonPathCodec[A] =
+        RequestNonPathCodec.ApplyPartialQueryParam(PartialParamCodec.Json.required[A], name, doc)
+
+      def optional[A: JsonSchema](name: String, doc: Option[String] = None): RequestNonPathCodec[Option[A]] =
+        RequestNonPathCodec.ApplyPartialQueryParam(PartialParamCodec.Json.optional[A], name, doc)
+
+      def many[S[_]: SeqOps, A: JsonSchema](name: String, doc: Option[String] = None): RequestNonPathCodec[S[A]] =
+        RequestNonPathCodec.ApplyPartialQueryParam(PartialParamCodec.Json.many[S, A], name, doc)
+
+      def manyNonEmpty[A: JsonSchema](name: String, doc: Option[String] = None): RequestNonPathCodec[NonEmptyList[A]] =
+        RequestNonPathCodec.ApplyPartialQueryParam(PartialParamCodec.Json.manyNonEmpty[A], name, doc)
+
+    }
+
+  }
+
+  object header {
+
+    object plain {
+
+      def required[A: PlainTextSchema](name: String, doc: Option[String] = None): RequestNonPathCodec[A] =
+        RequestNonPathCodec.ApplyPartialHeader(PartialParamCodec.Plain.required[A], name, doc)
+
+      def optional[A: PlainTextSchema](name: String, doc: Option[String] = None): RequestNonPathCodec[Option[A]] =
+        RequestNonPathCodec.ApplyPartialHeader(PartialParamCodec.Plain.optional[A], name, doc)
+
+      def many[S[_]: SeqOps, A: PlainTextSchema](name: String, doc: Option[String] = None): RequestNonPathCodec[S[A]] =
+        RequestNonPathCodec.ApplyPartialHeader(PartialParamCodec.Plain.many[S, A], name, doc)
+
+      def manyNonEmpty[A: PlainTextSchema](name: String, doc: Option[String] = None): RequestNonPathCodec[NonEmptyList[A]] =
+        RequestNonPathCodec.ApplyPartialHeader(PartialParamCodec.Plain.manyNonEmpty[A], name, doc)
+
+    }
+
+    object json {
+
+      def required[A: JsonSchema](name: String, doc: Option[String] = None): RequestNonPathCodec[A] =
+        RequestNonPathCodec.ApplyPartialHeader(PartialParamCodec.Json.required[A], name, doc)
+
+      def optional[A: JsonSchema](name: String, doc: Option[String] = None): RequestNonPathCodec[Option[A]] =
+        RequestNonPathCodec.ApplyPartialHeader(PartialParamCodec.Json.optional[A], name, doc)
+
+      def many[S[_]: SeqOps, A: JsonSchema](name: String, doc: Option[String] = None): RequestNonPathCodec[S[A]] =
+        RequestNonPathCodec.ApplyPartialHeader(PartialParamCodec.Json.many[S, A], name, doc)
+
+      def manyNonEmpty[A: JsonSchema](name: String, doc: Option[String] = None): RequestNonPathCodec[NonEmptyList[A]] =
+        RequestNonPathCodec.ApplyPartialHeader(PartialParamCodec.Json.manyNonEmpty[A], name, doc)
+
+    }
+
+  }
 
   //////////////////////////////////////////////////////////////////////////////////////////////////////
   //      Builder

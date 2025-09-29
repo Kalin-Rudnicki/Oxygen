@@ -4,6 +4,7 @@ import oxygen.http.core.{DecodingFailureCause, ResponseDecodingFailure}
 import oxygen.http.core.partial.{PartialBodyCodec, PartialParamCodec}
 import oxygen.http.schema.{ResponseBodySchema, ResponseHeaderSchema}
 import oxygen.http.schema.partial.ResponseSchemaAggregator
+import oxygen.meta.K0
 import oxygen.predef.core.*
 import oxygen.schema.*
 import zio.*
@@ -23,6 +24,11 @@ sealed trait ResponseCodecNoStatus[A] {
 
   final def transform[B](ab: A => B, ba: B => A): ResponseCodecNoStatus[B] = ResponseCodecNoStatus.Transform(this, ab, ba)
   final def transformOrFail[B](ab: A => Either[String, B], ba: B => A): ResponseCodecNoStatus[B] = ResponseCodecNoStatus.TransformOrFail(this, ab, ba)
+
+  inline final def autoTransform[B]: ResponseCodecNoStatus[B] = {
+    val (ab, ba) = K0.ProductGeneric.deriveTransform[A, B]
+    transform(ab, ba)
+  }
 
 }
 object ResponseCodecNoStatus {
