@@ -100,21 +100,21 @@ final class EndpointRepr[Api](val route: RouteRepr[Api], classSym: Symbol) {
     '{
       if ($successBodyCodecExpr.canLikelyDecode($responseExpr.status))
         $successBodyCodecExpr
-          .decode($responseExpr.headers, $responseExpr.body)
+          .decode($responseExpr.status, $responseExpr.headers, $responseExpr.body)
           .catchAll { error => ZIO.dieMessage(s"Unable to decode success response: $error") } // TODO (KR) : better error handling
       else if ($errorBodyCodecExpr.canLikelyDecode($responseExpr.status))
         $errorBodyCodecExpr
-          .decode($responseExpr.headers, $responseExpr.body)
+          .decode($responseExpr.status, $responseExpr.headers, $responseExpr.body)
           .catchAll { error => ZIO.dieMessage(s"Unable to decode error response: $error") } // TODO (KR) : better error handling
           .flip
       else if ($responseExpr.status.isSuccess) // TODO (KR) : special handling?
         $successBodyCodecExpr
-          .decode($responseExpr.headers, $responseExpr.body)
+          .decode($responseExpr.status, $responseExpr.headers, $responseExpr.body)
           .catchAll { error => ZIO.dieMessage(s"Unable to decode success response: $error") } // TODO (KR) : better error handling
       else if ($responseExpr.status.isError) // TODO (KR) : special handling?
         $successBodyCodecExpr
-          .decode($responseExpr.headers, $responseExpr.body)
-          .catchAll { error => ZIO.dieMessage(s"Unable to decode success response: $error") } // TODO (KR) : better error handling
+          .decode($responseExpr.status, $responseExpr.headers, $responseExpr.body)
+          .catchAll { error => ZIO.dieMessage(s"Unable to decode error response: $error") } // TODO (KR) : better error handling
       else
         ZIO.dieMessage(s"Unexpected http response code (${$responseExpr.status})") // TODO (KR) : better error handling
     }

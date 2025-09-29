@@ -216,7 +216,7 @@ final class RouteRepr[Api] private (val defDef: DefDef, _apiType: Type[Api])(usi
       val optionalStatusCodes: Option[Expr[StatusCodes[T]]] = Implicits.searchOption[StatusCodes[T]]
       val statusCodes: Expr[StatusCodes[T]] = optionalStatusCodes.getOrElse { '{ StatusCodes.Exact(${ Expr(defaultCode) }) } }
 
-      '{ ResponseCodec($statusCodes, $responseCodecNoStatus) }
+      '{ ResponseCodec.Standard($statusCodes, $responseCodecNoStatus) }
     }
 
   val errorResponseCodec: Expr[ResponseCodec[ErrorOut]] =

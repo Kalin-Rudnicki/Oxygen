@@ -103,6 +103,8 @@ object PlainTextSchemaLowPriority {
 
     given jwt: [A: JsonSchema as payloadSchema] => (typeTag: TypeTag[JWT[A]]) => PlainTextSchema[JWT[A]] = PlainTextSchema.JWTSchema(typeTag, payloadSchema)
 
+    given `enum`: [A: {Enum.Companion as ec, TypeTag as tt}] => PlainTextSchema[A] = PlainTextSchema.EnumSchema(tt, ec.enumValues, ec.ToString.encode, false)
+
   }
 
 }

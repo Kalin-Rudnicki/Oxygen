@@ -90,6 +90,11 @@ object ResponseCodecNoStatus {
 
   }
 
+  object body {
+    def plain[A: PlainTextSchema]: ResponseCodecNoStatus[A] = ResponseCodecNoStatus.ApplyPartialBodySingle(PartialBodyCodec.Plain.fromSchema[A])
+    def json[A: JsonSchema]: ResponseCodecNoStatus[A] = ResponseCodecNoStatus.ApplyPartialBodySingle(PartialBodyCodec.Json.fromSchema[A])
+  }
+
   //////////////////////////////////////////////////////////////////////////////////////////////////////
   //      Impls
   //////////////////////////////////////////////////////////////////////////////////////////////////////
