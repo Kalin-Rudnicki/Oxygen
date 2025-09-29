@@ -1,5 +1,7 @@
 package oxygen.core.typeclass
 
+import java.time.*
+import java.util.{TimeZone, UUID}
 import oxygen.predef.core.*
 import scala.collection.mutable
 
@@ -30,6 +32,7 @@ object Show extends ShowLowPriority.LowPriority1 {
 
   given string: Show[String] = _.unesc
   given boolean: Show[Boolean] = usingToString
+  given uuid: Show[UUID] = usingToString
   given byte: Show[Byte] = usingToString
   given short: Show[Short] = usingToString
   given int: Show[Int] = usingToString
@@ -38,6 +41,23 @@ object Show extends ShowLowPriority.LowPriority1 {
   given float: Show[Float] = usingToString
   given double: Show[Double] = usingToString
   given bigDecimal: Show[BigDecimal] = usingToString
+
+  given localTime: Show[LocalTime] = usingToString
+  given localDate: Show[LocalDate] = usingToString
+  given localDateTime: Show[LocalDateTime] = usingToString
+  given zonedDateTime: Show[ZonedDateTime] = usingToString
+  given offsetDateTime: Show[OffsetDateTime] = usingToString
+  given offsetTime: Show[OffsetTime] = usingToString
+  given instant: Show[Instant] = usingToString
+  given duration: Show[Duration] = usingToString
+  given period: Show[Period] = usingToString
+  given zoneId: Show[ZoneId] = usingToString
+  given zoneOffset: Show[ZoneOffset] = usingToString
+  given timeZone: Show[TimeZone] = usingToString
+  given monthDay: Show[MonthDay] = usingToString
+  given year: Show[Year] = usingToString
+  given yearMonth: Show[YearMonth] = usingToString
+  given month: Show[Month] = usingToString
 
   def showOption[A: Show as showA](
       somePrefix: String,
