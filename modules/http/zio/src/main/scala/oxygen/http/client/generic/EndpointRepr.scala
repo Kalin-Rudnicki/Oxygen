@@ -67,7 +67,7 @@ final class EndpointRepr[Api](val route: RouteRepr[Api], classSym: Symbol) {
         val tt: Expr[P] = t.asExprOf[P]
         val tc: Expr[RequestPathCodec[P]] = p.codec.asExprOf[RequestPathCodec[P]]
 
-        ('{ SendRequest.AppliedValue.Path($tc, $tt) }, p.paramIdx)
+        ('{ SendRequest.AppliedValue.Path($tc, $tt) }, p.parseIdx)
       }
     val appliedNonPaths: ArraySeq[(Expr[SendRequest.AppliedValue[?]], Int)] =
       nonPaths.map { case (t, p) =>
@@ -77,7 +77,7 @@ final class EndpointRepr[Api](val route: RouteRepr[Api], classSym: Symbol) {
         val tt: Expr[P] = t.asExprOf[P]
         val tc: Expr[RequestNonPathCodec[P]] = p.codec.asExprOf[RequestNonPathCodec[P]]
 
-        ('{ SendRequest.AppliedValue.NonPath($tc, $tt) }, p.paramIdx)
+        ('{ SendRequest.AppliedValue.NonPath($tc, $tt) }, p.parseIdx)
       }
 
     val appliedValues: ArraySeq[Expr[SendRequest.AppliedValue[?]]] =
@@ -106,29 +106,26 @@ final class EndpointRepr[Api](val route: RouteRepr[Api], classSym: Symbol) {
 
     // TODO (KR) : do better handling in error cases
     '{
-      ZIO.logDebug(s"response status (${${ Expr(route.derivedApiName) }}.${${ Expr(route.derivedEndpointName) }}) : ${$responseExpr.status}") *>
-        {
-          if ($successBodyCodecExpr.canLikelyDecode($responseExpr.status))
-            $successBodyCodecExpr
-              .decode($responseExpr.status, $responseExpr.headers, $responseExpr.body)
-              .catchAll { error => ZIO.dieMessage(s"Unable to decode success response: $error") } // TODO (KR) : better error handling
-          else if ($errorBodyCodecExpr.canLikelyDecode($responseExpr.status))
-            $errorBodyCodecExpr
-              .decode($responseExpr.status, $responseExpr.headers, $responseExpr.body)
-              .catchAll { error => ZIO.dieMessage(s"Unable to decode error response: $error") } // TODO (KR) : better error handling
-              .flip
-          else if ($responseExpr.status.isSuccess) // TODO (KR) : special handling?
-            $successBodyCodecExpr
-              .decode($responseExpr.status, $responseExpr.headers, $responseExpr.body)
-              .catchAll { error => ZIO.dieMessage(s"Unable to decode success response: $error") } // TODO (KR) : better error handling
-          else if ($responseExpr.status.isError) // TODO (KR) : special handling?
-            $errorBodyCodecExpr
-              .decode($responseExpr.status, $responseExpr.headers, $responseExpr.body)
-              .catchAll { error => ZIO.dieMessage(s"Unable to decode error response: $error") } // TODO (KR) : better error handling
-              .flip
-          else
-            ZIO.dieMessage(s"Unexpected http response code (${$responseExpr.status})") // TODO (KR) : better error handling
-        }
+      if ($successBodyCodecExpr.canLikelyDecode($responseExpr.status))
+        $successBodyCodecExpr
+          .decode($responseExpr.status, $responseExpr.headers, $responseExpr.body)
+          .catchAll { error => ZIO.dieMessage(s"Unable to decode success response: $error") } // TODO (KR) : better error handling
+      else if ($errorBodyCodecExpr.canLikelyDecode($responseExpr.status))
+        $errorBodyCodecExpr
+          .decode($responseExpr.status, $responseExpr.headers, $responseExpr.body)
+          .catchAll { error => ZIO.dieMessage(s"Unable to decode error response: $error") } // TODO (KR) : better error handling
+          .flip
+      else if ($responseExpr.status.isSuccess) // TODO (KR) : special handling?
+        $successBodyCodecExpr
+          .decode($responseExpr.status, $responseExpr.headers, $responseExpr.body)
+          .catchAll { error => ZIO.dieMessage(s"Unable to decode success response: $error") } // TODO (KR) : better error handling
+      else if ($responseExpr.status.isError) // TODO (KR) : special handling?
+        $errorBodyCodecExpr
+          .decode($responseExpr.status, $responseExpr.headers, $responseExpr.body)
+          .catchAll { error => ZIO.dieMessage(s"Unable to decode error response: $error") } // TODO (KR) : better error handling
+          .flip
+      else
+        ZIO.dieMessage(s"Unexpected http response code (${$responseExpr.status})") // TODO (KR) : better error handling
     }
   }
 
