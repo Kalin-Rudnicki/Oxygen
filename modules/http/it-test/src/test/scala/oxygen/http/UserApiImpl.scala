@@ -25,6 +25,18 @@ final case class UserApiImpl(ref: Ref[Map[UUID, User]]) extends UserApi {
       _ <- ref.update(_.updated(user.id, user))
     } yield user
 
+  override def userSearch(firstName: Option[String], lastName: Option[String]): UIO[Set[User]] =
+    for {
+      _ <- ZIO.logInfo(s"searching for user with firstName=$firstName, lastName=$lastName")
+      all <- ref.get.map(_.values.into[Chunk])
+      filters =
+        Seq[Option[User => Boolean]](
+          firstName.map { firstName => { (u: User) => u.first == firstName } },
+          lastName.map { lastName => { (u: User) => u.last == lastName } },
+        ).flatten
+      filtered = if (filters.isEmpty) all else all.filter { u => filters.forall(_(u)) }
+    } yield filtered.toSet
+
 }
 object UserApiImpl {
 

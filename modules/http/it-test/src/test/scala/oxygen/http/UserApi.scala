@@ -61,4 +61,10 @@ trait UserApi derives DeriveEndpoints, DeriveClient {
       @param.body.json create: CreateUser,
   ): UIO[User]
 
+  @route.get("/user/search")
+  def userSearch(
+      @param.query firstName: Option[String] = None,
+      @param.query lastName: Option[String] = None,
+  ): UIO[Set[User]]
+
 }
