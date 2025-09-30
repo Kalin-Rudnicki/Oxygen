@@ -6,6 +6,7 @@ object common {
   export nonEmpty.*
   export option.*
   export seq.*
+  export show.*
   export string.*
   export throwable.*
   export traverse.*
