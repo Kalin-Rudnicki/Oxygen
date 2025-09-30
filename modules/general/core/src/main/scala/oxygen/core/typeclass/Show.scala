@@ -2,7 +2,8 @@ package oxygen.core.typeclass
 
 import java.time.*
 import java.util.{TimeZone, UUID}
-import oxygen.predef.core.*
+import oxygen.core.*
+import oxygen.core.syntax.string.*
 import scala.collection.mutable
 
 trait Show[A] {
@@ -100,6 +101,15 @@ object Show extends ShowLowPriority.LowPriority1 {
         builder.append(suffix)
       }
     }
+
+  final case class Shown(value: String)
+  object Shown {
+
+    def show[A: Show as showA](value: A): Shown = Shown(showA.show(value))
+
+    given showableToShown: [A: Show as s] => Conversion[A, Shown] = a => Shown(s.show(a))
+
+  }
 
 }
 
