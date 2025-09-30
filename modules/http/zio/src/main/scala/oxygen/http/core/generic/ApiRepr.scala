@@ -20,7 +20,7 @@ final class ApiRepr[Api] private (_apiTpe: Type[Api])(using Quotes) {
   val defDefs: ArraySeq[DefDef] =
     classDef.body.toArraySeq.map(_.narrow[DefDef]("body contains non-def-def"))
 
-  val routes: ArraySeq[RouteRepr[Api]] = defDefs.map(RouteRepr.derive[Api](_))
+  val routes: ArraySeq[RouteRepr[Api]] = defDefs.flatMap(RouteRepr.derive[Api](_))
 
   def toIndentedString: IndentedString =
     IndentedString.section(s"${typeRepr.showAnsiCode}:")(routes.map(_.toIndentedString).toSeq*)

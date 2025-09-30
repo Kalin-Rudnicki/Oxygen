@@ -8,4 +8,5 @@ object test {
   export oxygen.predef.zio.{given, *}
   export oxygen.test.{Contract, LayerProvider, OxygenAspects, OxygenContractSpec, OxygenSpec, OxygenSpecDefault, RandomGen}
   export oxygen.test.OxygenAssertions.*
+  export oxygen.test.RandomGen.syntax.*
 }

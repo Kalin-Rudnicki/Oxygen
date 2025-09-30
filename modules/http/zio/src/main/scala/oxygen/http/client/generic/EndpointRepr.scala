@@ -36,12 +36,20 @@ final class EndpointRepr[Api](val route: RouteRepr[Api], classSym: Symbol) {
       //             val metricLabels: Set[MetricLabel] = Set(MetricLabel("oxygen.api-name", ${ Expr(route.apiName) }), MetricLabel("oxygen.endpoint-name", ${ Expr(route.routeName) }))
       ZIO.suspendSucceed {
         val request: SendRequest = ${ toHttpRequest(args) }
-        val sendResult: ZIO[Scope, Throwable, Response] = $clientExpr.send(request)
+        val sendResult: ZIO[Scope, Throwable, Response] = $clientExpr.send(request, $extrasExpr)
         val withConvertedClientError: ZIO[Scope, route.ErrorOut, Response] = sendResult.orDie // TODO (KR) : type-class for wrapping this
         val parsedResponse: ZIO[Scope, route.ErrorOut, route.SuccessOut] = withConvertedClientError.flatMap { response => ${ parseResponse('response) } }
         ${ route.convertEnv('parsedResponse) }
         // TODO (KR) : re-add metrics
       } //             @@ HttpClientMetrics.endpointDuration.tagged(metricLabels).toAspect
+    }
+
+  private def extrasExpr: Expr[Client.RequestExtras] =
+    '{
+      Client.RequestExtras(
+        apiName = ${ Expr(route.derivedApiName) },
+        endpointName = ${ Expr(route.derivedEndpointName) },
+      )
     }
 
   private def toHttpRequest(args: ArraySeq[(Term, ParamRepr.FunctionArg)]): Expr[SendRequest] = {

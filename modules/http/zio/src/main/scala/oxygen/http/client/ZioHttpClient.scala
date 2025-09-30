@@ -11,7 +11,7 @@ final case class ZioHttpClient(
   private val modifiedClient: zio.http.Client =
     client.addUrl(zio.http.URL(path = config.path, kind = config.kind))
 
-  override def send(request: SendRequest): RIO[Scope, Response] = {
+  override def send(request: SendRequest, extras: Client.RequestExtras): RIO[Scope, Response] = {
     val fullRequest: Request =
       Request(
         version = client.version,
@@ -23,7 +23,14 @@ final case class ZioHttpClient(
         remoteCertificate = None,
       )
 
-    modifiedClient.request(fullRequest)
+    val baseEffect: RIO[Scope, Response] =
+      for {
+        _ <- ZIO.logDebug(s"Sending request [${fullRequest.method}] ${fullRequest.url.encode}")
+        response <- modifiedClient.request(fullRequest)
+        _ <- ZIO.logDebug(s"Response status: ${response.status}")
+      } yield response
+
+    baseEffect @@ ZIOAspect.annotated("api-name" -> extras.apiName, "endpoint-name" -> extras.endpointName)
   }
 
 }

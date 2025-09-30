@@ -5,7 +5,7 @@ import zio.http.*
 
 trait Client {
 
-  def send(request: SendRequest): RIO[Scope, Response]
+  def send(request: SendRequest, extras: Client.RequestExtras): RIO[Scope, Response]
 
 }
 object Client {
@@ -32,6 +32,11 @@ object Client {
       }
 
   }
+
+  final case class RequestExtras(
+      apiName: String,
+      endpointName: String,
+  )
 
   object layer {
 

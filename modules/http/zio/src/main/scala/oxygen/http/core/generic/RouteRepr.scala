@@ -234,7 +234,7 @@ final class RouteRepr[Api] private (val defDef: DefDef, _apiType: Type[Api])(usi
 }
 object RouteRepr {
 
-  def derive[Api: Type as apiTpe](defDef: DefDef)(using Quotes): RouteRepr[Api] =
-    new RouteRepr[Api](defDef, apiTpe)
+  def derive[Api: Type as apiTpe](defDef: DefDef)(using Quotes): Option[RouteRepr[Api]] =
+    Option.when(!defDef.name.contains("$default$")) { new RouteRepr[Api](defDef, apiTpe) }
 
 }
