@@ -5,6 +5,7 @@ import oxygen.predef.core.*
 import oxygen.sql.generic.typeclass.*
 import oxygen.sql.query.InputWriter
 import scala.quoted.*
+import zio.*
 
 trait InputEncoder[-A] {
 
@@ -123,6 +124,19 @@ object InputEncoder extends K0.Derivable[InputEncoder] {
     RowRepr.boolean.encoder.contramap[Option[Any]] { _.isEmpty }
 
   trait CustomEncoder[A] extends InputEncoder[A]
+
+  final case class BatchChunkEncoder[A](inner: InputEncoder[A], expSize: Int) extends InputEncoder[Chunk[A]] {
+
+    override val size: Int = inner.size * expSize
+
+    override def unsafeEncode(writer: InputWriter, value: Chunk[A]): Unit = {
+      if (value.length != expSize)
+        throw new RuntimeException(s"BatchChunkEncoder(_, $expSize) received chunk input of size = ${value.length}")
+
+      value.foreach(inner.unsafeEncode(writer, _))
+    }
+
+  }
 
   //////////////////////////////////////////////////////////////////////////////////////////////////////
   //      Givens

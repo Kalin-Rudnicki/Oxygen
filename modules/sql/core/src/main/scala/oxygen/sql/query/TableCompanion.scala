@@ -1,5 +1,6 @@
 package oxygen.sql.query
 
+import oxygen.predef.core.*
 import oxygen.sql.query.dsl.Q
 import oxygen.sql.query.dsl.Q.*
 import oxygen.sql.schema.*
@@ -16,6 +17,8 @@ abstract class TableCompanion[A, K](derivedRepr: TableRepr.AuxPK[A, K]) {
         _ <- into(i)
       } yield ()
     }
+
+  final lazy val batchOptimizedInsert: BatchOptimizedInsert[A] = BatchOptimizedInsert.unsafeParse(insert)
 
   final lazy val upsert: QueryI[A] = {
     val pkCols = tableRepr.pk.rowRepr.columns.columns
@@ -45,6 +48,8 @@ abstract class TableCompanion[A, K](derivedRepr: TableRepr.AuxPK[A, K]) {
       insert.encoder,
     )
   }
+
+  final lazy val batchOptimizedUpsert: BatchOptimizedInsert[A] = BatchOptimizedInsert.unsafeParse(upsert)
 
   final val selectAll: QueryO[A] =
     QueryO.compile("selectAll") {
@@ -80,6 +85,15 @@ abstract class TableCompanion[A, K](derivedRepr: TableRepr.AuxPK[A, K]) {
         _ <- where if a.tablePK == i
       } yield ()
     }
+
+  final val truncate: Query =
+    Query.simple("truncate", QueryContext.QueryType.Truncate)(s"TRUNCATE ${tableRepr.ref}")
+
+  final val truncateCascade: Query =
+    Query.simple("truncate-cascade", QueryContext.QueryType.Truncate)(s"TRUNCATE ${tableRepr.ref} CASCADE")
+
+  final val select_* : QueryO[Long] =
+    QueryO(QueryContext("COUNT(*)", s"SELECT COUNT(*) FROM ${tableRepr.ref}", QueryContext.QueryType.Select, tableRepr.some), None, RowRepr.long.decoder)
 
 }
 object TableCompanion {

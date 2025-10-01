@@ -95,6 +95,32 @@ final class QueryI[I](
   def all(inputs: I*): QueryResult.BatchUpdate[QueryError] =
     batched(inputs)
 
+  private[sql] def optimizedBatch(size: Int, input: I): QueryResult.OptimizedBatchUpdate[QueryError] = {
+    QueryResult.OptimizedBatchUpdate[QueryError](
+      ctx,
+      size,
+      ZIO.scoped {
+        for {
+          ps <- PreparedStatement.prepare(ctx)
+          updated <- ps.executeUpdate(encoder, input)
+        } yield updated
+      },
+    )
+  }
+
+  private[sql] def optimizedBatchBatch(size: Int, input: Chunk[I]): QueryResult.OptimizedBatchBatchUpdate[QueryError] = {
+    QueryResult.OptimizedBatchBatchUpdate[QueryError](
+      ctx,
+      size,
+      ZIO.scoped {
+        for {
+          ps <- PreparedStatement.prepare(ctx)
+          updated <- ps.executeBatchUpdate(encoder, input)
+        } yield updated.map(_.toLong)
+      },
+    )
+  }
+
   def apply[I1, I2](i1: I1, i2: I2)(using ev: (I1, I2) <:< I): QueryResult.Update[QueryError] =
     self(ev((i1, i2)))
   def apply[I1, I2, I3](i1: I1, i2: I2, i3: I3)(using ev: (I1, I2, I3) <:< I): QueryResult.Update[QueryError] =
