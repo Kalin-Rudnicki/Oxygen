@@ -120,6 +120,9 @@ object ShowLowPriority {
     given seq: [S[_]: SeqRead as seqOps, A: Show as showA] => Show[S[A]] =
       Show.showSeq[S, A]("[", ", ", "]")
 
+    given map: [K: Show as showKey, V: Show as showValue] => Show[Map[K, V]] =
+      _.iterator.map { (k, v) => s" ${showKey.show(k)} : ${showValue.show(v)} " }.mkString("{", ",", "}")
+
   }
 
 }
