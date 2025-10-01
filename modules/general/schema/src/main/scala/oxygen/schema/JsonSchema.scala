@@ -60,6 +60,8 @@ object JsonSchema extends Derivable[JsonSchema.ProductLike], JsonSchemaLowPriori
     OptionalSchema(underlying, newTypeTag, JsonEncoder.specified(using underlying.jsonEncoder), JsonDecoder.specified(using underlying.jsonDecoder))
   given arraySeq: [A: JsonSchema as underlying] => (tt: TypeTag[ArraySeq[A]]) => JsonSchema[ArraySeq[A]] =
     ArraySchema(underlying, tt, JsonEncoder.arraySeq[A](using underlying.jsonEncoder), JsonDecoder.arraySeq[A](using underlying.jsonDecoder))
+  given map: [K: PlainTextSchema as keySchema, V: JsonSchema as valueSchema] => (tt: TypeTag[Map[K, V]]) => JsonSchema[Map[K, V]] =
+    MapSchema(tt, keySchema, valueSchema)
 
   given localDate: JsonSchema[LocalDate] = fromPlainText
   given localTime: JsonSchema[LocalTime] = fromPlainText
@@ -118,6 +120,20 @@ object JsonSchema extends Derivable[JsonSchema.ProductLike], JsonSchemaLowPriori
       jsonEncoder: JsonEncoder[A],
       jsonDecoder: JsonDecoder[A],
   ) extends NonProductLike[A]
+
+  final case class MapSchema[K, V] private[schema] (
+      typeTag: TypeTag[Map[K, V]],
+      keySchema: PlainTextSchema[K],
+      valueSchema: JsonSchema[V],
+  ) extends NonProductLike[Map[K, V]] {
+
+    private val jsonFieldEncoder: JsonFieldEncoder[K] = JsonFieldEncoder.string.contramap(keySchema.encode)
+    private val jsonFieldDecoder: JsonFieldDecoder[K] = JsonFieldDecoder.string.mapOrFail(keySchema.decode)
+
+    override val jsonEncoder: JsonEncoder[Map[K, V]] = JsonEncoder.map[K, V](using jsonFieldEncoder, valueSchema.jsonEncoder)
+    override val jsonDecoder: JsonDecoder[Map[K, V]] = JsonDecoder.map[K, V](using jsonFieldDecoder, valueSchema.jsonDecoder)
+
+  }
 
   final case class Transform[A, B] private[JsonSchema] (underlying: JsonSchema[A], typeTag: TypeTag[B], ab: A => B, ba: B => A) extends JsonSchema.NonProductLike[B] {
     override val jsonEncoder: JsonEncoder[B] = underlying.jsonEncoder.contramap(ba)
