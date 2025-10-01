@@ -12,6 +12,8 @@ object Connection {
       id <- Random.nextUUID
       connection <- ZIO.attempt { get }.mapError(ConnectionError(_))
       _ <- ZIO.addFinalizer { ZIO.attempt { connection.close() }.mapError(ConnectionError(_)).orDie }
+
+      // TODO (KR) : figure out auto-commit
     } yield Connection(id, connection)).uninterruptible
 
   def acquire(url: String): ZIO[Scope, ConnectionError, Connection] =

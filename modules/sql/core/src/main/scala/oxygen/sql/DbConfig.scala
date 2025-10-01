@@ -50,7 +50,7 @@ object DbConfig {
 
     val default: Execution =
       Execution(
-        bufferChunkSize = NonEmptyList.of(16, 64, 64, 256),
+        bufferChunkSize = NonEmptyList.of(16, 64, 64, 256, 256, 2048),
         bufferNumChunks = 2.some,
       )
 

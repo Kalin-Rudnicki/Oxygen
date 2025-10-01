@@ -38,6 +38,43 @@ object Person extends TableCompanion[Person, UUID](TableRepr.derived[Person]) {
 
 }
 
+// @oxygen.meta.K0.annotation.showDerivation[TableRepr]
+final case class PersonCache(
+    @primaryKey id: UUID,
+    first: String,
+    last: String,
+    age: Int,
+) {
+
+  def toPerson(groupId: UUID): Person =
+    Person(
+      id = id,
+      groupId = groupId,
+      first = first,
+      last = last,
+      age = age,
+    )
+
+}
+object PersonCache extends TableCompanion[PersonCache, UUID](TableRepr.derived[PersonCache]) {
+
+  private val randomName: UIO[String] = RandomGen.capitalizedString()
+
+  def generate(
+      id: Specified[UUID] = Specified.WasNotSpecified,
+      first: Specified[String] = Specified.WasNotSpecified,
+      last: Specified[String] = Specified.WasNotSpecified,
+      age: Specified[Int] = Specified.WasNotSpecified,
+  ): UIO[PersonCache] =
+    for {
+      id <- id.orGen { Random.nextUUID }
+      first <- first.orGen { randomName }
+      last <- last.orGen { randomName }
+      age <- age.orGen { Random.nextIntBetween(0, 100) }
+    } yield PersonCache(id, first, last, age)
+
+}
+
 final case class Note(
     @primaryKey id: UUID,
     @references[Person] personId: UUID,

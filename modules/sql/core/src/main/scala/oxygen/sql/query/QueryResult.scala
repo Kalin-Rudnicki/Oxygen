@@ -127,4 +127,61 @@ object QueryResult {
 
   }
 
+  final class OptimizedBatchUpdate[E] private[sql] (
+      ctx: QueryContext,
+      batchSize: Int,
+      effect: ZIO[Database, E, Long],
+  ) {
+
+    // =====| Error Mapping |=====
+
+    def orDie(using ev1: E IsSubtypeOfError Throwable, ev2: CanFail[E]): OptimizedBatchUpdate[Nothing] =
+      OptimizedBatchUpdate(ctx, batchSize, effect.orDie)
+
+    def orDieWith(f: E => Throwable)(using ev1: CanFail[E]): OptimizedBatchUpdate[Nothing] =
+      OptimizedBatchUpdate(ctx, batchSize, effect.orDieWith(f))
+
+    def mapError[E2](f: E => E2): OptimizedBatchUpdate[E2] =
+      OptimizedBatchUpdate(ctx, batchSize, effect.mapError(f))
+
+    // =====| Results |=====
+
+    def updated: ZIO[Database, E, Long] =
+      effect @@ ctx.metrics.track(QueryContext.ExecutionType.AggregatedBatchUpdate(batchSize))
+
+    def unit: ZIO[Database, E, Unit] =
+      updated.unit
+
+  }
+
+  final class OptimizedBatchBatchUpdate[E] private[sql] (
+      ctx: QueryContext,
+      batchSize: Int,
+      effect: ZIO[Database, E, ArraySeq[Long]],
+  ) {
+
+    // =====| Error Mapping |=====
+
+    def orDie(using ev1: E IsSubtypeOfError Throwable, ev2: CanFail[E]): OptimizedBatchBatchUpdate[Nothing] =
+      OptimizedBatchBatchUpdate(ctx, batchSize, effect.orDie)
+
+    def orDieWith(f: E => Throwable)(using ev1: CanFail[E]): OptimizedBatchBatchUpdate[Nothing] =
+      OptimizedBatchBatchUpdate(ctx, batchSize, effect.orDieWith(f))
+
+    def mapError[E2](f: E => E2): OptimizedBatchBatchUpdate[E2] =
+      OptimizedBatchBatchUpdate(ctx, batchSize, effect.mapError(f))
+
+    // =====| Results |=====
+
+    def updated: ZIO[Database, E, ArraySeq[Long]] =
+      effect @@ ctx.metrics.track(QueryContext.ExecutionType.AggregatedBatchUpdate(batchSize))
+
+    def totalUpdated: ZIO[Database, E, Long] =
+      updated.map(_.sum)
+
+    def unit: ZIO[Database, E, Unit] =
+      updated.unit
+
+  }
+
 }

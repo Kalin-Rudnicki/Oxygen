@@ -202,6 +202,10 @@ object PreparedStatement {
       con <- database.getConnection.mapError(QueryError.Connection(_))
       rawPS <- ZIO.attempt { con.connection.prepareStatement(ctx.sql) }.mapError(QueryError.JDBCError("create prepared statement", _))
       _ <- ZIO.addFinalizer { ZIO.attempt { rawPS.close() }.mapError(e => QueryError(ctx, QueryError.JDBCError("close prepared statement", e))).orDie }
+
+      // TODO (KR) : figure out fetch size
+      //           : it sounds like auto_commit needs to be off for this to work
+      //           : some fun needs to be had in order to allow multiple parallel connections, and break out of the nice ` transaction { ... } ` management that oxygen-sql is doing
     } yield PreparedStatement(ctx, rawPS)).uninterruptible.mapError(QueryError(ctx, _))
 
 }
