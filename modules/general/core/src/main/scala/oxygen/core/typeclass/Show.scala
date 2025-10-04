@@ -4,6 +4,7 @@ import java.time.*
 import java.util.{TimeZone, UUID}
 import oxygen.core.*
 import oxygen.core.syntax.string.*
+import oxygen.core.syntax.throwable.*
 import scala.collection.mutable
 
 trait Show[A] {
@@ -59,6 +60,8 @@ object Show extends ShowLowPriority.LowPriority1 {
   given year: Show[Year] = usingToString
   given yearMonth: Show[YearMonth] = usingToString
   given month: Show[Month] = usingToString
+
+  given throwable: Show[Throwable] = _.safeGetMessage
 
   def showOption[A: Show as showA](
       somePrefix: String,

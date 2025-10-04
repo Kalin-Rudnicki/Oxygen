@@ -1,6 +1,8 @@
 package oxygen.test
 
-import oxygen.zio.logging.{LogConfig, LogLevels}
+import oxygen.core.typeclass.StringDecoder
+import oxygen.zio.logging.{LogConfig, LogLevels, RichLogLevel}
+import scala.util.Try
 import zio.*
 import zio.test.*
 
@@ -23,7 +25,7 @@ abstract class OxygenSpec[_R] extends ZIOSpecDefault {
 
   // =====| Overridable |=====
 
-  def defaultLogLevel: LogLevel = LogLevels.Important
+  def defaultLogLevel: LogLevel = OxygenSpec.envVarDefaultLogLevel.getOrElse(LogLevels.Important)
 
   def withDefaultAspects: Boolean = true
 
@@ -61,6 +63,12 @@ object OxygenSpec {
 
   type DefaultEnv = TestEnvironment & Scope
   type RootTestAspect = TestAspectAtLeastR[DefaultEnv]
+
+  private lazy val envVarDefaultLogLevel: Option[LogLevel] =
+    for {
+      envStr <- Try { Option { java.lang.System.getenv("OXYGEN_LOG_LEVEL") } }.toOption.flatten
+      logLevel <- StringDecoder[RichLogLevel].decode(envStr).toOption
+    } yield logLevel.level
 
   private def defaultTestAspects(defaultLogLevel: LogLevel): Chunk[TestAspectAtLeastR[DefaultEnv]] =
     Chunk(
