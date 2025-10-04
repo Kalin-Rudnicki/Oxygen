@@ -35,7 +35,7 @@ object Dependencies {
 
     // =====| Core |=====
 
-    val coreVersion = "2.1.18"
+    val coreVersion = "2.1.21"
 
     val zio = "zio"
     val streams = "zio-streams"
@@ -44,7 +44,7 @@ object Dependencies {
 
     // =====| HTTP |=====
 
-    val httpVersion = "3.4.0"
+    val httpVersion = "3.5.1"
 
     val http = "zio-http"
 
