@@ -62,11 +62,15 @@ object Executable extends SingleBuilders.Builder0 {
         args: List[String],
         context: ExecutableContext,
     ): ZIO[Scope, ExecuteError, Unit] = args match
-      case optionMap(child) :: tail => child(jsonConfig, tail, context)
-      case command :: _             => ZIO.fail(ExecuteError.SubCommandError.InvalidSubCommand(command, options))
-      case Nil                      => ZIO.fail(ExecuteError.SubCommandError.MissingSubCommand(options))
+      case optionMap(child) :: tail         => child(jsonConfig, tail, context)
+      case ("--help" | "--help-extra") :: _ => ZIO.logInfo(s"Valid options: ${options.map(_._1.unesc("'").mkString(", "))}")
+      case command :: _                     => ZIO.fail(ExecuteError.SubCommandError.InvalidSubCommand(command, options))
+      case Nil                              => ZIO.fail(ExecuteError.SubCommandError.MissingSubCommand(options))
 
   }
+
+  def oneOf(subCommand0: (String, Executable), subCommandN: (String, Executable)*): Executable =
+    Many(NonEmptyList(subCommand0, subCommandN.toList))
 
 }
 
