@@ -5,12 +5,31 @@ import oxygen.predef.core.*
 
 sealed trait ParseError {
 
-  // TODO (KR) : define [[toString]]
+  def toIndentedString: IndentedString =
+    this match {
+      case ParseError.SingleValueError(scope, cause) => IndentedString.section(scope.map(_.simpleShow).mkString(", "))(cause.toIndentedString)
+      case ParseError.ValueErrorOr(left, right)      => IndentedString.inline(IndentedString.indented(left.toIndentedString), "OR", IndentedString.indented(right.toIndentedString))
+      case ParseError.UnparsedValues(args)           => IndentedString.section("Unparsed values:")(args.toList.map(_.toString))
+      case ParseError.SingleParamError(scope, cause) => IndentedString.section(scope.map(_.simpleShow).mkString(", "))(cause.toIndentedString)
+      case ParseError.ParamErrorAnd(left, right)     => IndentedString.inline(left.toIndentedString, right.toIndentedString)
+      case ParseError.ParamErrorOr(left, right)      => IndentedString.inline(IndentedString.indented(left.toIndentedString), "OR", IndentedString.indented(right.toIndentedString))
+      case ParseError.UnparsedParams(args)           => IndentedString.section("Unparsed params:")(args.toList.map(_.toString))
+      case ParseError.UnableToParseArgs(error)       => s"Unable to parse args: $error"
+      case ParseError.RootAnd(left, right)           => IndentedString.inline(left.toIndentedString, right.toIndentedString)
+      case ParseError.RootOr(left, right)            => IndentedString.inline(IndentedString.indented(left.toIndentedString), "OR", IndentedString.indented(right.toIndentedString))
+      case ParseError.RootValidation(scope, error)   => IndentedString.section(scope.map(_.simpleShow).mkString(", "))(error.toIndentedString)
+    }
+
+  override def toString: String = toIndentedString.toString
 
 }
 object ParseError {
 
-  final case class FailedValidation(error: String) extends ValueCause with ParamCause
+  final case class FailedValidation(error: String) extends ValueCause with ParamCause {
+
+    override def toIndentedString: IndentedString = s"Failed validation - $error"
+
+  }
 
   // =====| Value |=====
 
@@ -32,7 +51,18 @@ object ParseError {
 
   }
 
-  sealed trait ValueCause
+  sealed trait ValueCause {
+
+    def toIndentedString: IndentedString = this match
+      case MissingRequiredValue  => "Missing required value"
+      case ExpectedValueArg      => "Expected plain value arg"
+      case ExpectedBracketedArg  => "Expected bracketed value arg"
+      case BracketedError(error) => IndentedString.section("Error within brackets:")(error.toIndentedString)
+      case FailedValidation(_)   => ??? // scala compiler... why...
+
+    override def toString: String = toIndentedString.toString
+
+  }
 
   case object MissingRequiredValue extends ValueCause
   case object ExpectedValueArg extends ValueCause
@@ -64,7 +94,17 @@ object ParseError {
 
   }
 
-  sealed trait ParamCause
+  sealed trait ParamCause {
+
+    def toIndentedString: IndentedString = this match
+      case MissingRequiredParam                         => "Missing required param"
+      case ParamValuesValidation(error: ValueError)     => error.toIndentedString
+      case ParamValuesValidation(error: UnparsedValues) => error.toIndentedString
+      case FailedValidation(_)                          => ??? // scala compiler... why...
+
+    override def toString: String = toIndentedString.toString
+
+  }
 
   case object MissingRequiredParam extends ParamCause
   final case class ParamValuesValidation(error: ValueError | UnparsedValues) extends ParamCause

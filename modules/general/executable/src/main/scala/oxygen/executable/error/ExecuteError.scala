@@ -8,16 +8,23 @@ import oxygen.executable.{Executable, ExecutableApp}
 
 sealed trait ExecuteError extends Throwable {
 
-  override final def getMessage: String = this match
-    case ExecuteError.SourceError(source, cause)                          => s"Error parsing source $source : $cause"
-    case ExecuteError.Parsing.FailedToBuild(error)                        => s"Failed to build program parser: $error"
-    case ExecuteError.Parsing.FailedToParse(error, help)                  => s"$error\n$help"
-    case ExecuteError.Parsing.Help(help, _)                               => help.toString
-    case ExecuteError.SubCommandError.MissingSubCommand(options)          => s"Missing sub-command, options: ${options.map(_._1).mkString(", ")}"
-    case ExecuteError.SubCommandError.InvalidSubCommand(command, options) => s"Invalid sub-command '$command', options: ${options.map(_._1).mkString(", ")}"
-    case ExecuteError.InvalidConfig(message)                              => s"Invalid config: $message"
-    case ExecuteError.ProgramError(error)                                 => String.valueOf(error)
-    case ExecuteError.Generic(operation, cause)                           => s"failed $operation: ${cause.safeGetMessage}"
+  override final def toString: String = getMessage
+
+  override final def getMessage: String =
+    this match {
+      case ExecuteError.SourceError(source, cause)                          => s"Error parsing source $source : $cause"
+      case ExecuteError.Parsing.FailedToBuild(error)                        => s"Failed to build program parser:\n$error"
+      case ExecuteError.Parsing.FailedToParse(error, help)                  => s"Failed to parse:\n$error\n\nHelp:\n$help"
+      case ExecuteError.Parsing.Help(help, _)                               => help.toString
+      case ExecuteError.SubCommandError.MissingSubCommand(options)          => s"Missing sub-command, options: ${options.map(_._1).mkString(", ")}"
+      case ExecuteError.SubCommandError.InvalidSubCommand(command, options) => s"Invalid sub-command '$command', options: ${options.map(_._1).mkString(", ")}"
+      case ExecuteError.InvalidConfig(message)                              => s"Invalid config: $message"
+      case ExecuteError.ProgramError(error)                                 =>
+        error.asInstanceOf[Matchable] match
+          case error: Throwable => error.safeGetMessage
+          case _                => String.valueOf(error)
+      case ExecuteError.Generic(operation, cause) => s"failed $operation: ${cause.safeGetMessage}"
+    }
 
 }
 object ExecuteError {

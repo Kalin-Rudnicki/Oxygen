@@ -36,7 +36,7 @@ trait ExecutableApp extends ZIOAppDefault {
     parseAndExecute(args)
       .as(ExitCode.success)
       .catchSome { case ExecuteError.Parsing.Help(help, _) => Console.printLine(help.toString).orDie.as(ExitCode.success) }
-      .catchSome { case ExecuteError.Parsing.FailedToParse(error, help) => Console.printLine(s"$error\n$help").orDie.as(ExitCode.failure) }
+      .catchSome { case e: ExecuteError.Parsing.FailedToParse => Console.printLine(e.getMessage).orDie.as(ExitCode.failure) }
       .catchAllCause { ZIO.logFatalCause(_).as(ExitCode.failure) }
 
   override final def run: URIO[ZIOAppArgs, Unit] =
