@@ -9,11 +9,12 @@ final case class ZioHttpClient(
 ) extends Client {
 
   override def send(request: SendRequest, extras: Client.RequestExtras): RIO[Scope, Response] = {
+    val joinedPath = (config.path ++ request.path).addLeadingSlash
     val fullRequest: Request =
       Request(
         version = client.version,
         method = request.method,
-        url = URL(path = config.path ++ request.path, kind = config.kind, queryParams = request.queryParams),
+        url = URL(path = joinedPath, kind = config.kind, queryParams = request.queryParams),
         headers = request.headers,
         body = request.body,
         remoteAddress = None,
