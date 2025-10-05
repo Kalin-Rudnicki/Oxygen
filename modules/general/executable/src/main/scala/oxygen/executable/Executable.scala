@@ -63,7 +63,7 @@ object Executable extends SingleBuilders.Builder0 {
         context: ExecutableContext,
     ): ZIO[Scope, ExecuteError, Unit] = args match
       case optionMap(child) :: tail         => child(jsonConfig, tail, context)
-      case ("--help" | "--help-extra") :: _ => ZIO.logInfo(s"Valid options: ${options.map(_._1.unesc("'").mkString(", "))}")
+      case ("--help" | "--help-extra") :: _ => ZIO.logInfo(s"Valid options: ${options.map(_._1.unesc("'")).mkString(", ")}")
       case command :: _                     => ZIO.fail(ExecuteError.SubCommandError.InvalidSubCommand(command, options))
       case Nil                              => ZIO.fail(ExecuteError.SubCommandError.MissingSubCommand(options))
 
