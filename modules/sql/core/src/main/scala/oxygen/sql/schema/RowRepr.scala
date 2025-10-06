@@ -347,6 +347,13 @@ object RowReprLowPriority {
     given seq: [F[_]: SeqOps as seqOps, A: {RowRepr, ClassTag}] => RowRepr[F[A]] =
       RowRepr.arraySeq[A].transform(_.into[F], _.toArraySeq)
 
+    // TODO (KR) : have a special RowRepr for this
+    given `enum`: [A: Enum.Companion as ec] => RowRepr[A] =
+      RowRepr.string.transformOrFail(
+        s => ec.ToString.decode(s).toRight(s"Invalid value ${s.unesc}, expected one of: ${ec.ToString.encodedValues.map(_.unesc).mkString(", ")}"),
+        ec.ToString.encode,
+      )
+
   }
 
 }
