@@ -5,6 +5,8 @@ import zio.http.*
 
 trait Client {
 
+  val config: Client.Config
+
   def send(request: SendRequest, extras: Client.RequestExtras): RIO[Scope, Response]
 
 }
@@ -40,16 +42,16 @@ object Client {
 
   object layer {
 
-    val live: URLayer[zio.http.Client & oxygen.http.client.Client.Config, oxygen.http.client.Client] =
-      ZLayer.fromFunction { ZioHttpClient.apply }
+    val live: URLayer[RawClient & oxygen.http.client.Client.Config, oxygen.http.client.Client] =
+      ZLayer.fromFunction { ZioHttpClient(_, _) }.fresh // I hate this `.fresh` so much, but ZLayer is being stupid: https://github.com/zio/zio/issues/10185
 
     val default: RLayer[oxygen.http.client.Client.Config, oxygen.http.client.Client] =
-      zio.http.Client.default >>> live
+      RawClient.default >>> live
 
     def localPort(port: Int): TaskLayer[Client] =
       Config.layer(s"http://localhost:$port") >>> default
 
-    def localPort: RLayer[Int, Client] =
+    val localPort: RLayer[Int, Client] =
       for {
         port <- ZLayer.service[Int]
         client <- localPort(port.get)

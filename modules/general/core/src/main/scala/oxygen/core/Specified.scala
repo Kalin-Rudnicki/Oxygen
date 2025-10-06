@@ -28,4 +28,7 @@ object Specified {
     case Some(value) => Specified.WasSpecified(value)
     case None        => Specified.WasNotSpecified
 
+  given idToSpecified: [A] => Conversion[A, Specified.WasSpecified[A]] = Specified.WasSpecified(_)
+  given aToBSpecified: [A, B] => (conv: Conversion[A, B]) => Conversion[A, Specified.WasSpecified[B]] = a => Specified.WasSpecified(conv(a))
+
 }

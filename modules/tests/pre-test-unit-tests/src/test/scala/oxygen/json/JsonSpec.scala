@@ -1,7 +1,7 @@
 package oxygen.json
 
 import java.time.*
-import oxygen.predef.test.{*, given}
+import oxygen.predef.test.*
 
 object JsonSpec extends OxygenSpecDefault {
 

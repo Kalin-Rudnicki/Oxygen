@@ -30,7 +30,16 @@ object Show extends ShowLowPriority.LowPriority1 {
 
   }
 
-  def usingToString[A]: Show[A] = _.toString
+  final class ToString[A] extends Show[A] {
+    override def show(value: A): String = value.toString
+  }
+  object ToString {
+    inline def derived[A]: Show.ToString[A] = new ToString[A]
+  }
+
+  def usingToString[A]: Show[A] = new ToString[A]
+
+  def shown[A](f: A => String): Show[A] = f(_)
 
   given string: Show[String] = _.unesc
   given boolean: Show[Boolean] = usingToString

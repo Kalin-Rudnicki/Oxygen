@@ -4,27 +4,26 @@ import zio.*
 import zio.http.{Request, Response, URL}
 
 final case class ZioHttpClient(
-    client: zio.http.Client,
+    rawClient: RawClient,
     config: oxygen.http.client.Client.Config,
 ) extends Client {
 
   override def send(request: SendRequest, extras: Client.RequestExtras): RIO[Scope, Response] = {
-    val joinedPath = (config.path ++ request.path).addLeadingSlash
-    val fullRequest: Request =
-      Request(
-        version = client.version,
-        method = request.method,
-        url = URL(path = joinedPath, kind = config.kind, queryParams = request.queryParams),
-        headers = request.headers,
-        body = request.body,
-        remoteAddress = None,
-        remoteCertificate = None,
-      )
-
     val baseEffect: RIO[Scope, Response] =
       for {
+        fullRequest <- ZIO.succeed {
+          Request(
+            version = rawClient.client.version,
+            method = request.method,
+            url = URL(path = (config.path ++ request.path).addLeadingSlash, kind = config.kind, queryParams = request.queryParams),
+            headers = request.headers,
+            body = request.body,
+            remoteAddress = None,
+            remoteCertificate = None,
+          )
+        }
         _ <- ZIO.logDebug(s"Sending request [${fullRequest.method}] ${fullRequest.url.encode}")
-        response <- client.request(fullRequest)
+        response <- rawClient.client.request(fullRequest)
         _ <- ZIO.logDebug(s"Response status: ${response.status}")
       } yield response
 

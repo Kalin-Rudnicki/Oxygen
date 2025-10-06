@@ -1,6 +1,6 @@
 package oxygen.sql
 
-import oxygen.predef.test.{*, given}
+import oxygen.predef.test.*
 import oxygen.sql.migration.*
 import oxygen.sql.migration.model.*
 import oxygen.sql.migration.persistence.MigrationRepo

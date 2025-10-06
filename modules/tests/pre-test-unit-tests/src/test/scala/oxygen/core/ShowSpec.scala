@@ -5,6 +5,8 @@ import oxygen.predef.test.*
 
 object ShowSpec extends OxygenSpecDefault {
 
+  final case class ISB(i: Int, s: String, b: Boolean) derives Show.ToString
+
   final case class PersonId(id: Int)
   object PersonId {
     given Show[PersonId] = pid => s"[[${pid.id}]]"
@@ -33,6 +35,11 @@ object ShowSpec extends OxygenSpecDefault {
           sh"1${2}3" == "123",
           sh"<$pid1>" == "<[[1]]>",
           sh"error: $person1 is not friends with $pid2" == """error: Person(id = [[1]], first = "F1", last = "L1", age = 1) is not friends with [[2]]""",
+        )
+      },
+      test("derives Show.ToString") {
+        assertTrue(
+          ISB(1, "B", true).show == "ISB(1,B,true)",
         )
       },
     )
