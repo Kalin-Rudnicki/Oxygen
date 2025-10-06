@@ -1,7 +1,7 @@
 package oxygen.sql.generic.generation
 
 import oxygen.meta.*
-import oxygen.predef.core.{*, given}
+import oxygen.predef.core.*
 import oxygen.quoted.*
 import oxygen.sql.generic.model.*
 import oxygen.sql.generic.model.part.*
