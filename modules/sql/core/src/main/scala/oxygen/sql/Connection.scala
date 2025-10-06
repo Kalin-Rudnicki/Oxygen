@@ -16,12 +16,22 @@ object Connection {
       // TODO (KR) : figure out auto-commit
     } yield Connection(id, connection)).uninterruptible
 
+  // this is done manually because for some reason `DriverManager` was not recognizing PSQL jdbc urls...
+  private lazy val psqlDriver: org.postgresql.Driver = new org.postgresql.Driver()
+  private def emptyProps: java.util.Properties = new java.util.Properties()
+  private def credProps(username: String, password: String): java.util.Properties = {
+    val p = emptyProps
+    p.put("user", username)
+    p.put("password", password)
+    p
+  }
+
   def acquire(url: String): ZIO[Scope, ConnectionError, Connection] =
     ZIO.logWarning("Attempting to connect to database without credentials") *>
-      wrapUnsafe { java.sql.DriverManager.getConnection(url) }
+      wrapUnsafe { psqlDriver.connect(url, emptyProps) }
 
   def acquire(url: String, username: String, password: String): ZIO[Scope, ConnectionError, Connection] =
-    wrapUnsafe { java.sql.DriverManager.getConnection(url, username, password) }
+    wrapUnsafe { psqlDriver.connect(url, credProps(username, password)) }
 
   def acquire(config: DbConfig): ZIO[Scope, ConnectionError, Connection] = config.credentials match
     case Some(credentials) => acquire(config.target.jdbcUrl, credentials.username, credentials.password)
