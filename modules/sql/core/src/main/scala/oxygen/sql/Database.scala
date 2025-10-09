@@ -5,10 +5,14 @@ import oxygen.predef.zio.*
 import oxygen.sql.error.*
 import oxygen.sql.query.*
 import oxygen.sql.schema.*
-import zio.{Semaphore, ZPool}
+import zio.Semaphore
 import zio.stream.*
 
-final class Database(private val config: DbConfig, ref: FiberRef[Database.ConnectionState]) {
+final class Database(
+    private val logConfig: DbConfig.Logging,
+    private val executionConfig: DbConfig.Execution,
+    ref: FiberRef[Database.ConnectionState],
+) {
 
   def use[R, E, A](effect: ZIO[R & Database, E, A]): ZIO[R, E, A] =
     effect.provideSomeEnvironment(_.add(this))
@@ -29,22 +33,43 @@ final class Database(private val config: DbConfig, ref: FiberRef[Database.Connec
     ref.getWith(_.getAtomicChild).tap { ref.locallyScoped(_) }
 
   private[sql] val logQuery: QueryContext => UIO[Unit] =
-    config.logging match {
+    logConfig match
       case DbConfig.Logging(queryLogLevel, true)  => ctx => ZIO.logAtLevel(queryLogLevel)(s"Executing query: ${ctx.queryContextHeader}\n\n${ctx.sql}", Cause.Empty)
       case DbConfig.Logging(queryLogLevel, false) => ctx => ZIO.logAtLevel(queryLogLevel)(s"Executing query: ${ctx.queryContextHeader}", Cause.Empty)
-    }
 
 }
 object Database {
 
   def make(config: DbConfig): URIO[Scope, Database] =
     for {
-      pool <- ZPool.make(Connection.acquire(config), config.pool.minConnections to config.pool.maxConnections, config.pool.duration)
+      driver <- Driver.makePSQL
+      connect = driver.getConnection(config.target, config.credentials)
+      pool <- ConnectionPool.makeZPool(connect, config.pool)
       ref <- FiberRef.make[ConnectionState](ConnectionState.Pool(pool))
-    } yield Database(config, ref)
+    } yield Database(config.logging, config.execution, ref)
+
+  val baseLayer: URLayer[ConnectionPool & DbConfig.Logging & DbConfig.Execution, Database] =
+    ZLayer.scoped {
+      for {
+        pool <- ZIO.service[ConnectionPool]
+        logConfig <- ZIO.service[DbConfig.Logging]
+        executionConfig <- ZIO.service[DbConfig.Execution]
+        ref <- FiberRef.make[ConnectionState](ConnectionState.Pool(pool))
+      } yield Database(logConfig, executionConfig, ref)
+    }
 
   val layer: URLayer[DbConfig, Database] =
-    ZLayer.scoped { ZIO.serviceWithZIO[DbConfig](make(_)) }
+    ZLayer.makeSome[DbConfig, Database](
+      ZLayer.service[DbConfig].project(_.target),
+      ZLayer.service[DbConfig].project(_.credentials),
+      ZLayer.service[DbConfig].project(_.pool),
+      ZLayer.service[DbConfig].project(_.logging),
+      ZLayer.service[DbConfig].project(_.execution),
+      Driver.psql,
+      Driver.GetConnection.layer,
+      ConnectionPool.zPool,
+      Database.baseLayer,
+    )
 
   val healthCheck: RIO[Database, Unit] =
     QueryO[Int](QueryContext("HealthCheck", "SELECT 1", QueryContext.QueryType.Select), None, RowRepr.int.decoder)
@@ -56,7 +81,7 @@ object Database {
       }
 
   private[sql] val executionConfig: URIO[Database, DbConfig.Execution] =
-    ZIO.serviceWith[Database](_.config.execution)
+    ZIO.serviceWith[Database](_.executionConfig)
 
   //////////////////////////////////////////////////////////////////////////////////////////////////////
   //      Connection State
@@ -96,7 +121,7 @@ object Database {
 
     }
 
-    final case class Pool(pool: ZPool[ConnectionError, Connection]) extends ConnectionState {
+    final case class Pool(pool: ConnectionPool) extends ConnectionState {
 
       override def getConnection: ZIO[Scope, ConnectionError, Connection] =
         pool.get
