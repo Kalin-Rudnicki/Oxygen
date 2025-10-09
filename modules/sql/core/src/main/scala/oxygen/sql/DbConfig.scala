@@ -19,7 +19,7 @@ object DbConfig {
       host: String,
       port: Int,
   ) derives JsonCodec {
-    val jdbcUrl: String = s"jdbc:postgresql://$host:$port/$database"
+    def jdbcUrl(dbUrlPrefix: String): String = s"jdbc:$dbUrlPrefix://$host:$port/$database"
   }
 
   final case class Credentials(
