@@ -92,6 +92,26 @@ object Show extends ShowLowPriority.LowPriority1 {
   given option: [A: Show as showA] => Show[Option[A]] =
     showOption("", "", "<none>")
 
+  def showSpecified[A: Show as showA](
+      specifiedPrefix: String,
+      specifiedSuffix: String,
+      unspecified: String,
+  ): Show[Specified[A]] =
+    new PreferBuffer[Specified[A]] {
+      override def writeTo(builder: mutable.StringBuilder, value: Specified[A]): Unit =
+        value match {
+          case Specified.WasSpecified(value) =>
+            builder.append(specifiedPrefix)
+            showA.writeTo(builder, value)
+            builder.append(specifiedSuffix)
+          case Specified.WasNotSpecified =>
+            builder.append(unspecified)
+        }
+    }
+
+  given specified: [A: Show as showA] => Show[Specified[A]] =
+    showSpecified("", "", "<unspecified>")
+
   def showSeq[S[_]: SeqRead as seqOps, A: Show as showA](
       prefix: String,
       join: String,
