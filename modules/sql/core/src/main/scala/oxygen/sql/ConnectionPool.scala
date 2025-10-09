@@ -24,8 +24,23 @@ object ConnectionPool {
 
   final case class ZConnectionPool(pool: ZPool[ConnectionError, Connection]) extends ConnectionPool {
 
+    private val maxAttempts: Int = 10
+
+    private def getConnectionLoop(attemptNo: Int): ZIO[Scope, ConnectionError, Connection] =
+      pool.get.flatMap { con =>
+        if (con.connection.isClosed)
+          if (attemptNo < maxAttempts)
+            ZIO.logDebug(s"Attempt to acquire open connection #$attemptNo returned closed connection, invalidating connection and trying again") *>
+              pool.invalidate(con) *>
+              getConnectionLoop(attemptNo + 1)
+          else
+            ZIO.logWarning(s"Max attempts to acquire an open connection reached ($attemptNo), returning closed connection").as(con)
+        else
+          ZIO.succeed(con)
+      }
+
     override def get: ZIO[Scope, ConnectionError, Connection] =
-      pool.get
+      getConnectionLoop(0)
 
   }
 
