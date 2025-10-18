@@ -2,6 +2,7 @@ package oxygen.schema
 
 import java.time.*
 import java.util.{TimeZone, UUID}
+import oxygen.core.TypeTag
 import oxygen.crypto.model.{BearerToken, JWT}
 import oxygen.predef.core.*
 
@@ -59,9 +60,13 @@ object PlainTextSchema extends PlainTextSchemaLowPriority.LowPriority1 {
     override def encode(value: String): String = value
   }
 
-  final case class EnumSchema[A](typeTag: TypeTag[A], values: Seq[A], encodeValue: A => String, caseSensitive: Boolean) extends PlainTextSchema[A] {
+  trait EnumSchema[A] extends PlainTextSchema[A] {
+    val encodedValues: Seq[String]
+  }
 
-    val encodedValues: Seq[String] = values.map(encodeValue)
+  final case class GenericEnumSchema[A](typeTag: TypeTag[A], values: Seq[A], encodeValue: A => String, caseSensitive: Boolean) extends EnumSchema[A] {
+
+    override val encodedValues: Seq[String] = values.map(encodeValue)
     private val encodedValuesString: String = encodedValues.map(s => s"'$s'").mkString(", ")
 
     val valueMap: Map[String, A] = values.map { a => (if (caseSensitive) encodeValue(a) else encodeValue(a).toLowerCase, a) }.toMap
@@ -71,6 +76,28 @@ object PlainTextSchema extends PlainTextSchemaLowPriority.LowPriority1 {
 
     override def encode(value: A): String =
       encodeValue(value)
+
+  }
+
+  final case class StrictEnumSchema[A](strictEnum: StrictEnum[A]) extends EnumSchema[A] {
+
+    override val typeTag: TypeTag[A] = strictEnum.typeTag
+    override val encodedValues: Seq[String] = strictEnum.encodedValues
+
+    override def decode(string: String): Either[String, A] = strictEnum.decodeEitherWithHint(string)
+
+    override def encode(value: A): String = strictEnum.encode(value)
+
+  }
+
+  final case class EnumWithOtherSchema[A](strictEnum: EnumWithOther[A]) extends EnumSchema[A] {
+
+    override val typeTag: TypeTag[A] = strictEnum.typeTag
+    override val encodedValues: Seq[String] = strictEnum.encodedValues
+
+    override def decode(string: String): Either[String, A] = strictEnum.decode(string).asRight
+
+    override def encode(value: A): String = strictEnum.encode(value)
 
   }
 
@@ -103,7 +130,10 @@ object PlainTextSchemaLowPriority {
 
     given jwt: [A: JsonSchema as payloadSchema] => (typeTag: TypeTag[JWT[A]]) => PlainTextSchema[JWT[A]] = PlainTextSchema.JWTSchema(typeTag, payloadSchema)
 
-    given `enum`: [A: {Enum.Companion as ec, TypeTag as tt}] => PlainTextSchema[A] = PlainTextSchema.EnumSchema(tt, ec.enumValues, ec.ToString.encode, false)
+    given strictEnum: [A: StrictEnum as e] => PlainTextSchema[A] = PlainTextSchema.StrictEnumSchema(e)
+    given enumWithOther: [A: EnumWithOther as e] => PlainTextSchema[A] = PlainTextSchema.EnumWithOtherSchema(e)
+
+    def `enum`[A: StrictEnum]: PlainTextSchema[A] = strictEnum[A]
 
   }
 

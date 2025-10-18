@@ -20,11 +20,10 @@ object MigrationConfig {
     * AllOrNothing : Will run the entire migration in its own transaction.
     *              : This means that if you need to run multiple migrations (A and B), and A succeeds, but B fails, your DB will roll back to its state before A.
     */
-  enum Atomicity extends Enum[Atomicity] {
+  enum Atomicity derives StrictEnum {
     case None
     case PerMigration
     case AllOrNothing
   }
-  object Atomicity extends Enum.Companion[Atomicity]
 
 }

@@ -1,9 +1,8 @@
 package oxygen.sql.error
 
-import oxygen.core.Enum
-import oxygen.core.collection.NonEmptyList
+import oxygen.predef.core.*
 
-enum PSQLCode(final val code: String) extends Enum[PSQLCode] {
+enum PSQLCode(final val code: String) {
 
   // Class 00 — Successful Completion
   case successful_completion extends PSQLCode("00000")
@@ -350,8 +349,9 @@ enum PSQLCode(final val code: String) extends Enum[PSQLCode] {
   case index_corrupted extends PSQLCode("XX002")
 
 }
-object PSQLCode extends Enum.Companion[PSQLCode] {
+object PSQLCode {
 
-  object ByCode extends EnumMap[String](c => NonEmptyList.one(c.code))
+  val byName: StrictEnum[PSQLCode] = StrictEnum.derive[PSQLCode](_.toString)
+  val byCode: StrictEnum[PSQLCode] = StrictEnum.derive[PSQLCode](_.code)
 
 }

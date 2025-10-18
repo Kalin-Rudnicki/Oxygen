@@ -1,7 +1,7 @@
 package oxygen.cli.error
 
 import oxygen.cli.*
-import oxygen.predef.core.*
+import oxygen.predef.base.*
 
 sealed trait ParseError {
 

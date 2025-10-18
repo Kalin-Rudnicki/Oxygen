@@ -17,7 +17,7 @@ final case class RichLogLevel(
     else shortName.substring(0, 5)
 
 }
-object RichLogLevel extends Enum.Companion[RichLogLevel] {
+object RichLogLevel {
 
   val All: RichLogLevel = simple(LogLevels.All)
   val Fatal: RichLogLevel = simple(LogLevels.Fatal, Color.RGB.hex("#d50000") :> Color.Named.Red)
@@ -50,9 +50,6 @@ object RichLogLevel extends Enum.Companion[RichLogLevel] {
   def fromLogLevel(level: LogLevel): RichLogLevel =
     levels.getOrElse(level.label, simple(level))
 
-  override protected val defaultToString: RichLogLevel => NonEmptyList[String] =
-    level => NonEmptyList.of(level.fullName, level.shortName).distinct
-
-  override def values: Array[RichLogLevel] = levels.values.toArray
+  given strictEnum: StrictEnum[RichLogLevel] = StrictEnum.make[RichLogLevel](levels.values.toSeq, level => NonEmptyList.of(level.fullName, level.shortName).distinct)
 
 }

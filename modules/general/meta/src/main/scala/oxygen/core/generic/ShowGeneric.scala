@@ -1,7 +1,7 @@
 package oxygen.core.generic
 
 import oxygen.meta.{*, given}
-import oxygen.predef.core.*
+import oxygen.predef.base.*
 import oxygen.quoted.*
 import scala.annotation.Annotation
 import scala.collection.mutable

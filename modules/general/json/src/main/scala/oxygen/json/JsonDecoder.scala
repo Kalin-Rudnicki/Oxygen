@@ -242,8 +242,13 @@ object JsonDecoder extends K0.Derivable[JsonDecoder.ObjectDecoder], JsonDecoderL
 
   given tuple: [A <: Tuple] => (dec: TupleDecoder[A]) => JsonDecoder[A] = dec
 
-  given `enum`: [A] => (ec: Enum.Companion[A], tt: TypeTag[A]) => JsonDecoder[A] =
-    StringDecoder.mapOrFail(a => ec.ToString.decode(a).toRight(s"Invalid ${tt.prefixNone} '$a', valid: ${ec.ToString.encodedValues.mkString(", ")}"))
+  given strictEnum: [A: StrictEnum as e] => JsonDecoder[A] =
+    StringDecoder.mapOrFail(e.decodeEitherWithHint)
+
+  given enumWithOther: [A: EnumWithOther as e] => JsonDecoder[A] =
+    StringDecoder.map(e.decode)
+
+  def `enum`[A: StrictEnum]: JsonDecoder[A] = strictEnum[A]
 
   given localTime: JsonDecoder[LocalTime] = StringDecoder.mapAttempt(LocalTime.parse)
   given localDate: JsonDecoder[LocalDate] = StringDecoder.mapAttempt(LocalDate.parse)

@@ -166,7 +166,10 @@ object JsonEncoder extends K0.Derivable[JsonEncoder.ObjectEncoder], JsonEncoderL
 
   given tuple: [A <: Tuple] => (enc: TupleEncoder[A]) => JsonEncoder[A] = enc
 
-  given `enum`: [A] => (ec: Enum.Companion[A]) => JsonEncoder[A] = StringEncoder.contramap(ec.ToString.encode)
+  given strictEnum: [A: StrictEnum as e] => JsonEncoder[A] = StringEncoder.contramap(e.encode)
+  given enumWithOther: [A: EnumWithOther as e] => JsonEncoder[A] = StringEncoder.contramap(e.encode)
+
+  def `enum`[A: StrictEnum]: JsonEncoder[A] = strictEnum[A]
 
   given localTime: JsonEncoder[LocalTime] = usingToString
   given localDate: JsonEncoder[LocalDate] = usingToString

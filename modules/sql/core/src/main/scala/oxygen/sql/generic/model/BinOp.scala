@@ -12,7 +12,7 @@ private[generic] sealed trait BinOp {
   final def sqlPadded: String = s" $sql "
 
 }
-private[generic] object BinOp extends Enum.Companion[BinOp] {
+private[generic] object BinOp {
 
   enum Comp(final val sql: String, final val scala: String) extends BinOp {
     case `==` extends Comp("=", "==")
@@ -34,9 +34,7 @@ private[generic] object BinOp extends Enum.Companion[BinOp] {
 
   }
 
-  override def values: Array[BinOp] = Comp.values ++ AndOr.values
-
-  object Sql extends EnumMap[String](op => NonEmptyList.one(op.sql))
-  object Scala extends EnumMap[String](op => NonEmptyList.one(op.scala))
+  val sql: StrictEnum[BinOp] = StrictEnum.derive[BinOp](_.sql)
+  val scala: StrictEnum[BinOp] = StrictEnum.derive[BinOp](_.scala)
 
 }

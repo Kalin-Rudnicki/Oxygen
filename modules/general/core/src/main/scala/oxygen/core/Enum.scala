@@ -4,13 +4,17 @@ import oxygen.core.collection.NonEmptyList
 import oxygen.core.typeclass.*
 import scala.reflect.ClassTag
 
+@deprecated("use [[oxygen.core.StrictEnum]]", "0.0.64")
 trait Enum[E <: Enum[E]] { self: E => }
+@scala.annotation.nowarn
 object Enum {
 
+  @deprecated("use [[oxygen.core.StrictEnum]]", "0.0.64")
   inline def values[E](implicit c: Companion[E]): Seq[E] = c.enumValues
 
   // =====|  |=====
 
+  @deprecated("use [[oxygen.core.StrictEnum]]", "0.0.64")
   trait Companion[E: TypeTag] { self =>
 
     given companion: Companion[E] = this

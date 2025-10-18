@@ -1,7 +1,7 @@
 package oxygen.cli
 
 import oxygen.cli.error.*
-import oxygen.predef.core.*
+import oxygen.predef.base.*
 import scala.annotation.tailrec
 import scala.annotation.unchecked.uncheckedVariance
 
@@ -741,24 +741,30 @@ object Params {
       valueParser = Values.value[A](longName),
     )
 
-  def `enum`[A](
+  def strictEnum[A](
       longName: LongName,
       shortName: Defaultable.Optional[ShortName] = Defaultable.Auto,
       aliases: List[SimpleName] = Nil,
       hints: List[HelpHint.Make] = Nil,
-  )(implicit
-      ec: Enum.Companion[A],
-  ): Params[A] = {
-    implicit val aDec: StringDecoder[A] = ec.companion.stringCodec.decoder
+  )(using e: StrictEnum[A]): Params[A] = {
+    given StringDecoder[A] = StringCodec.strictEnum[A].decoder
 
     Params.ParamWithValues(
       longName = longName,
       shortName = shortName,
       aliases = aliases,
-      hints = hints.map(HelpHint(_)) :+ HelpHint.EnumValues(ec.companion.ToString.encodedValues),
+      hints = hints.map(HelpHint(_)) :+ HelpHint.EnumValues(e.encodedValues),
       valueParser = Values.value[A](longName),
     )
   }
+
+  def `enum`[A](
+      longName: LongName,
+      shortName: Defaultable.Optional[ShortName] = Defaultable.Auto,
+      aliases: List[SimpleName] = Nil,
+      hints: List[HelpHint.Make] = Nil,
+  )(using e: StrictEnum[A]): Params[A] =
+    strictEnum[A](longName, shortName, aliases, hints)
 
   def valueWith[A](
       longName: LongName,

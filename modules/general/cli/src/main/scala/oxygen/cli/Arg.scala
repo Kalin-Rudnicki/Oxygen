@@ -1,6 +1,6 @@
 package oxygen.cli
 
-import oxygen.predef.core.*
+import oxygen.predef.base.*
 import scala.annotation.tailrec
 
 sealed trait Arg {

@@ -1,6 +1,8 @@
 package oxygen.cli
 
-import oxygen.core.*
+import oxygen.predef.base.*
 
-enum HelpType extends Enum[HelpType] { case Help, HelpExtra }
-object HelpType extends Enum.Companion[HelpType]
+enum HelpType { case Help, HelpExtra }
+object HelpType {
+  given strictEnum: StrictEnum[HelpType] = StrictEnum.make(values.toSeq)
+}

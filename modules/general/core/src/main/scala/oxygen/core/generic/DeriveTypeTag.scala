@@ -1,7 +1,7 @@
 package oxygen.core.generic
 
 import oxygen.core.TypeTag
-import oxygen.predef.core.*
+import oxygen.predef.base.*
 import scala.quoted.*
 import scala.reflect.ClassTag
 

@@ -188,12 +188,20 @@ object StringDecoder {
 
   // =====|  |=====
 
-  val string: StringDecoder[String] =
-    new StringDecoder[String] {
-      override val prevTypeInfo: TypeTag[?] = TypeTag[String]
-      override val typeInfo: TypeTag[String] = TypeTag[String]
-      override def decodeError(string: String): Either[StringDecoder.Error, String] = string.asRight
-    }
+  case object ForString extends StringDecoder[String] {
+    override val prevTypeInfo: TypeTag[?] = TypeTag[String]
+    override val typeInfo: TypeTag[String] = TypeTag[String]
+    override def decodeError(string: String): Either[StringDecoder.Error, String] = string.asRight
+  }
+
+  final case class ForStrictEnum[A](strictEnum: StrictEnum[A]) extends StringDecoder[A] {
+    override val prevTypeInfo: TypeTag[?] = TypeTag[String]
+    override val typeInfo: TypeTag[A] = strictEnum.typeTag
+    override def decodeError(string: String): Either[StringDecoder.Error, A] =
+      strictEnum.decodeOption(string).toRight(StringDecoder.Error(prevTypeInfo, typeInfo, string, None, StringDecoder.Hint.AllowedValues(strictEnum.encodedValues).some))
+  }
+
+  val string: StringDecoder[String] = ForString
 
   private val numsOneTwo = "(\\d{1,2})".r
   private val numsTwo = "(\\d{2})".r
