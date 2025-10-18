@@ -72,6 +72,9 @@ object K0 {
         case ImplicitSearchSuccess(tree) => tree.asExprOf[TC[A]]
         case ImplicitSearchFailure(_)    => f(using tpe)
 
+    def toIndentedString: IndentedString
+    override final def toString: String = toIndentedString.toString
+
   }
   object Entity {
 
@@ -116,6 +119,7 @@ object K0 {
         override final val typeRepr: TypeRepr = entity.typeRepr
         override final def pos: Position = entity.pos
         override final def annotations(using Quotes): AnnotationsTyped[B] = entity.annotations
+        override final def toIndentedString: IndentedString = entity.toIndentedString
       }
 
     }
@@ -535,12 +539,16 @@ object K0 {
     override type SelfType[A2] <: ProductGeneric[A2]
 
     override val typeType: TypeType.Case
+    protected val subTypeName: String
 
     def fields: ArraySeq[Field[?]]
 
     override final def children: ArraySeq[AnyChild] = fields.asInstanceOf[ArraySeq[AnyChild]]
 
     def fieldsToInstance[S[_]: SeqRead](exprs: S[Expr[?]])(using Quotes): Expr[A]
+
+    override final def toIndentedString: IndentedString =
+      IndentedString.section(s"ProductGeneric.$subTypeName[${typeRepr.showCode}]")(fields.map(_.toIndentedString))
 
     /////// Field ///////////////////////////////////////////////////////////////
 
@@ -566,6 +574,8 @@ object K0 {
       override def pos: Position = constructorValDef.pos
 
       override def annotations(using Quotes): AnnotationsTyped[B] = AnnotationsTyped(constructorValDef.symbol.annotations.all, constructorValDef.show)
+
+      override def toIndentedString: IndentedString = s"$name: ${typeRepr.showCode}"
 
       def fromParentTerm(parent: Term): Term = parent.select(fieldSym)
 
@@ -692,6 +702,7 @@ object K0 {
       override final val fields: ArraySeq[Field[?]] = ArraySeq.empty
 
       override val typeType: TypeType.Case.Object
+      override protected val subTypeName: String = "CaseObjectGeneric"
 
       def fieldsToInstance0(using Quotes): Expr[A]
       override final def fieldsToInstance[S[_]: SeqRead](exprs: S[Expr[?]])(using Quotes): Expr[A] =
@@ -736,6 +747,7 @@ object K0 {
 
     trait CaseClassGeneric[A] extends ProductGeneric[A] {
       override val typeType: TypeType.Case.Class
+      override protected val subTypeName: String = "CaseClassGeneric"
     }
     object CaseClassGeneric {
 
@@ -849,6 +861,7 @@ object K0 {
 
       given bTpe: Type[B] = field.tpe
 
+      override protected val subTypeName: String = "AnyValGeneric"
       override final lazy val fields: ArraySeq[Field[?]] = ArraySeq(field)
 
       def fieldsToInstance1(expr: Expr[B])(using Quotes): Expr[A]
@@ -1191,10 +1204,14 @@ object K0 {
     override final type Child[B <: A] = Case[B]
 
     override val typeType: TypeType.Sealed
+    protected val subTypeName: String
 
     def cases: ArraySeq[Case[? <: A]]
 
     override final def children: ArraySeq[AnyChild] = cases.asInstanceOf[ArraySeq[AnyChild]]
+
+    override final def toIndentedString: IndentedString =
+      IndentedString.section(s"SumGeneric.$subTypeName[${typeRepr.showCode}]")(cases.map(_.toIndentedString))
 
     /////// Case ///////////////////////////////////////////////////////////////
 
@@ -1347,11 +1364,13 @@ object K0 {
     private[SumGeneric] trait FlatNonEnumGeneric[A] extends FlatGeneric[A] {
       override final type Gen[b] = ProductGeneric[b]
       override final type SelfType[A2] = FlatNonEnumGeneric[A2]
+      override protected val subTypeName: String = "FlatNonEnumGeneric"
     }
 
     trait EnumGeneric[A] extends FlatGeneric[A] {
       override final type Gen[b] = ProductGeneric.CaseObjectGeneric[b]
       override final type SelfType[A2] = EnumGeneric[A2]
+      override protected val subTypeName: String = "EnumGeneric"
     }
     object EnumGeneric {
 
@@ -1369,7 +1388,7 @@ object K0 {
         unroll(Generic.of[A])
       }
 
-      private def extract[A: Type](validateNumCaseClasses: Int => Boolean, expectedSize: String)(using Quotes): Expr[ArraySeq[A]] = {
+      private def extractReturnCaseClasses[A: Type](using Quotes): (TypeRepr, ArraySeq[ProductGeneric.CaseClassGeneric[? <: A]], Expr[ArraySeq[A]]) = {
         val typeRepr: TypeRepr = TypeRepr.of[A].dealias
         val children: ArraySeq[ProductGeneric[? <: A]] =
           typeRepr match {
@@ -1390,14 +1409,20 @@ object K0 {
         if (caseObjects.isEmpty)
           report.errorAndAbort(s"No case objects returned for parent ${typeRepr.showAnsiCode}")
 
+        val values: ArraySeq[Expr[A]] = caseObjects.map { _.instantiate.instance }
+
+        (typeRepr, caseClasses, values.seqToArraySeqExpr)
+      }
+
+      private def extract[A: Type](validateNumCaseClasses: Int => Boolean, expectedSize: String)(using Quotes): Expr[ArraySeq[A]] = {
+        val (typeRepr, caseClasses, valuesExpr) = extractReturnCaseClasses[A]
+
         if (!validateNumCaseClasses(caseClasses.length)) {
           val showCaseClasses = caseClasses.map { ccg => s"\n  - ${ccg.typeRepr.showAnsiCode}" }.mkString
           report.errorAndAbort(s"Invalid number of case classes detected for parent ${typeRepr.showAnsiCode}, expected $expectedSize, but found ${caseClasses.length}:$showCaseClasses")
         }
 
-        val values: ArraySeq[Expr[A]] = caseObjects.map { _.instantiate.instance }
-
-        values.seqToArraySeqExpr
+        valuesExpr
       }
 
       object deriveEnum {
@@ -1416,9 +1441,43 @@ object K0 {
           * Useful for an enum with a representation for Other(_).
           */
         object ignoreSingleCaseClass {
+
           private def valuesImpl[A: Type](using Quotes): Expr[ArraySeq[A]] = extract[A](_ == 1, "exactly 1")
           inline def values[A]: ArraySeq[A] = ${ valuesImpl[A] }
           inline def map[A, B](f: A => B): Map[B, A] = values[A].map { a => (f(a), a) }.toMap
+
+          private def valuesAndWrapImpl[A: Type, B: Type](using Quotes): Expr[(ArraySeq[A], B => A)] = {
+            val (typeRepr, caseClasses, valuesExpr) = extractReturnCaseClasses[A]
+            val caseClass: ProductGeneric.CaseClassGeneric[? <: A] =
+              caseClasses.toList match {
+                case caseClass :: Nil => caseClass
+                case _                =>
+                  val showCaseClasses = caseClasses.map { ccg => s"\n  - ${ccg.typeRepr.showAnsiCode}" }.mkString
+                  report.errorAndAbort(s"Invalid number of case classes detected for parent ${typeRepr.showAnsiCode}, expected 1, but found ${caseClasses.length}:$showCaseClasses")
+              }
+
+            val bTypeRepr: TypeRepr = TypeRepr.of[B].dealias
+            val caseClassField: caseClass.Field[?] = caseClass.fields.toList match
+              case field :: Nil => field
+              case _            => report.errorAndAbort(s"Found single case-class child for ${typeRepr.showAnsiCode}, but it doesn't have a single field:\n$caseClass")
+
+            if (!(caseClassField.typeRepr =:= bTypeRepr))
+              report.errorAndAbort(s"Expected single case-class field to have type ${bTypeRepr.showAnsiCode}, but got ${caseClassField.typeRepr.showAnsiCode}", caseClassField.pos)
+
+            def wrap(value: Expr[B]): Expr[A] = caseClass.instantiate.fieldsToInstance(value :: Nil)
+
+            val wrapExpr: Expr[B => A] =
+              '{ (value: B) => ${ wrap('value) } }
+
+            '{ ($valuesExpr, $wrapExpr) }
+          }
+
+          /**
+            * Expects a type with case-object children, and a single case-class child, which has a single field of type [[B]].
+            * The returned function `[[B]] => [[A]]` will create an [[A]] by wrapping it in that case-class.
+            */
+          inline def valuesAndWrap[A, B]: (ArraySeq[A], B => A) = ${ valuesAndWrapImpl[A, B] }
+
         }
 
         /**
@@ -1446,6 +1505,7 @@ object K0 {
     trait NestedGeneric[A] extends SumGeneric[A] {
       override final type Gen[b] = ProductOrSumGeneric[b]
       override final type SelfType[A2] = NestedGeneric[A2]
+      override protected val subTypeName: String = "NestedGeneric"
     }
     object NestedGeneric {
 
@@ -1587,11 +1647,14 @@ object K0 {
       override def parentGeneric: IdentityGeneric[A] = identityGeneric
       override def pos: Position = identityGeneric.pos
       override def annotations(using Quotes): AnnotationsTyped[B] = AnnotationsTyped(identityGeneric.annotations.all, typeRepr.show)
+      override def toIndentedString: IndentedString = s"IdentityGeneric[${typeRepr.showCode}]"
     }
 
     final val child: IdentityChild[A] = new IdentityChild[A]
 
     override final val children: ArraySeq[AnyChild] = ArraySeq(child)
+
+    override def toIndentedString: IndentedString = child.toIndentedString
 
   }
 

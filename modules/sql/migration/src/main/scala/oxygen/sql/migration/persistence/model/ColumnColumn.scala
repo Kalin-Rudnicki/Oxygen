@@ -1,7 +1,6 @@
 package oxygen.sql.migration.persistence.model
 
 import oxygen.json.JsonCodec
-import oxygen.meta.K0
 import oxygen.predef.core.*
 
 final case class ColumnColumn(
@@ -16,10 +15,7 @@ object ColumnColumn {
   }
   object Type {
 
-    sealed abstract class Single(show: String) extends Type(show), Enum[Single]
-    object Single extends Enum.Companion[Single] {
-      override def values: scala.Array[Single] = K0.SumGeneric.EnumGeneric.deriveEnum.strictEnum.values[Single].toArray
-    }
+    sealed abstract class Single(show: String) extends Type(show) derives StrictEnum
 
     // Numeric Types
     case object SmallInt extends Type.Single("SMALLINT")
@@ -59,7 +55,7 @@ object ColumnColumn {
 
     def decode(string: String): Either[String, ColumnColumn.Type] = string match
       case s"$inner[]" => decode(inner).map(Array(_))
-      case _           => Single.ToString.decode(string).toRight(s"invalid column type: $string")
+      case _           => StrictEnum[Single].decodeEitherWithHint(string)
 
     given JsonCodec[Type] = JsonCodec.string.transformOrFail(decode, _.show)
 

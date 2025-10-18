@@ -1,6 +1,5 @@
 package oxygen.sql.migration.model
 
-import oxygen.core.generic.*
 import oxygen.predef.core.*
 
 sealed trait EntityRef derives Show

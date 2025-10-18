@@ -1,13 +1,13 @@
 package oxygen.core
 
-import oxygen.core.collection.NonEmptyList
 import oxygen.core.syntax.option.*
 import oxygen.core.syntax.string.*
+import oxygen.core.typeclass.*
 
-sealed trait ColorMode extends Enum[ColorMode] {
+sealed trait ColorMode {
   def toConcrete(color: Color): Option[Color.Concrete]
 }
-object ColorMode extends Enum.Companion[ColorMode] {
+object ColorMode {
 
   // =====|  |=====
 
@@ -69,8 +69,7 @@ object ColorMode extends Enum.Companion[ColorMode] {
 
   // =====|  |=====
 
-  override protected val defaultToString: ColorMode => NonEmptyList[String] = e => NonEmptyList.one(e.toString.camelToSnake.snakeToDash)
-
-  override def values: Array[ColorMode] = Array(Extended, Simple, Colorless, ShowColorName)
+  given strictEnum: StrictEnum[ColorMode] = StrictEnum.make[ColorMode](Seq(Extended, Simple, Colorless, ShowColorName), _.toString.camelToSnake.snakeToDash)
+  given stringCodec: StringCodec[ColorMode] = StringCodec.strictEnum
 
 }

@@ -37,7 +37,7 @@ object Color {
 
   sealed trait Simple extends Color.Concrete
 
-  sealed abstract class Named(n: Char) extends Color.Simple with Enum[Named] {
+  sealed abstract class Named(n: Char) extends Color.Simple {
 
     final val lowerName: String = toString.toLowerCase
 
@@ -45,7 +45,7 @@ object Color {
     override final val bgMod: String = s"4$n"
 
   }
-  object Named extends Enum.Companion[Named] {
+  object Named {
 
     case object Black extends Named('0')
     case object Red extends Named('1')
@@ -56,7 +56,9 @@ object Color {
     case object Cyan extends Named('6')
     case object White extends Named('7')
 
-    override def values: Array[Named] = Array(Black, Red, Green, Yellow, Blue, Magenta, Cyan, White)
+    given strictEnum: StrictEnum[Named] = StrictEnum.make[Named](Seq(Black, Red, Green, Yellow, Blue, Magenta, Cyan, White))
+
+    given stringCodec: StringCodec[Named] = StringCodec.strictEnum
 
   }
 

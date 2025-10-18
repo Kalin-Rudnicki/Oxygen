@@ -199,7 +199,7 @@ private[generic] object RawQueryExpr extends Parser[(Term, RefMap), RawQueryExpr
         case singleApply(select @ Select(lhs, op), rhs) =>
           for {
             op <- op match
-              case BinOp.Scala(op) => ParseResult.Success(op)
+              case BinOp.scala(op) => ParseResult.Success(op)
               case _               => ParseResult.unknown(select, s"invalid binary operator: $op")
             lhs <- RawQueryExpr.parse((lhs, refs))
             rhs <- RawQueryExpr.parse((rhs, refs))
@@ -207,7 +207,7 @@ private[generic] object RawQueryExpr extends Parser[(Term, RefMap), RawQueryExpr
         case singleApply(singleApply(ident @ Ident(op), lhs), rhs) =>
           for {
             op <- op match
-              case BinOp.Scala(op) => ParseResult.Success(op)
+              case BinOp.scala(op) => ParseResult.Success(op)
               case _               => ParseResult.unknown(ident, s"invalid binary operator: $op")
             lhs <- RawQueryExpr.parse((lhs, refs))
             rhs <- RawQueryExpr.parse((rhs, refs))

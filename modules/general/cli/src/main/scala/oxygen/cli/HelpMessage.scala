@@ -1,7 +1,7 @@
 package oxygen.cli
 
+import oxygen.predef.base.*
 import oxygen.predef.color.{*, given}
-import oxygen.predef.core.*
 
 sealed trait HelpMessage {
 

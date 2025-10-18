@@ -72,6 +72,9 @@ object Show extends ShowLowPriority.LowPriority1 {
 
   given throwable: Show[Throwable] = _.safeGetMessage
 
+  given strictEnum: [A: StrictEnum as e] => Show[A] = e.encode(_)
+  given enumWithOther: [A: EnumWithOther as e] => Show[A] = e.encode(_)
+
   def showOption[A: Show as showA](
       somePrefix: String,
       someSuffix: String,

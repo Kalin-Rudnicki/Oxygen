@@ -41,6 +41,11 @@ trait RowRepr[A] {
   final def transform[B](ab: A => B, ba: B => A): RowRepr[B] = RowRepr.Transform(this, ab, ba)
   final def transformOrFail[B](ab: A => Either[String, B], ba: B => A): RowRepr[B] = RowRepr.TransformOrFail(this, ab, ba)
 
+  inline final def transformAuto[B]: RowRepr[B] = {
+    val (ab, ba) = K0.ProductGeneric.deriveTransform[A, B]
+    this.transform(ab, ba)
+  }
+
   final def toIndentedString: IndentedString =
     IndentedString.section("RowSchema:")(
       IndentedString.section("columns:")(
@@ -348,11 +353,14 @@ object RowReprLowPriority {
       RowRepr.arraySeq[A].transform(_.into[F], _.toArraySeq)
 
     // TODO (KR) : have a special RowRepr for this
-    given `enum`: [A: Enum.Companion as ec] => RowRepr[A] =
-      RowRepr.string.transformOrFail(
-        s => ec.ToString.decode(s).toRight(s"Invalid value ${s.unesc}, expected one of: ${ec.ToString.encodedValues.map(_.unesc).mkString(", ")}"),
-        ec.ToString.encode,
-      )
+    given strictEnum: [A: StrictEnum as e] => RowRepr[A] =
+      RowRepr.string.transformOrFail(e.decodeEitherWithHint, e.encode)
+
+    // TODO (KR) : have a special RowRepr for this
+    given enumWithOther: [A: EnumWithOther as e] => RowRepr[A] =
+      RowRepr.string.transform(e.decode, e.encode)
+
+    def `enum`[A: StrictEnum]: RowRepr[A] = strictEnum[A]
 
   }
 

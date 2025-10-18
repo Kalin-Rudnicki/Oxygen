@@ -57,7 +57,10 @@ object JsonCodec extends JsonCodecLowPriority.LowPriority1 {
 
   given tuple: [A <: Tuple: {JsonEncoder.TupleEncoder, JsonDecoder.TupleDecoder}] => JsonCodec[A] = fromEncoderAndDecoder
 
-  given `enum`: [A: TypeTag] => (ec: Enum.Companion[A]) => JsonCodec[A] = fromEncoderAndDecoder
+  given strictEnum: [A: StrictEnum] => JsonCodec[A] = fromEncoderAndDecoder
+  given enumWithOther: [A: EnumWithOther] => JsonCodec[A] = fromEncoderAndDecoder
+
+  def `enum`[A: StrictEnum]: JsonCodec[A] = strictEnum[A]
 
   given localTime: JsonCodec[LocalTime] = fromEncoderAndDecoder
   given localDate: JsonCodec[LocalDate] = fromEncoderAndDecoder

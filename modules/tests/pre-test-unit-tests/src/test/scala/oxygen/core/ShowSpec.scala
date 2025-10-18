@@ -1,6 +1,5 @@
 package oxygen.core
 
-import oxygen.core.generic.*
 import oxygen.predef.test.*
 
 object ShowSpec extends OxygenSpecDefault {

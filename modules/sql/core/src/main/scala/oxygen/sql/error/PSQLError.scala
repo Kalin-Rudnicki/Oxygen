@@ -10,7 +10,7 @@ final case class PSQLError(e: PSQLException) {
   val message: Option[String] = serverMessage.flatMap { m => Option(m.getMessage) }
   val detail: Option[String] = serverMessage.flatMap { m => Option(m.getDetail) }
   val hint: Option[String] = serverMessage.flatMap { m => Option(m.getHint) }
-  val code: Option[PSQLCode] = Option(e.getSQLState).flatMap(PSQLCode.ByCode.decode)
+  val code: Option[PSQLCode] = Option(e.getSQLState).flatMap(PSQLCode.byCode.decodeOption)
 
   def toIndentedString: IndentedString =
     IndentedString.section("PSQL Error:")(

@@ -160,6 +160,11 @@ object StringCodec {
   given `class`: StringCodec[Class[?]] =
     StringCodec.string.transform(str => Try { Class.forName(str) }.getOrElse { classOf[Any] }, _.getName)
 
+  given strictEnum: [A: StrictEnum as e] => StringCodec[A] =
+    StringCodec(StringEncoder.string.contramap(e.encode), StringDecoder.ForStrictEnum(e))
+  given enumWithOther: [A: EnumWithOther as e] => StringCodec[A] =
+    StringCodec.string.transform(e.decode, e.encode)(using e.typeTag)
+
   //////////////////////////////////////////////////////////////////////////////////////////////////////
   //      Manual
   //////////////////////////////////////////////////////////////////////////////////////////////////////
