@@ -1,6 +1,7 @@
 package oxygen.crypto.service
 
 import java.time.Instant
+import oxygen.crypto.model.JWTError
 import oxygen.crypto.service.ExampleServices.jwtServices.*
 import oxygen.predef.test.*
 import zio.test.TestClock
@@ -22,21 +23,21 @@ object JWTServiceSpec extends OxygenSpecDefault {
           for {
             token <- hmac1.issueToken(Person.example1)
             exit <- hmac2.validateToken(token).exit
-          } yield assert(exit)(fails(equalTo(TokenError.InvalidSignature)))
+          } yield assert(exit)(fails(equalTo(JWTError.InvalidSignature)))
         },
         test("fails on expired token - exact") {
           for {
             token <- hmac1.issueToken(Person.example1)
             _ <- TestClock.adjust(ExampleServices.config.timeToLive)
             exit <- hmac1.validateToken(token).exit
-          } yield assert(exit)(fails(equalTo(TokenError.Expired(expiryInstant, expiryInstant))))
+          } yield assert(exit)(fails(equalTo(JWTError.Expired(expiryInstant, expiryInstant))))
         },
         test("fails on expired token - after") {
           for {
             token <- hmac1.issueToken(Person.example1)
             _ <- TestClock.adjust(ExampleServices.config.timeToLive.plus(1.second))
             exit <- hmac1.validateToken(token).exit
-          } yield assert(exit)(fails(equalTo(TokenError.Expired(expiryInstant.plus(1.second), expiryInstant))))
+          } yield assert(exit)(fails(equalTo(JWTError.Expired(expiryInstant.plus(1.second), expiryInstant))))
         },
       ),
       suite("rsa")(
@@ -50,21 +51,21 @@ object JWTServiceSpec extends OxygenSpecDefault {
           for {
             token <- rsa1.issueToken(Person.example1)
             exit <- rsa2.validateToken(token).exit
-          } yield assert(exit)(fails(equalTo(TokenError.InvalidSignature)))
+          } yield assert(exit)(fails(equalTo(JWTError.InvalidSignature)))
         },
         test("fails on expired token - exact") {
           for {
             token <- rsa1.issueToken(Person.example1)
             _ <- TestClock.adjust(ExampleServices.config.timeToLive)
             exit <- rsa1.validateToken(token).exit
-          } yield assert(exit)(fails(equalTo(TokenError.Expired(expiryInstant, expiryInstant))))
+          } yield assert(exit)(fails(equalTo(JWTError.Expired(expiryInstant, expiryInstant))))
         },
         test("fails on expired token - after") {
           for {
             token <- rsa1.issueToken(Person.example1)
             _ <- TestClock.adjust(ExampleServices.config.timeToLive.plus(1.second))
             exit <- rsa1.validateToken(token).exit
-          } yield assert(exit)(fails(equalTo(TokenError.Expired(expiryInstant.plus(1.second), expiryInstant))))
+          } yield assert(exit)(fails(equalTo(JWTError.Expired(expiryInstant.plus(1.second), expiryInstant))))
         },
       ),
     )

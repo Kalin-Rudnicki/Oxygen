@@ -1,6 +1,6 @@
 package oxygen.example.webServer
 
-import oxygen.crypto.service.{JWTService, Key}
+import oxygen.crypto.service.{HashKey, JWTService}
 import oxygen.example.api.model.user.User
 import oxygen.example.api.service.*
 import oxygen.example.domain.repo.*
@@ -31,7 +31,7 @@ object WebServerMain extends ExecutableApp {
     ) derives JsonCodec
 
     final case class Token(
-        key: Key.CanIssue.Config,
+        key: HashKey.CanIssue.Config,
         timeToLive: Duration,
     ) derives JsonCodec
 

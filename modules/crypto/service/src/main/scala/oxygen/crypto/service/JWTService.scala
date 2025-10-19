@@ -7,7 +7,7 @@ import zio.*
 object JWTService {
 
   trait Validator[A] {
-    def validateToken(jwt: JWT[A]): IO[TokenError, Unit]
+    def validateToken(jwt: JWT[A]): IO[JWTError, Unit]
   }
   object Validator {
 
@@ -16,14 +16,14 @@ object JWTService {
     def layer[A: Tag]: URLayer[BearerTokenService.Validator, JWTService.Validator[JWT.StandardPayload[A]]] =
       ZLayer.fromFunction { JWTService.Validator.StdLive.apply[A] }
 
-    def configLayer[A: Tag]: URLayer[Key.CanValidate.Config, JWTService.Validator[JWT.StandardPayload[A]]] =
+    def configLayer[A: Tag]: URLayer[HashKey.CanValidate.Config, JWTService.Validator[JWT.StandardPayload[A]]] =
       BearerTokenService.Validator.configLayer >>> JWTService.Validator.layer[A]
 
     final case class StdLive[A](
         bearerTokenService: BearerTokenService.Validator,
     ) extends JWTService.Validator[JWT.StandardPayload[A]] {
 
-      override def validateToken(jwt: JWT.Std[A]): IO[TokenError, Unit] =
+      override def validateToken(jwt: JWT.Std[A]): IO[JWTError, Unit] =
         bearerTokenService.validateToken(jwt.token) *>
           JWTService.validateExpiry(jwt.payload)
 
@@ -32,7 +32,7 @@ object JWTService {
   }
 
   trait Issuer[Input, Output] extends Validator[Output] {
-    def issueToken(payload: Input): IO[TokenError.CryptoFailure, JWT[Output]]
+    def issueToken(payload: Input): IO[JWTError.CryptoFailure, JWT[Output]]
   }
   object Issuer {
 
@@ -43,7 +43,7 @@ object JWTService {
     def layer[A: {JsonCodec, Tag}]: URLayer[BearerTokenService.Issuer & JWTService.Issuer.Config, JWTService.Issuer[A, JWT.StandardPayload[A]]] =
       ZLayer.fromFunction { JWTService.Issuer.StdLive.apply[A] }
 
-    def configLayer[A: {JsonCodec, Tag}]: URLayer[Key.CanIssue.Config & JWTService.Issuer.Config, JWTService.Issuer[A, JWT.StandardPayload[A]]] =
+    def configLayer[A: {JsonCodec, Tag}]: URLayer[HashKey.CanIssue.Config & JWTService.Issuer.Config, JWTService.Issuer[A, JWT.StandardPayload[A]]] =
       BearerTokenService.Issuer.configLayer >>> JWTService.Issuer.layer[A]
 
     final case class StdLive[A: JsonCodec](
@@ -53,7 +53,7 @@ object JWTService {
 
       private given codec: JsonCodec[JWT.StandardPayload[A]] = JWT.StandardPayload.derived$JsonCodec[A]
 
-      override def issueToken(payload0: A): IO[TokenError.CryptoFailure, JWT.Std[A]] =
+      override def issueToken(payload0: A): IO[JWTError.CryptoFailure, JWT.Std[A]] =
         for {
           id <- Random.nextUUID
           now <- Clock.instant
@@ -61,7 +61,7 @@ object JWTService {
           token <- bearerTokenService.issueToken(payload.toJsonStringCompact)
         } yield JWT(payload, token)
 
-      override def validateToken(jwt: JWT.Std[A]): IO[TokenError, Unit] =
+      override def validateToken(jwt: JWT.Std[A]): IO[JWTError, Unit] =
         bearerTokenService.validateToken(jwt.token) *>
           JWTService.validateExpiry(jwt.payload)
 
@@ -69,11 +69,11 @@ object JWTService {
 
   }
 
-  private def validateExpiry(jwt: JWT.StandardPayload[?]): IO[TokenError.Expired, Unit] =
+  private def validateExpiry(jwt: JWT.StandardPayload[?]): IO[JWTError.Expired, Unit] =
     for {
       now <- Clock.instant
       expiresAt = jwt.expiresAt
-      _ <- ZIO.fail[TokenError.Expired](TokenError.Expired(now, expiresAt)).unlessDiscard(now.isBefore(expiresAt))
+      _ <- ZIO.fail[JWTError.Expired](JWTError.Expired(now, expiresAt)).unlessDiscard(now.isBefore(expiresAt))
     } yield ()
 
 }

@@ -2,24 +2,24 @@ package oxygen.crypto.service
 
 import java.nio.charset.StandardCharsets
 import java.security.*
-import javax.crypto.Mac
+import javax.crypto.{Mac, SecretKey}
 import javax.crypto.spec.SecretKeySpec
 import oxygen.crypto.model.*
 import oxygen.json.jsonDiscriminator
 import oxygen.predef.core.*
 import oxygen.predef.json.*
 
-object Key {
+object HashKey {
 
   //////////////////////////////////////////////////////////////////////////////////////////////////////
   //      Impls
   //////////////////////////////////////////////////////////////////////////////////////////////////////
 
-  final case class HS256(base64Key: String) extends Key.Symmetric {
+  final case class HS256(base64Key: String) extends HashKey.Symmetric {
 
     override protected val alg: JWTHeader.Alg = JWTHeader.Alg.HS256
 
-    private lazy val secretKey: SecretKeySpec =
+    private lazy val secretKey: SecretKey =
       new SecretKeySpec(Base64.stdDecoder.decode(base64Key), "HmacSHA256")
 
     override protected def issueSignature(headerAndPayload: String): String = {
@@ -70,7 +70,7 @@ object Key {
       * @param privateKey Accepts key in PKCS8 format. Headers/footer/newlines are optional, and will be properly stripped if provided.
       * @param publicKey Accepts x509 format. Headers/footer/newlines are optional, and will be properly stripped if provided.
       */
-    final case class Private(privateKey: String, publicKey: String) extends Key.Asymmetric.Private {
+    final case class Private(privateKey: String, publicKey: String) extends HashKey.Asymmetric.Private {
 
       private lazy val builtPrivateKey: PrivateKey = makePrivateKey(privateKey)
       private lazy val builtPublicKey: PublicKey = makePublicKey(publicKey)
@@ -93,7 +93,7 @@ object Key {
     /**
       * @param publicKey Accepts x509 format. Headers/footer/newlines are optional, and will be properly stripped if provided.
       */
-    final case class Public(publicKey: String) extends Key.Asymmetric.Public {
+    final case class Public(publicKey: String) extends HashKey.Asymmetric.Public {
 
       override protected val alg: JWTHeader.Alg = JWTHeader.Alg.RS256
 
@@ -106,7 +106,7 @@ object Key {
 
   }
 
-  case object none extends Key.Symmetric {
+  case object none extends HashKey.Symmetric {
 
     override protected val alg: JWTHeader.Alg = JWTHeader.Alg.none
 
@@ -123,19 +123,19 @@ object Key {
     protected val alg: JWTHeader.Alg
     protected def validateSignature(headerAndPayload: String, signatureToValidate: String): Boolean
 
-    final def validate(token: BearerToken): Either[TokenError, Unit] =
-      if (token.header.alg != alg) TokenError.InvalidAlgorithm(alg, token.header.alg).asLeft
-      else if (!validateSignature(token.`headerBase64.payloadBase64`, token.signatureBase64)) TokenError.InvalidSignature.asLeft
+    final def validate(token: BearerToken): Either[JWTError, Unit] =
+      if (token.header.alg != alg) JWTError.InvalidAlgorithm(alg, token.header.alg).asLeft
+      else if (!validateSignature(token.`headerBase64.payloadBase64`, token.signatureBase64)) JWTError.InvalidSignature.asLeft
       else ().asRight
 
   }
   object CanValidate {
 
     @jsonDiscriminator("alg")
-    enum Config(final val secret: Key.CanValidate) derives JsonCodec {
-      case HS256(base64Key: String) extends Config(Key.HS256(base64Key))
-      case RS256(publicKey: String) extends Config(Key.RS256.Public(publicKey))
-      case none extends Config(Key.none)
+    enum Config(final val secret: HashKey.CanValidate) derives JsonCodec {
+      case HS256(base64Key: String) extends Config(HashKey.HS256(base64Key))
+      case RS256(publicKey: String) extends Config(HashKey.RS256.Public(publicKey))
+      case none extends Config(HashKey.none)
     }
 
   }
@@ -162,25 +162,25 @@ object Key {
   object CanIssue {
 
     @jsonDiscriminator("alg")
-    enum Config(final val secret: Key.CanIssue) derives JsonCodec {
-      case HS256(base64Key: String) extends Config(Key.HS256(base64Key))
-      case RS256(privateKey: String, publicKey: String) extends Config(Key.RS256.Private(privateKey, publicKey))
-      case none extends Config(Key.none)
+    enum Config(final val secret: HashKey.CanIssue) derives JsonCodec {
+      case HS256(base64Key: String) extends Config(HashKey.HS256(base64Key))
+      case RS256(privateKey: String, publicKey: String) extends Config(HashKey.RS256.Private(privateKey, publicKey))
+      case none extends Config(HashKey.none)
     }
 
   }
 
-  trait Symmetric extends Key.CanIssue, Key.CanValidate {
+  trait Symmetric extends HashKey.CanIssue, HashKey.CanValidate {
 
     override protected final def validateSignature(headerAndPayload: String, signatureToValidate: String): Boolean =
       issueSignature(headerAndPayload) == signatureToValidate
 
   }
 
-  sealed trait Asymmetric extends Key.CanValidate
+  sealed trait Asymmetric extends HashKey.CanValidate
   object Asymmetric {
-    trait Public extends Key.Asymmetric
-    trait Private extends Key.Asymmetric, Key.CanIssue
+    trait Public extends HashKey.Asymmetric
+    trait Private extends HashKey.Asymmetric, HashKey.CanIssue
   }
 
 }
