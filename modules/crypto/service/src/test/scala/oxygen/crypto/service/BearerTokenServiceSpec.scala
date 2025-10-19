@@ -1,6 +1,6 @@
 package oxygen.crypto.service
 
-import oxygen.crypto.model.JWTHeader
+import oxygen.crypto.model.{JWTError, JWTHeader}
 import oxygen.crypto.service.ExampleServices.bearerTokenServices.*
 import oxygen.predef.test.*
 
@@ -35,19 +35,19 @@ object BearerTokenServiceSpec extends OxygenSpecDefault {
             token2 <- hmac1.issueToken(Person.example2.jsonString)
             modifiedToken1 = token1.copy(payloadBase64 = token2.payloadBase64, payload = token2.payload)
             exit <- hmac1.validateToken(modifiedToken1).exit
-          } yield assert(exit)(fails(equalTo(TokenError.InvalidSignature)))
+          } yield assert(exit)(fails(equalTo(JWTError.InvalidSignature)))
         },
         test("fails with invalid key - 1") {
           for {
             token <- hmac1.issueToken(Person.example1.jsonString)
             exit <- hmac2.validateToken(token).exit
-          } yield assert(exit)(fails(equalTo(TokenError.InvalidSignature)))
+          } yield assert(exit)(fails(equalTo(JWTError.InvalidSignature)))
         },
         test("fails with invalid key - 2") {
           for {
             token <- hmac2.issueToken(Person.example1.jsonString)
             exit <- hmac1.validateToken(token).exit
-          } yield assert(exit)(fails(equalTo(TokenError.InvalidSignature)))
+          } yield assert(exit)(fails(equalTo(JWTError.InvalidSignature)))
         },
       ),
       suite("rsa")(
@@ -69,19 +69,19 @@ object BearerTokenServiceSpec extends OxygenSpecDefault {
             token2 <- rsa1.issueToken(Person.example2.jsonString)
             modifiedToken1 = token1.copy(payloadBase64 = token2.payloadBase64, payload = token2.payload)
             exit <- rsa1.validateToken(modifiedToken1).exit
-          } yield assert(exit)(fails(equalTo(TokenError.InvalidSignature)))
+          } yield assert(exit)(fails(equalTo(JWTError.InvalidSignature)))
         },
         test("fails with invalid key - 1") {
           for {
             token <- rsa1.issueToken(Person.example1.jsonString)
             exit <- rsa2.validateToken(token).exit
-          } yield assert(exit)(fails(equalTo(TokenError.InvalidSignature)))
+          } yield assert(exit)(fails(equalTo(JWTError.InvalidSignature)))
         },
         test("fails with invalid key - 2") {
           for {
             token <- rsa2.issueToken(Person.example1.jsonString)
             exit <- rsa1.validateToken(token).exit
-          } yield assert(exit)(fails(equalTo(TokenError.InvalidSignature)))
+          } yield assert(exit)(fails(equalTo(JWTError.InvalidSignature)))
         },
       ),
       suite("invalid algo")(
@@ -89,7 +89,7 @@ object BearerTokenServiceSpec extends OxygenSpecDefault {
           for {
             token <- rsa1.issueToken(Person.example1.jsonString)
             exit <- hmac1.validateToken(token).exit
-          } yield assert(exit)(fails(equalTo(TokenError.InvalidAlgorithm(JWTHeader.Alg.HS256, JWTHeader.Alg.RS256))))
+          } yield assert(exit)(fails(equalTo(JWTError.InvalidAlgorithm(JWTHeader.Alg.HS256, JWTHeader.Alg.RS256))))
         },
       ),
     )

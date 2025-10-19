@@ -8,12 +8,12 @@ object ExampleServices {
 
   private object keys {
 
-    val hmac1: Key.HS256 = Key.HS256.textKey("example-hmac-key-1")
+    val hmac1: HashKey.HS256 = HashKey.HS256.textKey("example-hmac-key-1")
 
-    val hmac2: Key.HS256 = Key.HS256.textKey("example-hmac-key-2")
+    val hmac2: HashKey.HS256 = HashKey.HS256.textKey("example-hmac-key-2")
 
-    val rsa1: Key.RS256.Private =
-      Key.RS256.Private(
+    val rsa1: HashKey.RS256.Private =
+      HashKey.RS256.Private(
         """-----BEGIN PRIVATE KEY-----
           |MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQDIL5ooFj7rK3dz
           |y6gwuDKpMEsa8E7+PDeWhguacxLuGO5hNW4FOe5ul1X85uC2CAYOTdBhavJRqSb1
@@ -53,8 +53,8 @@ object ExampleServices {
           |-----END PUBLIC KEY-----""".stripMargin,
       )
 
-    val rsa2: Key.RS256.Private =
-      Key.RS256.Private(
+    val rsa2: HashKey.RS256.Private =
+      HashKey.RS256.Private(
         """
           |-----BEGIN PRIVATE KEY-----
           |MIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQC+wnyGAt2S02km
@@ -101,7 +101,7 @@ object ExampleServices {
   }
 
   object bearerTokenServices {
-    val none: BearerTokenService.Issuer = BearerTokenService.Issuer.Live(Key.none)
+    val none: BearerTokenService.Issuer = BearerTokenService.Issuer.Live(HashKey.none)
     val hmac1: BearerTokenService.Issuer = BearerTokenService.Issuer.Live(keys.hmac1)
     val hmac2: BearerTokenService.Issuer = BearerTokenService.Issuer.Live(keys.hmac2)
     val rsa1: BearerTokenService.Issuer = BearerTokenService.Issuer.Live(keys.rsa1)
