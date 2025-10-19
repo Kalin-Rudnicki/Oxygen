@@ -20,4 +20,6 @@ object EncryptionKey {
 
   }
 
+  case object none extends EncryptionKey
+
 }
