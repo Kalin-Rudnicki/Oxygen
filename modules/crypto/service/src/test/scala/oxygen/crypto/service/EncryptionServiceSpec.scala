@@ -6,12 +6,9 @@ import oxygen.predef.test.*
 object EncryptionServiceSpec extends OxygenSpecDefault {
 
   object cryptos {
-    private val key1: EncryptionKey.AES = EncryptionKey.AES("2HtUSy7O9cGCrn03TfbInaMBd/wAW7tzj/cRcpeo2MY=")
-    private val key2: EncryptionKey.AES = EncryptionKey.AES("yFmOe/YmRXeL0Pewa0Brq8njeW4DSFsAF0fWIvH+7bM=")
-
-    val noOp: EncryptionService = EncryptionService.NoOp
-    val live1: EncryptionService = EncryptionService.Live.make(key1)
-    val live2: EncryptionService = EncryptionService.Live.make(key2)
+    val noOp: EncryptionService = EncryptionService.Live(EncryptionKey.none)
+    val live1: EncryptionService = EncryptionService.Live(EncryptionKey.AES("2HtUSy7O9cGCrn03TfbInaMBd/wAW7tzj/cRcpeo2MY="))
+    val live2: EncryptionService = EncryptionService.Live(EncryptionKey.AES("yFmOe/YmRXeL0Pewa0Brq8njeW4DSFsAF0fWIvH+7bM="))
   }
 
   override def testSpec: TestSpec =
@@ -51,7 +48,7 @@ object EncryptionServiceSpec extends OxygenSpecDefault {
             ivc1 <- ZIO.fromTry { encrypted1.toIVCipher }
             ivc2 <- ZIO.fromTry { encrypted2.toIVCipher }
 
-            _ <- ZIO.logImportant(
+            _ <- ZIO.logInfo(
               s"""initialStr: $initialStr
                  |enc1: ${encrypted1.value}
                  |enc2: ${encrypted2.value}
