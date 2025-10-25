@@ -7,8 +7,8 @@ final case class Source(
 
   val chars: IArray[Char] = IArray.unsafeFromArray(rawText.toCharArray)
   val length: Int = chars.length
-  
-  val finalCharIdx: Int = if (isEmpty) 0 else length - 1
+
+  val lastCharIdx: Int = if (isEmpty) 0 else length - 1
   val eofIdx: Int = length
 
   def isEmpty: Boolean = rawText.isEmpty
@@ -20,7 +20,7 @@ final case class Source(
   def substringExclusive(startInclusive: SourcePosition, endExclusive: SourcePosition): String =
     ??? // FIX-PRE-MERGE (KR) :
 
-  inline def apply(idx: Int): Char = chars(idx)
+  def apply(idx: Int): SourcePosition = SourcePosition.atIndex(this, idx)
 
   def equiv(that: Source): Boolean =
     this.sourceType == that.sourceType && this.rawText == that.rawText
