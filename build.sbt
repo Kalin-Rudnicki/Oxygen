@@ -66,6 +66,9 @@ lazy val `oxygen-modules-jvm`: Project =
       `oxygen-transform`.jvm,
       `oxygen-zio`.jvm,
 
+      // slyce
+      `oxygen-slyce-core`.native,
+
       // sql
       `oxygen-sql`,
       `oxygen-sql-migration`,
@@ -108,6 +111,9 @@ lazy val `oxygen-modules-js`: Project =
       `oxygen-transform`.js,
       `oxygen-zio`.js,
 
+      // slyce
+      `oxygen-slyce-core`.native,
+
       // http
       `oxygen-http`.js,
 
@@ -143,6 +149,9 @@ lazy val `oxygen-modules-native`: Project =
       `oxygen-schema`.native,
       `oxygen-transform`.native,
       `oxygen-zio`.native,
+
+      // slyce
+      `oxygen-slyce-core`.native,
 
       // jwt
       `oxygen-crypto-model`.native,
@@ -252,6 +261,20 @@ lazy val `oxygen-meta`: CrossProject =
     .dependsOn(
       `oxygen-core` % testAndCompile,
       `oxygen-quoted` % testAndCompile,
+    )
+
+lazy val `oxygen-slyce-core`: CrossProject =
+  crossProject(JSPlatform, JVMPlatform, NativePlatform)
+    .crossType(CrossType.Pure)
+    .in(file("modules/slyce/core"))
+    .settings(
+      publishedProjectSettings,
+      name := "oxygen-slyce-core",
+      description := "Use macros to generate text parsers.",
+    )
+    .dependsOn(
+      `oxygen-meta` % testAndCompile,
+      `oxygen-test` % Test,
     )
 
 lazy val `oxygen-quoted`: CrossProject =
