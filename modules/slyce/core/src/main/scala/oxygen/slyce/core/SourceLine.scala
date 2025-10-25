@@ -5,6 +5,7 @@ import scala.annotation.tailrec
 
 sealed trait SourceLine {
 
+  val lineText: String
   val eol: SourcePosition.EOL
 
   final def source: Source = eol.source
@@ -16,9 +17,18 @@ sealed trait SourceLine {
   final def isLastSourceLine: Boolean = eol.isEOF
   final def eolIsEOF: Boolean = eol.isEOF
 
-  final def optNextLine: Option[SourceLine] = eol match
+  final def prevLine: Option[SourceLine] =
+    eol.prevLineEOL.map(SourceLine(_))
+  final def unsafePrevLine: SourceLine =
+    this.prevLine.getOrElse { throw new RuntimeException(s"No prev line before line:\n$this") }
+
+  final def nextLine: Option[SourceLine] = eol match
     case eol: SourcePosition.NewLine => SourceLine(eol.next).some
     case _: SourcePosition.EOF       => None
+  final def unsafeNextLine: SourceLine =
+    this.nextLine.getOrElse { throw new RuntimeException(s"No next line after line:\n$this") }
+
+  override final def toString: String = s"${lineNoOneIndexed.toString.alignRight(6)} | $lineText"
 
 }
 object SourceLine {
@@ -58,7 +68,9 @@ object SourceLine {
 
   final case class Empty private[SourceLine] (
       eol: SourcePosition.EOL,
-  ) extends SourceLine
+  ) extends SourceLine {
+    override val lineText: String = ""
+  }
 
   final case class NonEmpty private[SourceLine] (
       firstChar: SourcePosition.NonEOL,

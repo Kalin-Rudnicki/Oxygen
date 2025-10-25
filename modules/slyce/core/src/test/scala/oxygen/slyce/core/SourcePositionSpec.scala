@@ -20,16 +20,18 @@ object SourcePositionSpec extends OxygenSpecDefault {
 
     private def relativePositionTest(rawText: String, initialIndex: Int)(
         at: Assertion[SourcePosition],
+        prevLineEOL: Assertion[Option[SourcePosition]],
         currentLineFirstChar: Assertion[SourcePosition],
         currentLineLastNonEOLChar: Assertion[SourcePosition],
         currentLineEOL: Assertion[SourcePosition],
-        nextLineFirstChar: Assertion[SourcePosition],
+        nextLineFirstChar: Assertion[Option[SourcePosition]],
     )(using Trace, SourceLocation): TestSpec =
       test(s"initialIndex = $initialIndex") {
         val source: Source = Source.rawText(rawText)
         val init: SourcePosition = SourcePosition.atSourceIndex(source, initialIndex)
 
         assert(init)(at.label("at")) &&
+        assert(init.prevLineEOL)(prevLineEOL.label("prevLineEOL")) &&
         assert(init.currentLineFirstChar)(currentLineFirstChar.label("currentLineFirstChar")) &&
         assert(init.currentLineLastNonEOLChar)(currentLineLastNonEOLChar.label("currentLineLastNonEOLChar")) &&
         assert(init.currentLineEOL)(currentLineEOL.label("currentLineEOL")) &&
@@ -41,70 +43,87 @@ object SourcePositionSpec extends OxygenSpecDefault {
         suite("str1")(
           relativePositionTest(str1, 0)(
             at = isFully(0, 0, 0) && hasCurrentChar('a'),
+            prevLineEOL = isNone,
             currentLineFirstChar = isFully(0, 0, 0) && hasCurrentChar('a'),
             currentLineLastNonEOLChar = isFully(2, 0, 2) && hasCurrentChar('c'),
             currentLineEOL = isFully(3, 0, 3) && hasCurrentChar('\n'),
-            nextLineFirstChar = isFully(4, 1, 0) && hasCurrentChar('d'),
+            nextLineFirstChar = isSome { isFully(4, 1, 0) && hasCurrentChar('d') },
           ),
           relativePositionTest(str1, 1)(
             at = isFully(1, 0, 1) && hasCurrentChar('b'),
+            prevLineEOL = isNone,
             currentLineFirstChar = isFully(0, 0, 0) && hasCurrentChar('a'),
             currentLineLastNonEOLChar = isFully(2, 0, 2) && hasCurrentChar('c'),
             currentLineEOL = isFully(3, 0, 3) && hasCurrentChar('\n'),
-            nextLineFirstChar = isFully(4, 1, 0) && hasCurrentChar('d'),
+            nextLineFirstChar = isSome { isFully(4, 1, 0) && hasCurrentChar('d') },
           ),
           relativePositionTest(str1, 3)(
             at = isFully(3, 0, 3) && hasCurrentChar('\n'),
+            prevLineEOL = isNone,
             currentLineFirstChar = isFully(0, 0, 0) && hasCurrentChar('a'),
             currentLineLastNonEOLChar = isFully(2, 0, 2) && hasCurrentChar('c'),
             currentLineEOL = isFully(3, 0, 3) && hasCurrentChar('\n'),
-            nextLineFirstChar = isFully(4, 1, 0) && hasCurrentChar('d'),
+            nextLineFirstChar = isSome { isFully(4, 1, 0) && hasCurrentChar('d') },
           ),
           relativePositionTest(str1, 5)(
             at = isFully(5, 1, 1) && hasCurrentChar('e'),
+            prevLineEOL = isSome { isFully(3, 0, 3) && hasCurrentChar('\n') },
             currentLineFirstChar = isFully(4, 1, 0) && hasCurrentChar('d'),
             currentLineLastNonEOLChar = isFully(6, 1, 2) && hasCurrentChar('f'),
             currentLineEOL = isFully(7, 1, 3) && hasCurrentChar('\n'),
-            nextLineFirstChar = isFully(8, 2, 0) && hasCurrentChar('g'),
+            nextLineFirstChar = isSome { isFully(8, 2, 0) && hasCurrentChar('g') },
           ),
           relativePositionTest(str1, 9)(
             at = isFully(9, 2, 1) && hasCurrentChar('h'),
+            prevLineEOL = isSome { isFully(7, 1, 3) && hasCurrentChar('\n') },
             currentLineFirstChar = isFully(8, 2, 0) && hasCurrentChar('g'),
             currentLineLastNonEOLChar = isFully(10, 2, 2) && hasCurrentChar('i'),
             currentLineEOL = isFully(11, 2, 3) && isAtSourceEOF,
-            nextLineFirstChar = isFully(11, 2, 3) && isAtSourceEOF,
+            nextLineFirstChar = isNone,
           ),
           relativePositionTest(str1, 11)(
             at = isFully(11, 2, 3) && isAtSourceEOF,
+            prevLineEOL = isSome { isFully(7, 1, 3) && hasCurrentChar('\n') },
             currentLineFirstChar = isFully(8, 2, 0) && hasCurrentChar('g'),
             currentLineLastNonEOLChar = isFully(10, 2, 2) && hasCurrentChar('i'),
             currentLineEOL = isFully(11, 2, 3) && isAtSourceEOF,
-            nextLineFirstChar = isFully(11, 2, 3) && isAtSourceEOF,
+            nextLineFirstChar = isNone,
           ),
         ),
         suite("str2")(
           relativePositionTest(str2, 3)(
             at = isFully(3, 0, 3) && hasCurrentChar('\n'),
+            prevLineEOL = isNone,
             currentLineFirstChar = isFully(0, 0, 0) && hasCurrentChar('a'),
             currentLineLastNonEOLChar = isFully(2, 0, 2) && hasCurrentChar('c'),
             currentLineEOL = isFully(3, 0, 3) && hasCurrentChar('\n'),
-            nextLineFirstChar = isFully(4, 1, 0) && hasCurrentChar('\n'),
+            nextLineFirstChar = isSome { isFully(4, 1, 0) && hasCurrentChar('\n') },
           ),
           relativePositionTest(str2, 4)(
             at = isFully(4, 1, 0) && hasCurrentChar('\n'),
+            prevLineEOL = isSome { isFully(3, 0, 3) && hasCurrentChar('\n') },
             currentLineFirstChar = isFully(4, 1, 0) && hasCurrentChar('\n'),
             currentLineLastNonEOLChar = isFully(4, 1, 0) && hasCurrentChar('\n'),
             currentLineEOL = isFully(4, 1, 0) && hasCurrentChar('\n'),
-            nextLineFirstChar = isFully(5, 2, 0) && hasCurrentChar('d'),
+            nextLineFirstChar = isSome { isFully(5, 2, 0) && hasCurrentChar('d') },
+          ),
+          relativePositionTest(str2, 6)(
+            at = isFully(6, 2, 1) && hasCurrentChar('e'),
+            prevLineEOL = isSome { isFully(4, 1, 0) && hasCurrentChar('\n') },
+            currentLineFirstChar = isFully(5, 2, 0) && hasCurrentChar('d'),
+            currentLineLastNonEOLChar = isFully(7, 2, 2) && hasCurrentChar('f'),
+            currentLineEOL = isFully(8, 2, 3) && hasCurrentChar(None),
+            nextLineFirstChar = isNone,
           ),
         ),
         suite("str3")(
           relativePositionTest(str3, 0)(
             at = isFully(0, 0, 0) && isAtSourceEOF,
+            prevLineEOL = isNone,
             currentLineFirstChar = isFully(0, 0, 0) && isAtSourceEOF,
             currentLineLastNonEOLChar = isFully(0, 0, 0) && isAtSourceEOF,
             currentLineEOL = isFully(0, 0, 0) && isAtSourceEOF,
-            nextLineFirstChar = isFully(0, 0, 0) && isAtSourceEOF,
+            nextLineFirstChar = isNone,
           ),
         ),
       )

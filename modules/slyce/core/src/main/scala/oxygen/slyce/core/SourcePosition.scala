@@ -87,13 +87,36 @@ sealed trait SourcePosition {
   final def atSourceLastChar: SourcePosition = if (source.isEmpty) this.atSourceStart else this.atSourceIndexZeroIndexed(source.length - 1)
   final def atSourceEOF: SourcePosition = this.atSourceIndexZeroIndexed(source.length)
 
+  def unsafePrevLineEOL: SourcePosition.EOL =
+    prevLineEOL.getOrElse { throw new RuntimeException(s"invalid: SourcePosition.unsafePrevLineEOL, current = $this") }
+
+  final def prevLineEOL: Option[SourcePosition.EOL] = {
+    val res: Option[SourcePosition] =
+      if (lineNo == 0)
+        None
+      else if (lineNo == 1) {
+        val start: SourcePosition = this.currentLineFirstChar
+        SourcePosition.wrap(start.source, start.absolutePos - 1, start.lineNo - 1, start.absolutePos - 1).some
+      } else {
+        val start: SourcePosition = this.currentLineFirstChar
+        var tmp: Int = start.absolutePos - 2
+
+        while (source.chars(tmp) != '\n')
+          tmp -= 1
+
+        SourcePosition.wrap(start.source, start.absolutePos - 1, start.lineNo - 1, start.absolutePos - tmp - 2).some
+      }
+
+    res.map(_.foldEOL(self => throw new RuntimeException(s"internal defect: SourcePosition.unsafePrevLineEOL returned non-EOL: $self"), identity))
+  }
+
   // will return an EOL char if that EOL char is the only char on that line
-  final def currentLineFirstChar: SourcePosition = // TODO (KR) : refine type?
+  final def currentLineFirstChar: SourcePosition =
     if (posInLine == 0) this
     else SourcePosition.wrap(source, absolutePos - posInLine, lineNo, 0)
 
   // will return an EOL char if that EOL char is the only char on that line
-  final def currentLineLastNonEOLChar: SourcePosition = { // TODO (KR) : refine type?
+  final def currentLineLastNonEOLChar: SourcePosition = {
     val tmp: SourcePosition = this.currentLineEOL
     if (tmp.posInLine > 0) SourcePosition.wrap(tmp.source, tmp.absolutePos - 1, tmp.lineNo, tmp.posInLine - 1)
     else tmp
@@ -104,12 +127,12 @@ sealed trait SourcePosition {
     case self: SourcePosition.NonEOL => self.next.currentLineEOL
     case self: SourcePosition.EOL    => self
 
-  // will return an EOF char if this current pos is in the last line
-  final def nextLineFirstChar: SourcePosition = { // TODO (KR) : refine type?
-    val tmp: SourcePosition = this.currentLineEOL
-    if (tmp.isEOF) tmp
-    else SourcePosition.wrap(tmp.source, tmp.absolutePos + 1, tmp.lineNo + 1, 0)
-  }
+  final def unsafeNextLineFirstChar: SourcePosition =
+    this.nextLineFirstChar.getOrElse { throw new RuntimeException(s"invalid: SourcePosition.unsafeNextLineFirstChar, current = $this") }
+  final def nextLineFirstChar: Option[SourcePosition] =
+    this.currentLineEOL match
+      case pos: SourcePosition.NonEOF => SourcePosition.wrap(pos.source, pos.absolutePos + 1, pos.lineNo + 1, 0).some
+      case _: SourcePosition.EOF      => None
 
   //////////////////////////////////////////////////////////////////////////////////////////////////////
   //      Display
@@ -122,6 +145,10 @@ sealed trait SourcePosition {
 
   final def showFullZeroIndexed: String = s"$absolutePosZeroIndexed @ $lineNoZeroIndexed:$posInLineZeroIndexed"
   final def showFullOneIndexed: String = s"$absolutePosOneIndexed @ $lineNoOneIndexed:$posInLineOneIndexed"
+
+  private def showCurrentChar: String = this.foldEOF(_.currentChar.unesc, _ => "EOF")
+  final def showExtraZeroIndexed: String = s"$absolutePosZeroIndexed @ $lineNoZeroIndexed:$posInLineZeroIndexed ($showCurrentChar)"
+  final def showExtraOneIndexed: String = s"$absolutePosOneIndexed @ $lineNoOneIndexed:$posInLineOneIndexed ($showCurrentChar)"
 
   // format: off
   final def show(includeAbsolute: Boolean, zeroIndexed: Boolean): String =

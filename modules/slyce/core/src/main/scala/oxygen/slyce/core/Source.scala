@@ -8,6 +8,8 @@ final case class Source(
   val chars: IArray[Char] = IArray.unsafeFromArray(rawText.toCharArray)
   val length: Int = chars.length
 
+  // TODO (KR) : val lineStarts: IArray[Int] = ???
+
   val lastCharIdx: Int = if (isEmpty) 0 else length - 1
   val eofIdx: Int = length
 
