@@ -14,13 +14,13 @@ sealed trait SourcePosition {
   val lineNo: Int
   val posInLine: Int
 
-  final inline def absolutePosZeroBased: Int = absolutePos
-  final inline def lineNoZeroBased: Int = lineNo
-  final inline def posInLineZeroBased: Int = posInLine
+  final inline def absolutePosZeroIndexed: Int = absolutePos
+  final inline def lineNoZeroIndexed: Int = lineNo
+  final inline def posInLineZeroIndexed: Int = posInLine
 
-  final inline def absolutePosOneBased: Int = absolutePos + 1
-  final inline def lineNoOneBased: Int = lineNo + 1
-  final inline def posInLineOneBased: Int = posInLine + 1
+  final inline def absolutePosOneIndexed: Int = absolutePos + 1
+  final inline def lineNoOneIndexed: Int = lineNo + 1
+  final inline def posInLineOneIndexed: Int = posInLine + 1
 
   //////////////////////////////////////////////////////////////////////////////////////////////////////
   //      1?
@@ -30,8 +30,15 @@ sealed trait SourcePosition {
     case self: SourcePosition.NonEOF => nonEOF(self)
     case self: SourcePosition.EOF    => eof(self)
 
-  final def toOption: Option[SourcePosition.NonEOF] = this.foldEOF(_.some, _ => None)
-  final def toEither: Either[SourcePosition.EOF, SourcePosition.NonEOF] = this.foldEOF(_.asRight, _.asLeft)
+  final def toNonEOFOption: Option[SourcePosition.NonEOF] = this.foldEOF(_.some, _ => None)
+  final def toNonEOFEither: Either[SourcePosition.EOF, SourcePosition.NonEOF] = this.foldEOF(_.asRight, _.asLeft)
+
+  final inline def foldEOL[A](nonEOL: SourcePosition.NonEOL => A, eol: SourcePosition.EOL => A): A = this match
+    case self: SourcePosition.NonEOL => nonEOL(self)
+    case self: SourcePosition.EOL    => eol(self)
+
+  final def toNonEOLOption: Option[SourcePosition.NonEOL] = this.foldEOL(_.some, _ => None)
+  final def toNonEOLEither: Either[SourcePosition.EOL, SourcePosition.NonEOL] = this.foldEOL(_.asRight, _.asLeft)
 
   final def nextOption: Option[SourcePosition] = this.foldEOF(_.next.some, _ => None)
 
@@ -60,41 +67,45 @@ sealed trait SourcePosition {
   //      3?
   //////////////////////////////////////////////////////////////////////////////////////////////////////
 
+  final def line: SourceLine = SourceLine(this)
+
   // requires that [[this.absolutePos]] <= [[idx]], and [[idx]] <= [[source.length]]
   @tailrec
   private def atSourceIndexInternal(idx: Int): SourcePosition =
     if (absolutePos < idx) this.unsafeNext.atSourceIndexInternal(idx)
     else this
 
-  final def atSourceIndex(idx: Int): SourcePosition =
+  final def atSourceIndexZeroIndexed(idx: Int): SourcePosition =
     if (idx < 0) throw new RuntimeException(s"invalid: SourcePosition.atIndex($idx) [min = 0]")
     else if (idx > source.length) throw new RuntimeException(s"invalid: SourcePosition.atIndex($idx) [max = ${source.length}]") // `>` instead of `>=` to allow incrementing to EOF
     else if (idx < absolutePos) SourcePosition.start(source).atSourceIndexInternal(idx)
     else this.atSourceIndexInternal(idx)
+  final def atSourceIndexOneIndexed(idx: Int): SourcePosition =
+    this.atSourceIndexZeroIndexed(idx - 1)
 
   final def atSourceStart: SourcePosition = SourcePosition.start(source)
-  final def atSourceLastChar: SourcePosition = if (source.isEmpty) this.atSourceStart else this.atSourceIndex(source.length - 1)
-  final def atSourceEOF: SourcePosition = this.atSourceIndex(source.length)
+  final def atSourceLastChar: SourcePosition = if (source.isEmpty) this.atSourceStart else this.atSourceIndexZeroIndexed(source.length - 1)
+  final def atSourceEOF: SourcePosition = this.atSourceIndexZeroIndexed(source.length)
 
   // will return an EOL char if that EOL char is the only char on that line
-  final def currentLineFirstChar: SourcePosition =
+  final def currentLineFirstChar: SourcePosition = // TODO (KR) : refine type?
     if (posInLine == 0) this
     else SourcePosition.wrap(source, absolutePos - posInLine, lineNo, 0)
 
   // will return an EOL char if that EOL char is the only char on that line
-  final def currentLineLastNonEOLChar: SourcePosition = {
+  final def currentLineLastNonEOLChar: SourcePosition = { // TODO (KR) : refine type?
     val tmp: SourcePosition = this.currentLineEOL
     if (tmp.posInLine > 0) SourcePosition.wrap(tmp.source, tmp.absolutePos - 1, tmp.lineNo, tmp.posInLine - 1)
     else tmp
   }
 
   @tailrec
-  final def currentLineEOL: SourcePosition =
-    if (this.isEOL) this
-    else this.unsafeNext.currentLineEOL
+  final def currentLineEOL: SourcePosition.EOL = this match
+    case self: SourcePosition.NonEOL => self.next.currentLineEOL
+    case self: SourcePosition.EOL    => self
 
   // will return an EOF char if this current pos is in the last line
-  final def nextLineFirstChar: SourcePosition = {
+  final def nextLineFirstChar: SourcePosition = { // TODO (KR) : refine type?
     val tmp: SourcePosition = this.currentLineEOL
     if (tmp.isEOF) tmp
     else SourcePosition.wrap(tmp.source, tmp.absolutePos + 1, tmp.lineNo + 1, 0)
@@ -106,33 +117,41 @@ sealed trait SourcePosition {
 
   // TODO (KR) : include options which show a tag like EOF and/or EOL
 
-  final def showLinePosZeroBased: String = s"$lineNoZeroBased:$posInLineZeroBased"
-  final def showLinePosOneBased: String = s"$lineNoOneBased:$posInLineOneBased"
+  final def showLinePosZeroIndexed: String = s"$lineNoZeroIndexed:$posInLineZeroIndexed"
+  final def showLinePosOneIndexed: String = s"$lineNoOneIndexed:$posInLineOneIndexed"
 
-  final def showFullZeroBased: String = s"$absolutePosZeroBased @ $lineNoZeroBased:$posInLineZeroBased"
-  final def showFullOneBased: String = s"$absolutePosOneBased @ $lineNoOneBased:$posInLineOneBased"
+  final def showFullZeroIndexed: String = s"$absolutePosZeroIndexed @ $lineNoZeroIndexed:$posInLineZeroIndexed"
+  final def showFullOneIndexed: String = s"$absolutePosOneIndexed @ $lineNoOneIndexed:$posInLineOneIndexed"
 
   // format: off
-  final def show(includeAbsolute: Boolean, zeroBased: Boolean): String =
+  final def show(includeAbsolute: Boolean, zeroIndexed: Boolean): String =
     if (includeAbsolute)
-      if (zeroBased) showFullZeroBased
-      else showFullOneBased
+      if (zeroIndexed) showFullZeroIndexed
+      else showFullOneIndexed
     else
-      if (zeroBased) showLinePosZeroBased
-      else showLinePosOneBased
+      if (zeroIndexed) showLinePosZeroIndexed
+      else showLinePosOneIndexed
   // format: on
 
-  override final def toString: String = showFullOneBased
+  override final def toString: String = showFullOneIndexed
 
 }
 object SourcePosition {
 
   //////////////////////////////////////////////////////////////////////////////////////////////////////
-  //      Functions
+  //      Builders
   //////////////////////////////////////////////////////////////////////////////////////////////////////
 
   def start(source: Source): SourcePosition = wrap(source, 0, 0, 0)
-  def atIndex(source: Source, idx: Int): SourcePosition = SourcePosition.start(source).atSourceIndex(idx)
+
+  // TODO (KR) : optional version of this
+
+  def atSourceIndexZeroIndexed(source: Source, idx: Int): SourcePosition =
+    SourcePosition.start(source).atSourceIndexZeroIndexed(idx)
+  def atSourceIndexOneIndexed(source: Source, idx: Int): SourcePosition =
+    SourcePosition.start(source).atSourceIndexOneIndexed(idx)
+  def atSourceIndex(source: Source, idx: Int): SourcePosition =
+    SourcePosition.atSourceIndexZeroIndexed(source, idx)
 
   //////////////////////////////////////////////////////////////////////////////////////////////////////
   //      Types
@@ -140,9 +159,15 @@ object SourcePosition {
 
   sealed trait NonEOF extends SourcePosition {
 
+    override final def isEOF: Boolean = false
+
     val currentChar: Char
     lazy val next: SourcePosition
 
+  }
+
+  sealed trait EOL extends SourcePosition {
+    override final def isEOL: Boolean = true
   }
 
   final case class NonEOL private[SourcePosition] (
@@ -156,23 +181,20 @@ object SourcePosition {
     override lazy val next: SourcePosition = SourcePosition.wrap(source, absolutePos + 1, lineNo, posInLine + 1)
 
     override def isEOL: Boolean = false
-    override def isEOF: Boolean = false
 
   }
 
-  final case class EOL private[SourcePosition] (
+  final case class NewLine private[SourcePosition] (
       source: Source,
       absolutePos: Int,
       lineNo: Int,
       posInLine: Int,
-  ) extends SourcePosition.NonEOF {
+  ) extends SourcePosition.NonEOF,
+        SourcePosition.EOL {
 
     override val currentChar: Char = '\n'
 
     override lazy val next: SourcePosition = SourcePosition.wrap(source, absolutePos + 1, lineNo + 1, 0)
-
-    override def isEOL: Boolean = true
-    override def isEOF: Boolean = false
 
   }
 
@@ -181,9 +203,8 @@ object SourcePosition {
       absolutePos: Int,
       lineNo: Int,
       posInLine: Int,
-  ) extends SourcePosition {
+  ) extends SourcePosition.EOL {
 
-    override def isEOL: Boolean = true
     override def isEOF: Boolean = true
 
   }
@@ -197,7 +218,7 @@ object SourcePosition {
     if (absolutePos == source.eofIdx) SourcePosition.EOF(source, absolutePos, lineNo, posInLine)
     else
       source.chars(absolutePos) match
-        case '\n' => SourcePosition.EOL(source, absolutePos, lineNo, posInLine)
+        case '\n' => SourcePosition.NewLine(source, absolutePos, lineNo, posInLine)
         case c    => SourcePosition.NonEOL(source, absolutePos, lineNo, posInLine, c)
 
   // FIX-PRE-MERGE (KR) :

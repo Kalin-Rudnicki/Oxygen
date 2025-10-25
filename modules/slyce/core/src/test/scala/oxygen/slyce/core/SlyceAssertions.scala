@@ -54,4 +54,29 @@ object SlyceAssertions {
 
   }
 
+  object sourceLine {
+
+    def isEmptyLine(assertion: Assertion[SourceLine.Empty]): Assertion[SourceLine] =
+      isSubtype[SourceLine.Empty](assertion)
+
+    def isNonEmptyLine(assertion: Assertion[SourceLine.NonEmpty]): Assertion[SourceLine] =
+      isSubtype[SourceLine.NonEmpty](assertion)
+
+    def hasLineLength(len: Int): Assertion[SourceLine] =
+      equalTo(len).cmap[SourceLine]("lineLength")(_.lineLength)
+
+    def hasFirstChar(assertion: Assertion[SourcePosition]): Assertion[SourceLine.NonEmpty] =
+      assertion.cmap[SourceLine.NonEmpty]("firstChar")(_.firstChar)
+
+    def hasLastChar(assertion: Assertion[SourcePosition]): Assertion[SourceLine.NonEmpty] =
+      assertion.cmap[SourceLine.NonEmpty]("lastChar")(_.lastChar)
+
+    def hasLineText(text: String): Assertion[SourceLine.NonEmpty] =
+      equalTo(text).cmap[SourceLine.NonEmpty]("lineText")(_.lineText)
+
+    def hasEOL(assertion: Assertion[SourcePosition]): Assertion[SourceLine] =
+      assertion.cmap[SourceLine]("eol")(_.eol)
+
+  }
+
 }

@@ -20,7 +20,10 @@ final case class Source(
   def substringExclusive(startInclusive: SourcePosition, endExclusive: SourcePosition): String =
     ??? // FIX-PRE-MERGE (KR) :
 
-  def apply(idx: Int): SourcePosition = SourcePosition.atIndex(this, idx)
+  def position(idx: Int): SourcePosition = SourcePosition.atSourceIndexZeroIndexed(this, idx)
+  def line(lineNo: Int): SourceLine = SourceLine.atSourceLineNoZeroIndexed(this, lineNo)
+
+  def apply(idx: Int): SourcePosition = this.position(idx)
 
   def equiv(that: Source): Boolean =
     this.sourceType == that.sourceType && this.rawText == that.rawText

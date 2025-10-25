@@ -1,6 +1,7 @@
 package oxygen.slyce.core
 
 import oxygen.predef.test.*
+import oxygen.slyce.core.SlyceAssertions.sourceLine.*
 import oxygen.slyce.core.SlyceAssertions.sourcePosition.*
 import zio.test.TestResult
 
@@ -26,7 +27,7 @@ object SourcePositionSpec extends OxygenSpecDefault {
     )(using Trace, SourceLocation): TestSpec =
       test(s"initialIndex = $initialIndex") {
         val source: Source = Source.rawText(rawText)
-        val init: SourcePosition = SourcePosition.atIndex(source, initialIndex)
+        val init: SourcePosition = SourcePosition.atSourceIndex(source, initialIndex)
 
         assert(init)(at.label("at")) &&
         assert(init.currentLineFirstChar)(currentLineFirstChar.label("currentLineFirstChar")) &&
@@ -118,7 +119,7 @@ object SourcePositionSpec extends OxygenSpecDefault {
           val source: Source = Source.rawText(str1)
 
           def make(idx: Int)(assertion: Assertion[SourcePosition]): TestResult =
-            assert(source(idx))(assertion.label(s"idx = $idx"))
+            assert(source.position(idx))(assertion.label(s"idx = $idx"))
 
           make(0) { hasCurrentChar('a') && isAtSourceStart && !isAtSourceLastChar && !isAtSourceEOF && isAtLineStart && isFirstCharInLine && !isLastCharInLine && !isAtLineEnd } &&
           make(1) { hasCurrentChar('b') && !isAtSourceStart && !isAtSourceLastChar && !isAtSourceEOF && !isAtLineStart && !isFirstCharInLine && !isLastCharInLine && !isAtLineEnd } &&
@@ -137,7 +138,7 @@ object SourcePositionSpec extends OxygenSpecDefault {
           val source: Source = Source.rawText(str2)
 
           def make(idx: Int)(assertion: Assertion[SourcePosition]): TestResult =
-            assert(source(idx))(assertion.label(s"idx = $idx"))
+            assert(source.position(idx))(assertion.label(s"idx = $idx"))
 
           make(0) { hasCurrentChar('a') && isAtSourceStart && !isAtSourceLastChar && !isAtSourceEOF && isAtLineStart && isFirstCharInLine && !isLastCharInLine && !isAtLineEnd } &&
           make(1) { hasCurrentChar('b') && !isAtSourceStart && !isAtSourceLastChar && !isAtSourceEOF && !isAtLineStart && !isFirstCharInLine && !isLastCharInLine && !isAtLineEnd } &&
@@ -153,9 +154,82 @@ object SourcePositionSpec extends OxygenSpecDefault {
           val source: Source = Source.rawText(str3)
 
           def make(idx: Int)(assertion: Assertion[SourcePosition]): TestResult =
-            assert(source(idx))(assertion.label(s"idx = $idx"))
+            assert(source.position(idx))(assertion.label(s"idx = $idx"))
 
           make(0) { hasCurrentChar(None) && isAtSourceStart && !isAtSourceLastChar && isAtSourceEOF && isAtLineStart && !isFirstCharInLine && !isLastCharInLine && isAtLineEnd }
+        },
+      )
+
+  }
+
+  private object sourceLine {
+
+    def spec: TestSpec =
+      suite("source line")(
+        test("str1") {
+          val source: Source = Source.rawText(str1)
+
+          def make(lineNo: Int)(assertion: Assertion[SourceLine]): TestResult =
+            assert(source.line(lineNo))(assertion.label(s"lineNo = $lineNo"))
+
+          make(0) {
+            isNonEmptyLine {
+              hasLineLength(3) &&
+              hasLineText("abc") &&
+              hasFirstChar { hasCurrentChar('a') && isFully(0, 0, 0) } &&
+              hasLastChar { hasCurrentChar('c') && isFully(2, 0, 2) } &&
+              hasEOL { hasCurrentChar('\n') && isFully(3, 0, 3) }
+            }
+          } &&
+          make(1) {
+            isNonEmptyLine {
+              hasLineLength(3) &&
+              hasLineText("def") &&
+              hasFirstChar { hasCurrentChar('d') && isFully(4, 1, 0) } &&
+              hasLastChar { hasCurrentChar('f') && isFully(6, 1, 2) } &&
+              hasEOL { hasCurrentChar('\n') && isFully(7, 1, 3) }
+            }
+          } &&
+          make(2) {
+            isNonEmptyLine {
+              hasLineLength(3) &&
+              hasLineText("ghi") &&
+              hasFirstChar { hasCurrentChar('g') && isFully(8, 2, 0) } &&
+              hasLastChar { hasCurrentChar('i') && isFully(10, 2, 2) } &&
+              hasEOL { hasCurrentChar(None) && isFully(11, 2, 3) }
+            }
+          }
+        },
+        test("str2") {
+          val source: Source = Source.rawText(str2)
+
+          def make(lineNo: Int)(assertion: Assertion[SourceLine]): TestResult =
+            assert(source.line(lineNo))(assertion.label(s"lineNo = $lineNo"))
+
+          make(0) {
+            isNonEmptyLine {
+              hasLineLength(3) &&
+              hasLineText("abc") &&
+              hasFirstChar { hasCurrentChar('a') && isFully(0, 0, 0) } &&
+              hasLastChar { hasCurrentChar('c') && isFully(2, 0, 2) } &&
+              hasEOL { hasCurrentChar('\n') && isFully(3, 0, 3) }
+            }
+          } &&
+          make(1) {
+            isEmptyLine {
+              hasLineLength(0) &&
+              hasEOL { hasCurrentChar('\n') && isFully(4, 1, 0) }
+            }
+          } &&
+          make(2) {
+            isNonEmptyLine {
+              hasLineLength(3) &&
+              hasLineText("def") &&
+              hasFirstChar { hasCurrentChar('d') && isFully(5, 2, 0) } &&
+              hasLastChar { hasCurrentChar('f') && isFully(7, 2, 2) } &&
+              hasEOL { hasCurrentChar(None) && isFully(8, 2, 3) }
+            }
+          }
         },
       )
 
@@ -165,6 +239,7 @@ object SourcePositionSpec extends OxygenSpecDefault {
     suite("SourcePositionSpec")(
       relativePosition.spec,
       positionAspects.spec,
+      sourceLine.spec,
     )
 
 }
