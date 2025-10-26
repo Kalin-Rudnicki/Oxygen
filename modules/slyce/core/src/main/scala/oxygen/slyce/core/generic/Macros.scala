@@ -1,24 +1,25 @@
 package oxygen.slyce.core.generic
 
-// import oxygen.meta.*
+import oxygen.meta.K0.*
 import oxygen.predef.core.*
 import oxygen.quoted.*
+import oxygen.slyce.core.*
 import scala.quoted.*
 import scala.reflect.ClassTag
 
 // FIX-PRE-MERGE (KR) : rename,split,move
 object Macros {
 
-  private final class ElementReprRef(typeRepr: TypeRepr) {
+  private final class ElementReprRef[A <: ElementRepr](typeRepr: TypeRepr) {
     private var isInitialized: Boolean = false
-    private var valueRef: ElementRepr = null
+    private var valueRef: A = null.asInstanceOf[A]
 
-    def value: ElementRepr = {
+    def value: A = {
       if (!isInitialized) throw new RuntimeException(s"attempted to get uninitialized value for: ${typeRepr.showAnsiCode}")
       valueRef
     }
 
-    def init(value: ElementRepr): Unit = {
+    def init(value: A): Unit = {
       if (isInitialized) throw new RuntimeException(s"attempted to init already initialized value for: ${typeRepr.showAnsiCode}")
       isInitialized = true
       valueRef = value
@@ -32,84 +33,249 @@ object Macros {
 
   private final class ElementReprCache(using Quotes) {
 
-    private var cacheRef: Map[TypeRepr, ElementReprRef] = Map.empty
+    private var cacheRef: Map[TypeRepr, ElementReprRef[ElementRepr]] = Map.empty
 
-    def allReprs: Iterable[ElementReprRef] = cacheRef.values
+    def allReprs: Iterable[ElementReprRef[ElementRepr]] = cacheRef.values
 
     private val optionTycon: TypeRepr = TypeRepr.of[Option[?]].narrow[AppliedType].tycon
     private val listTycon: TypeRepr = TypeRepr.of[List[?]].narrow[AppliedType].tycon
     private val nonEmptyListTycon: TypeRepr = TypeRepr.of[NonEmptyList[?]].narrow[AppliedType].tycon
 
-    private def calculate(typeRepr: TypeRepr): ElementRepr =
-      typeRepr match {
-        case AppliedType(`optionTycon`, arg0 :: Nil) =>
-          ??? // FIX-PRE-MERGE (KR) :
-        case AppliedType(`listTycon`, arg0 :: Nil) =>
-          ??? // FIX-PRE-MERGE (KR) :
-        case AppliedType(`nonEmptyListTycon`, arg0 :: Nil) =>
-          ??? // FIX-PRE-MERGE (KR) :
-        case _ =>
-          ??? // FIX-PRE-MERGE (KR) :
+    private val tokenTypeRepr: TypeRepr = TypeRepr.of[Token]
+    private val nodeTypeRepr: TypeRepr = TypeRepr.of[Node]
+
+    private val deriveConfig: Derivable.Config = Derivable.Config(defaultUnrollStrategy = SumGeneric.UnrollStrategy.Nested)
+
+    private def calculateTokenRepr(gen: ProductOrSumGeneric[?]): ElementRepr.TokenRepr =
+      gen match {
+        case gen: ProductGeneric[?] =>
+          ElementRepr.ProductTokenRepr(gen)
+        case gen: SumGeneric[?] =>
+          val children: List[ElementRepr.SumTokenRepr.Child] =
+            gen.children.toList.map { kase =>
+              val ref = getSpecific[ElementRepr.TokenRepr](kase.typeRepr) { calculateTokenRepr(kase.generic) }
+              ElementRepr.SumTokenRepr.Child(gen)(kase, ref)
+            }
+
+          ElementRepr.SumTokenRepr(gen, children)
       }
 
-    def get(typeRepr: TypeRepr): ElementReprRef =
+    private def calculateNodeRepr(gen: ProductOrSumGeneric[?]): ElementRepr.NodeRepr =
+      gen match {
+        case gen: ProductGeneric[?] =>
+          val children: List[ElementRepr.ProductNodeRepr.Child] =
+            gen.children.toList.map { field =>
+              val ref = getAny(field.typeRepr)
+              ElementRepr.ProductNodeRepr.Child(gen)(field, ref)
+            }
+
+          ElementRepr.ProductNodeRepr(gen, children)
+        case gen: SumGeneric[?] =>
+          val children: List[ElementRepr.SumNodeRepr.Child] =
+            gen.children.toList.map { kase =>
+              val ref = getSpecific[ElementRepr.NodeRepr](kase.typeRepr) { calculateNodeRepr(kase.generic) }
+              ElementRepr.SumNodeRepr.Child(gen)(kase, ref)
+            }
+
+          ElementRepr.SumNodeRepr(gen, children)
+      }
+
+    private def calculate(typeRepr: TypeRepr): ElementRepr =
+      typeRepr match {
+        case AppliedType(tc, arg0 :: Nil) if tc =:= optionTycon =>
+          val inner: ElementReprRef[ElementRepr.TokenOrNodeRepr] = getSpecific[ElementRepr.TokenOrNodeRepr](arg0)
+          ElementRepr.OptionRepr(typeRepr, inner)
+        case AppliedType(tc, arg0 :: Nil) if tc =:= listTycon =>
+          val inner: ElementReprRef[ElementRepr.TokenOrNodeRepr] = getSpecific[ElementRepr.TokenOrNodeRepr](arg0)
+          ElementRepr.ListRepr(typeRepr, inner)
+        case AppliedType(tc, arg0 :: Nil) if tc =:= nonEmptyListTycon =>
+          val inner: ElementReprRef[ElementRepr.TokenOrNodeRepr] = getSpecific[ElementRepr.TokenOrNodeRepr](arg0)
+          ElementRepr.NonEmptyListRepr(typeRepr, inner)
+        case _ if typeRepr <:< tokenTypeRepr =>
+          type A
+          given Type[A] = typeRepr.asTypeOf
+          calculateTokenRepr(Generic.of[A](deriveConfig))
+        case _ if typeRepr <:< nodeTypeRepr =>
+          type A
+          given Type[A] = typeRepr.asTypeOf
+          calculateNodeRepr(Generic.of[A](deriveConfig))
+        case _ =>
+          report.errorAndAbort(s"Type ${typeRepr.showAnsiCode} is not a Token, Node, or special case")
+      }
+
+    private def getSpecific[A <: ElementRepr](typeRepr: TypeRepr)(doCalc: => A): ElementReprRef[A] =
       cacheRef.get(typeRepr) match {
-        case Some(value) => value
-        case None        =>
-          val ref: ElementReprRef = ElementReprRef(typeRepr)
-          cacheRef = cacheRef.updated(typeRepr, ref)
-          ref.init(calculate(typeRepr))
+        case Some(value) =>
+          value.asInstanceOf[ElementReprRef[A]]
+        case None =>
+          val ref: ElementReprRef[A] = ElementReprRef(typeRepr)
+          cacheRef = cacheRef.updated(typeRepr, ref.asInstanceOf[ElementReprRef[ElementRepr]])
+          ref.init(doCalc)
           ref
       }
+
+    private def getSpecific[A <: ElementRepr: ClassTag](typeRepr: TypeRepr): ElementReprRef[A] = getSpecific[A](typeRepr) { calculate(typeRepr).subtypeOrThrow[A] }
+
+    def getAny(typeRepr: TypeRepr): ElementReprRef[ElementRepr] = getSpecific[ElementRepr](typeRepr)
 
   }
 
   private sealed trait ElementRepr {
 
-    val typeRepr: TypeRepr
+    def typeRepr: TypeRepr
 
     final def subtypeOrThrow[A <: ElementRepr: ClassTag as ct] =
       this match {
         case ct(self) => self
         case _        =>
-          import typeRepr.givenQuotes
+          given Quotes = typeRepr.quotes
           report.errorAndAbort(s"Expected ${ct.runtimeClass.getName}, but got ${this.getClass.getName}\n$this")
       }
+
+    def showHeader: String
+    def showBody: IndentedString
+
+    final def toIndentedString: IndentedString = IndentedString.section(showHeader)(showBody)
+    override final def toString: String = toIndentedString.toString
 
   }
   private object ElementRepr {
 
-    sealed trait TokenOrNodeRepr extends ElementRepr
+    sealed trait TokenOrNodeRepr extends ElementRepr {
 
-    final case class TokenRepr(
-        typeRepr: TypeRepr,
-    ) extends TokenOrNodeRepr
+      val gen: ProductOrSumGeneric[?]
+
+      override final lazy val typeRepr: TypeRepr = gen.typeRepr
+
+    }
+
+    sealed trait TokenRepr extends TokenOrNodeRepr
+
+    final case class ProductTokenRepr(
+        gen: ProductGeneric[?],
+    ) extends TokenRepr {
+
+      override def showHeader: String = s"Token.Product(${typeRepr.showAnsiCode})"
+
+      override def showBody: IndentedString =
+        IndentedString.inline()
+
+    }
+
+    final case class SumTokenRepr(
+        gen: SumGeneric[?],
+        children: List[SumTokenRepr.Child],
+    ) extends TokenRepr {
+
+      override def showHeader: String = s"Token.Sum(${typeRepr.showAnsiCode})"
+
+      override def showBody: IndentedString =
+        children.map(_.toIndentedString)
+
+    }
+    object SumTokenRepr {
+
+      final class Child(val parentGen: SumGeneric[?])(
+          val kase: parentGen.Case[?],
+          val child: ElementReprRef[TokenRepr],
+      ) {
+
+        def toIndentedString: IndentedString =
+          IndentedString.section(s"${kase.name}:")(child.value.toIndentedString)
+
+      }
+
+    }
 
     sealed trait NodeRepr extends TokenOrNodeRepr
 
     final case class ProductNodeRepr(
-        typeRepr: TypeRepr,
-    ) extends NodeRepr
+        gen: ProductGeneric[?],
+        children: List[ProductNodeRepr.Child],
+    ) extends NodeRepr {
+
+      override def showHeader: String = s"Node.Product(${typeRepr.showAnsiCode})"
+
+      override def showBody: IndentedString =
+        children.map(_.toIndentedString)
+
+    }
+    object ProductNodeRepr {
+
+      final class Child(val parentGen: ProductGeneric[?])(
+          val field: parentGen.Field[?],
+          val child: ElementReprRef[ElementRepr],
+      ) {
+
+        def toIndentedString: IndentedString =
+          IndentedString.section(s"${field.name}:")(child.value.showHeader)
+
+      }
+
+    }
 
     final case class SumNodeRepr(
-        typeRepr: TypeRepr,
-    ) extends NodeRepr
+        gen: SumGeneric[?],
+        children: List[SumNodeRepr.Child],
+    ) extends NodeRepr {
+
+      override def showHeader: String = s"Node.Sum(${typeRepr.showAnsiCode})"
+
+      override def showBody: IndentedString =
+        children.map(_.toIndentedString)
+
+    }
+    object SumNodeRepr {
+
+      final class Child(val parentGen: SumGeneric[?])(
+          val kase: parentGen.Case[?],
+          val child: ElementReprRef[NodeRepr],
+      ) {
+
+        def toIndentedString: IndentedString =
+          IndentedString.section(s"${kase.name}:")(child.value.toIndentedString)
+
+      }
+
+    }
 
     sealed trait SpecialRepr extends ElementRepr
 
-    final case class OptionRepr(typeRepr: TypeRepr, inner: ElementRepr.TokenOrNodeRepr) extends SpecialRepr
+    final case class OptionRepr(typeRepr: TypeRepr, inner: ElementReprRef[ElementRepr.TokenOrNodeRepr]) extends SpecialRepr {
 
-    // TODO (KR) : support other tpes of sequences
-    final case class ListRepr(typeRepr: TypeRepr, inner: ElementRepr.TokenOrNodeRepr) extends SpecialRepr
+      override def showHeader: String = s"Option(${inner.value.typeRepr.showAnsiCode})"
+
+      override def showBody: IndentedString =
+        inner.value.toIndentedString
+
+    }
+
+    final case class ListRepr(typeRepr: TypeRepr, inner: ElementReprRef[ElementRepr.TokenOrNodeRepr]) extends SpecialRepr {
+
+      override def showHeader: String = s"List(${inner.value.typeRepr.showAnsiCode})"
+
+      override def showBody: IndentedString =
+        inner.value.toIndentedString
+
+    }
+
+    final case class NonEmptyListRepr(typeRepr: TypeRepr, inner: ElementReprRef[ElementRepr.TokenOrNodeRepr]) extends SpecialRepr {
+
+      override def showHeader: String = s"NonEmptyList(${inner.value.typeRepr.showAnsiCode})"
+
+      override def showBody: IndentedString =
+        inner.value.toIndentedString
+
+    }
 
   }
 
   private def showStuffImpl[A: Type](using Quotes): Expr[Unit] = {
     val aRepr: TypeRepr = TypeRepr.of[A]
     val cache: ElementReprCache = new ElementReprCache
-    cache.get(aRepr)
+    cache.getAny(aRepr)
 
-    report.info(cache.allReprs.toSeq.mkString("\n\n"))
+    report.info(cache.allReprs.toSeq.sortBy(_.value.typeRepr.showCode).mkString("\n\n"))
 
     '{ () }
   }
