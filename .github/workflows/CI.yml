@@ -21,8 +21,26 @@ jobs:
         with:
           distribution: temurin
           java-version: 17
-      - name: Build and Test
+      - name: Compile
         run: sbt +test:compile
+
+  example-compiles:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+    env:
+      # define Java options for both official sbt and sbt-extras
+      JAVA_OPTS: -Xms2048M -Xmx2048M -Xss6M -XX:ReservedCodeCacheSize=256M -Dfile.encoding=UTF-8
+      JVM_OPTS:  -Xms2048M -Xmx2048M -Xss6M -XX:ReservedCodeCacheSize=256M -Dfile.encoding=UTF-8
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      - name: Setup JDK
+        uses: actions/setup-java@v3
+        with:
+          distribution: temurin
+          java-version: 17
+      - name: Compile
+        run: sbt example/test:compile
 
   test-jvm:
     runs-on: ubuntu-22.04
