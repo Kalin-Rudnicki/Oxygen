@@ -17,8 +17,8 @@
       "port": 5010
     },
     "credentials": {
-      "username": "dbadmin",
-      "password": "password"
+      "username": "oxygen_username",
+      "password": "oxygen_password"
     },
     "pool": {
       "minConnections": "2",

@@ -1,6 +1,5 @@
 package oxygen.example.webServer.api
 
-import oxygen.core.generic.*
 import oxygen.example.api.*
 import oxygen.example.api.model.error.*
 import oxygen.example.conversion.domainToApi.*

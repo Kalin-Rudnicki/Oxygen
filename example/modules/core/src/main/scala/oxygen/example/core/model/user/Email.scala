@@ -1,6 +1,6 @@
 package oxygen.example.core.model.user
 
-import oxygen.predef.core.*
+import oxygen.predef.base.*
 
 final case class Email private (email: String) {
 

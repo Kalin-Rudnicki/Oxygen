@@ -1,0 +1,12 @@
+
+services:
+
+  db:
+    image: postgres:latest
+    container_name: oxygen_example__db__local
+    ports:
+      - "5010:5432"
+    environment:
+      POSTGRES_USER: oxygen_username
+      POSTGRES_PASSWORD: oxygen_password
+      POSTGRES_DB: oxygen_example
