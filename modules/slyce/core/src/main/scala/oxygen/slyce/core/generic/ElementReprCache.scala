@@ -45,13 +45,17 @@ private[generic] final class ElementReprCache(using Quotes) {
           case '{ `regex`.apply((${ Expr(regexStr) }: String).r) } => regexStr
           case _                                                   => report.errorAndAbort("does not look like \"...\".r", regexAnnot)
 
+        val reg: ParsedRegex = ParsedRegex.parse(regexStr) match
+          case Right(value) => value
+          case Left(error)  => report.errorAndAbort(s"Invalid regex: $regexStr\n$error", regexAnnot)
+
         val builder: Expr[Token.Builder[?]] =
           Implicits.searchOption[Token.Builder[A]].getOrElse {
             if (gen.fields.isEmpty) '{ Token.Builder.noParams[A] { ${ gen.instantiate.fieldsToInstance(Nil) } } }
             else report.errorAndAbort(s"Token ${gen.typeRepr.showAnsiCode} has non-empty constructor. Because of this, a Token.Builder instance is required.", gen.pos)
           }
 
-        ElementRepr.ProductTokenRepr(gen, regexStr, builder)
+        ElementRepr.ProductTokenRepr(gen, regexStr, reg, builder)
       case gen: SumGeneric[?] =>
         val children: List[ElementRepr.SumTokenRepr.Child] =
           gen.children.toList.map { kase =>

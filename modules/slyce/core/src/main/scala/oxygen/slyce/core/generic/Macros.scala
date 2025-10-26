@@ -12,7 +12,16 @@ object Macros {
     val cache: ElementReprCache = new ElementReprCache
     cache.getAny(aRepr)
 
-    report.info(cache.allReprs.toSeq.sortBy(_.value.typeRepr.showCode).mkString("\n\n"))
+    val all1: Seq[ElementRepr] = cache.allReprs.toSeq.map(_.value)
+    val all2: Seq[ElementRepr] =
+      Seq(
+        all1.collect { case elem: ElementRepr.TokenRepr => elem }.sortBy(_.typeRepr.showCode),
+        all1.collect { case elem: ElementRepr.NodeRepr => elem }.sortBy(_.typeRepr.showCode),
+        all1.collect { case elem: ElementRepr.SingleTypeParam => elem }.sortBy(_.inner.value.typeRepr.showCode),
+        all1.collect { case elem: ElementRepr.OtherSpecial => elem }.sortBy(_.typeRepr.showCode),
+      ).flatten
+
+    report.info(all2.mkString("\n\n"))
 
     '{ () }
   }

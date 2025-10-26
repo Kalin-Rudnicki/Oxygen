@@ -20,6 +20,23 @@ private[generic] sealed trait ParsedRegex {
 
   final def >>>(that: ParsedRegex): ParsedRegex = ParsedRegex.Sequence.ofElems(this, that)
 
+  private[ParsedRegex] final def showInternal: String =
+    this match {
+      case ParsedRegex.CharClass(chars: InfiniteSet.Inclusive[Char]) if chars.explicit.size == 1 => chars.explicit.head.unesc("")
+      case ParsedRegex.CharClass(chars: InfiniteSet.Inclusive[Char])                             => s"[${chars.explicit.toSeq.sorted.map(_.unesc("")).mkString}]"
+      case ParsedRegex.CharClass(chars: InfiniteSet.Exclusive[Char])                             => s"[^${chars.explicit.toSeq.sorted.map(_.unesc("")).mkString}]"
+      case ParsedRegex.WithQuant(inner: ParsedRegex.Group, quant)                                => s"(${inner.showInternal})${quant.show}"
+      case ParsedRegex.WithQuant(inner, quant)                                                   => s"${inner.showInternal}${quant.show}"
+      case ParsedRegex.Sequence(elems)                                                           => elems.map(_.showInternal).mkString
+      case ParsedRegex.NelGroup(seqs)                                                            => seqs.map(_.showInternal).mkString("|")
+
+    }
+
+  final def show: String =
+    this.toSequences.map(_.showInternal).mkString("|")
+
+  override final def toString: String = show
+
 }
 private[generic] object ParsedRegex {
 
@@ -69,6 +86,12 @@ private[generic] object ParsedRegex {
     case Exactly(n: Int)
     case AtLeast(min: Int)
     case Between(min: Int, max: Int)
+
+    final def show: String = this match
+      case Quant.Exactly(n)        => s"{$n}"
+      case Quant.AtLeast(min)      => s"{$min,}"
+      case Quant.Between(min, max) => s"{$min,$max}"
+
   }
   object Quant {
     def ? : Quant = Quant.Between(0, 1)
@@ -312,7 +335,7 @@ private[generic] object ParsedRegex {
       val charOrCharClass: RegexParser[Char | CharClass] = escapedCharOrCharClass | nonEscapedCharOrCharClass
 
       val pair: RegexParser[CharClass] =
-        (charOrCharClass >>> (RegexParser.ExactChar('\\') >>> charOrCharClass).?).mapOrFail {
+        (charOrCharClass >>> (RegexParser.ExactChar('-') >>> charOrCharClass).?).mapOrFail {
           case (c: Char, None)            => CharClass.inclusive(c).asRight
           case (c: CharClass, None)       => c.asRight
           case (c1: Char, Some(c2: Char)) => CharClass.inclusiveRange(c1, c2).asRight
@@ -348,7 +371,7 @@ private[generic] object ParsedRegex {
 
     lazy val singleElem: RegexParser[ParsedRegex] = {
       val nonEscapedCharOrCharClass: RegexParser[Char | CharClass] =
-        RegexParser.CharIn(InfiniteSet.Exclusive('[', '^', '\\', '(', ')', '|', '?', '*', '+', '{')).map {
+        RegexParser.CharIn(InfiniteSet.Exclusive('[', '^', '$', '\\', '(', ')', '|', '?', '*', '+', '{')).map {
           case '.' => CharClass.anything
           case c   => c
         }
@@ -359,7 +382,7 @@ private[generic] object ParsedRegex {
           case c: CharClass => c
         }
 
-      ((charElem | charClass | wrappedGroup).map(_.simplify) >>> quant.?).map {
+      ((charClass | charElem | wrappedGroup).map(_.simplify) >>> quant.?).map {
         case (reg, None)    => reg
         case (reg, Some(q)) => WithQuant(reg, q)
       }
@@ -382,8 +405,8 @@ private[generic] object ParsedRegex {
     val chars: IArray[Char] = IArray.unsafeFromArray(regex.toCharArray)
     parsers.regex.parse(chars, 0) match {
       case RegexParser.ParseResult.Success(value, remainingIndex) if remainingIndex == chars.length => value.asRight
-      case RegexParser.ParseResult.Success(_, remainingIndex)                                       => s"Unable to continue parsing at index $remainingIndex".asLeft
-      case RegexParser.ParseResult.Unknown(_, remainingIndex)                                       => s"Unable to continue parsing at index $remainingIndex".asLeft
+      case RegexParser.ParseResult.Success(_, remainingIndex)                                       => s"Unable to continue parsing at index $remainingIndex (success)".asLeft
+      case RegexParser.ParseResult.Unknown(_, remainingIndex)                                       => s"Unable to continue parsing at index $remainingIndex (unknown)".asLeft
       case RegexParser.ParseResult.Failure(error)                                                   => error.asLeft
     }
   }

@@ -44,7 +44,8 @@ private[generic] object ElementRepr {
 
   final case class ProductTokenRepr(
       gen: ProductGeneric[?],
-      regString: String, // TODO (KR) : parse regex
+      regString: String,
+      reg: ParsedRegex,
       builder: Expr[Token.Builder[?]],
   ) extends TokenRepr {
 
@@ -52,7 +53,8 @@ private[generic] object ElementRepr {
 
     override def showBody: IndentedString =
       IndentedString.inline(
-        s"regex: ${regString.unesc("`")}",
+        s"regex-str: ${regString.unesc("`")}",
+        s"regex: `$reg`",
         s"builder: ${builder.showAnsiCode(using gen.typeRepr.quotes)}",
       )
 
@@ -145,7 +147,12 @@ private[generic] object ElementRepr {
 
   sealed trait SpecialRepr extends ElementRepr
 
-  final case class OptionRepr(typeRepr: TypeRepr, inner: ElementReprRef[ElementRepr.TokenOrNodeRepr]) extends SpecialRepr {
+  sealed trait SingleTypeParam extends SpecialRepr {
+    val inner: ElementReprRef[ElementRepr.TokenOrNodeRepr]
+  }
+  sealed trait OtherSpecial extends SpecialRepr
+
+  final case class OptionRepr(typeRepr: TypeRepr, inner: ElementReprRef[ElementRepr.TokenOrNodeRepr]) extends SingleTypeParam {
 
     override def showHeader: String = s"Option(${inner.value.typeRepr.showAnsiCode})"
 
@@ -154,7 +161,7 @@ private[generic] object ElementRepr {
 
   }
 
-  final case class ListRepr(typeRepr: TypeRepr, inner: ElementReprRef[ElementRepr.TokenOrNodeRepr]) extends SpecialRepr {
+  final case class ListRepr(typeRepr: TypeRepr, inner: ElementReprRef[ElementRepr.TokenOrNodeRepr]) extends SingleTypeParam {
 
     override def showHeader: String = s"List(${inner.value.typeRepr.showAnsiCode})"
 
@@ -163,7 +170,7 @@ private[generic] object ElementRepr {
 
   }
 
-  final case class NonEmptyListRepr(typeRepr: TypeRepr, inner: ElementReprRef[ElementRepr.TokenOrNodeRepr]) extends SpecialRepr {
+  final case class NonEmptyListRepr(typeRepr: TypeRepr, inner: ElementReprRef[ElementRepr.TokenOrNodeRepr]) extends SingleTypeParam {
 
     override def showHeader: String = s"NonEmptyList(${inner.value.typeRepr.showAnsiCode})"
 
@@ -172,7 +179,7 @@ private[generic] object ElementRepr {
 
   }
 
-  final case class UnionRepr(typeRepr: TypeRepr, inner: NonEmptyList[ElementReprRef[ElementRepr.TokenOrNodeRepr]]) extends SpecialRepr {
+  final case class UnionRepr(typeRepr: TypeRepr, inner: NonEmptyList[ElementReprRef[ElementRepr.TokenOrNodeRepr]]) extends OtherSpecial {
 
     override def showHeader: String = s"Union( ${inner.map(_.value.typeRepr.showAnsiCode).mkString(" | ")} )"
 
