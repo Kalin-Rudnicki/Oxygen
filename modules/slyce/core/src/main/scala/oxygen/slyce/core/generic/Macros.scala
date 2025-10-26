@@ -56,14 +56,26 @@ object Macros {
 
     private def calculateTokenRepr(gen: ProductOrSumGeneric[?]): ElementRepr.TokenRepr =
       gen match {
-        case gen: ProductGeneric[?] =>
+        case gen: ProductGeneric.CaseObjectGeneric[?] =>
+          report.errorAndAbort("not allowed: case object _ extends Token", gen.pos)
+        case _gen: ProductGeneric[?] =>
+          type A <: Token
+          val gen: ProductGeneric[A] = _gen.typedAs[A]
+          import gen.given
+
           val regexAnnot: Expr[regex] = gen.annotations.requiredOf[regex]
           val regexStr: String = regexAnnot match
             case '{ new `regex`((${ Expr(regexStr) }: String).r) }   => regexStr
             case '{ `regex`.apply((${ Expr(regexStr) }: String).r) } => regexStr
             case _                                                   => report.errorAndAbort("does not look like \"...\".r", regexAnnot)
 
-          ElementRepr.ProductTokenRepr(gen, regexStr)
+          val builder: Expr[Token.Builder[?]] =
+            Implicits.searchOption[Token.Builder[A]].getOrElse {
+              if (gen.fields.isEmpty) '{ Token.Builder.noParams[A] { ${ gen.instantiate.fieldsToInstance(Nil) } } }
+              else report.errorAndAbort(s"Token ${gen.typeRepr.showAnsiCode} has non-empty constructor. Because of this, a Token.Builder instance is required.", gen.pos)
+            }
+
+          ElementRepr.ProductTokenRepr(gen, regexStr, builder)
         case gen: SumGeneric[?] =>
           val children: List[ElementRepr.SumTokenRepr.Child] =
             gen.children.toList.map { kase =>
@@ -76,6 +88,8 @@ object Macros {
 
     private def calculateNodeRepr(gen: ProductOrSumGeneric[?]): ElementRepr.NodeRepr =
       gen match {
+        case gen: ProductGeneric.CaseObjectGeneric[?] =>
+          report.errorAndAbort("not allowed: case object _ extends Node", gen.pos)
         case gen: ProductGeneric[?] =>
           val children: List[ElementRepr.ProductNodeRepr.Child] =
             gen.children.toList.map { field =>
@@ -171,6 +185,7 @@ object Macros {
     final case class ProductTokenRepr(
         gen: ProductGeneric[?],
         regString: String, // TODO (KR) : parse regex
+        builder: Expr[Token.Builder[?]],
     ) extends TokenRepr {
 
       override def showHeader: String = s"Token.Product(${typeRepr.showAnsiCode})"
@@ -178,6 +193,7 @@ object Macros {
       override def showBody: IndentedString =
         IndentedString.inline(
           s"regex: ${regString.unesc("`")}",
+          s"builder: ${builder.showAnsiCode(using gen.typeRepr.quotes)}",
         )
 
     }

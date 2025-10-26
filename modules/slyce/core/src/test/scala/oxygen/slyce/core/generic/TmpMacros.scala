@@ -11,7 +11,10 @@ object TmpMacros {
   final case class Variable() extends Value
 
   @regex("-?[0-9]+".r)
-  final case class Literal() extends Value
+  final case class Literal(int: Int) extends Value
+  object Literal {
+    given Token.Builder[Literal] = str => str.toIntOption.map(Literal(_)).toRight(s"not a valid int: $str")
+  }
 
   sealed trait Op extends Token
 

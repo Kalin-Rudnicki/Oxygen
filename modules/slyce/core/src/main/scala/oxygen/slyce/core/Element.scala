@@ -1,5 +1,7 @@
 package oxygen.slyce.core
 
+import oxygen.predef.core.*
+
 sealed trait Element {
 
   // this prevents something extending Token and Node
@@ -47,6 +49,32 @@ trait Token extends Element {
     isInitialized = true
     spanRef = span
     textRef = text
+  }
+
+}
+object Token {
+
+  trait Builder[A <: Token] {
+    def attemptBuild(text: String): Either[String, A]
+  }
+  object Builder {
+
+    trait Infallible[A <: Token] extends Builder[A] {
+      def build(text: String): A
+      override final def attemptBuild(text: String): Either[String, A] = build(text).asRight
+    }
+
+    def noParams[A <: Token](f: => A): Builder.Infallible[A] = Builder.NoParams { () => f }
+    def withString[A <: Token](f: String => A): Builder.Infallible[A] = Builder.WithString(f)
+
+    final case class NoParams[A <: Token](f: () => A) extends Builder.Infallible[A] {
+      override def build(text: String): A = f()
+    }
+
+    final case class WithString[A <: Token](f: String => A) extends Builder.Infallible[A] {
+      override def build(text: String): A = f(text)
+    }
+
   }
 
 }
