@@ -6,23 +6,47 @@ import oxygen.slyce.core.*
 object TmpMacros {
 
   sealed trait Value extends Token
+
+  @regex("[A-Za-z_][A-Za-z_0-9]*".r)
   final case class Variable() extends Value
+
+  @regex("-?[0-9]+".r)
   final case class Literal() extends Value
 
   sealed trait Op extends Token
 
   sealed trait AddOp extends Op
+
+  @regex("\\+".r)
   final case class PlusOp() extends AddOp
+
+  @regex("-".r)
   final case class MinusOp() extends AddOp
 
   sealed trait MultOp extends Op
+
+  @regex("\\*".r)
   final case class TimesOp() extends MultOp
+
+  @regex("/".r)
   final case class DivideOp() extends MultOp
 
+  @regex("\\^".r)
   final case class PowOp() extends Op
 
+  @regex(":=".r)
   final case class SetVal() extends Token
+
+  @regex("@show".r)
+  final case class ShowAnnot() extends Token
+
+  @regex("_".r)
+  final case class Underscore() extends Token
+
+  @regex("\\(".r)
   final case class OpenParen() extends Token
+
+  @regex("\\)".r)
   final case class CloseParen() extends Token
 
   sealed trait Expr1 extends Node
@@ -57,7 +81,7 @@ object TmpMacros {
 
   }
 
-  final case class Defn(v: Variable, set: SetVal, res: Expr1) extends Node
+  final case class Defn(show: Option[ShowAnnot], v: Variable, set: SetVal, res: Expr1 | Underscore) extends Node
 
   final case class Program(defns: List[Defn], res: Expr1) extends Node
 

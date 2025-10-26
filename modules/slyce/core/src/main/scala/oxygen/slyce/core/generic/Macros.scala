@@ -46,10 +46,24 @@ object Macros {
 
     private val deriveConfig: Derivable.Config = Derivable.Config(defaultUnrollStrategy = SumGeneric.UnrollStrategy.Nested)
 
+    private object unionType {
+
+      def unapply(typeRepr: TypeRepr): Option[NonEmptyList[TypeRepr]] = typeRepr match
+        case typeRepr: OrType => NonEmptyList.unsafeFromList(typeRepr.orChildren.toList).some
+        case _                => None
+
+    }
+
     private def calculateTokenRepr(gen: ProductOrSumGeneric[?]): ElementRepr.TokenRepr =
       gen match {
         case gen: ProductGeneric[?] =>
-          ElementRepr.ProductTokenRepr(gen)
+          val regexAnnot: Expr[regex] = gen.annotations.requiredOf[regex]
+          val regexStr: String = regexAnnot match
+            case '{ new `regex`((${ Expr(regexStr) }: String).r) }   => regexStr
+            case '{ `regex`.apply((${ Expr(regexStr) }: String).r) } => regexStr
+            case _                                                   => report.errorAndAbort("does not look like \"...\".r", regexAnnot)
+
+          ElementRepr.ProductTokenRepr(gen, regexStr)
         case gen: SumGeneric[?] =>
           val children: List[ElementRepr.SumTokenRepr.Child] =
             gen.children.toList.map { kase =>
@@ -81,7 +95,7 @@ object Macros {
       }
 
     private def calculate(typeRepr: TypeRepr): ElementRepr =
-      typeRepr match {
+      typeRepr.dealias.widen match {
         case AppliedType(tc, arg0 :: Nil) if tc =:= optionTycon =>
           val inner: ElementReprRef[ElementRepr.TokenOrNodeRepr] = getSpecific[ElementRepr.TokenOrNodeRepr](arg0)
           ElementRepr.OptionRepr(typeRepr, inner)
@@ -91,15 +105,18 @@ object Macros {
         case AppliedType(tc, arg0 :: Nil) if tc =:= nonEmptyListTycon =>
           val inner: ElementReprRef[ElementRepr.TokenOrNodeRepr] = getSpecific[ElementRepr.TokenOrNodeRepr](arg0)
           ElementRepr.NonEmptyListRepr(typeRepr, inner)
-        case _ if typeRepr <:< tokenTypeRepr =>
+        case typeRepr @ unionType(types) =>
+          val children: NonEmptyList[ElementReprRef[ElementRepr.TokenOrNodeRepr]] = types.map(getSpecific[ElementRepr.TokenOrNodeRepr](_))
+          ElementRepr.UnionRepr(typeRepr, children)
+        case typeRepr if typeRepr <:< tokenTypeRepr =>
           type A
           given Type[A] = typeRepr.asTypeOf
           calculateTokenRepr(Generic.of[A](deriveConfig))
-        case _ if typeRepr <:< nodeTypeRepr =>
+        case typeRepr if typeRepr <:< nodeTypeRepr =>
           type A
           given Type[A] = typeRepr.asTypeOf
           calculateNodeRepr(Generic.of[A](deriveConfig))
-        case _ =>
+        case typeRepr =>
           report.errorAndAbort(s"Type ${typeRepr.showAnsiCode} is not a Token, Node, or special case")
       }
 
@@ -153,12 +170,15 @@ object Macros {
 
     final case class ProductTokenRepr(
         gen: ProductGeneric[?],
+        regString: String, // TODO (KR) : parse regex
     ) extends TokenRepr {
 
       override def showHeader: String = s"Token.Product(${typeRepr.showAnsiCode})"
 
       override def showBody: IndentedString =
-        IndentedString.inline()
+        IndentedString.inline(
+          s"regex: ${regString.unesc("`")}",
+        )
 
     }
 
@@ -265,6 +285,15 @@ object Macros {
 
       override def showBody: IndentedString =
         inner.value.toIndentedString
+
+    }
+
+    final case class UnionRepr(typeRepr: TypeRepr, inner: NonEmptyList[ElementReprRef[ElementRepr.TokenOrNodeRepr]]) extends SpecialRepr {
+
+      override def showHeader: String = s"Union( ${inner.map(_.value.typeRepr.showAnsiCode).mkString(" | ")} )"
+
+      override def showBody: IndentedString =
+        inner.toList.map(_.value.toIndentedString)
 
     }
 
