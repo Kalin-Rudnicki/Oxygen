@@ -161,6 +161,27 @@ private[generic] object ElementRepr {
 
   }
 
+  // FIX-PRE-MERGE (KR) : Custom, uses node and then maps it
+  // FIX-PRE-MERGE (KR) : - Either
+  // FIX-PRE-MERGE (KR) : - Tuple
+  // FIX-PRE-MERGE (KR) : - Unit
+  // FIX-PRE-MERGE (KR) : Raw Nodes
+  // FIX-PRE-MERGE (KR) : - OptionNode
+  // FIX-PRE-MERGE (KR) : - EitherNode
+  // FIX-PRE-MERGE (KR) : - ListNode
+  // FIX-PRE-MERGE (KR) : - NonEmptyListNode
+  // FIX-PRE-MERGE (KR) : - TupleNode?   - need to create 22 of these..?
+  // FIX-PRE-MERGE (KR) : - UnitNode
+  // FIX-PRE-MERGE (KR) :
+  // FIX-PRE-MERGE (KR) : Expressions with associativity and hierarchy
+
+  //
+
+  // FIX-PRE-MERGE (KR) : don't limit these to `TokenOrNodeRepr` - allow SpecialRepr too
+  //                    : in a case of something like `Option[List[MyToken]]`, there is ambiguity and the algorithm wont know which one to pick ( None or Some(Nil) )
+  //                    : but, this is handled by the algorithm, so this repr should allow all of it, and let the algorithm decide what it can actually handle.
+  //                    : otherwise, it stops you from doing things like `Option[NonEmptyList[MyToken]]`, which is perfectly valid, or `Option[(A, B, C)]` or `List[(A, B, C)]`
+
   final case class ListRepr(typeRepr: TypeRepr, inner: ElementReprRef[ElementRepr.TokenOrNodeRepr]) extends SingleTypeParam {
 
     override def showHeader: String = s"List(${inner.value.typeRepr.showAnsiCode})"

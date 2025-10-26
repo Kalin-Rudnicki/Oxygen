@@ -55,13 +55,27 @@ trait Token extends Element {
 object Token {
 
   trait Builder[A <: Token] {
+
     def attemptBuild(text: String): Either[String, A]
+    final def attemptBuildAndInit(span: Span.Range, text: String): Either[String, A] =
+      this.attemptBuild(text).map { token =>
+        token.initializeToken(span, text)
+        token
+      }
+
   }
   object Builder {
 
     trait Infallible[A <: Token] extends Builder[A] {
+
       def build(text: String): A
       override final def attemptBuild(text: String): Either[String, A] = build(text).asRight
+      final def buildAndInit(span: Span.Range, text: String): A = {
+        val token = build(text)
+        token.initializeToken(span, text)
+        token
+      }
+
     }
 
     def noParams[A <: Token](f: => A): Builder.Infallible[A] = Builder.NoParams { () => f }
@@ -91,6 +105,11 @@ trait Node extends Element {
   //////////////////////////////////////////////////////////////////////////////////////////////////////
   //      Mutable Nonsense
   //////////////////////////////////////////////////////////////////////////////////////////////////////
+
+  // TODO (KR) : also keep track of raw nodes
+  //           : if you specify   `final case class MyNode(a: Option[MyTok]) extends Node`
+  //           : slyce will actually parse this as an `OptionNode`, which has all the span info, and then converts it to an `Option` for you
+  //           : it would be nice to have a `def getRawChildren: List[Element]` which can expose this.
 
   private var isInitialized: Boolean = false
   private var spanRef: Span.HasPosition = null
