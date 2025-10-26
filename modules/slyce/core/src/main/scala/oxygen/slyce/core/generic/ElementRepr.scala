@@ -26,7 +26,7 @@ private[generic] sealed trait ElementRepr {
   override final def toString: String = toIndentedString.toString
 
 }
-private object ElementRepr {
+private[generic] object ElementRepr {
 
   sealed trait TokenOrNodeRepr extends ElementRepr {
 
