@@ -24,12 +24,12 @@ final class PostService(
         body = req.body,
         createdAt = now,
       )
-      _ <- postRepo.insertPost(post)
+      _ <- postRepo.post.insert(post)
     } yield post
 
   def createComment(user: SimpleUser, req: CreateComment): IO[DomainError, Comment] =
     for {
-      post <- postRepo.getPost(req.postId)
+      post <- postRepo.post.getPost(req.postId)
       _ <- connectionService.ensureAccess(user, post.userId)
       now <- Clock.instant
       commentId <- Random.nextUUID.map(CommentId(_))
@@ -40,26 +40,26 @@ final class PostService(
         comment = req.comment,
         createdAt = now,
       )
-      _ <- postRepo.insertComment(comment)
+      _ <- postRepo.comment.insert(comment)
     } yield comment
 
   def getPosts(user: SimpleUser, userId: UserId): IO[DomainError, Seq[Post]] =
     for {
       _ <- connectionService.ensureAccess(user, userId)
-      posts <- postRepo.postsByUser(userId)
+      posts <- postRepo.post.postsByUser(userId)
     } yield posts
 
   def getPost(user: SimpleUser, postId: PostId): IO[DomainError, Post] =
     for {
-      post <- postRepo.getPost(postId)
+      post <- postRepo.post.getPost(postId)
       _ <- connectionService.ensureAccess(user, post.userId)
     } yield post
 
   def getComments(user: SimpleUser, postId: PostId): IO[DomainError, Seq[Comment]] =
     for {
-      post <- postRepo.getPost(postId)
+      post <- postRepo.post.getPost(postId)
       _ <- connectionService.ensureAccess(user, post.userId)
-      comments <- postRepo.commentsForPost(postId)
+      comments <- postRepo.comment.commentsForPost(postId)
     } yield comments
 
 }

@@ -63,8 +63,12 @@ final class TestContainerService(config: TestContainerConfig, acquiredPortsRef: 
         .mapError(TestContainerError.UnableToStartContainer(config, container, _))
 
     def close(container: TestContainer): IO[TestContainerError.UnableToStopContainer, Unit] =
-      (Command("docker")("stop", container.name).executeSuccess(outLevel = LogLevel.Debug) *>
-        Command("docker")("rm", container.name).executeSuccess(outLevel = LogLevel.Debug))
+      Command("docker")("stop", container.name)
+        .executeSuccess(outLevel = LogLevel.Debug)
+        .foldCauseZIO(
+          ZIO.logErrorCause("Error stopping container, going to attempt force stop", _) *> Command("docker")("rm", container.name, "--force", "--volumes").executeSuccess(outLevel = LogLevel.Debug),
+          _ => Command("docker")("rm", container.name, "--volumes").executeSuccess(outLevel = LogLevel.Debug),
+        )
         .mapError(TestContainerError.UnableToStopContainer(config, container, _))
 
     def executeHealthCheck(container: TestContainer, healthCheck: HealthCheck): IO[TestContainerError.NeverBecameHealthy, Unit] =

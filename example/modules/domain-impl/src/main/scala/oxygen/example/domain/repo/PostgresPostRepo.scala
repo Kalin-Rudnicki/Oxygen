@@ -7,26 +7,51 @@ import oxygen.example.core.model.user.*
 import oxygen.example.db.model.*
 import oxygen.example.domain.model.post.*
 import oxygen.sql.{Connection as _, *}
+import oxygen.sql.query.{PostgresCRUDRepo, TableCompanion}
 import zio.*
 
 final case class PostgresPostRepo(
     db: Database,
-) extends PostRepo {
+) extends PostRepo { self =>
 
-  override def insertPost(post: Post): UIO[Unit] =
-    PostRow.insert.execute(post.toDb).unit.orDie.usingDb(db)
+  private object PostgresPosts extends Posts, PostgresCRUDRepo.MapInfallible[Post, PostId] {
 
-  override def findPost(postId: PostId): UIO[Option[Post]] =
-    PostRow.selectByPK.map(_.toDomain).execute(postId).option.orDie.usingDb(db)
+    override val db: Database = self.db
 
-  override def postsByUser(userId: UserId): UIO[Seq[Post]] =
-    PostRow.postsForUser.map(_.toDomain).execute(userId).arraySeq.orDie.usingDb(db)
+    override protected type DbA = PostRow
+    override protected type DbK = PostId
 
-  override def insertComment(comment: Comment): UIO[Unit] =
-    CommentRow.insert.execute(comment.toDb).unit.orDie.usingDb(db)
+    override protected val companion: TableCompanion[PostRow, PostId] = PostRow
 
-  override def commentsForPost(postId: PostId): UIO[Seq[Comment]] =
-    CommentRow.commentsForPost.map(_.toDomain).execute(postId).arraySeq.orDie.usingDb(db)
+    override protected def keyToDb(key: PostId): PostId = key
+    override protected def valueToDb(value: Post): PostRow = value.toDb
+    override protected def valueToDomain(value: PostRow): Post = value.toDomain
+
+    override def postsByUser(userId: UserId): UIO[Seq[Post]] =
+      PostRow.postsForUser.map(_.toDomain).execute(userId).arraySeq.orDie.usingDb(db)
+
+  }
+
+  private object PostgresComments extends Comments, PostgresCRUDRepo.MapInfallible[Comment, CommentId] {
+
+    override val db: Database = self.db
+
+    override protected type DbA = CommentRow
+    override protected type DbK = CommentId
+
+    override protected val companion: TableCompanion[CommentRow, CommentId] = CommentRow
+
+    override protected def keyToDb(key: CommentId): CommentId = key
+    override protected def valueToDb(value: Comment): CommentRow = value.toDb
+    override protected def valueToDomain(value: CommentRow): Comment = value.toDomain
+
+    override def commentsForPost(postId: PostId): UIO[Seq[Comment]] =
+      CommentRow.commentsForPost.map(_.toDomain).execute(postId).arraySeq.orDie.usingDb(db)
+
+  }
+
+  override val post: Posts = PostgresPosts
+  override val comment: Comments = PostgresComments
 
 }
 object PostgresPostRepo {

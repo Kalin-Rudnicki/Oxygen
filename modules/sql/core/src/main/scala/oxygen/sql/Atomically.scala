@@ -4,21 +4,10 @@ import oxygen.predef.zio.*
 import oxygen.sql.query.{Query, QueryContext}
 import zio.Exit
 
-trait Atomically extends ZIOAspectPoly.Impl {
-
-  def atomicallyScoped: URIO[Scope, Unit]
-  def atomically[R, E, A](effect: ZIO[R, E, A]): ZIO[R, E, A]
-
-  override final def apply[R, E, A](effect: ZIO[R, E, A])(implicit trace: Trace): ZIO[R, E, A] = atomically(effect)
-
-}
+type Atomically = oxygen.storage.Atomically
 object Atomically {
 
-  val atomically: ZIOAspectAtLeastR[Atomically] =
-    new ZIOAspectAtLeastR.Impl[Atomically] {
-      override def apply[R <: Atomically, E, A](effect: ZIO[R, E, A])(implicit trace: Trace): ZIO[R, E, A] =
-        ZIO.serviceWithZIO[Atomically](_.atomically(effect))
-    }
+  val atomically: ZIOAspectAtLeastR[Atomically] = oxygen.storage.Atomically.atomically
 
   /**
     * TLDR : Transaction(commit/rollback) -> Savepoint(commit/rollback) -> Savepoint(commit/rollback) -> ...
@@ -96,17 +85,6 @@ object Atomically {
 
     val layer: URLayer[Database, Atomically] =
       ZLayer.fromFunction { RollbackDB.apply }
-
-  }
-
-  final class NoOp extends Atomically {
-    override def atomicallyScoped: URIO[Scope, Unit] = ZIO.unit
-    override def atomically[R, E, A](effect: ZIO[R, E, A]): ZIO[R, E, A] = effect
-  }
-  object NoOp {
-
-    val layer: ULayer[Atomically] =
-      ZLayer.succeed { new NoOp }
 
   }
 
