@@ -22,6 +22,14 @@ object domainToDb {
         createdAt = self.createdAt,
       )
 
+  extension (self: Domain.connection.Connection)
+    def toDb: Db.ConnectionRow =
+      Db.ConnectionRow(
+        currentUserId = self.current,
+        otherUserId = self.other,
+        createdAt = self.createdAt,
+      )
+
   extension (self: Domain.connection.ConnectionRequest)
     def toDb: Db.ConnectionRequestRow =
       Db.ConnectionRequestRow(
