@@ -67,6 +67,8 @@ lazy val `oxygen-modules-jvm`: Project =
       `oxygen-zio`.jvm,
 
       // sql
+      `oxygen-storage`,
+      `oxygen-storage-in-memory`,
       `oxygen-sql`,
       `oxygen-sql-migration`,
       `oxygen-sql-test`,
@@ -278,6 +280,32 @@ lazy val `oxygen-schema`: CrossProject =
       `oxygen-json` % testAndCompile,
     )
 
+lazy val `oxygen-storage`: Project =
+  project
+    .in(file("modules/sql/storage"))
+    .settings(
+      publishedProjectSettings,
+      name := "oxygen-storage",
+      description := "Parent library for oxygen-sql that doesn't assume you are using SQL.",
+    )
+    .dependsOn(
+      `oxygen-zio`.jvm % testAndCompile,
+      `oxygen-test`.jvm % Test,
+    )
+
+lazy val `oxygen-storage-in-memory`: Project =
+  project
+    .in(file("modules/sql/storage-in-memory"))
+    .settings(
+      publishedProjectSettings,
+      name := "oxygen-storage-in-memory",
+      description := "Easily implement in-memory version of your database repos.",
+    )
+    .dependsOn(
+      `oxygen-storage` % testAndCompile,
+      `oxygen-test`.jvm % Test,
+    )
+
 lazy val `oxygen-sql`: Project =
   project
     .in(file("modules/sql/core"))
@@ -290,8 +318,7 @@ lazy val `oxygen-sql`: Project =
       ),
     )
     .dependsOn(
-      `oxygen-zio`.jvm % testAndCompile,
-      `oxygen-test`.jvm % Test,
+      `oxygen-storage` % testAndCompile,
     )
 
 lazy val `oxygen-sql-migration`: Project =
@@ -582,7 +609,7 @@ lazy val `example-domain`: Project =
     )
     .dependsOn(
       `example-domain-models` % testAndCompile,
-      `oxygen-zio`.jvm % testAndCompile,
+      `oxygen-storage` % testAndCompile,
     )
 
 lazy val `example-domain-impl`: Project =

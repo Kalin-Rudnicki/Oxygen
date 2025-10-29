@@ -25,7 +25,7 @@ final class UserService(userRepo: UserRepo) {
         hashedPassword = HashedPassword(hashedPassword),
         createdAt = now,
       )
-      _ <- userRepo.insertUser(user)
+      _ <- userRepo.insert(user)
       simpleUser = user.toSimple
       _ <- ZIO.logInfo(s"Registered new user ${simpleUser.show}")
     } yield simpleUser
