@@ -62,18 +62,18 @@ object LoginPage extends RoutablePage[UserApi & LocalService] {
         ),
         (
           Form
-            .textInput[Email](
+            .textField[Email](
               "Email",
-              formProps = Form.textInput.Props(width = 300.px),
-              inputProps = TextInput.Props(inputType = "email", width = 100.pct),
+              formProps = Form.textField.Props(width = 300.px),
+              inputProps = TextField.Props(inputType = "email", width = 100.pct),
             )
             .required
             .zoomOut[State](_.email) &&
             Form
-              .textInput[String](
+              .textField[String](
                 "Password",
-                formProps = Form.textInput.Props(width = 300.px),
-                inputProps = TextInput.Props(inputType = "password", width = 100.pct),
+                formProps = Form.textField.Props(width = 300.px),
+                inputProps = TextField.Props(inputType = "password", width = 100.pct),
               )
               .required
               .zoomOut[State](_.password) &&

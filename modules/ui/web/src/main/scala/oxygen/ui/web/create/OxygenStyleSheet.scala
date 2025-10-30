@@ -769,6 +769,210 @@ object OxygenStyleSheet extends StyleSheetBuilder {
   }
 
   //////////////////////////////////////////////////////////////////////////////////////////////////////
+  //      HorizontalRadio
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
+
+  object HorizontalRadio extends Class("horizontal-radio") { tt =>
+
+    private object sizes {
+      abstract class Size(val radius: CSSVar)
+
+      object small extends Size(S.borderRadius._3)
+      object medium extends Size(S.borderRadius._4)
+      object large extends Size(S.borderRadius._5)
+    }
+
+    HorizontalRadio(
+      display.inlineBlock,
+      margin(S.spacing._2, S.spacing._0),
+      cursor.pointer,
+      userSelect.none,
+      borderWidth := 2.px,
+      borderStyle.solid,
+    )
+
+    (HorizontalRadio & HorizontalRadio.Small)(
+      borderRadius := sizes.small.radius,
+    )
+    (HorizontalRadio & HorizontalRadio.Medium)(
+      borderRadius := sizes.medium.radius,
+    )
+    (HorizontalRadio & HorizontalRadio.Large)(
+      borderRadius := sizes.large.radius,
+    )
+
+    Button(
+      display.inlineBlock,
+      margin := "0",
+      borderStyle.none,
+      fontWeight._500,
+      borderRightWidth := 2.px,
+      borderRightStyle.solid,
+    )
+    (Button & Button.Last)(
+      borderRightStyle.none,
+    )
+
+    ((HorizontalRadio & Small) >> Button)(
+      fontSize := S.fontSize._2,
+      padding(S.spacing._1, S.spacing._3),
+    )
+    ((HorizontalRadio & Small) >> Button.First)(
+      borderTopLeftRadius := sizes.small.radius,
+      borderBottomLeftRadius := sizes.small.radius,
+    )
+    ((HorizontalRadio & Small) >> Button.Last)(
+      borderTopRightRadius := sizes.small.radius,
+      borderBottomRightRadius := sizes.small.radius,
+    )
+
+    ((HorizontalRadio & Medium) >> Button)(
+      fontSize := S.fontSize._4,
+      padding(s"calc(${S.spacing._1.varString} * 1.5)", S.spacing._4),
+    )
+    ((HorizontalRadio & Medium) >> Button.First)(
+      borderTopLeftRadius := sizes.medium.radius,
+      borderBottomLeftRadius := sizes.medium.radius,
+    )
+    ((HorizontalRadio & Medium) >> Button.Last)(
+      borderTopRightRadius := sizes.medium.radius,
+      borderBottomRightRadius := sizes.medium.radius,
+    )
+
+    ((HorizontalRadio & Large) >> Button)(
+      fontSize := S.fontSize._6,
+      padding(S.spacing._2, S.spacing._5),
+    )
+    ((HorizontalRadio & Large) >> Button.First)(
+      borderTopLeftRadius := sizes.large.radius,
+      borderBottomLeftRadius := sizes.large.radius,
+    )
+    ((HorizontalRadio & Large) >> Button.Last)(
+      borderTopRightRadius := sizes.large.radius,
+      borderBottomRightRadius := sizes.large.radius,
+    )
+
+    /////// Button ///////////////////////////////////////////////////////////////
+
+    object Button extends tt.Class("button") { b =>
+
+      object First extends b.Modifier("first")
+      object Last extends b.Modifier("last")
+
+    }
+
+    /////// Size ///////////////////////////////////////////////////////////////
+
+    object Small extends tt.Modifier("small")
+    object Medium extends tt.Modifier("medium")
+    object Large extends tt.Modifier("large")
+
+    /////// Style ///////////////////////////////////////////////////////////////
+
+    object Primary extends tt.Modifier("primary") {
+
+      selector(
+        backgroundColor := S.color.primary,
+        color := S.color.fg.inverse,
+      )
+
+      selector.hover(
+        backgroundColor := S.color.primary.getColorValue.lighten(40.0),
+      )
+
+    }
+
+    object Positive extends tt.Modifier("positive") {
+
+      selector(
+        backgroundColor := S.color.status.positive,
+        color := S.color.fg.inverse,
+      )
+
+      selector.hover(
+        backgroundColor := S.color.status.positive.getColorValue.lighten(40.0),
+      )
+
+    }
+
+    object Negative extends tt.Modifier("negative") {
+
+      selector(
+        backgroundColor := S.color.status.negative,
+        color := S.color.fg.inverse,
+      )
+
+      selector.hover(
+        backgroundColor := S.color.status.negative.getColorValue.lighten(40.0),
+      )
+
+    }
+
+    object Alert extends tt.Modifier("alert") {
+
+      selector(
+        backgroundColor := S.color.status.alert,
+        color := S.color.fg.inverse,
+      )
+
+      selector.hover(
+        backgroundColor := S.color.status.alert.getColorValue.lighten(40.0),
+      )
+
+    }
+
+    object Info extends tt.Modifier("info") {
+
+      selector(
+        backgroundColor := S.color.status.informational,
+        color := S.color.fg.inverse,
+      )
+
+      selector.hover(
+        backgroundColor := S.color.status.informational.getColorValue.lighten(40.0),
+      )
+
+    }
+
+    object BrandPrimary1 extends tt.Modifier("brand-primary-1") {
+
+      selector(
+        backgroundColor := S.color.brand.primary1,
+      )
+
+      selector.hover(
+        backgroundColor := S.color.brand.primary1.getColorValue.lighten(40.0),
+      )
+
+    }
+
+    object BrandPrimary2 extends tt.Modifier("brand-primary-2") {
+
+      selector(
+        backgroundColor := S.color.brand.primary2,
+      )
+
+      selector.hover(
+        backgroundColor := S.color.brand.primary2.getColorValue.lighten(40.0),
+      )
+
+    }
+
+    object Off extends tt.Modifier("off") {
+
+      selector(
+        backgroundColor := S.color.bg.base.getColorValue.lighten(15.0).setOpacity(60.0),
+      )
+
+      selector.hover(
+        backgroundColor := S.color.bg.base.getColorValue.lighten(40.0).setOpacity(60.0),
+      )
+
+    }
+
+  }
+
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
   //      Modal
   //////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -784,7 +988,7 @@ object OxygenStyleSheet extends StyleSheetBuilder {
       justifyContent.center,
       alignItems.center,
       cursor.pointer,
-      zIndex := 100000,
+      zIndex := ZIndices.modalBehindPageMessages,
     )
 
     object Modal extends mo.Class("modal") {
@@ -792,6 +996,14 @@ object OxygenStyleSheet extends StyleSheetBuilder {
       selector(
         cursor.auto,
         borderRadius := S.borderRadius.l,
+      )
+
+    }
+
+    object AbovePageMessages extends mo.Modifier("above-page-messages") {
+
+      selector(
+        zIndex := ZIndices.modalInFrontOfPageMessages,
       )
 
     }

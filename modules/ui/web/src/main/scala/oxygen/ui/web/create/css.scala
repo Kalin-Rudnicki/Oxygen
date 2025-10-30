@@ -200,19 +200,23 @@ object borderBottom extends CssBuilder("border-bottom"), CssBuilder.BorderBuilde
 object borderLeft extends CssBuilder("border-left"), CssBuilder.BorderBuilder
 
 object borderColor extends CssBuilder("border-color"), CssBuilder.ColorBuilder
-object borderStyle extends CssBuilder("border-style") { self =>
-  def none: CSSAttr = self := "none"
-  def hidden: CSSAttr = self := "hidden"
-  def dotted: CSSAttr = self := "dotted"
-  def dashed: CSSAttr = self := "dashed"
-  def solid: CSSAttr = self := "solid"
-  def double: CSSAttr = self := "double"
-  def groove: CSSAttr = self := "groove"
-  def ridge: CSSAttr = self := "ridge"
-  def inset: CSSAttr = self := "inset"
-  def outset: CSSAttr = self := "outset"
-}
+object borderTopColor extends CssBuilder("border-top-color"), CssBuilder.ColorBuilder
+object borderRightColor extends CssBuilder("border-right-color"), CssBuilder.ColorBuilder
+object borderBottomColor extends CssBuilder("border-bottom-color"), CssBuilder.ColorBuilder
+object borderLeftColor extends CssBuilder("border-left-color"), CssBuilder.ColorBuilder
+
+object borderStyle extends CssBuilder("border-style"), CssBuilder.BorderStyleBuilder
+object borderTopStyle extends CssBuilder("border-top-style"), CssBuilder.BorderStyleBuilder
+object borderRightStyle extends CssBuilder("border-right-style"), CssBuilder.BorderStyleBuilder
+object borderBottomStyle extends CssBuilder("border-bottom-style"), CssBuilder.BorderStyleBuilder
+object borderLeftStyle extends CssBuilder("border-left-style"), CssBuilder.BorderStyleBuilder
+
 object borderWidth extends CssBuilder("border-width")
+object borderTopWidth extends CssBuilder("border-top-width")
+object borderRightWidth extends CssBuilder("border-right-width")
+object borderBottomWidth extends CssBuilder("border-bottom-width")
+object borderLeftWidth extends CssBuilder("border-left-width")
+
 object borderCollapse extends CssBuilder("border-collapse") { self =>
   def separate: CSSAttr = self := "separate"
   def collapse: CSSAttr = self := "collapse"
@@ -437,6 +441,19 @@ object CssBuilder {
     final def fuchsia: CSSAttr = self := "fuchsia"
     final def aqua: CSSAttr = self := "aqua"
     final def rgb(r: Int, g: Int, b: Int): CSSAttr = self := s"rgb($r, $g, $b)"
+  }
+
+  trait BorderStyleBuilder { self: CssBuilder =>
+    def none: CSSAttr = self := "none"
+    def hidden: CSSAttr = self := "hidden"
+    def dotted: CSSAttr = self := "dotted"
+    def dashed: CSSAttr = self := "dashed"
+    def solid: CSSAttr = self := "solid"
+    def double: CSSAttr = self := "double"
+    def groove: CSSAttr = self := "groove"
+    def ridge: CSSAttr = self := "ridge"
+    def inset: CSSAttr = self := "inset"
+    def outset: CSSAttr = self := "outset"
   }
 
   trait SpacingBuilder { self: CssBuilder =>

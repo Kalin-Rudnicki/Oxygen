@@ -95,7 +95,21 @@ object Form {
   //      Form Elems
   //////////////////////////////////////////////////////////////////////////////////////////////////////
 
-  object textInput {
+  def elementLabel(
+      labelText: String,
+      descriptionText: Specified[Widget.Const] = Specified.WasNotSpecified,
+      labelMod: NodeModifier = NodeModifier.empty,
+  ): Widget.Const =
+    fragment(
+      div(label(labelText, padding(S.spacing._2, S.spacing._5), fontWeight._600, fontSize := S.fontSize._4)(labelMod)),
+      Widget.foreach(descriptionText.toOption) { descr =>
+        div(padding(S.spacing._0, S.spacing._8))(
+          descr,
+        )
+      },
+    )
+
+  object textField {
 
     final case class Props(
         width: String = "fit-content",
@@ -107,16 +121,16 @@ object Form {
 
     def apply[A: StringDecoder as dec](
         inputLabel: String,
+        descriptionText: Specified[Widget.Const] = Specified.WasNotSpecified,
         formProps: Props = Props(),
-        inputProps: TextInput.Props = TextInput.Props(),
+        inputProps: TextField.Props = TextField.Props(),
     ): Form.Stateful[Any, String, Option[A]] =
       Form(
         div(
           width := formProps.width,
           padding := formProps.padding,
-          label(inputLabel, padding(S.spacing._2, S.spacing._5))(formProps.labelMod),
-          br,
-          TextInput(inputProps),
+          elementLabel(inputLabel, descriptionText, formProps.labelMod),
+          div(TextField(inputProps)),
         ),
         inputLabel :: Nil,
         { _str =>
@@ -125,6 +139,69 @@ object Form {
             UIError.form.validate(inputLabel) { dec.decodeSimple(str) }
           }
         },
+      )
+
+  }
+
+  object textArea {
+
+    final case class Props(
+        width: String = "fit-content",
+        padding: String = 10.px,
+        display: String = "block",
+        labelMod: NodeModifier = NodeModifier.empty,
+        trimInput: Boolean = true,
+    )
+
+    def apply[A: StringDecoder as dec](
+        inputLabel: String,
+        descriptionText: Specified[Widget.Const] = Specified.WasNotSpecified,
+        formProps: Props = Props(),
+        inputProps: TextArea.Props = TextArea.Props(),
+    ): Form.Stateful[Any, String, Option[A]] =
+      Form(
+        div(
+          width := formProps.width,
+          padding := formProps.padding,
+          elementLabel(inputLabel, descriptionText, formProps.labelMod),
+          div(TextArea(inputProps)),
+        ),
+        inputLabel :: Nil,
+        { _str =>
+          val str: String = if (formProps.trimInput) _str.trim else _str
+          Option.when(str.nonEmpty)(str).traverse { str =>
+            UIError.form.validate(inputLabel) { dec.decodeSimple(str) }
+          }
+        },
+      )
+
+  }
+
+  object horizontalRadio {
+
+    final case class Props(
+        width: String = "fit-content",
+        padding: String = 10.px,
+        display: String = "block",
+        labelMod: NodeModifier = NodeModifier.empty,
+    )
+
+    def apply[A](
+        inputLabel: String,
+        descriptionText: Specified[Widget.Const] = Specified.WasNotSpecified,
+        show: A => String = (_: A).toString,
+        formProps: Props = Props(),
+        inputProps: HorizontalRadio.Props.type => HorizontalRadio.Props = _(),
+    ): Form.Stateful[Any, HorizontalRadio.State[A], A] =
+      Form(
+        div(
+          width := formProps.width,
+          padding := formProps.padding,
+          elementLabel(inputLabel, descriptionText, formProps.labelMod),
+          div(HorizontalRadio[A](inputProps, show)),
+        ),
+        inputLabel :: Nil,
+        _.selected.asRight,
       )
 
   }

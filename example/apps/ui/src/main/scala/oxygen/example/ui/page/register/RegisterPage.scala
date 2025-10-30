@@ -63,34 +63,34 @@ object RegisterPage extends RoutablePage[UserApi & LocalService] {
         ),
         (
           Form
-            .textInput[String](
+            .textField[String](
               "First Name",
-              formProps = Form.textInput.Props(width = 300.px),
-              inputProps = TextInput.Props(width = 100.pct),
+              formProps = Form.textField.Props(width = 300.px),
+              inputProps = TextField.Props(width = 100.pct),
             )
             .required
             .zoomOut[State](_.firstName) &&
             Form
-              .textInput[String](
+              .textField[String](
                 "Last Name",
-                formProps = Form.textInput.Props(width = 300.px),
-                inputProps = TextInput.Props(width = 100.pct),
+                formProps = Form.textField.Props(width = 300.px),
+                inputProps = TextField.Props(width = 100.pct),
               )
               .required
               .zoomOut[State](_.lastName) &&
             Form
-              .textInput[Email](
+              .textField[Email](
                 "Email",
-                formProps = Form.textInput.Props(width = 300.px),
-                inputProps = TextInput.Props(inputType = "email", width = 100.pct),
+                formProps = Form.textField.Props(width = 300.px),
+                inputProps = TextField.Props(inputType = "email", width = 100.pct),
               )
               .required
               .zoomOut[State](_.email) &&
             Form
-              .textInput[String](
+              .textField[String](
                 "Password",
-                formProps = Form.textInput.Props(width = 300.px),
-                inputProps = TextInput.Props(inputType = "password", width = 100.pct),
+                formProps = Form.textField.Props(width = 300.px),
+                inputProps = TextField.Props(inputType = "password", width = 100.pct),
               )
               .required
               .zoomOut[State](_.password) &&

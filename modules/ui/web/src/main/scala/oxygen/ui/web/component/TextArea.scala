@@ -3,19 +3,21 @@ package oxygen.ui.web.component
 import oxygen.ui.web.create.{*, given}
 import zio.*
 
-object TextInput {
+object TextArea {
 
   final case class Props(
       inputType: String = "text",
       width: String = 50.ch,
+      height: String = 4.rem,
       inputMod: NodeModifier = NodeModifier.empty,
   )
 
   def apply(props: Props = Props()): WidgetAS[Form.Submit, String] =
-    input(
+    textArea(
       `type` := props.inputType,
       width := props.width,
-      padding(S.spacing._2, S.spacing._4),
+      height := props.height,
+      padding(S.spacing._1, S.spacing._3),
       margin(S.spacing._2, S.spacing._0),
       borderRadius := S.borderRadius._4,
       border := "none",
