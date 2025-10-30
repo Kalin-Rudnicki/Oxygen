@@ -1,6 +1,7 @@
 package oxygen.ui.web.create
 
-import oxygen.ui.web.internal.{StyleSheetElement, StyleSheetSelector}
+import oxygen.ui.web.{GlobalState, PageLocalState, WidgetState}
+import oxygen.ui.web.internal.{PageInstance, StyleSheetElement, StyleSheetSelector}
 import zio.internal.stacktracer.SourceLocation
 
 given textToWidget: Conversion[String, Widget] = Widget.text(_)
@@ -23,3 +24,6 @@ given oxygenStyleVarsStrengthString: Conversion[OxygenStyleVars.ColorWithStrengt
 given oxygenStyleVarsLightDarkString: Conversion[OxygenStyleVars.ColorWithLightDark, String] = _.standard
 
 given cssColorToString: Conversion[CSSColor, String] = _.toString
+
+given convertGlobalState: [S] => (pi: PageInstance.Untyped) => Conversion[GlobalState[S], WidgetState[S]] = WidgetState.GlobalValue.fromGlobalState[S](_, pi)
+given convertPageLocalState: [S] => (pi: PageInstance.Untyped) => Conversion[PageLocalState[S], WidgetState[S]] = WidgetState.GlobalValue.fromPageLocalState[S](_, pi)

@@ -3,7 +3,7 @@ package oxygen.ui.web.create
 import org.scalajs.dom.CanvasRenderingContext2D
 import oxygen.predef.core.*
 import oxygen.ui.web.*
-import oxygen.ui.web.internal.DOMElement
+import oxygen.ui.web.internal.{DOMElement, PageInstance}
 import scalajs.js
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -158,6 +158,11 @@ object Widget {
     def `class`(classes: Set[String]): ClassAttr = Widget.raw(DOMElement.ClassAttr(classes))
 
   }
+
+  def withPageInstance[Env, Action, StateGet, StateSet <: StateGet](
+      make: PageInstance.Untyped ?=> Widget.Polymorphic[Env, Action, StateGet, StateSet],
+  ): Widget.Polymorphic[Env, Action, StateGet, StateSet] =
+    PWidget.WithPageInstance(pi => make(using pi))
 
 }
 
