@@ -13,7 +13,9 @@ object ComponentsPage extends RoutablePage.NoParams[Any] {
       useGlobalToggleThumbs: Boolean,
       individualToggleThumbs: Set[(ToggleThumb.Style, ToggleThumb.Style, ToggleThumb.Size)],
       globalToggleThumbs: Boolean,
+      horizontalRadio: HorizontalRadio.State[SmallEnum],
       modal: Option[ModalForm],
+      textValue: String,
   )
 
   final case class ModalForm(
@@ -31,7 +33,9 @@ object ComponentsPage extends RoutablePage.NoParams[Any] {
         useGlobalToggleThumbs = false,
         individualToggleThumbs = Set.empty,
         globalToggleThumbs = false,
+        horizontalRadio = HorizontalRadio.State.initialFirst,
         modal = None,
+        textValue = "",
       )
     }
 
@@ -47,8 +51,12 @@ object ComponentsPage extends RoutablePage.NoParams[Any] {
       buttonsSection,
       sequenceSection.zoomOut[State](_.sequence),
       toggleThumbSection,
+      horizontalRadioSection,
+      formSection,
       div(height := 25.px),
     )
+
+  enum SmallEnum derives StrictEnum { case A, B, C }
 
   //////////////////////////////////////////////////////////////////////////////////////////////////////
   //      Misc Section
@@ -95,7 +103,7 @@ object ComponentsPage extends RoutablePage.NoParams[Any] {
         ),
         PageMessages.PageLocal.detach { pageMessages =>
           {
-            Form.textInput[String]("Value").zoomOut[ModalForm](_.value).required &&
+            Form.textField[String]("Value").zoomOut[ModalForm](_.value).required &&
             Form.submitButton("Submit")
           }.onSubmit.asv[Modal.Close] { (_, rh, v) =>
             pageMessages.add(PageMessage.info(s"Submit:\n$v")) *>
@@ -313,6 +321,42 @@ object ComponentsPage extends RoutablePage.NoParams[Any] {
     }
   }
 
+  private lazy val horizontalRadioSection: WidgetS[State] = {
+    val sizes: Seq[HorizontalRadio.Size] = HorizontalRadio.Size.values.toSeq
+    val styles: Seq[(HorizontalRadio.Style, HorizontalRadio.Style)] =
+      HorizontalRadio.Style.values.toSeq.map((_, HorizontalRadio.Style.Off)) ++ Seq(
+        HorizontalRadio.Style.Positive -> HorizontalRadio.Style.Negative,
+      )
+
+    Widget.state[State].fix { state =>
+      def row(selectedStyle: HorizontalRadio.Style, notSelectedStyle: HorizontalRadio.Style): Widget =
+        tr(
+          border.csss(2.px, "solid", "black"),
+          td(padding(S.spacing._1, S.spacing._3))(s"$selectedStyle / $notSelectedStyle"),
+          Widget.foreach(sizes) { size =>
+            td(padding(S.spacing._1, S.spacing._3))(
+              textAlign.center,
+              HorizontalRadio(_(selectedStyle = selectedStyle, notSelectedStyle = notSelectedStyle, size = size))
+                .attach(state.zoomIn(_.horizontalRadio)),
+            )
+          },
+        )
+
+      Section.section1("Horizontal Radio")(
+        table(
+          borderCollapse.collapse,
+          tr(
+            th(padding(S.spacing._1, S.spacing._3))("Style"),
+            Widget.foreach(sizes) { size =>
+              th(padding(S.spacing._1, S.spacing._3))(size.toString)
+            },
+          ),
+          Widget.foreach(styles) { row(_, _) },
+        ),
+      )
+    }
+  }
+
   private lazy val sequenceSection: WidgetS[ArraySeq[Int]] = {
     def elem(idx: Int): WidgetAS[Int, Int] =
       Widget.state[Int].fix { state =>
@@ -372,6 +416,17 @@ object ComponentsPage extends RoutablePage.NoParams[Any] {
           onClick.updateState[ArraySeq[Int]](_ :+ 0),
         ),
       ),
+    )
+  }
+
+  private lazy val formSection: WidgetS[State] = {
+    Section.section1("Form")(
+      Form.textField[String]("Text Field 1").widget.discardAction.zoomOut[State](_.textValue),
+      Form.textField[String]("Text Field 2", "test").widget.discardAction.zoomOut[State](_.textValue),
+      Form.textField[String]("Text Field 3", fragment("a", br, "b")).widget.discardAction.zoomOut[State](_.textValue),
+      Form.textArea[String]("Text Area").widget.discardAction.zoomOut[State](_.textValue),
+      Form.horizontalRadio[SmallEnum]("Horizontal Radio 1").widget.discardAction.zoomOut[State](_.horizontalRadio),
+      Form.horizontalRadio[SmallEnum]("Horizontal Radio 2", "descr").widget.discardAction.zoomOut[State](_.horizontalRadio),
     )
   }
 
