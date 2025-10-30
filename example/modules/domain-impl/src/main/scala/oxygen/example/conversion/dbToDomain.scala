@@ -1,5 +1,6 @@
 package oxygen.example.conversion
 
+import oxygen.crypto.model.Password
 import oxygen.example.db.model as Db
 import oxygen.example.domain.model as Domain
 import oxygen.transform.*
@@ -10,7 +11,7 @@ object dbToDomain {
   //      User
   //////////////////////////////////////////////////////////////////////////////////////////////////////
 
-  given Transform[String, Domain.user.HashedPassword] = Domain.user.HashedPassword(_)
+  given Transform[String, Password.Hashed] = Password.Hashed.unsafeWrapPasswordHash(_)
   given Transform[Db.UserRow, Domain.user.FullUser] = Transform.derived
 
   extension (self: Db.UserRow) def toDomain: Domain.user.FullUser = self.transformInto

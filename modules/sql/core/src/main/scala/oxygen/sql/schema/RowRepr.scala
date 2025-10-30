@@ -343,11 +343,16 @@ object RowRepr extends RowReprLowPriority.LowPriority1 {
   given option: [A] => (inner: RowRepr[A]) => RowRepr[Option[A]] =
     RowRepr.OptionalRepr(inner)
 
+  class extras private ()
+  object extras {
+    given enable: extras = new extras
+  }
+
 }
 
 object RowReprLowPriority {
 
-  trait LowPriority1 {
+  trait LowPriority1 extends LowPriority2 {
 
     given seq: [F[_]: SeqOps as seqOps, A: {RowRepr, ClassTag}] => RowRepr[F[A]] =
       RowRepr.arraySeq[A].transform(_.into[F], _.toArraySeq)
@@ -361,6 +366,15 @@ object RowReprLowPriority {
       RowRepr.string.transform(e.decode, e.encode)
 
     def `enum`[A: StrictEnum]: RowRepr[A] = strictEnum[A]
+
+  }
+
+  trait LowPriority2 {
+
+    // import [[RowRepr.extras.enable]] to enable this
+    // it the future, this might be allowed by default, but it seems a little TOO auto
+    given stringEncoded: [A: StringCodec as codec] => (ex: RowRepr.extras) => RowRepr[A] =
+      RowRepr.string.transformOrFail(codec.decoder.decodeSimple, codec.encoder.encode)
 
   }
 
