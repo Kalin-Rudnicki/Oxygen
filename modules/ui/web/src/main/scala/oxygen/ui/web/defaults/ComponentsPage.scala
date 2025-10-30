@@ -14,6 +14,8 @@ object ComponentsPage extends RoutablePage.NoParams[Any] {
       individualToggleThumbs: Set[(ToggleThumb.Style, ToggleThumb.Style, ToggleThumb.Size)],
       globalToggleThumbs: Boolean,
       horizontalRadio: HorizontalRadio.State[SmallEnum],
+      dropdown1: Dropdown.State[SmallEnum],
+      dropdown2: Dropdown.State[SmallEnum],
       modal: Option[ModalForm],
       textValue: String,
   )
@@ -34,6 +36,8 @@ object ComponentsPage extends RoutablePage.NoParams[Any] {
         individualToggleThumbs = Set.empty,
         globalToggleThumbs = false,
         horizontalRadio = HorizontalRadio.State.initialFirst,
+        dropdown1 = Dropdown.State.initialNone,
+        dropdown2 = Dropdown.State.initialNone,
         modal = None,
         textValue = "",
       )
@@ -427,6 +431,8 @@ object ComponentsPage extends RoutablePage.NoParams[Any] {
       Form.textArea[String]("Text Area").widget.discardAction.zoomOut[State](_.textValue),
       Form.horizontalRadio[SmallEnum]("Horizontal Radio 1").widget.discardAction.zoomOut[State](_.horizontalRadio),
       Form.horizontalRadio[SmallEnum]("Horizontal Radio 2", "descr").widget.discardAction.zoomOut[State](_.horizontalRadio),
+      Form.dropdown[SmallEnum]("Dropdown 1", "descr").widget.discardAction.zoomOut[State](_.dropdown1),
+      Form.dropdown[SmallEnum]("Dropdown 2", inputProps = _.apply(style = Dropdown.Style.Alert, closeOnMouseLeave = true), showSetNone = "Unset").widget.discardAction.zoomOut[State](_.dropdown2),
     )
   }
 

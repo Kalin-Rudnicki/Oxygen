@@ -206,6 +206,37 @@ object Form {
 
   }
 
+  object dropdown {
+
+    final case class Props(
+        width: String = "fit-content",
+        padding: String = 10.px,
+        display: String = "block",
+        labelMod: NodeModifier = NodeModifier.empty,
+    )
+
+    def apply[A](
+        inputLabel: String,
+        descriptionText: Specified[Widget.Const] = Specified.WasNotSpecified,
+        show: A => String = (_: A).toString,
+        showEmpty: String = "",
+        showSetNone: Specified[String] = Specified.WasNotSpecified,
+        formProps: Props = Props(),
+        inputProps: Dropdown.Props.type => Dropdown.Props = _(),
+    ): Form.Stateful[Any, Dropdown.State[A], Option[A]] =
+      Form(
+        div(
+          width := formProps.width,
+          padding := formProps.padding,
+          elementLabel(inputLabel, descriptionText, formProps.labelMod),
+          div(Dropdown[A](inputProps, show, showEmpty, showSetNone)),
+        ),
+        inputLabel :: Nil,
+        _.selected.asRight,
+      )
+
+  }
+
   object submitButton {
 
     def apply(

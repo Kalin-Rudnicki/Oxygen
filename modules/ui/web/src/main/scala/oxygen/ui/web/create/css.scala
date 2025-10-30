@@ -74,6 +74,7 @@ object display extends CssBuilder("display") { self =>
   def grid: CSSAttr = self := "grid"
   def inlineGrid: CSSAttr = self := "inline-grid"
   def flowRoot: CSSAttr = self := "flow-root"
+  def none: CSSAttr = self := "none"
 
 }
 
