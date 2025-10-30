@@ -1,5 +1,6 @@
 package oxygen.ui.web
 
+import oxygen.ui.web.internal.PageInstance
 import zio.*
 
 final case class PageMessages(
@@ -30,25 +31,23 @@ object PageMessages {
 
   object PageLocal extends PageLocalState[PageMessages]("PageMessages")(PageMessages(Chunk.empty))
 
-  extension (self: WidgetState[PageMessages]) {
-
-    def schedule(message: PageMessage, duration: Duration): UIO[Unit] =
-      self.update(_ :+ message) *>
-        Clock.sleep(duration) *>
-        self.update(_ - message)
-
-    def add(message: PageMessage): UIO[Unit] = self.update(_ :+ message)
-    def addAll(messages: IterableOnce[PageMessage]): UIO[Unit] = self.update(_ :++ messages)
-
-    def remove(message: PageMessage): UIO[Unit] = self.update(_ - message)
-    def removeAll(messages: IterableOnce[PageMessage]): UIO[Unit] = self.update(_ -- messages)
-
-    def :+(message: PageMessage): UIO[Unit] = self.update(_ :+ message)
-    def :++(messages: IterableOnce[PageMessage]): UIO[Unit] = self.update(_ :++ messages)
-
-    def -(message: PageMessage): UIO[Unit] = self.update(_ - message)
-    def --(messages: IterableOnce[PageMessage]): UIO[Unit] = self.update(_ -- messages)
-
+  def schedule(message: PageMessage, duration: Duration)(using pi: PageInstance.Untyped): UIO[Unit] = {
+    val self: WidgetState[PageMessages] = PageLocal.toState
+    self.update(_ :+ message) *>
+      Clock.sleep(duration) *>
+      self.update(_ - message)
   }
+
+  def add(message: PageMessage)(using pi: PageInstance.Untyped): UIO[Unit] = PageLocal.toState.update(_ :+ message)
+  def addAll(messages: IterableOnce[PageMessage])(using pi: PageInstance.Untyped): UIO[Unit] = PageLocal.toState.update(_ :++ messages)
+
+  def remove(message: PageMessage)(using pi: PageInstance.Untyped): UIO[Unit] = PageLocal.toState.update(_ - message)
+  def removeAll(messages: IterableOnce[PageMessage])(using pi: PageInstance.Untyped): UIO[Unit] = PageLocal.toState.update(_ -- messages)
+
+  def :+(message: PageMessage)(using pi: PageInstance.Untyped): UIO[Unit] = PageLocal.toState.update(_ :+ message)
+  def :++(messages: IterableOnce[PageMessage])(using pi: PageInstance.Untyped): UIO[Unit] = PageLocal.toState.update(_ :++ messages)
+
+  def -(message: PageMessage)(using pi: PageInstance.Untyped): UIO[Unit] = PageLocal.toState.update(_ - message)
+  def --(messages: IterableOnce[PageMessage])(using pi: PageInstance.Untyped): UIO[Unit] = PageLocal.toState.update(_ -- messages)
 
 }

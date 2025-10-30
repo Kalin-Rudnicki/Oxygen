@@ -724,6 +724,20 @@ object PWidget {
 
   }
 
+  final case class WithPageInstance[Env, Action, StateGet, StateSet <: StateGet](
+      underlying: PageInstance.Untyped => PWidget[Env, Action, StateGet, StateSet],
+  ) extends PWidget[Env, Action, StateGet, StateSet] {
+
+    override private[web] def build[Env2 <: Env: HasNoScope](
+        state: PWidgetState[StateGet, StateSet],
+        rh: RaiseHandler[Env2, Action],
+        pageInstance: PageInstance.Untyped,
+        uiRuntime: UIRuntime[Env2],
+    ): Growable[DOMElement] =
+      underlying(pageInstance).build(state, rh, pageInstance, uiRuntime)
+
+  }
+
   final case class Optional[Env, Action, StateGet, StateSet <: StateGet](
       underlying: Option[PWidget[Env, Action, StateGet, StateSet]],
   ) extends PWidget[Env, Action, StateGet, StateSet] {

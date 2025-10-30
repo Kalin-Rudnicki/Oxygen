@@ -23,8 +23,10 @@ abstract class PageLocalState[S](final val name: String)(initial: => S) {
   ): Widget.Polymorphic[Env, Action, InnerStateGet, InnerStateSet] =
     Widget.state[S].detach(this)(f)
 
+  final def toState(using pageInstance: PageInstance.Untyped): WidgetState[S] = WidgetState.GlobalValue.fromPageLocalState(this, pageInstance)
+
   final def get(pageInstance: PageInstance.Untyped): UIO[S] = ZIO.succeed { getValue(pageInstance.pageReference).get() }
-  final def set(pageInstance: PageInstance.Untyped)(value: S): UIO[Unit] = WidgetState.GlobalValue.fromPageLocalState(this, pageInstance).set(value)
-  final def update(pageInstance: PageInstance.Untyped)(f: S => S): UIO[Unit] = WidgetState.GlobalValue.fromPageLocalState(this, pageInstance).update(f)
+  final def set(pageInstance: PageInstance.Untyped)(value: S): UIO[Unit] = toState(using pageInstance).set(value)
+  final def update(pageInstance: PageInstance.Untyped)(f: S => S): UIO[Unit] = toState(using pageInstance).update(f)
 
 }

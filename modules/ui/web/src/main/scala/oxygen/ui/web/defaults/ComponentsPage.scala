@@ -88,8 +88,8 @@ object ComponentsPage extends RoutablePage.NoParams[Any] {
             messageType.toString,
             _(style = buttonType),
           )(
-            PageMessages.PageLocal.attach { messages =>
-              onClick := messages.add(PageMessage.make(messageType, s"This is a \"$messageType\" page message"))
+            Widget.withPageInstance {
+              onClick := PageMessages.add(PageMessage.make(messageType, s"This is a \"$messageType\" page message"))
             },
           ),
         )
@@ -105,12 +105,12 @@ object ComponentsPage extends RoutablePage.NoParams[Any] {
         Section.info(_(borderColor = S.color.status.informational))(
           "This is a modal",
         ),
-        PageMessages.PageLocal.detach { pageMessages =>
+        Widget.withPageInstance {
           {
             Form.textField[String]("Value").zoomOut[ModalForm](_.value).required &&
             Form.submitButton("Submit")
           }.onSubmit.asv[Modal.Close] { (_, rh, v) =>
-            pageMessages.add(PageMessage.info(s"Submit:\n$v")) *>
+            PageMessages.add(PageMessage.info(s"Submit:\n$v")) *>
               rh.raiseAction(Modal.Close)
           }
         },
