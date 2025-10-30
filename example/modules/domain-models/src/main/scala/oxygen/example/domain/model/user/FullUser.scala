@@ -1,6 +1,7 @@
 package oxygen.example.domain.model.user
 
 import java.time.Instant
+import oxygen.crypto.model.Password
 import oxygen.example.core.model.user.*
 
 final case class FullUser(
@@ -8,7 +9,7 @@ final case class FullUser(
     email: Email,
     firstName: String,
     lastName: String,
-    hashedPassword: HashedPassword,
+    hashedPassword: Password.Hashed,
     createdAt: Instant,
 ) {
   lazy val fullName: String = s"$firstName $lastName"

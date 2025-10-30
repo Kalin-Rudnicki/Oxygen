@@ -3,7 +3,7 @@ package oxygen.schema
 import java.time.*
 import java.util.{TimeZone, UUID}
 import oxygen.core.TypeTag
-import oxygen.crypto.model.{BearerToken, JWT}
+import oxygen.crypto.model.{BearerToken, JWT, Password}
 import oxygen.predef.core.*
 
 sealed trait PlainTextSchema[A] extends SchemaLike[A] {
@@ -49,6 +49,10 @@ object PlainTextSchema extends PlainTextSchemaLowPriority.LowPriority1 {
 
   given standardJWT: [A: JsonSchema] => (jwtTypeTag: TypeTag[JWT.Std[A]], payloadTypeTag: TypeTag[JWT.StandardPayload[A]]) => PlainTextSchema[JWT.Std[A]] =
     PlainTextSchema.JWTSchema(jwtTypeTag, instances.standardJWTPayloadSchema[A])
+  given password: PlainTextSchema[Password.PlainText] = PlainTextSchema.fromStringCodec
+
+  def fromStringCodec[A: {StringCodec as codec, TypeTag}]: PlainTextSchema[A] =
+    PlainTextSchema.string.transformOrFail(codec.decoder.decodeSimple, codec.encoder.encode)
 
   //////////////////////////////////////////////////////////////////////////////////////////////////////
   //      Instances

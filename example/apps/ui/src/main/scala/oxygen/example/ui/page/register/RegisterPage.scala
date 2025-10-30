@@ -1,5 +1,6 @@
 package oxygen.example.ui.page.register
 
+import oxygen.crypto.model.Password
 import oxygen.example.api.*
 import oxygen.example.api.model.user.*
 import oxygen.example.conversion.apiToUI.*
@@ -96,12 +97,12 @@ object RegisterPage extends RoutablePage[UserApi & LocalService] {
             Form.submitButton("Sign Up", _(size = Button.Size.Large))
         ).onSubmit.sv { case (_, (firstName, lastName, email, password)) =>
           for {
-            _ <- ZIO.logInfo(s"firstName = $firstName, lastName = $lastName, email = $email, replace-email = ${email.referenceEmail}, password = $password")
+            _ <- ZIO.logInfo("submitting form...")
             req = RegisterRequest(
               email = email,
               firstName = firstName,
               lastName = lastName,
-              password = password,
+              password = Password.PlainText.wrap(password),
             )
             res <- UserApi.register(req).toUILogged(_.toUI)
             _ <- ZIO.serviceWithZIO[LocalService](_.userToken.set(res.authorization))

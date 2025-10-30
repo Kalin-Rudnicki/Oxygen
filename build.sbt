@@ -1,7 +1,7 @@
 //
 
-import Dependencies.*
-import Settings.*
+import Dependencies._
+import Settings._
 import sbtcrossproject.CrossProject
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -235,6 +235,9 @@ lazy val `oxygen-crypto-service`: Project =
       publishedProjectSettings,
       name := "oxygen-crypto-service",
       description := "Oxygen Crypto Service",
+      libraryDependencies ++= Seq(
+        "org.mindrot" % "jbcrypt" % "0.4",
+      ),
     )
     .dependsOn(
       `oxygen-crypto-model`.jvm % testAndCompile,
@@ -579,6 +582,7 @@ lazy val `example-domain-models`: Project =
     )
     .dependsOn(
       `example-core`.jvm % testAndCompile,
+      `oxygen-crypto-model`.jvm % testAndCompile,
     )
 
 lazy val `example-domain`: Project =
@@ -595,6 +599,7 @@ lazy val `example-domain`: Project =
     )
     .dependsOn(
       `example-domain-models` % testAndCompile,
+      `oxygen-crypto-service` % testAndCompile,
       `oxygen-storage` % testAndCompile,
     )
 
@@ -624,7 +629,6 @@ lazy val `example-web-server`: Project =
       description := "oxygen-example-web-server",
     )
     .dependsOn(
-      `oxygen-crypto-service` % testAndCompile,
       `oxygen-executable`.jvm % testAndCompile,
       `example-api`.jvm % testAndCompile,
       `example-domain-impl` % testAndCompile,

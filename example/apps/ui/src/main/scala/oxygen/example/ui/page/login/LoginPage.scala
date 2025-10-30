@@ -1,5 +1,6 @@
 package oxygen.example.ui.page.login
 
+import oxygen.crypto.model.Password
 import oxygen.example.api.*
 import oxygen.example.api.model.user.*
 import oxygen.example.conversion.apiToUI.*
@@ -79,8 +80,9 @@ object LoginPage extends RoutablePage[UserApi & LocalService] {
             Form.submitButton("Login", _(size = Button.Size.Large))
         ).onSubmit.sv { case (_, (email, password)) =>
           for {
-            _ <- ZIO.logInfo(s"email = $email, replace-email = ${email.referenceEmail}, password = $password")
-            res <- UserApi.login(LoginRequest(email, password)).toUILogged(_.toUI)
+            _ <- ZIO.logInfo("submitting form...")
+            req = LoginRequest(email, Password.PlainText.wrap(password))
+            res <- UserApi.login(req).toUILogged(_.toUI)
             _ <- ZIO.serviceWithZIO[LocalService](_.userToken.set(res.authorization))
             _ <- P.home.HomePage.navigate.push(())
           } yield ()

@@ -18,7 +18,7 @@ object domainToDb {
         referenceEmail = self.email.referenceEmail,
         firstName = self.firstName,
         lastName = self.lastName,
-        hashedPassword = self.hashedPassword.value,
+        hashedPassword = self.hashedPassword.getPasswordHash,
         createdAt = self.createdAt,
       )
 

@@ -1,6 +1,6 @@
 package oxygen.example.webServer
 
-import oxygen.crypto.service.{HashKey, JWTService}
+import oxygen.crypto.service.{HashKey, JWTService, PasswordService}
 import oxygen.example.api.model.user.User
 import oxygen.example.api.service.*
 import oxygen.example.domain.repo.*
@@ -76,6 +76,7 @@ object WebServerMain extends ExecutableApp {
         UserService.layer,
         ConnectionService.layer,
         PostService.layer,
+        PasswordService.layer,
       )
 
   }

@@ -1,13 +1,13 @@
 package oxygen.example.domain.service
 
-import org.mindrot.jbcrypt.BCrypt
+import oxygen.crypto.service.PasswordService
 import oxygen.example.core.model.user.*
 import oxygen.example.domain.model.error.*
 import oxygen.example.domain.model.user.*
 import oxygen.example.domain.repo.UserRepo
 import zio.*
 
-final class UserService(userRepo: UserRepo) {
+final class UserService(userRepo: UserRepo, passwordService: PasswordService) {
 
   def register(req: Register): IO[RegistrationError, SimpleUser] =
     for {
@@ -15,14 +15,13 @@ final class UserService(userRepo: UserRepo) {
       _ <- ZIO.fail(RegistrationError.EmailAlreadyExists(req.email)).whenDiscard(user.nonEmpty)
       id <- Random.nextUUID
       now <- Clock.instant
-      salt <- ZIO.succeed { BCrypt.gensalt() }
-      hashedPassword <- ZIO.succeed { BCrypt.hashpw(req.password, salt) }
+      hashedPassword <- passwordService.hashPassword(req.password)
       user = FullUser(
         id = UserId(id),
         email = req.email,
         firstName = req.firstName,
         lastName = req.lastName,
-        hashedPassword = HashedPassword(hashedPassword),
+        hashedPassword = hashedPassword,
         createdAt = now,
       )
       _ <- userRepo.insert(user)
@@ -33,7 +32,8 @@ final class UserService(userRepo: UserRepo) {
   def login(req: Login): IO[LoginError, SimpleUser] =
     for {
       user <- userRepo.findUserByEmail(req.email).someOrFail(LoginError.EmailDoesNotExist(req.email))
-      _ <- ZIO.fail(LoginError.InvalidPassword(req.email)).unless(BCrypt.checkpw(req.password, user.hashedPassword.value))
+      passwordIsValid <- passwordService.validate(req.password, user.hashedPassword)
+      _ <- ZIO.fail(LoginError.InvalidPassword(req.email)).unless(passwordIsValid)
     } yield user.toSimple
 
   def getUser(userId: UserId): IO[DomainError.UserIdDoesNotExist, SimpleUser] =
@@ -42,7 +42,7 @@ final class UserService(userRepo: UserRepo) {
 }
 object UserService {
 
-  val layer: URLayer[UserRepo, UserService] =
+  val layer: URLayer[UserRepo & PasswordService, UserService] =
     ZLayer.fromFunction { UserService.apply }
 
 }
