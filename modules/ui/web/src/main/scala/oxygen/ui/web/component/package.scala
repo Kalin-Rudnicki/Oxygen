@@ -6,13 +6,10 @@ package oxygen.ui.web
 //           : - ContextMenu
 //           : - DateTimeSelect
 //           : - DropdownMenu
-//           : - DropdownSelect
-//           : - HorizontalRadio
 //           : - Icon
 //           : - Link
 //           : - RadioButtons
 //           : - SearchBar
 //           : - Table
 //           : - Tabs
-//           : - TextArea
 package object component

@@ -1011,6 +1011,136 @@ object OxygenStyleSheet extends StyleSheetBuilder {
   }
 
   //////////////////////////////////////////////////////////////////////////////////////////////////////
+  //      Dropdown
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
+
+  object Dropdown extends Class("dropdown") { dd =>
+
+    object Expanded extends dd.Modifier("expanded")
+    object Display extends dd.Class("display")
+    object Options extends dd.Class("options") { opts =>
+      object Option extends opts.Class("option") { o =>
+        object Selected extends o.Modifier("selected")
+        object First extends o.Modifier("first")
+        object Last extends o.Modifier("last")
+      }
+    }
+
+    object Primary extends dd.Modifier("primary")
+    object Positive extends dd.Modifier("positive")
+    object Negative extends dd.Modifier("negative")
+    object Alert extends dd.Modifier("alert")
+    object Info extends dd.Modifier("info")
+    object BrandPrimary1 extends dd.Modifier("brand-primary-1")
+    object BrandPrimary2 extends dd.Modifier("brand-primary-2")
+
+    Dropdown(
+      display.inlineBlock,
+      position.relative,
+      width := 100.pct,
+      margin(S.spacing._2, S.spacing._0),
+      boxSizing.borderBox,
+    )
+
+    (Dropdown >> Dropdown.Display)(
+      padding(S.spacing._1, S.spacing._2),
+      borderRadius := S.borderRadius._4,
+      cursor.pointer,
+      userSelect.none,
+      width := 100.pct,
+      color.black, // TODO (KR) :
+      backgroundColor.white, // TODO (KR) :
+      boxSizing.borderBox,
+    )
+
+    ((Dropdown & Dropdown.Expanded) >> Dropdown.Display)(
+      borderBottomLeftRadius := S.borderRadius._0,
+      borderBottomRightRadius := S.borderRadius._0,
+    )
+
+    (Dropdown >> Dropdown.Options)(
+      display.none,
+      position.absolute,
+      zIndex := "100",
+      width := 100.pct,
+      boxSizing.borderBox,
+    )
+    ((Dropdown & Dropdown.Expanded) >> Dropdown.Options)(
+      display.block,
+    )
+
+    Dropdown.Options.Option(
+      borderWidth := 1.px,
+      padding(S.spacing._1, S.spacing._3),
+      borderColor := S.color.fg.moderate,
+      borderStyle.solid,
+      borderBottomStyle.none,
+      cursor.pointer,
+      userSelect.none,
+      width := 100.pct,
+      color.black, // TODO (KR) :
+      backgroundColor := "#DDD", // TODO (KR) :
+      boxSizing.borderBox,
+    )
+
+    (Dropdown.Options.Option & Dropdown.Options.Option.Last)(
+      borderBottomStyle.solid,
+      borderBottomLeftRadius := S.borderRadius._2,
+      borderBottomRightRadius := S.borderRadius._2,
+    )
+
+    (Dropdown.Primary >> Dropdown.Options.Option.Selected)(
+      backgroundColor := S.color.primary,
+    )
+    (Dropdown.Primary >> Dropdown.Options.Option.hover)(
+      backgroundColor := S.color.primary.getColorValue.lighten(30.0),
+    )
+
+    (Dropdown.Positive >> Dropdown.Options.Option.Selected)(
+      backgroundColor := S.color.status.positive,
+    )
+    (Dropdown.Positive >> Dropdown.Options.Option.hover)(
+      backgroundColor := S.color.status.positive.getColorValue.lighten(30.0),
+    )
+
+    (Dropdown.Negative >> Dropdown.Options.Option.Selected)(
+      backgroundColor := S.color.status.negative,
+    )
+    (Dropdown.Negative >> Dropdown.Options.Option.hover)(
+      backgroundColor := S.color.status.negative.getColorValue.lighten(30.0),
+    )
+
+    (Dropdown.Alert >> Dropdown.Options.Option.Selected)(
+      backgroundColor := S.color.status.alert,
+    )
+    (Dropdown.Alert >> Dropdown.Options.Option.hover)(
+      backgroundColor := S.color.status.alert.getColorValue.lighten(30.0),
+    )
+
+    (Dropdown.Info >> Dropdown.Options.Option.Selected)(
+      backgroundColor := S.color.status.informational,
+    )
+    (Dropdown.Info >> Dropdown.Options.Option.hover)(
+      backgroundColor := S.color.status.informational.getColorValue.lighten(30.0),
+    )
+
+    (Dropdown.BrandPrimary1 >> Dropdown.Options.Option.Selected)(
+      backgroundColor := S.color.brand.primary1,
+    )
+    (Dropdown.BrandPrimary1 >> Dropdown.Options.Option.hover)(
+      backgroundColor := S.color.brand.primary1.getColorValue.lighten(30.0),
+    )
+
+    (Dropdown.BrandPrimary2 >> Dropdown.Options.Option.Selected)(
+      backgroundColor := S.color.brand.primary2,
+    )
+    (Dropdown.BrandPrimary2 >> Dropdown.Options.Option.hover)(
+      backgroundColor := S.color.brand.primary2.getColorValue.lighten(30.0),
+    )
+
+  }
+
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
   //      Compiled
   //////////////////////////////////////////////////////////////////////////////////////////////////////
 
