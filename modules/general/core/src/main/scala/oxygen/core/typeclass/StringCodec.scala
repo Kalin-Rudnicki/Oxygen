@@ -206,3 +206,5 @@ object StringCodec {
     )
 
 }
+
+// TODO (KR) : low-priority fromEncoderAndDeocder
