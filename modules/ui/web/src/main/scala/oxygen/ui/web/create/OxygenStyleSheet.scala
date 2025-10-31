@@ -76,7 +76,7 @@ object OxygenStyleSheet extends StyleSheetBuilder {
         )
 
         selector.hover(
-          backgroundColor.red,
+          boxShadow := "inset 1px 1px 1px 1px rgba(0, 0, 0, 0.6), inset 4px 4px rgba(100, 25, 0, 0.1)",
         )
 
       }

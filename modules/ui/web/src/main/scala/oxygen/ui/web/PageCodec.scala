@@ -2,10 +2,11 @@ package oxygen.ui.web
 
 import oxygen.http.core.RequestDecodingFailure
 import oxygen.http.core.partial.{PartialParamCodec, PartialPathCodec}
-import oxygen.meta.K0
+import oxygen.meta.*
 import oxygen.predef.core.*
 import oxygen.schema.*
 import scala.annotation.tailrec
+import scala.quoted.*
 import zio.Chunk
 import zio.http.{Path, QueryParams}
 
@@ -168,6 +169,58 @@ object PageCodec {
       val (bPath, bQuery) = b.encodeInternal(bValue)
       (aPath ++ bPath, aQuery ++ bQuery)
     }
+
+  }
+
+  trait FromDecodeCases[A] extends PageCodec[A] {
+
+    val underlying: NonEmptyList[PageCodec[? <: A]]
+
+    @tailrec
+    private def decodeRec(paths: List[String], queryParams: QueryParams, queue: List[PageCodec[? <: A]]): ParseResult[(A, List[String])] =
+      queue match {
+        case codec :: rest =>
+          codec.decodeInternal(paths, queryParams) match {
+            case success @ ParseResult.Success(_) => success
+            case ParseResult.InvalidPath          => decodeRec(paths, queryParams, rest)
+            case error @ ParseResult.Error(_)     => error
+          }
+        case Nil =>
+          ParseResult.InvalidPath
+      }
+
+    override final def decodeInternal(paths: List[String], queryParams: QueryParams): ParseResult[(A, List[String])] =
+      decodeRec(paths, queryParams, underlying.toList)
+
+  }
+  object FromDecodeCases {
+
+    private def derivedImpl[A: Type](using Quotes): Expr[FromDecodeCases[A]] = {
+      val gen: K0.SumGeneric[A] = K0.SumGeneric.of[A]
+      gen.cacheVals.summonTypeClasses[PageCodec]().defineAndUse { instances =>
+        def schemas: List[Expr[PageCodec[? <: A]]] =
+          gen.mapChildren.mapExpr[PageCodec[? <: A]] { [b <: A] => (_, _) ?=> (kase: gen.Case[b]) => kase.getExpr(instances) }.to[List]
+
+        def encodeImpl(value: Expr[A]): Expr[(Growable[String], Growable[(String, Chunk[String])])] =
+          gen.matcher.instance(value) { [b <: A] => (_, _) ?=> (kase: gen.Case[b]) =>
+            kase.caseExtractor.withRHS { value => '{ ${ kase.getExpr(instances) }.encodeInternal($value) } }
+          }
+
+        '{
+          new FromDecodeCases[A] {
+
+            override val underlying: NonEmptyList[PageCodec[? <: A]] =
+              NonEmptyList.unsafeFromList { ${ schemas.seqToExpr } }
+
+            override def encodeInternal(value: A): (Growable[String], Growable[(String, Chunk[String])]) = ${ encodeImpl('value) }
+
+          }
+        }
+      }
+    }
+
+    // currently requires that you have derived an implicit instance for each case already
+    inline def derived[A]: FromDecodeCases[A] = ${ derivedImpl[A] }
 
   }
 
