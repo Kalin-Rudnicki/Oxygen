@@ -4,6 +4,7 @@ import oxygen.predef.core.*
 import oxygen.ui.web.{NonRoutablePage, Page, RoutablePage, UIError}
 import oxygen.ui.web.internal.NavigationEvent.Target
 import zio.*
+import zio.http.Path
 
 trait PageManager {
 
@@ -23,6 +24,7 @@ trait PageManager {
 object PageManager {
 
   private final case class Impl(
+      pagePrefixPath: Path,
       currentRef: Ref[Option[PageInstance.Untyped]],
       errorHandler: RootErrorHandler,
   ) extends PageManager {
@@ -54,6 +56,7 @@ object PageManager {
             lastEvalRef = lastEvalRef,
             page = page,
             uiRuntime = uiRuntime,
+            pagePrefixPath = pagePrefixPath,
           )
         case page: NonRoutablePage.AuxE[Env @unchecked, Params, State] =>
           for {
@@ -67,6 +70,7 @@ object PageManager {
             lastEvalRef = lastEvalRef,
             page = page,
             uiRuntime = uiRuntime,
+            pagePrefixPath = pagePrefixPath,
           )
       }
 
@@ -140,10 +144,10 @@ object PageManager {
   private[web] def reRenderCurrentPage: UIO[Unit] =
     currentPage.flatMap(_.reRenderCurrentPage)
 
-  def make(errorHandler: RootErrorHandler): UIO[PageManager] =
+  def make(errorHandler: RootErrorHandler, pagePrefixPath: Path): UIO[PageManager] =
     for {
       runningRef <- Ref.make(Option.empty[PageInstance.Untyped])
-      pageManager = Impl(runningRef, errorHandler)
+      pageManager = Impl(pagePrefixPath, runningRef, errorHandler)
       _ <- currentPageManagerRef.set(pageManager.some)
     } yield pageManager
 

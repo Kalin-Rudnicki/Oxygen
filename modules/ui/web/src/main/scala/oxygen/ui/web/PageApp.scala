@@ -11,6 +11,8 @@ abstract class PageApp[Env: HasNoScope] extends ZIOAppDefault {
 
   val defaultPages: DefaultPages[Env] = DefaultPages.default
 
+  val pagePrefix: ArraySeq[String] = ArraySeq("page")
+
   val pages: ArraySeq[RoutablePage[Env]]
 
   val styleSheets: ArraySeq[StyleSheet]
@@ -30,7 +32,7 @@ abstract class PageApp[Env: HasNoScope] extends ZIOAppDefault {
   private def effect: RIO[Env, Unit] =
     for {
       _ <- ZIO.logInfo("Welcome to Oxygen Web UI!")
-      router <- Router.init[Env](pages, RootErrorHandler.Default(defaultPages))
+      router <- Router.init[Env](pages, pagePrefix, RootErrorHandler.Default(defaultPages))
 
       _ <- ZIO.foreachDiscard(styleSheets)(addStyleSheet)
       _ <- router.route(NavigationEvent.renderPage(defaultPages.initial)(()), 0)

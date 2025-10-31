@@ -6,6 +6,7 @@ import oxygen.ui.web.*
 import oxygen.ui.web.PageCodec.ParseResult
 import scala.annotation.tailrec
 import zio.*
+import zio.http.Path
 
 trait Router {
 
@@ -28,6 +29,7 @@ object Router {
 
   private final class Inst[Env: HasNoScope] private[Router] (
       pages: ArraySeq[RoutablePage[Env]],
+      pagePrefixPath: Path,
       pageManager: PageManager,
       uiRuntime: UIRuntime[Env],
       rootErrorHandler: RootErrorHandler,
@@ -48,7 +50,9 @@ object Router {
 
     private def findPage(target: NavigationEvent.Target): IO[UIError.Internal, NavigationEvent.Target.PageWithParams[Env]] =
       target match {
-        case NavigationEvent.Target.Url(url) =>
+        case NavigationEvent.Target.Url(tmpUrl) =>
+          val url = tmpUrl.dropPrefix(pagePrefixPath)
+
           @tailrec
           def loop(idx: Int): IO[UIError.Internal, NavigationEvent.Target.PageWithParams[Env]] =
             if (idx < pages.length) {
@@ -77,14 +81,18 @@ object Router {
 
   def init[Env: HasNoScope](
       pages: ArraySeq[RoutablePage[Env]],
+      pagePrefix: ArraySeq[String],
       rootErrorHandler: RootErrorHandler,
-  ): URIO[Env, Router] =
+  ): URIO[Env, Router] = {
+    val pagePrefixPath: Path = pagePrefix.foldLeft(Path.root)(_ / _)
+
     for {
-      pageManager <- PageManager.make(rootErrorHandler)
+      pageManager <- PageManager.make(rootErrorHandler, pagePrefixPath)
       uiRuntime <- UIRuntime.make[Env]
-      router = Inst(pages, pageManager, uiRuntime, rootErrorHandler)
+      router = Inst(pages, pagePrefixPath, pageManager, uiRuntime, rootErrorHandler)
       _ <- currentRouterRef.set(router.some)
       _ <- ZIO.succeed { window.onpopstate = { _ => uiRuntime.unsafeExecute { router.routeWindowURL } } }
     } yield router
+  }
 
 }

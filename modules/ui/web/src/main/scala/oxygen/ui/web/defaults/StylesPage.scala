@@ -9,7 +9,7 @@ object StylesPage extends RoutablePage.NoParams[Any] {
 
   override type State = Unit
 
-  override val path: Seq[String] = Seq("page", "internal", "styles")
+  override val path: Seq[String] = Seq("internal", "styles")
 
   override def title(state: Unit): String = "Styles"
 

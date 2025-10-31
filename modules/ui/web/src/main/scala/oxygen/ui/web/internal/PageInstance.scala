@@ -5,6 +5,7 @@ import oxygen.predef.core.*
 import oxygen.ui.web.{NonRoutablePage, Page, PageURL, RoutablePage, UIError, WidgetState}
 import oxygen.ui.web.service.Window
 import zio.*
+import zio.http.Path
 
 trait PageInstance[Params, State] {
 
@@ -80,10 +81,10 @@ object PageInstance {
 
   }
 
-  private def nav(url: PageURL, title: String, navType: NavigationEvent.NavType): UIO[Unit] =
+  private def nav(prefix: Path, url: PageURL, title: String, navType: NavigationEvent.NavType): UIO[Unit] =
     navType match
-      case NavigationEvent.NavType.Push    => Window.history.push(url, title)
-      case NavigationEvent.NavType.Replace => Window.history.replace(url, title)
+      case NavigationEvent.NavType.Push    => Window.history.push(url.addPrefix(prefix), title)
+      case NavigationEvent.NavType.Replace => Window.history.replace(url.addPrefix(prefix), title)
       case NavigationEvent.NavType.None    => Window.setTitle(title)
 
   final case class Routable[Env: HasNoScope, Params, State](
@@ -93,6 +94,7 @@ object PageInstance {
       lastEvalRef: Ref[Option[Routable.LastEval[Params, State]]],
       page: RoutablePage.AuxE[Env, Params, State],
       uiRuntime: UIRuntime[Env],
+      pagePrefixPath: Path,
   ) extends PageInstance.TypedEnv[Env, Params, State] {
 
     override private[web] def recordNewValues(state: State, navType: NavigationEvent.NavType): UIO[Unit] = {
@@ -105,7 +107,7 @@ object PageInstance {
             lastEvalRef.set(Routable.LastEval(params, state, lastEval.url, title).some)
         case _ =>
           val newUrl = page.paramCodec.encode(params)
-          nav(newUrl, title, navType) *>
+          nav(pagePrefixPath, newUrl, title, navType) *>
             lastEvalRef.set(Routable.LastEval(params, state, newUrl, title).some)
       }
     }
@@ -129,6 +131,7 @@ object PageInstance {
       lastEvalRef: Ref[Option[NonRoutable.LastEval[State]]],
       page: NonRoutablePage.AuxE[Env, Params, State],
       uiRuntime: UIRuntime[Env],
+      pagePrefixPath: Path,
   ) extends PageInstance.TypedEnv[Env, Params, State] {
 
     override private[web] def recordNewValues(state: State, navType: NavigationEvent.NavType): UIO[Unit] = {
