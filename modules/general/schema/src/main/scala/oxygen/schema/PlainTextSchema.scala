@@ -38,6 +38,8 @@ object PlainTextSchema extends PlainTextSchemaLowPriority.LowPriority1 {
   given localTime: PlainTextSchema[LocalTime] = PlainTextSchema.string.transformAttempt(LocalTime.parse, _.toString)
   given localDateTime: PlainTextSchema[LocalDateTime] = PlainTextSchema.string.transformAttempt(LocalDateTime.parse, _.toString)
 
+  given duration: PlainTextSchema[Duration] = PlainTextSchema.fromStringCodec
+  given period: PlainTextSchema[Period] = PlainTextSchema.string.transformAttempt(Period.parse, _.toString)
   given instant: PlainTextSchema[Instant] = PlainTextSchema.string.transformAttempt(Instant.parse, _.toString)
   given offsetDateTime: PlainTextSchema[OffsetDateTime] = PlainTextSchema.string.transformAttempt(OffsetDateTime.parse, _.toString)
   given zonedDateTime: PlainTextSchema[ZonedDateTime] = PlainTextSchema.string.transformAttempt(ZonedDateTime.parse, _.toString)
