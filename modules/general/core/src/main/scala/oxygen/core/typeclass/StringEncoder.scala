@@ -18,11 +18,9 @@ trait StringEncoder[A] { self =>
     }
 
 }
-object StringEncoder {
+object StringEncoder extends StringEncoderLowPriority.LowPriority1 {
 
   inline def apply[A](implicit ev: StringEncoder[A]): ev.type = ev
-
-  implicit def fromCodec[A: StringCodec]: StringDecoder[A] = StringCodec[A].decoder
 
   // =====|  |=====
 
@@ -32,5 +30,15 @@ object StringEncoder {
     new StringEncoder[String] {
       override def encode(value: String): String = value
     }
+
+}
+
+object StringEncoderLowPriority {
+
+  trait LowPriority1 {
+
+    given fromCodec: [A: StringCodec as codec] => StringEncoder[A] = codec.encoder
+
+  }
 
 }

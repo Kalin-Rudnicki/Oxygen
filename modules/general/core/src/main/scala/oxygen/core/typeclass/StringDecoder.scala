@@ -131,11 +131,9 @@ trait StringDecoder[A] { self =>
   final def unapply(string: String): Option[A] = self.decodeError(string).toOption
 
 }
-object StringDecoder {
+object StringDecoder extends StringDecoderLowPriority.LowPriority1 {
 
   inline def apply[A](implicit ev: StringDecoder[A]): ev.type = ev
-
-  implicit def fromCodec[A: StringCodec]: StringDecoder[A] = StringCodec[A].decoder
 
   // =====|  |=====
 
@@ -331,5 +329,15 @@ object StringDecoder {
         }
         .map(_.reduce(_.plus(_)))
     }
+
+}
+
+object StringDecoderLowPriority {
+
+  trait LowPriority1 {
+
+    given fromCodec: [A: StringCodec as codec] => StringDecoder[A] = codec.decoder
+
+  }
 
 }
