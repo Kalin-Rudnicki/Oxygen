@@ -30,7 +30,7 @@ object ProfilePage extends RoutablePage.NoParams[LocalService] {
 
   override def title(state: State): String = "Profile"
 
-  override val path: Seq[String] = Seq("page", "profile")
+  override val path: Seq[String] = Seq("profile")
 
   override protected def component(state: State): WidgetES[LocalService, State] =
     PageLayout.layout(signedInNavBar(state.user))(

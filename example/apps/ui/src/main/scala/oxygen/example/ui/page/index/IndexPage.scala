@@ -29,7 +29,7 @@ object IndexPage extends RoutablePage.NoParams[LocalService] {
 
   override def title(state: State): String = "Index"
 
-  override val path: Seq[String] = Seq("page")
+  override val path: Seq[String] = Seq()
 
   override protected def component(state: State): WidgetES[LocalService, State] =
     PageLayout.layout(optionalSignedInNavBar(state.user))(

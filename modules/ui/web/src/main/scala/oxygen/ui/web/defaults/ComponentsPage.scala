@@ -24,7 +24,7 @@ object ComponentsPage extends RoutablePage.NoParams[Any] {
       value: String,
   )
 
-  override val path: Seq[String] = Seq("page", "internal", "components")
+  override val path: Seq[String] = Seq("internal", "components")
 
   override def title(state: State): String = "Components"
 

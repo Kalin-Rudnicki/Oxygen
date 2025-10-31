@@ -11,6 +11,10 @@ final case class PageURL(
     queryParams: QueryParams,
 ) {
   def formatted: String = URL(path = path.addLeadingSlash, queryParams = queryParams).encode
+
+  def addPrefix(prefix: Path): PageURL = copy(path = prefix ++ path)
+  def dropPrefix(prefix: Path): PageURL = copy(path = path.unnest(prefix))
+
 }
 object PageURL {
 

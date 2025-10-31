@@ -29,7 +29,7 @@ object HomePage extends RoutablePage.NoParams[LocalService] {
 
   override def title(state: State): String = "Home"
 
-  override val path: Seq[String] = Seq("page", "home")
+  override val path: Seq[String] = Seq("home")
 
   override protected def component(state: State): WidgetES[LocalService, State] =
     PageLayout.layout(signedInNavBar(state.user))(
