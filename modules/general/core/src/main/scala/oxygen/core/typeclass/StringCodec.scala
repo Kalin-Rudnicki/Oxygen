@@ -129,6 +129,7 @@ object StringCodec {
   given double: StringCodec[Double] = StringCodec.string.transformOption(_.toDoubleOption, _.toString)
   given bigDecimal: StringCodec[BigDecimal] = StringCodec.string.transformCatchOption(BigDecimal(_), _.toString)
 
+  given period: StringCodec[Period] = StringCodec.string.transformCatchOption(Period.parse, _.toString)
   given instant: StringCodec[Instant] = StringCodec.string.transformCatchOption(Instant.parse, _.toString)
   given offsetDateTime: StringCodec[OffsetDateTime] = StringCodec.string.transformCatchOption(OffsetDateTime.parse(_), _.toString)
   given zonedDateTime: StringCodec[ZonedDateTime] = StringCodec.string.transformCatchOption(ZonedDateTime.parse(_), _.toString)
@@ -154,7 +155,7 @@ object StringCodec {
   given duration: StringCodec[Duration] =
     StringCodec(
       StringEncoder.usingToString,
-      StringDecoder.string.mapCatchOption(Duration.parse) <> StringDecoder.duration,
+      StringDecoder.duration <> StringDecoder.string.mapCatchOption(Duration.parse),
     )
 
   given `class`: StringCodec[Class[?]] =
