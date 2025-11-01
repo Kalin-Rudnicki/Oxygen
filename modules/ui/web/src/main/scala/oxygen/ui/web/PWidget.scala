@@ -2,7 +2,9 @@ package oxygen.ui.web
 
 import monocle.Lens
 import org.scalajs.dom.CanvasRenderingContext2D
+import oxygen.meta.typing.UnionRemoving
 import oxygen.predef.core.*
+import oxygen.ui.web.component.{Form, FormWidget}
 import oxygen.ui.web.create.{Component, NodeModifier}
 import oxygen.ui.web.internal.*
 import scala.annotation.tailrec
@@ -71,6 +73,49 @@ object PWidget {
     def handleActionStateful: HandleActionBuilders.Stateful[Env, Action, State] = new HandleActionBuilders.Stateful(self)
   }
 
+  /////// Form ///////////////////////////////////////////////////////////////
+
+  extension [Env, Action, StateGet, StateSet <: StateGet](self: PWidget[Env, Action, StateGet, StateSet]) {
+
+    def asConstForm[Value](value: Value): Form.Polymorphic[Env, Action, StateGet, StateSet, Value] =
+      Form.const(self, value)
+
+    def asUnitForm: Form.Polymorphic[Env, Action, StateGet, StateSet, Unit] =
+      Form.const(self, ())
+
+  }
+
+  extension [Env, Action, State](self: PWidget.Stateful[Env, Action, State]) {
+
+    def asStateForm(fields: List[String]): Form.Stateful[Env, Action, State, State] =
+      Form.makeWith(fields, self)(identity)
+
+    def asStateForm(field: String): Form.Stateful[Env, Action, State, State] =
+      Form.makeWith(field, self)(identity)
+
+    def asStateForm: Form.Stateful[Env, Action, State, State] =
+      Form.makeWith(self)(identity)
+
+    def asFormWith[Value](fields: List[String])(f: State => Value): Form.Stateful[Env, Action, State, Value] =
+      Form.makeWith(fields, self)(f)
+
+    def asFormWith[Value](field: String)(f: State => Value): Form.Stateful[Env, Action, State, Value] =
+      Form.makeWith(field, self)(f)
+
+    def asFormWith[Value](f: State => Value): Form.Stateful[Env, Action, State, Value] =
+      Form.makeWith(self)(f)
+
+    def asFormWithValidation[Value](fields: List[String])(f: State => FormWidget.EitherMessage[Value]): Form.Stateful[Env, Action, State, Value] =
+      Form.makeWithValidation(fields, self)(f)
+
+    def asFormWithValidation[Value](field: String)(f: State => FormWidget.EitherMessage[Value]): Form.Stateful[Env, Action, State, Value] =
+      Form.makeWithValidation(field, self)(f)
+
+    def asFormWithValidation[Value](f: State => FormWidget.EitherMessage[Value]): Form.Stateful[Env, Action, State, Value] =
+      Form.makeWithValidation(self)(f)
+
+  }
+
   //////////////////////////////////////////////////////////////////////////////////////////////////////
   //      Builder Classes
   //////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -112,16 +157,9 @@ object PWidget {
       def as[Action2]: StatefulAS[Env, Action, State, Action2] = new StatefulAS(widget)
 
       // handle part of the action, and allow the rest to pass through
-      def ps[HandleA, Action2](using
-          ttHandle: TypeTest[Action, HandleA],
-          ttRaise: TypeTest[Action, Action2],
-          orEv: Action =:= (HandleA | Action2),
-      ): StatefulPS[Env, Action, State, HandleA, Action2] = new StatefulPS(widget)
-      def pas[HandleA, Action2](using
-          ttHandle: TypeTest[Action, HandleA],
-          ttRaise: TypeTest[Action, Action2],
-          orEv: Action =:= (HandleA | Action2),
-      ): StatefulPAS[Env, Action, State, HandleA, Action2] = new StatefulPAS(widget)
+      def ps[HandleA](using
+          ev: UnionRemoving[Action, HandleA],
+      ): StatefulPS[Env, Action, State, HandleA, ev.Remaining] = new StatefulPS(widget, ev.apply)
 
       def map[Action2](f: Action => Action2)(using HasNoScope[Env]): PWidget.Stateful[Env, Action2, State] =
         this.a[Action2] { (rh, a) => rh.raiseAction(f(a)) }
@@ -145,27 +183,25 @@ object PWidget {
         PWidget.StatefulHandleActionA(widget, f)
     }
 
-    final class StatefulPS[Env, Action, State, HandleA, Action2](widget: PWidget.Stateful[Env, Action, State])(using
-        ttHandle: TypeTest[Action, HandleA],
-        ttRaise: TypeTest[Action, Action2],
-    ) {
-      def apply[Env2 <: Env: HasNoScope](f: (WidgetState[State], HandleA) => ZIO[Env2 & Scope, UIError, Unit]): PWidget.Stateful[Env2, Action2, State] =
-        StatefulAS[Env, Action, State, Action2](widget).apply[Env2] {
-          case (s, _, a: HandleA)  => f(s, a)
-          case (_, rh, a: Action2) => rh.raiseAction(a)
-          case _                   => throw new RuntimeException("not possible...")
+    final class StatefulPS[Env, Action, State, HandledA, UnhandledA](widget: PWidget.Stateful[Env, Action, State], toEither: Action => Either[HandledA, UnhandledA]) {
+
+      def apply[Env2 <: Env: HasNoScope](f: (WidgetState[State], HandledA) => ZIO[Env2 & Scope, UIError, Unit]): PWidget.Stateful[Env2, UnhandledA, State] =
+        StatefulAS[Env, Action, State, UnhandledA](widget).apply[Env2] { (s, rh, a) =>
+          toEither(a) match
+            case Left(handle)     => f(s, handle)
+            case Right(unhandled) => rh.raiseAction(unhandled)
         }
+
+      def a[UnhandledA2 >: UnhandledA]: StatefulPAS[Env, Action, State, HandledA, UnhandledA2] = new StatefulPAS(widget, toEither)
+
     }
 
-    final class StatefulPAS[Env, Action, State, HandleA, Action2](widget: PWidget.Stateful[Env, Action, State])(using
-        ttHandle: TypeTest[Action, HandleA],
-        ttRaise: TypeTest[Action, Action2],
-    ) {
-      def apply[Env2 <: Env: HasNoScope](f: (WidgetState[State], RaiseHandler[Any, Action2], HandleA) => ZIO[Env2 & Scope, UIError, Unit]): PWidget.Stateful[Env2, Action2, State] =
-        StatefulAS[Env, Action, State, Action2](widget).apply[Env2] {
-          case (s, rh, a: HandleA) => f(s, rh, a)
-          case (_, rh, a: Action2) => rh.raiseAction(a)
-          case _                   => throw new RuntimeException("not possible...")
+    final class StatefulPAS[Env, Action, State, HandledA, UnhandledA](widget: PWidget.Stateful[Env, Action, State], toEither: Action => Either[HandledA, UnhandledA]) {
+      def apply[Env2 <: Env: HasNoScope](f: (WidgetState[State], RaiseHandler[Any, UnhandledA], HandledA) => ZIO[Env2 & Scope, UIError, Unit]): PWidget.Stateful[Env2, UnhandledA, State] =
+        StatefulAS[Env, Action, State, UnhandledA](widget).apply[Env2] { (s, rh, a) =>
+          toEither(a) match
+            case Left(handle)     => f(s, rh, handle)
+            case Right(unhandled) => rh.raiseAction(unhandled)
         }
     }
 
@@ -578,6 +614,20 @@ object PWidget {
         tag,
         Growable.single(mod.before) ++ children ++ Growable.single(mod.after),
       )
+
+    def wrapForm[Env2 <: Env, Action2 >: Action, StateGet2 <: StateGet, StateSet2 >: StateSet <: StateGet2, Value](
+        form: Form.Polymorphic[Env2, Action2, StateGet2, StateSet2, Value],
+    ): Form.Polymorphic[Env2, Action2, StateGet2, StateSet2, Value] =
+      Form(this.apply(form.widget), form.fields, form.stateToValue)
+
+    def wrapForm[Env2 <: Env, Action2 >: Action, StateGet2 <: StateGet, StateSet2 >: StateSet <: StateGet2, Value](
+        beforeForm: PWidget[Env2, Action2, StateGet2, StateSet2]*,
+    )(
+        form: Form.Polymorphic[Env2, Action2, StateGet2, StateSet2, Value],
+    )(
+        afterForm: PWidget[Env2, Action2, StateGet2, StateSet2]*,
+    ): Form.Polymorphic[Env2, Action2, StateGet2, StateSet2, Value] =
+      Form(this.apply(beforeForm*).apply(form.widget).apply(afterForm*), form.fields, form.stateToValue)
 
   }
   object Node {

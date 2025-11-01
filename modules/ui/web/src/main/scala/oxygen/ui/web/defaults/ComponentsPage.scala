@@ -107,9 +107,9 @@ object ComponentsPage extends RoutablePage.NoParams[Any] {
         ),
         Widget.withPageInstance {
           {
-            Form.textField[String]("Value").zoomOut[ModalForm](_.value).required &&
-            Form.submitButton("Submit")
-          }.onSubmit.asv[Modal.Close] { (_, rh, v) =>
+            Form.textField[String]("Value").zoomOut[ModalForm](_.value).required <*>
+              Form.submitButton("Submit")
+          }.handleActionStateful.a[Modal.Close] { (rh, _, v) =>
             PageMessages.add(PageMessage.info(s"Submit:\n$v")) *>
               rh.raiseAction(Modal.Close)
           }

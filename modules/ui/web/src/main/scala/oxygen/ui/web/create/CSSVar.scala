@@ -10,6 +10,9 @@ final class CSSVar(baseName: String) {
   def getValue: String = CSSVar.getValue(name)
   def getColorValue: CSSColor = CSSColor(this)
 
+  def :=(value: String): CSSAttr = Widget.raw.css(name, value)
+  def csss(strs: String*): CSSAttr = this := strs.mkString(" ")
+
   override def toString: String = varString
 
 }

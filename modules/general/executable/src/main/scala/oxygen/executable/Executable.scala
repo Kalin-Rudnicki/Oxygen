@@ -249,7 +249,7 @@ object SingleBuilders {
         .repeated
 
     private val logLevelParser: Params[LogLevel] =
-      Params.`enum`[RichLogLevel]("log-level", hints = List("default log level")).withDefault(RichLogLevel.Info).map(_.level)
+      Params.`enum`[RichLogLevel]("log-level", hints = List("default log level"))(using RichLogLevel.strictEnum).withDefault(RichLogLevel.Info).map(_.level)
 
     private val oxygenLoggerParser: Params[Logger] =
       Params.valueWith(

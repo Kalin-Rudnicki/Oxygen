@@ -56,6 +56,10 @@ object UIError {
     def invalid(fields: List[String], messages: NonEmptyList[String]): UIError.ClientSide.FormValidationErrors =
       UIError.ClientSide.FormValidationErrors.invalid(fields, messages)
 
+    @targetName("invalid_many_singleError")
+    def invalid(fields: List[String], error: UIError.ClientSide.FormValidationErrors.ErrorType): UIError.ClientSide.FormValidationErrors =
+      UIError.ClientSide.FormValidationErrors.invalid(fields, error)
+
     @targetName("validate_single_single")
     def validate[A](field: String)(value: Either[String, A]): Either[UIError.ClientSide.FormValidationErrors, A] =
       value.leftMap(form.invalid(field, _))
@@ -107,13 +111,6 @@ object UIError {
     }
     object FormValidationErrors {
 
-      def zipWith[A, B, C](a: Either[FormValidationErrors, A], b: Either[FormValidationErrors, B])(f: (A, B) => C): Either[FormValidationErrors, C] =
-        (a, b) match
-          case (Right(a), Right(b)) => f(a, b).asRight
-          case (Left(a), Right(_))  => a.asLeft
-          case (Right(_), Left(b))  => b.asLeft
-          case (Left(a), Left(b))   => (a ++ b).asLeft
-
       def missingRequired(field: String): FormValidationErrors =
         FormValidationErrors(NonEmptyList.one(Error(field :: Nil, ErrorType.MissingRequired)))
 
@@ -135,6 +132,10 @@ object UIError {
       @targetName("invalid_many_many")
       def invalid(fields: List[String], messages: NonEmptyList[String]): FormValidationErrors =
         FormValidationErrors(messages.map { message => Error(fields, ErrorType.Invalid(message)) })
+
+      @targetName("invalid_many_singleError")
+      def invalid(fields: List[String], error: FormValidationErrors.ErrorType): FormValidationErrors =
+        FormValidationErrors(NonEmptyList.one(Error(fields, error)))
 
       final case class Error(fields: List[String], error: ErrorType) {
 

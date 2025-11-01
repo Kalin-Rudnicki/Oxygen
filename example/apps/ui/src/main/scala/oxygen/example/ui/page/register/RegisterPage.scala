@@ -69,7 +69,7 @@ object RegisterPage extends RoutablePage[UserApi & LocalService] {
               inputProps = TextField.Props(width = 100.pct),
             )
             .required
-            .zoomOut[State](_.firstName) &&
+            .zoomOut[State](_.firstName) <*>
             Form
               .textField[String](
                 "Last Name",
@@ -77,7 +77,7 @@ object RegisterPage extends RoutablePage[UserApi & LocalService] {
                 inputProps = TextField.Props(width = 100.pct),
               )
               .required
-              .zoomOut[State](_.lastName) &&
+              .zoomOut[State](_.lastName) <*>
             Form
               .textField[Email](
                 "Email",
@@ -85,7 +85,7 @@ object RegisterPage extends RoutablePage[UserApi & LocalService] {
                 inputProps = TextField.Props(inputType = "email", width = 100.pct),
               )
               .required
-              .zoomOut[State](_.email) &&
+              .zoomOut[State](_.email) <*>
             Form
               .textField[String](
                 "Password",
@@ -93,9 +93,9 @@ object RegisterPage extends RoutablePage[UserApi & LocalService] {
                 inputProps = TextField.Props(inputType = "password", width = 100.pct),
               )
               .required
-              .zoomOut[State](_.password) &&
+              .zoomOut[State](_.password) <*>
             Form.submitButton("Sign Up", _(size = Button.Size.Large))
-        ).onSubmit.sv { case (_, (firstName, lastName, email, password)) =>
+        ).onSubmit { case (_, (firstName, lastName, email, password)) =>
           for {
             _ <- ZIO.logInfo("submitting form...")
             req = RegisterRequest(
