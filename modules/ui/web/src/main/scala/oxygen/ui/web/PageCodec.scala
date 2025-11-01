@@ -45,6 +45,13 @@ object PageCodec {
 
   val empty: PageCodec[Unit] = Empty
 
+  extension [A](self: => PageCodec[A])
+    def suspended: PageCodec[A] =
+      suspend(self)
+
+  def suspend[A](codec: => PageCodec[A]): PageCodec[A] =
+    PageCodec.Suspend { Lazy { codec } }
+
   object path {
 
     def const(p: String): PageCodec[Unit] = PageCodec.ConstPath(p)
@@ -169,6 +176,16 @@ object PageCodec {
       val (bPath, bQuery) = b.encodeInternal(bValue)
       (aPath ++ bPath, aQuery ++ bQuery)
     }
+
+  }
+
+  final case class Suspend[A](inner: Lazy[PageCodec[A]]) extends PageCodec[A] {
+
+    override def decodeInternal(paths: List[String], queryParams: QueryParams): ParseResult[(A, List[String])] =
+      inner.value.decodeInternal(paths, queryParams)
+
+    override def encodeInternal(value: A): (Growable[String], Growable[(String, Chunk[String])]) =
+      inner.value.encodeInternal(value)
 
   }
 
