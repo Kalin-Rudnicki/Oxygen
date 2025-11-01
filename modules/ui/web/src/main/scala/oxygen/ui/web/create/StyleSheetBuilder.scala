@@ -42,6 +42,8 @@ object StyleSheetBuilder {
     lazy val classNames: Set[String]
     final lazy val selector: StyleSheetSelector.RootWithoutTag = StyleSheetSelector.`class`(className)
 
+    final def cssVar(name: String): CSSVar = CSSVar(s"$className---$name")
+
   }
 
   sealed abstract class HasClass(final val classScope: List[String]) {

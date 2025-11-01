@@ -3,93 +3,149 @@ package oxygen.ui.web.component
 import oxygen.predef.core.*
 import oxygen.ui.web.*
 import oxygen.ui.web.create.{*, given}
-import scala.annotation.targetName
-import zio.*
 
-// TODO (KR) : be able to attach a "FormLock", which disables submission while an existing effect is already running
-final case class Form[-Env, -StateGet, +StateSet <: StateGet, Value](
-    widget: Widget.Polymorphic[Env, Form.Submit, StateGet, StateSet],
-    fields: List[String],
-    stateToValue: StateGet => Either[UIError.ClientSide.FormValidationErrors, Value],
-) {
+//////////////////////////////////////////////////////////////////////////////////////////////////////
+//      Form
+//////////////////////////////////////////////////////////////////////////////////////////////////////
 
-  def mapValue[Value2](f: Value => Value2): Form[Env, StateGet, StateSet, Value2] =
-    Form(widget, fields, stateToValue(_).map(f))
+// Form.Stateful
+type FormEAS[-Env, +Action, State, +Value] = FormWidget.Stateful[Env, Action, State, Value]
+type FormES[-Env, State, +Value] = FormWidget.Stateful[Env, Nothing, State, Value]
+type FormAS[+Action, State, +Value] = FormWidget.Stateful[Any, Action, State, Value]
+type FormS[State, +Value] = FormWidget.Stateful[Any, Nothing, State, Value]
 
-  def flatMapValue[Value2](f: Value => Either[String, Value2]): Form[Env, StateGet, StateSet, Value2] =
-    Form(widget, fields, stateToValue(_).flatMap(f(_).leftMap(UIError.form.invalid(fields, _))))
+// Form.Stateless
+type FormEA[-Env, +Action, +Value] = FormWidget.Stateless[Env, Action, Value]
+type FormE[-Env, +Value] = FormWidget.Stateless[Env, Nothing, Value]
+type FormA[+Action, +Value] = FormWidget.Stateless[Any, Action, Value]
+type Form[+Value] = FormWidget.Stateless[Any, Nothing, Value]
 
-  @targetName("validateValue_single")
-  def validateValue(f: Value => Either[String, Unit]): Form[Env, StateGet, StateSet, Value] =
-    Form(
-      widget,
-      fields,
-      state =>
-        for {
-          value <- stateToValue(state)
-          _ <- UIError.form.validate(fields)(f(value))
-        } yield value,
-    )
+// SubmitForm.Stateful
+type SubmitFormEAS[-Env, +Action, State, +Value] = FormWidget.Stateful[Env, Action | Form.Submit, State, Value]
+type SubmitFormES[-Env, State, +Value] = FormWidget.Stateful[Env, Form.Submit, State, Value]
+type SubmitFormAS[+Action, State, +Value] = FormWidget.Stateful[Any, Action | Form.Submit, State, Value]
+type SubmitFormS[State, +Value] = FormWidget.Stateful[Any, Form.Submit, State, Value]
 
-  @targetName("validateValue_many")
-  def validateValue(f: Value => EitherNel[String, Unit]): Form[Env, StateGet, StateSet, Value] =
-    Form(
-      widget,
-      fields,
-      state =>
-        for {
-          value <- stateToValue(state)
-          _ <- UIError.form.validate(fields)(f(value))
-        } yield value,
-    )
+// SubmitForm.Stateless
+type SubmitFormEA[-Env, +Action, +Value] = FormWidget.Stateless[Env, Action | Form.Submit, Value]
+type SubmitFormE[-Env, +Value] = FormWidget.Stateless[Env, Form.Submit, Value]
+type SubmitFormA[+Action, +Value] = FormWidget.Stateless[Any, Action | Form.Submit, Value]
+type SubmitForm[+Value] = FormWidget.Stateless[Any, Form.Submit, Value]
 
-}
 object Form {
 
-  // TODO (KR) : allow form to update the underlying widget with the error and/or raise page message(s)
-  // type Error[StateGet, StateSet] = Ior[StateGet => StateSet, NonEmptyList[UIError.ClientSide.FormValidationErrors.Error]]
-
-  type Stateless[Env, Value] = Form[Env, Any, Nothing, Value]
-  type Stateful[Env, State, Value] = Form[Env, State, State, Value]
+  type Polymorphic[-Env, +Action, -StateGet, +StateSet <: StateGet, +Value] = FormWidget.Polymorphic[Env, Action, StateGet, StateSet, Value]
+  type Stateless[-Env, +Action, +Value] = FormWidget.Stateless[Env, Action, Value]
+  type Stateful[-Env, +Action, State, +Value] = FormWidget.Stateful[Env, Action, State, Value]
 
   type Submit = Submit.type
-  object Submit
+  case object Submit
 
-  extension [Env, State, Value](self: Form.Stateful[Env, State, Value]) {
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
+  //      Builders
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
 
-    def &&[Env2 <: Env, Value2](that: Form.Stateful[Env2, State, Value2])(using zip: Zip[Value, Value2]): Form.Stateful[Env2, State, zip.Out] =
-      Form(
-        fragment(self.widget, that.widget),
-        self.fields ++ that.fields,
-        state => UIError.ClientSide.FormValidationErrors.zipWith(self.stateToValue(state), that.stateToValue(state))(zip.zip),
-      )
+  def apply[Env, Action, StateGet, StateSet <: StateGet, Value](
+      widget: Widget.Polymorphic[Env, Action, StateGet, StateSet],
+      fields: List[String],
+      stateToValue: StateGet => FormWidget.Result[Value],
+  ): Form.Polymorphic[Env, Action, StateGet, StateSet, Value] =
+    FormWidget(widget, fields, stateToValue)
 
-    inline def zoomOut[OuterState](inline f: OuterState => State): Form.Stateful[Env, OuterState, Value] =
-      Form(
-        self.widget.zoomOut[OuterState](f),
-        self.fields,
-        state => self.stateToValue(f(state)),
-      )
+  def const[Value](value: Value): Form[Value] =
+    Form(Widget.empty, Nil, _ => FormWidget.Result.Success(value))
 
-    def onSubmit: OnSubmitBuilder[Env, State, Value] = OnSubmitBuilder(self)
+  def const[Env, Action, StateGet, StateSet <: StateGet, Value](widget: Widget.Polymorphic[Env, Action, StateGet, StateSet], value: Value): Form.Polymorphic[Env, Action, StateGet, StateSet, Value] =
+    Form(widget, Nil, _ => FormWidget.Result.Success(value))
 
-  }
+  def succeed[Env, Action, State, Value](widget: Widget.Stateful[Env, Action, State])(stateToValue: State => Value): Form.Stateful[Env, Action, State, Value] =
+    Form(widget, Nil, s => FormWidget.Result.Success(stateToValue(s)))
 
-  extension [Env, State, Value](self: Form.Stateful[Env, State, Option[Value]]) {
+  def wrap[Env, Action, StateGet, StateSet <: StateGet](widget: Widget.Polymorphic[Env, Action, StateGet, StateSet]): Form.Polymorphic[Env, Action, StateGet, StateSet, Unit] =
+    Form.const(widget, ())
 
-    def required: Form.Stateful[Env, State, Value] =
-      Form(
-        self.widget,
-        self.fields,
-        self.stateToValue(_).flatMap {
-          _.toRight { UIError.form.missingRequired(self.fields) }
-        },
-      )
+  def unit[Env, Action, StateGet, StateSet <: StateGet](widget: Widget.Polymorphic[Env, Action, StateGet, StateSet]): Form.Polymorphic[Env, Action, StateGet, StateSet, Unit] =
+    Form.const(widget, ())
 
-  }
+  def fragment[Env, Action, StateGet, StateSet <: StateGet, Value](
+      before: Widget.Polymorphic[Env, Action, StateGet, StateSet]*,
+  )(
+      form: Form.Polymorphic[Env, Action, StateGet, StateSet, Value],
+  )(
+      after: Widget.Polymorphic[Env, Action, StateGet, StateSet]*,
+  ): Form.Polymorphic[Env, Action, StateGet, StateSet, Value] =
+    Form(Widget.fragment.apply(before*).apply(form.widget).apply(after*), form.fields, form.stateToValue)
 
-  def unit[Env, StateGet, StateSet <: StateGet](widget: Widget.Polymorphic[Env, Form.Submit, StateGet, StateSet]): Form[Env, StateGet, StateSet, Unit] =
-    Form(widget, Nil, _ => ().asRight)
+  /////// make ///////////////////////////////////////////////////////////////
+
+  def makeWithValidation[Env, Action, State, Value](
+      fields: List[String],
+      widget: Widget.Stateful[Env, Action, State],
+  )(
+      stateToValue: State => FormWidget.EitherMessage[Value],
+  ): Form.Stateful[Env, Action, State, Value] =
+    Form(widget, fields, s => FormWidget.Result.fromEitherMessage(fields, stateToValue(s)))
+
+  def makeWithValidation[Env, Action, State, Value](
+      field: String,
+      widget: Widget.Stateful[Env, Action, State],
+  )(
+      stateToValue: State => FormWidget.EitherMessage[Value],
+  ): Form.Stateful[Env, Action, State, Value] =
+    Form.makeWithValidation(field :: Nil, widget)(stateToValue)
+
+  def makeWithValidation[Env, Action, State, Value](
+      widget: Widget.Stateful[Env, Action, State],
+  )(
+      stateToValue: State => FormWidget.EitherMessage[Value],
+  ): Form.Stateful[Env, Action, State, Value] =
+    Form.makeWithValidation(Nil, widget)(stateToValue)
+
+  def makeWithValidations[Env, Action, State, Value](
+      fields: List[String],
+      widget: Widget.Stateful[Env, Action, State],
+  )(
+      stateToValue: State => FormWidget.EitherMessages[Value],
+  ): Form.Stateful[Env, Action, State, Value] =
+    Form(widget, fields, s => FormWidget.Result.fromEitherMessages(fields, stateToValue(s)))
+
+  def makeWithValidations[Env, Action, State, Value](
+      field: String,
+      widget: Widget.Stateful[Env, Action, State],
+  )(
+      stateToValue: State => FormWidget.EitherMessages[Value],
+  ): Form.Stateful[Env, Action, State, Value] =
+    Form.makeWithValidations(field :: Nil, widget)(stateToValue)
+
+  def makeWithValidations[Env, Action, State, Value](
+      widget: Widget.Stateful[Env, Action, State],
+  )(
+      stateToValue: State => FormWidget.EitherMessages[Value],
+  ): Form.Stateful[Env, Action, State, Value] =
+    Form.makeWithValidations(Nil, widget)(stateToValue)
+
+  def makeWith[Env, Action, State, Value](
+      fields: List[String],
+      widget: Widget.Stateful[Env, Action, State],
+  )(
+      stateToValue: State => Value,
+  ): Form.Stateful[Env, Action, State, Value] =
+    Form(widget, fields, s => FormWidget.Result.Success(stateToValue(s)))
+
+  def makeWith[Env, Action, State, Value](
+      field: String,
+      widget: Widget.Stateful[Env, Action, State],
+  )(
+      stateToValue: State => Value,
+  ): Form.Stateful[Env, Action, State, Value] =
+    Form.makeWith(field :: Nil, widget)(stateToValue)
+
+  def makeWith[Env, Action, State, Value](
+      widget: Widget.Stateful[Env, Action, State],
+  )(
+      stateToValue: State => Value,
+  ): Form.Stateful[Env, Action, State, Value] =
+    Form.makeWith(Nil, widget)(stateToValue)
 
   //////////////////////////////////////////////////////////////////////////////////////////////////////
   //      Form Elems
@@ -100,7 +156,7 @@ object Form {
       descriptionText: Specified[Widget.Const] = Specified.WasNotSpecified,
       labelMod: NodeModifier = NodeModifier.empty,
   ): Widget.Const =
-    fragment(
+    Widget.fragment(
       div(label(labelText, padding(S.spacing._2, S.spacing._5), fontWeight._600, fontSize := S.fontSize._4)(labelMod)),
       Widget.foreach(descriptionText.toOption) { descr =>
         div(padding(S.spacing._0, S.spacing._8))(
@@ -124,22 +180,19 @@ object Form {
         descriptionText: Specified[Widget.Const] = Specified.WasNotSpecified,
         formProps: Props = Props(),
         inputProps: TextField.Props = TextField.Props(),
-    ): Form.Stateful[Any, String, Option[A]] =
-      Form(
+    ): SubmitFormS[String, Option[A]] =
+      Form.makeWithValidation(
+        inputLabel,
         div(
           width := formProps.width,
           padding := formProps.padding,
           elementLabel(inputLabel, descriptionText, formProps.labelMod),
           div(TextField(inputProps)),
         ),
-        inputLabel :: Nil,
-        { _str =>
-          val str: String = if (formProps.trimInput) _str.trim else _str
-          Option.when(str.nonEmpty)(str).traverse { str =>
-            UIError.form.validate(inputLabel) { dec.decodeSimple(str) }
-          }
-        },
-      )
+      ) { _str =>
+        val str: String = if (formProps.trimInput) _str.trim else _str
+        Option.when(str.nonEmpty)(str).traverse(dec.decodeSimple)
+      }
 
   }
 
@@ -158,22 +211,19 @@ object Form {
         descriptionText: Specified[Widget.Const] = Specified.WasNotSpecified,
         formProps: Props = Props(),
         inputProps: TextArea.Props = TextArea.Props(),
-    ): Form.Stateful[Any, String, Option[A]] =
-      Form(
+    ): SubmitFormS[String, Option[A]] =
+      Form.makeWithValidation(
+        inputLabel,
         div(
           width := formProps.width,
           padding := formProps.padding,
           elementLabel(inputLabel, descriptionText, formProps.labelMod),
           div(TextArea(inputProps)),
         ),
-        inputLabel :: Nil,
-        { _str =>
-          val str: String = if (formProps.trimInput) _str.trim else _str
-          Option.when(str.nonEmpty)(str).traverse { str =>
-            UIError.form.validate(inputLabel) { dec.decodeSimple(str) }
-          }
-        },
-      )
+      ) { _str =>
+        val str: String = if (formProps.trimInput) _str.trim else _str
+        Option.when(str.nonEmpty)(str).traverse(dec.decodeSimple)
+      }
 
   }
 
@@ -192,17 +242,16 @@ object Form {
         show: A => String = (_: A).toString,
         formProps: Props = Props(),
         inputProps: HorizontalRadio.Props.type => HorizontalRadio.Props = _(),
-    ): Form.Stateful[Any, HorizontalRadio.State[A], A] =
-      Form(
+    ): FormS[HorizontalRadio.State[A], A] =
+      Form.makeWith(
+        inputLabel,
         div(
           width := formProps.width,
           padding := formProps.padding,
           elementLabel(inputLabel, descriptionText, formProps.labelMod),
           div(HorizontalRadio[A](inputProps, show)),
         ),
-        inputLabel :: Nil,
-        _.selected.asRight,
-      )
+      )(_.selected)
 
   }
 
@@ -223,17 +272,16 @@ object Form {
         showSetNone: Specified[String] = Specified.WasNotSpecified,
         formProps: Props = Props(),
         inputProps: Dropdown.Props.type => Dropdown.Props = _(),
-    ): Form.Stateful[Any, Dropdown.State[A], Option[A]] =
-      Form(
+    ): FormS[Dropdown.State[A], Option[A]] =
+      Form.makeWith(
+        inputLabel,
         div(
           width := formProps.width,
           padding := formProps.padding,
           elementLabel(inputLabel, descriptionText, formProps.labelMod),
           div(Dropdown[A](inputProps, show, showEmpty, showSetNone)),
         ),
-        inputLabel :: Nil,
-        _.selected.asRight,
-      )
+      )(_.selected)
 
   }
 
@@ -242,7 +290,7 @@ object Form {
     def apply(
         text: String,
         buttonProps: Button.Props.type => Button.Props = _(),
-    ): Form.Stateless[Any, Unit] =
+    ): SubmitForm[Unit] =
       Form.unit(
         div(
           padding := 10.px,
@@ -254,36 +302,6 @@ object Form {
           ),
         ),
       )
-
-  }
-
-  //////////////////////////////////////////////////////////////////////////////////////////////////////
-  //      Builders
-  //////////////////////////////////////////////////////////////////////////////////////////////////////
-
-  final class OnSubmitBuilder[Env, State, Value](form: Form.Stateful[Env, State, Value]) {
-
-    def asv[Action2]: OnSubmitBuilderASV[Env, Action2, State, Value] = OnSubmitBuilderASV(form)
-
-    def sv[Env2 <: Env: HasNoScope](f: (WidgetState[State], Value) => ZIO[Env2 & Scope, UIError, Unit]): WidgetES[Env2, State] =
-      form.widget.handleActionStateful.s { case (s, Form.Submit) =>
-        form.stateToValue(s.renderTimeValue) match {
-          case Right(value) => f(s, value)
-          case Left(errors) => ZIO.fail(errors)
-        }
-      }
-
-  }
-
-  final class OnSubmitBuilderASV[Env, Action2, State, Value](form: Form.Stateful[Env, State, Value]) {
-
-    def apply[Env2 <: Env: HasNoScope](f: (WidgetState[State], RaiseHandler[Any, Action2], Value) => ZIO[Env2 & Scope, UIError, Unit]): WidgetEAS[Env2, Action2, State] =
-      form.widget.handleActionStateful.as[Action2] { case (s, rh, Form.Submit) =>
-        form.stateToValue(s.renderTimeValue) match {
-          case Right(value) => f(s, rh, value)
-          case Left(errors) => ZIO.fail(errors)
-        }
-      }
 
   }
 

@@ -68,7 +68,7 @@ object LoginPage extends RoutablePage[UserApi & LocalService] {
               inputProps = TextField.Props(inputType = "email", width = 100.pct),
             )
             .required
-            .zoomOut[State](_.email) &&
+            .zoomOut[State](_.email) <*>
             Form
               .textField[String](
                 "Password",
@@ -76,9 +76,9 @@ object LoginPage extends RoutablePage[UserApi & LocalService] {
                 inputProps = TextField.Props(inputType = "password", width = 100.pct),
               )
               .required
-              .zoomOut[State](_.password) &&
+              .zoomOut[State](_.password) <*>
             Form.submitButton("Login", _(size = Button.Size.Large))
-        ).onSubmit.sv { case (_, (email, password)) =>
+        ).handleActionStateful { case (_, (email, password)) =>
           for {
             _ <- ZIO.logInfo("submitting form...")
             req = LoginRequest(email, Password.PlainText.wrap(password))

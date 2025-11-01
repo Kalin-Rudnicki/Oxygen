@@ -1,7 +1,7 @@
 package oxygen.ui.web.component
 
+import oxygen.meta.typing.UnionRemoving
 import oxygen.ui.web.create.{*, given}
-import scala.reflect.TypeTest
 import zio.*
 
 object Modal {
@@ -17,14 +17,14 @@ object Modal {
       backgroundColor: String = S.color.bg.layerOne,
   )
 
-  def option[Env: HasNoScope, Action, State](
+  def option[Env: HasNoScope, Action >: Close, State](
       props: Props.type => Props = _(),
-  )(contents: WidgetEAS[Env, Action | Close, State]*)(using
-      tt: TypeTest[Action | Close, Action],
-  ): WidgetEAS[Env, Action, Option[State]] = {
+  )(contents: WidgetEAS[Env, Action, State]*)(using
+      ev: UnionRemoving[Action, Close],
+  ): WidgetEAS[Env, ev.Remaining, Option[State]] = {
     val _props: Props = props(Props)
 
-    val tmp1: WidgetEAS[Env, Action | Close, State] =
+    val tmp1: WidgetEAS[Env, Action, State] =
       div(
         O.ModalOverlay,
         backgroundColor := CSSColor("#000").setOpacity(_props.opacityPercent),
@@ -40,10 +40,10 @@ object Modal {
         )(contents*),
       )
 
-    val tmp2: WidgetEAS[Env, Action | Close, Option[State]] =
+    val tmp2: WidgetEAS[Env, Action, Option[State]] =
       div(Widget.sum.option(tmp1))
 
-    tmp2.handleActionStateful.ps[Close, Action] { case (s, Close) => s.set(None) }
+    tmp2.handleActionStateful.ps[Close] { case (s, Close) => s.set(None) }
   }
 
 }
