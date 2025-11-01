@@ -205,6 +205,12 @@ sealed trait TypeRepr extends Model, HasTypeType {
   final def showAnsiCode: String = showWith(_.TypeReprAnsiCode)
   final def showStructure: String = showWith(_.TypeReprStructure)
 
+  final def >:>(that: TypeRepr): Boolean = that <:< this
+
+  final def !=:=(that: TypeRepr): Boolean = !(this =:= that)
+  final def !<:<(that: TypeRepr): Boolean = !(this <:< that)
+  final def !>:>(that: TypeRepr): Boolean = !(this >:> that)
+
 }
 object TypeRepr {
 
