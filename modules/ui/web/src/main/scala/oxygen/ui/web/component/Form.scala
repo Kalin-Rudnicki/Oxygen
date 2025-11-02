@@ -241,7 +241,7 @@ object Form {
         descriptionText: Specified[Widget.Const] = Specified.WasNotSpecified,
         show: A => String = (_: A).toString,
         formProps: Props = Props(),
-        inputProps: HorizontalRadio.Props.type => HorizontalRadio.Props = _(),
+        radioDecorator: HorizontalRadio.Decorator => HorizontalRadio.Decorator = identity,
     ): FormS[HorizontalRadio.State[A], A] =
       Form.makeWith(
         inputLabel,
@@ -249,7 +249,7 @@ object Form {
           width := formProps.width,
           padding := formProps.padding,
           elementLabel(inputLabel, descriptionText, formProps.labelMod),
-          div(HorizontalRadio[A](inputProps, show)),
+          div(HorizontalRadio[A].show(show).decorate(radioDecorator)),
         ),
       )(_.selected)
 
@@ -268,10 +268,8 @@ object Form {
         inputLabel: String,
         descriptionText: Specified[Widget.Const] = Specified.WasNotSpecified,
         show: A => String = (_: A).toString,
-        showEmpty: String = "",
-        showSetNone: Specified[String] = Specified.WasNotSpecified,
         formProps: Props = Props(),
-        inputProps: Dropdown.Props.type => Dropdown.Props = _(),
+        dropdownDecorator: Dropdown.Decorator => Dropdown.Decorator = identity,
     ): FormS[Dropdown.State[A], Option[A]] =
       Form.makeWith(
         inputLabel,
@@ -279,7 +277,7 @@ object Form {
           width := formProps.width,
           padding := formProps.padding,
           elementLabel(inputLabel, descriptionText, formProps.labelMod),
-          div(Dropdown[A](inputProps, show, showEmpty, showSetNone)),
+          div(Dropdown[A].show(show).decorate(dropdownDecorator)),
         ),
       )(_.selected)
 
@@ -288,19 +286,36 @@ object Form {
   object submitButton {
 
     def apply(
-        text: String,
-        buttonProps: Button.Props.type => Button.Props = _(),
+        buttonMainText: String,
+        buttonDecorator: Button.Decorator,
     ): SubmitForm[Unit] =
       Form.unit(
         div(
           padding := 10.px,
           Button(
-            text,
-            buttonProps,
+            buttonMainText,
+            buttonDecorator,
           )(
             onClick.action(Form.Submit),
           ),
         ),
+      )
+
+    def apply(
+        buttonMainText: String,
+        buttonDecorator: Button.Decorator => Button.Decorator,
+    ): SubmitForm[Unit] =
+      Form.submitButton(
+        buttonMainText,
+        buttonDecorator(Button.Decorator.defaultStyling),
+      )
+
+    def apply(
+        buttonMainText: String,
+    ): SubmitForm[Unit] =
+      Form.submitButton(
+        buttonMainText,
+        Button.Decorator.defaultStyling,
       )
 
   }

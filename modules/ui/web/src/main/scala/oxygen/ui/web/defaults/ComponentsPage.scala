@@ -11,7 +11,7 @@ object ComponentsPage extends RoutablePage.NoParams[Any] {
   final case class State(
       sequence: ArraySeq[Int],
       useGlobalToggleThumbs: Boolean,
-      individualToggleThumbs: Set[(ToggleThumb.Style, ToggleThumb.Style, ToggleThumb.Size)],
+      individualToggleThumbs: Set[String],
       globalToggleThumbs: Boolean,
       horizontalRadio: HorizontalRadio.State[SmallEnum],
       dropdown1: Dropdown.State[SmallEnum],
@@ -57,7 +57,7 @@ object ComponentsPage extends RoutablePage.NoParams[Any] {
       toggleThumbSection,
       horizontalRadioSection,
       formSection,
-      div(height := 25.px),
+      div(height := 150.px),
     )
 
   enum SmallEnum derives StrictEnum { case A, B, C }
@@ -76,17 +76,17 @@ object ComponentsPage extends RoutablePage.NoParams[Any] {
     Section.section2("Page Messages")(
       PageMessagesBottomCorner.attached,
       Widget.foreach(
-        PageMessage.Type.Success -> Button.Style.Positive,
-        PageMessage.Type.Info -> Button.Style.Info,
-        PageMessage.Type.Warning -> Button.Style.Alert,
-        PageMessage.Type.Error -> Button.Style.Negative,
+        PageMessage.Type.Success -> Button.Decorator.positive,
+        PageMessage.Type.Info -> Button.Decorator.informational,
+        PageMessage.Type.Warning -> Button.Decorator.alert,
+        PageMessage.Type.Error -> Button.Decorator.negative,
       ) { case (messageType, buttonType) =>
         span(
           display.inlineBlock,
           padding(S.spacing._3, S.spacing._5),
           Button(
             messageType.toString,
-            _(style = buttonType),
+            _ >> buttonType,
           )(
             Widget.withPageInstance {
               onClick := PageMessages.add(PageMessage.make(messageType, s"This is a \"$messageType\" page message"))
@@ -243,8 +243,36 @@ object ComponentsPage extends RoutablePage.NoParams[Any] {
     )
 
   private lazy val buttonsSection: Widget = {
-    val styles: Seq[Button.Style] = Button.Style.values.toSeq
-    val sizes: Seq[Button.Size] = Button.Size.values.toSeq
+    val styles: Seq[Button.Decorator] =
+      (for {
+        a <- Seq(
+          Button.Decorator.primary,
+          Button.Decorator.positive,
+          Button.Decorator.negative,
+          Button.Decorator.alert,
+          Button.Decorator.informational,
+          Button.Decorator.destructive,
+          Button.Decorator.brandPrimary1,
+          Button.Decorator.brandPrimary2,
+          Button.Decorator.brandPrimary1.defaultFG,
+          Button.Decorator.brandPrimary2.defaultFG,
+        )
+        b <- Seq(
+          Button.Decorator.standard,
+          Button.Decorator.subtle,
+          Button.Decorator.minimal,
+        )
+      } yield a << b) ++
+        Seq(
+          Button.Decorator.disabled,
+          Button.Decorator.disabledProgress,
+        )
+    val sizes: Seq[Button.Decorator] =
+      Seq(
+        Button.Decorator.small,
+        Button.Decorator.medium,
+        Button.Decorator.large,
+      )
 
     Section.section1("Buttons")(
       table(
@@ -253,17 +281,17 @@ object ComponentsPage extends RoutablePage.NoParams[Any] {
           border.csss(2.px, "solid", "black"),
           th("Style", padding(S.spacing._2, S.spacing._5)),
           Widget.foreach(sizes) { size =>
-            th(size.toString, padding(S.spacing._2, S.spacing._5))
+            th(size.name, padding(S.spacing._2, S.spacing._5))
           },
         ),
         Widget.foreach(styles) { style =>
           tr(
             border.csss(2.px, "solid", "black"),
-            td(style.toString, padding(S.spacing._2, S.spacing._5)),
+            td(style.name, padding(S.spacing._2, S.spacing._5)),
             Widget.foreach(sizes) { size =>
               td(
                 textAlign.center,
-                Button("Click Me!", _(style = style, size = size)),
+                Button("Click Me!", style >> size),
                 padding(S.spacing._2, S.spacing._5),
               )
             },
@@ -274,27 +302,44 @@ object ComponentsPage extends RoutablePage.NoParams[Any] {
   }
 
   private lazy val toggleThumbSection: WidgetS[State] = {
-    val sizes: Seq[ToggleThumb.Size] = ToggleThumb.Size.values.toSeq
-    val styles: Seq[(ToggleThumb.Style, ToggleThumb.Style)] =
-      ToggleThumb.Style.values.toSeq.map((_, ToggleThumb.Style.Off)) ++ Seq(
-        ToggleThumb.Style.Positive -> ToggleThumb.Style.Negative,
+    val sizes: Seq[ToggleThumb.Decorator] =
+      Seq(
+        ToggleThumb.Decorator.extraSmall,
+        ToggleThumb.Decorator.small,
+        ToggleThumb.Decorator.medium,
+        ToggleThumb.Decorator.large,
+        ToggleThumb.Decorator.extraLarge,
+      )
+    val styles: Seq[ToggleThumb.Decorator] =
+      Seq(
+        ToggleThumb.Decorator.primary,
+        ToggleThumb.Decorator.positive,
+        ToggleThumb.Decorator.negative,
+        ToggleThumb.Decorator.alert,
+        ToggleThumb.Decorator.informational,
+        ToggleThumb.Decorator.brandPrimary1,
+        ToggleThumb.Decorator.brandPrimary2,
+        ToggleThumb.Decorator.positiveNegative,
+        ToggleThumb.Decorator.primaryEnabled.alertDisabled,
       )
 
     Widget.state[State].fix { state =>
-      def row(onStyle: ToggleThumb.Style, offStyle: ToggleThumb.Style): Widget =
+      def row(style: ToggleThumb.Decorator): Widget =
         tr(
           border.csss(2.px, "solid", "black"),
-          td(padding(S.spacing._1, S.spacing._3))(s"$onStyle / $offStyle"),
+          td(padding(S.spacing._1, S.spacing._3))(style.name),
           Widget.foreach(sizes) { size =>
+            val fullStyle = style >> size
+
             td(padding(S.spacing._1, S.spacing._3))(
               textAlign.center,
               if (state.renderTimeValue.useGlobalToggleThumbs)
                 ToggleThumb
-                  .boolean(_(onStyle = onStyle, offStyle = offStyle, size = size))
+                  .boolean(fullStyle)
                   .attach(state.zoomIn(_.globalToggleThumbs))
               else
                 ToggleThumb
-                  .set((onStyle, offStyle, size), _(onStyle = onStyle, offStyle = offStyle, size = size))
+                  .set(fullStyle.name, fullStyle)
                   .attach(state.zoomIn(_.individualToggleThumbs)),
             )
           },
@@ -305,7 +350,7 @@ object ComponentsPage extends RoutablePage.NoParams[Any] {
           display.flex,
           alignItems.center,
           ToggleThumb
-            .boolean(_(onStyle = ToggleThumb.Style.Positive))
+            .boolean(_.positiveEnabled.alertDisabled.large)
             .attach(state.zoomIn(_.useGlobalToggleThumbs)),
           span(display.inlineBlock, width := 10.px),
           span("Use Global State"),
@@ -316,31 +361,41 @@ object ComponentsPage extends RoutablePage.NoParams[Any] {
           tr(
             th(padding(S.spacing._1, S.spacing._3))("Style"),
             Widget.foreach(sizes) { size =>
-              th(padding(S.spacing._1, S.spacing._3))(size.toString)
+              th(padding(S.spacing._1, S.spacing._3))(size.name)
             },
           ),
-          Widget.foreach(styles) { row(_, _) },
+          Widget.foreach(styles) { row },
         ),
       )
     }
   }
 
   private lazy val horizontalRadioSection: WidgetS[State] = {
-    val sizes: Seq[HorizontalRadio.Size] = HorizontalRadio.Size.values.toSeq
-    val styles: Seq[(HorizontalRadio.Style, HorizontalRadio.Style)] =
-      HorizontalRadio.Style.values.toSeq.map((_, HorizontalRadio.Style.Off)) ++ Seq(
-        HorizontalRadio.Style.Positive -> HorizontalRadio.Style.Negative,
+    val sizes: Seq[HorizontalRadio.Decorator] =
+      Seq(HorizontalRadio.Decorator.small, HorizontalRadio.Decorator.medium, HorizontalRadio.Decorator.large)
+    val styles: Seq[HorizontalRadio.Decorator] =
+      Seq(
+        HorizontalRadio.Decorator.primary,
+        HorizontalRadio.Decorator.positive,
+        HorizontalRadio.Decorator.negative,
+        HorizontalRadio.Decorator.alert,
+        HorizontalRadio.Decorator.informational,
+        HorizontalRadio.Decorator.brandPrimary1,
+        HorizontalRadio.Decorator.brandPrimary2,
+        HorizontalRadio.Decorator.positiveNegative,
+        HorizontalRadio.Decorator.primarySelected.alertNotSelected,
       )
 
     Widget.state[State].fix { state =>
-      def row(selectedStyle: HorizontalRadio.Style, notSelectedStyle: HorizontalRadio.Style): Widget =
+      def row(style: HorizontalRadio.Decorator): Widget =
         tr(
           border.csss(2.px, "solid", "black"),
-          td(padding(S.spacing._1, S.spacing._3))(s"$selectedStyle / $notSelectedStyle"),
+          td(padding(S.spacing._1, S.spacing._3))(style.name),
           Widget.foreach(sizes) { size =>
             td(padding(S.spacing._1, S.spacing._3))(
               textAlign.center,
-              HorizontalRadio(_(selectedStyle = selectedStyle, notSelectedStyle = notSelectedStyle, size = size))
+              HorizontalRadio[SmallEnum]
+                .decorate(style >> size)
                 .attach(state.zoomIn(_.horizontalRadio)),
             )
           },
@@ -352,10 +407,10 @@ object ComponentsPage extends RoutablePage.NoParams[Any] {
           tr(
             th(padding(S.spacing._1, S.spacing._3))("Style"),
             Widget.foreach(sizes) { size =>
-              th(padding(S.spacing._1, S.spacing._3))(size.toString)
+              th(padding(S.spacing._1, S.spacing._3))(size.name)
             },
           ),
-          Widget.foreach(styles) { row(_, _) },
+          Widget.foreach(styles) { row },
         ),
       )
     }
@@ -384,7 +439,7 @@ object ComponentsPage extends RoutablePage.NoParams[Any] {
           ),
           td(
             padding(S.spacing._1, S.spacing._3),
-            Button("Remove", _(style = Button.Style.DestructiveSubtle))(
+            Button("Remove", _.destructive.minimal)(
               onClick.action(idx),
             ),
           ),
@@ -429,10 +484,21 @@ object ComponentsPage extends RoutablePage.NoParams[Any] {
       Form.textField[String]("Text Field 2", "test").widget.discardAction.zoomOut[State](_.textValue),
       Form.textField[String]("Text Field 3", fragment("a", br, "b")).widget.discardAction.zoomOut[State](_.textValue),
       Form.textArea[String]("Text Area").widget.discardAction.zoomOut[State](_.textValue),
-      Form.horizontalRadio[SmallEnum]("Horizontal Radio 1").widget.discardAction.zoomOut[State](_.horizontalRadio),
+      Form
+        .horizontalRadio[SmallEnum](
+          "Horizontal Radio 1",
+          radioDecorator = _.surroundButton("[ ")(" ]", fontWeight._800),
+        )
+        .widget
+        .discardAction
+        .zoomOut[State](_.horizontalRadio),
       Form.horizontalRadio[SmallEnum]("Horizontal Radio 2", "descr").widget.discardAction.zoomOut[State](_.horizontalRadio),
       Form.dropdown[SmallEnum]("Dropdown 1", "descr").widget.discardAction.zoomOut[State](_.dropdown1),
-      Form.dropdown[SmallEnum]("Dropdown 2", inputProps = _.apply(style = Dropdown.Style.Alert, closeOnMouseLeave = true), showSetNone = "Unset").widget.discardAction.zoomOut[State](_.dropdown2),
+      Form
+        .dropdown[SmallEnum]("Dropdown 2", dropdownDecorator = _.negative.closeOnMouseLeave.setNone("Unset").externalBorder(3.px, "red").internalBorder(1.px, "blue"))
+        .widget
+        .discardAction
+        .zoomOut[State](_.dropdown2),
     )
   }
 
