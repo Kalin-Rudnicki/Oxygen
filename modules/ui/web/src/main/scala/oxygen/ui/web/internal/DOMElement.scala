@@ -17,7 +17,7 @@ object DOMElement {
     final lazy val entityChildren: ArraySeq[DOMElement.Entity] = children.collect { case e: DOMElement.Entity => e }
     private final lazy val attrChildren: ArraySeq[DOMElement.Attr] = children.collect { case e: DOMElement.Attr => e }
 
-    private final lazy val cssAttrMap: Map[String, String] = attrChildren.iterator.collect { case DOMElement.CSSAttr(k, v) => (k, v) }.toMap
+    private final lazy val cssAttrMap: Map[String, String] = attrChildren.iterator.collect { case DOMElement.CSSAttr(k, v) => (k, v) }.toMap.filterNot(_._2 == removeInlineValue)
 
     final lazy val cssStr: Option[String] = Option.when(cssAttrMap.nonEmpty)(cssAttrMap.iterator.map { case (k, v) => s"$k: $v" }.mkString("; "))
     final lazy val htmlAttrMap: Map[String, String] = attrChildren.iterator.collect { case DOMElement.HtmlAttr(k, v) => (k, v) }.toMap
@@ -49,5 +49,7 @@ object DOMElement {
   final case class HtmlAttr(key: String, value: String) extends DOMElement.Attr
   final case class ObjectAttr(key: String, value: js.Any) extends DOMElement.Attr
   final case class ClassAttr(classes: Set[String]) extends DOMElement.Attr
+
+  val removeInlineValue: String = "<<remove-inline>>"
 
 }

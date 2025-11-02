@@ -5,6 +5,8 @@ import oxygen.ui.web.create.{*, given}
 import oxygen.zio.instances.given
 import zio.Chunk
 
+// TODO (KR) : update basic colors to have more contrast
+// TODO (KR) : switch to new `Decorator` pattern
 object PageMessagesBottomCorner extends Component.WithoutProps.Stateful[Any, Nothing, PageMessages] {
 
   val attached: Widget = PageMessagesBottomCorner().attach(PageMessages.PageLocal)

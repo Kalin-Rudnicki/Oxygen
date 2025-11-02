@@ -71,6 +71,10 @@ object NavBar {
       div(
         minHeight := props.navBarHeight,
         OxygenStyleSheet.NavBar.Section.Elem,
+        backgroundColor.dynamic := props.navBarColor,
+        backgroundColor.dynamic.hover := CSSColor.eval(props.navBarColor).darken(15.0),
+        backgroundColor.dynamic.active := CSSColor.eval(props.navBarColor).darken(30.0),
+        borderRadius.dynamic.active := 10.px,
       )
 
     // TODO (KR) : return a special repr that says what kind of nav bar item was created

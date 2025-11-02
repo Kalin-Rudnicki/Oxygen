@@ -66,3 +66,6 @@ object Specified {
   given aToBSpecified: [A, B] => (conv: Conversion[A, B]) => Conversion[A, Specified.WasSpecified[B]] = a => Specified.WasSpecified(conv(a))
 
 }
+
+def unspecified: Specified.WasNotSpecified.type = Specified.WasNotSpecified
+def ___ : Specified.WasNotSpecified.type = Specified.WasNotSpecified

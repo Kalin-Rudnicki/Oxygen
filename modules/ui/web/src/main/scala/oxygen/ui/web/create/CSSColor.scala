@@ -69,6 +69,8 @@ sealed trait CSSColor {
 }
 object CSSColor {
 
+  lazy val transparent: CSSColor = CSSColor("#0000")
+
   private def percentRange(min: Double, max: Double, percent: Double): Double =
     min + (max - min) * percent
 
@@ -269,5 +271,7 @@ object CSSColor {
     case regRgb(int_0_255(r), int_0_255(g), int_0_255(b))                => RGB(r, g, b).some
     // TODO (KR) : rgba()
     case _ => None
+
+  given Show[CSSColor] = _.show
 
 }

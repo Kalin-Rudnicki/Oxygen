@@ -3,6 +3,7 @@ package oxygen.ui.web.component
 import oxygen.ui.web.*
 import oxygen.ui.web.create.{*, given}
 
+// TODO (KR) : give this the decorator treatment
 object Section {
 
   object section1 {

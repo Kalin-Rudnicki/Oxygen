@@ -21,6 +21,7 @@ object UIMain extends PageApp[UIMain.Env] {
   override val styleSheets: ArraySeq[StyleSheet] = ArraySeq(
     normalizeCssReset,
     OxygenStyleVars.toCSS(OxygenStyleVarDefaults.CZR),
+    InlinePseudoClassStyles.compiled,
     OxygenStyleSheet.compiled,
   )
 

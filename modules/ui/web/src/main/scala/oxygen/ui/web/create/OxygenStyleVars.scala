@@ -64,6 +64,9 @@ abstract class OxygenStyleVars[T] {
       val alert: ColorWithStrength
       val informational: ColorWithStrength
       val notification: T
+
+      final def destructive: T = negative.standard // TODO (KR) : have a separate destructive color
+
     }
 
     // TODO (KR) : add more cases, and then add to css builder

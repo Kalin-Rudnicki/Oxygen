@@ -59,7 +59,7 @@ object NodeModifier {
   def after(afterMods: Widget*): NodeModifier =
     NodeModifier(Widget.empty, fragment(afterMods*))
 
-  def surround(beforeMods: Widget*): NodeModifier =
-    NodeModifier(fragment(beforeMods*), Widget.empty)
+  def surround(beforeMods: Widget*)(afterMods: Widget*): NodeModifier =
+    NodeModifier(fragment(beforeMods*), fragment(afterMods*))
 
 }

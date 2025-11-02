@@ -1,10 +1,12 @@
 package oxygen.ui.web.create
 
+import oxygen.ui.web.internal.DOMElement
+
 //////////////////////////////////////////////////////////////////////////////////////////////////////
 //      Special
 //////////////////////////////////////////////////////////////////////////////////////////////////////
 
-object cursor extends CssBuilder("cursor") { self =>
+case object cursor extends CssBuilder("cursor") { self =>
   def alias: CSSAttr = self := "alias"
   def allScroll: CSSAttr = self := "all-scroll"
   def auto: CSSAttr = self := "auto"
@@ -43,7 +45,7 @@ object cursor extends CssBuilder("cursor") { self =>
   def zoomOut: CSSAttr = self := "zoom-out"
 }
 
-object textAlign extends CssBuilder("text-align") { self =>
+case object textAlign extends CssBuilder("text-align") { self =>
   def start: CSSAttr = self := "start"
   def end: CSSAttr = self := "end"
   def left: CSSAttr = self := "left"
@@ -53,7 +55,7 @@ object textAlign extends CssBuilder("text-align") { self =>
   def matchParent: CSSAttr = self := "match-parent"
 }
 
-object verticalAlign extends CssBuilder("vertical-align") { self =>
+case object verticalAlign extends CssBuilder("vertical-align") { self =>
   def baseline: CSSAttr = self := "baseline"
   def sub: CSSAttr = self := "sub"
   def `super`: CSSAttr = self := "super"
@@ -64,7 +66,7 @@ object verticalAlign extends CssBuilder("vertical-align") { self =>
   def bottom: CSSAttr = self := "bottom"
 }
 
-object display extends CssBuilder("display") { self =>
+case object display extends CssBuilder("display") { self =>
 
   def block: CSSAttr = self := "block"
   def inline: CSSAttr = self := "inline"
@@ -78,7 +80,7 @@ object display extends CssBuilder("display") { self =>
 
 }
 
-object whiteSpace extends CssBuilder("white-space") { self =>
+case object whiteSpace extends CssBuilder("white-space") { self =>
   def normal: CSSAttr = self := "normal"
   def pre: CSSAttr = self := "pre"
   def preWrap: CSSAttr = self := "pre-wrap"
@@ -90,7 +92,7 @@ object whiteSpace extends CssBuilder("white-space") { self =>
   def preserveNowrap: CSSAttr = self := "preserve nowrap"
 }
 
-object position extends CssBuilder("position") { self =>
+case object position extends CssBuilder("position") { self =>
   def static: CSSAttr = self := "static"
   def relative: CSSAttr = self := "relative"
   def absolute: CSSAttr = self := "absolute"
@@ -98,13 +100,13 @@ object position extends CssBuilder("position") { self =>
   def sticky: CSSAttr = self := "sticky"
 }
 
-object visibility extends CssBuilder("visibility") { self =>
+case object visibility extends CssBuilder("visibility") { self =>
   def visible: CSSAttr = self := "visible"
   def hidden: CSSAttr = self := "hidden"
   def collapse: CSSAttr = self := "collapse"
 }
 
-object userSelect extends CssBuilder("user-select") { self =>
+case object userSelect extends CssBuilder("user-select") { self =>
   def auto: CSSAttr = self := "auto"
   def text: CSSAttr = self := "text"
   def none: CSSAttr = self := "none"
@@ -112,51 +114,51 @@ object userSelect extends CssBuilder("user-select") { self =>
   def all: CSSAttr = self := "all"
 }
 
-object borderRadius extends CssBuilder("border-radius")
-object borderBottomLeftRadius extends CssBuilder("border-bottom-left-radius")
-object borderBottomRightRadius extends CssBuilder("border-bottom-right-radius")
-object borderTopLeftRadius extends CssBuilder("border-top-left-radius")
-object borderTopRightRadius extends CssBuilder("border-top-right-radius")
+case object borderRadius extends CssBuilder("border-radius")
+case object borderBottomLeftRadius extends CssBuilder("border-bottom-left-radius")
+case object borderBottomRightRadius extends CssBuilder("border-bottom-right-radius")
+case object borderTopLeftRadius extends CssBuilder("border-top-left-radius")
+case object borderTopRightRadius extends CssBuilder("border-top-right-radius")
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////
 //      Other
 //////////////////////////////////////////////////////////////////////////////////////////////////////
 
-object width extends CssBuilder("width") { self =>
+case object width extends CssBuilder("width") { self =>
   def fitContent: CSSAttr = self := "fit-content"
 }
 
-object height extends CssBuilder("height")
-object minWidth extends CssBuilder("min-width")
-object minHeight extends CssBuilder("min-height")
-object maxWidth extends CssBuilder("max-width")
-object maxHeight extends CssBuilder("max-height")
+case object height extends CssBuilder("height")
+case object minWidth extends CssBuilder("min-width")
+case object minHeight extends CssBuilder("min-height")
+case object maxWidth extends CssBuilder("max-width")
+case object maxHeight extends CssBuilder("max-height")
 
-object margin extends CssBuilder("margin"), CssBuilder.SpacingBuilder
-object marginTop extends CssBuilder("margin-top")
-object marginRight extends CssBuilder("margin-right")
-object marginBottom extends CssBuilder("margin-bottom")
-object marginLeft extends CssBuilder("margin-left")
+case object margin extends CssBuilder("margin"), CssBuilder.SpacingBuilder
+case object marginTop extends CssBuilder("margin-top")
+case object marginRight extends CssBuilder("margin-right")
+case object marginBottom extends CssBuilder("margin-bottom")
+case object marginLeft extends CssBuilder("margin-left")
 
-object padding extends CssBuilder("padding"), CssBuilder.SpacingBuilder
-object paddingTop extends CssBuilder("padding-top")
-object paddingRight extends CssBuilder("padding-right")
-object paddingBottom extends CssBuilder("padding-bottom")
-object paddingLeft extends CssBuilder("padding-left")
+case object padding extends CssBuilder("padding"), CssBuilder.SpacingBuilder
+case object paddingTop extends CssBuilder("padding-top")
+case object paddingRight extends CssBuilder("padding-right")
+case object paddingBottom extends CssBuilder("padding-bottom")
+case object paddingLeft extends CssBuilder("padding-left")
 
-object color extends CssBuilder("color"), CssBuilder.ColorBuilder
-object backgroundColor extends CssBuilder("background-color"), CssBuilder.ColorBuilder
-object background extends CssBuilder("background")
-object backgroundImage extends CssBuilder("background-image")
-object backgroundRepeat extends CssBuilder("background-repeat")
-object backgroundPosition extends CssBuilder("background-position")
-object backgroundSize extends CssBuilder("background-size")
-object backgroundClip extends CssBuilder("background-clip")
-object backgroundOrigin extends CssBuilder("background-origin")
-object backgroundAttachment extends CssBuilder("background-attachment")
+case object color extends CssBuilder("color"), CssBuilder.ColorBuilder
+case object backgroundColor extends CssBuilder("background-color"), CssBuilder.ColorBuilder
+case object background extends CssBuilder("background")
+case object backgroundImage extends CssBuilder("background-image")
+case object backgroundRepeat extends CssBuilder("background-repeat")
+case object backgroundPosition extends CssBuilder("background-position")
+case object backgroundSize extends CssBuilder("background-size")
+case object backgroundClip extends CssBuilder("background-clip")
+case object backgroundOrigin extends CssBuilder("background-origin")
+case object backgroundAttachment extends CssBuilder("background-attachment")
 
-object fontSize extends CssBuilder("font-size")
-object fontWeight extends CssBuilder("font-weight") { self =>
+case object fontSize extends CssBuilder("font-size")
+case object fontWeight extends CssBuilder("font-weight") { self =>
   def normal: CSSAttr = self := "normal"
   def bold: CSSAttr = self := "bold"
   def bolder: CSSAttr = self := "bolder"
@@ -171,72 +173,72 @@ object fontWeight extends CssBuilder("font-weight") { self =>
   def _800: CSSAttr = self := "800"
   def _900: CSSAttr = self := "900"
 }
-object fontFamily extends CssBuilder("font-family")
-object fontStyle extends CssBuilder("font-style") { self =>
+case object fontFamily extends CssBuilder("font-family")
+case object fontStyle extends CssBuilder("font-style") { self =>
   def normal: CSSAttr = self := "normal"
   def italic: CSSAttr = self := "italic"
   def oblique: CSSAttr = self := "oblique"
 }
-object fontVariant extends CssBuilder("font-variant")
-object fontStretch extends CssBuilder("font-stretch")
-object textDecoration extends CssBuilder("text-decoration")
-object textTransform extends CssBuilder("text-transform") { self =>
+case object fontVariant extends CssBuilder("font-variant")
+case object fontStretch extends CssBuilder("font-stretch")
+case object textDecoration extends CssBuilder("text-decoration")
+case object textTransform extends CssBuilder("text-transform") { self =>
   def none: CSSAttr = self := "none"
   def capitalize: CSSAttr = self := "capitalize"
   def uppercase: CSSAttr = self := "uppercase"
   def lowercase: CSSAttr = self := "lowercase"
   def fullWidth: CSSAttr = self := "full-width"
 }
-object textOverflow extends CssBuilder("text-overflow")
-object lineHeight extends CssBuilder("line-height")
-object letterSpacing extends CssBuilder("letter-spacing")
-object wordSpacing extends CssBuilder("word-spacing")
-object direction extends CssBuilder("direction")
-object unicodeBidi extends CssBuilder("unicode-bidi")
+case object textOverflow extends CssBuilder("text-overflow")
+case object lineHeight extends CssBuilder("line-height")
+case object letterSpacing extends CssBuilder("letter-spacing")
+case object wordSpacing extends CssBuilder("word-spacing")
+case object direction extends CssBuilder("direction")
+case object unicodeBidi extends CssBuilder("unicode-bidi")
 
-object border extends CssBuilder("border"), CssBuilder.BorderBuilder
-object borderTop extends CssBuilder("border-top"), CssBuilder.BorderBuilder
-object borderRight extends CssBuilder("border-right"), CssBuilder.BorderBuilder
-object borderBottom extends CssBuilder("border-bottom"), CssBuilder.BorderBuilder
-object borderLeft extends CssBuilder("border-left"), CssBuilder.BorderBuilder
+case object border extends CssBuilder("border"), CssBuilder.BorderBuilder
+case object borderTop extends CssBuilder("border-top"), CssBuilder.BorderBuilder
+case object borderRight extends CssBuilder("border-right"), CssBuilder.BorderBuilder
+case object borderBottom extends CssBuilder("border-bottom"), CssBuilder.BorderBuilder
+case object borderLeft extends CssBuilder("border-left"), CssBuilder.BorderBuilder
 
-object borderColor extends CssBuilder("border-color"), CssBuilder.ColorBuilder
-object borderTopColor extends CssBuilder("border-top-color"), CssBuilder.ColorBuilder
-object borderRightColor extends CssBuilder("border-right-color"), CssBuilder.ColorBuilder
-object borderBottomColor extends CssBuilder("border-bottom-color"), CssBuilder.ColorBuilder
-object borderLeftColor extends CssBuilder("border-left-color"), CssBuilder.ColorBuilder
+case object borderColor extends CssBuilder("border-color"), CssBuilder.ColorBuilder
+case object borderTopColor extends CssBuilder("border-top-color"), CssBuilder.ColorBuilder
+case object borderRightColor extends CssBuilder("border-right-color"), CssBuilder.ColorBuilder
+case object borderBottomColor extends CssBuilder("border-bottom-color"), CssBuilder.ColorBuilder
+case object borderLeftColor extends CssBuilder("border-left-color"), CssBuilder.ColorBuilder
 
-object borderStyle extends CssBuilder("border-style"), CssBuilder.BorderStyleBuilder
-object borderTopStyle extends CssBuilder("border-top-style"), CssBuilder.BorderStyleBuilder
-object borderRightStyle extends CssBuilder("border-right-style"), CssBuilder.BorderStyleBuilder
-object borderBottomStyle extends CssBuilder("border-bottom-style"), CssBuilder.BorderStyleBuilder
-object borderLeftStyle extends CssBuilder("border-left-style"), CssBuilder.BorderStyleBuilder
+case object borderStyle extends CssBuilder("border-style"), CssBuilder.BorderStyleBuilder
+case object borderTopStyle extends CssBuilder("border-top-style"), CssBuilder.BorderStyleBuilder
+case object borderRightStyle extends CssBuilder("border-right-style"), CssBuilder.BorderStyleBuilder
+case object borderBottomStyle extends CssBuilder("border-bottom-style"), CssBuilder.BorderStyleBuilder
+case object borderLeftStyle extends CssBuilder("border-left-style"), CssBuilder.BorderStyleBuilder
 
-object borderWidth extends CssBuilder("border-width")
-object borderTopWidth extends CssBuilder("border-top-width")
-object borderRightWidth extends CssBuilder("border-right-width")
-object borderBottomWidth extends CssBuilder("border-bottom-width")
-object borderLeftWidth extends CssBuilder("border-left-width")
+case object borderWidth extends CssBuilder("border-width")
+case object borderTopWidth extends CssBuilder("border-top-width")
+case object borderRightWidth extends CssBuilder("border-right-width")
+case object borderBottomWidth extends CssBuilder("border-bottom-width")
+case object borderLeftWidth extends CssBuilder("border-left-width")
 
-object borderCollapse extends CssBuilder("border-collapse") { self =>
+case object borderCollapse extends CssBuilder("border-collapse") { self =>
   def separate: CSSAttr = self := "separate"
   def collapse: CSSAttr = self := "collapse"
 }
-object borderSpacing extends CssBuilder("border-spacing")
+case object borderSpacing extends CssBuilder("border-spacing")
 
-object top extends CssBuilder("top")
-object right extends CssBuilder("right")
-object bottom extends CssBuilder("bottom")
-object left extends CssBuilder("left")
-object zIndex extends CssBuilder("z-index")
-object float extends CssBuilder("float") { self =>
+case object top extends CssBuilder("top")
+case object right extends CssBuilder("right")
+case object bottom extends CssBuilder("bottom")
+case object left extends CssBuilder("left")
+case object zIndex extends CssBuilder("z-index")
+case object float extends CssBuilder("float") { self =>
   def left: CSSAttr = self := "left"
   def right: CSSAttr = self := "right"
   def none: CSSAttr = self := "none"
   def inlineStart: CSSAttr = self := "inline-start"
   def inlineEnd: CSSAttr = self := "inline-end"
 }
-object clear extends CssBuilder("clear") { self =>
+case object clear extends CssBuilder("clear") { self =>
   def left: CSSAttr = self := "left"
   def right: CSSAttr = self := "right"
   def both: CSSAttr = self := "both"
@@ -244,49 +246,49 @@ object clear extends CssBuilder("clear") { self =>
   def inlineStart: CSSAttr = self := "inline-start"
   def inlineEnd: CSSAttr = self := "inline-end"
 }
-object overflow extends CssBuilder("overflow"), CssBuilder.OverflowBuilder
-object overflowX extends CssBuilder("overflow-x"), CssBuilder.OverflowBuilder
-object overflowY extends CssBuilder("overflow-y"), CssBuilder.OverflowBuilder
-object opacity extends CssBuilder("opacity")
-object boxShadow extends CssBuilder("box-shadow")
-object outline extends CssBuilder("outline")
-object outlineColor extends CssBuilder("outline-color")
-object outlineStyle extends CssBuilder("outline-style")
-object outlineWidth extends CssBuilder("outline-width")
-object transition extends CssBuilder("transition")
-object transform extends CssBuilder("transform")
-object filter extends CssBuilder("filter")
-object clipPath extends CssBuilder("clip-path")
-object content extends CssBuilder("content")
-object order extends CssBuilder("order")
+case object overflow extends CssBuilder("overflow"), CssBuilder.OverflowBuilder
+case object overflowX extends CssBuilder("overflow-x"), CssBuilder.OverflowBuilder
+case object overflowY extends CssBuilder("overflow-y"), CssBuilder.OverflowBuilder
+case object opacity extends CssBuilder("opacity")
+case object boxShadow extends CssBuilder("box-shadow")
+case object outline extends CssBuilder("outline")
+case object outlineColor extends CssBuilder("outline-color")
+case object outlineStyle extends CssBuilder("outline-style")
+case object outlineWidth extends CssBuilder("outline-width")
+case object transition extends CssBuilder("transition")
+case object transform extends CssBuilder("transform")
+case object filter extends CssBuilder("filter")
+case object clipPath extends CssBuilder("clip-path")
+case object content extends CssBuilder("content")
+case object order extends CssBuilder("order")
 
 // Flexbox
-object flex extends CssBuilder("flex")
-object flexBasis extends CssBuilder("flex-basis")
-object flexDirection extends CssBuilder("flex-direction") { self =>
+case object flex extends CssBuilder("flex")
+case object flexBasis extends CssBuilder("flex-basis")
+case object flexDirection extends CssBuilder("flex-direction") { self =>
   def row: CSSAttr = self := "row"
   def rowReverse: CSSAttr = self := "row-reverse"
   def column: CSSAttr = self := "column"
   def columnReverse: CSSAttr = self := "column-reverse"
 }
-object flexFlow extends CssBuilder("flex-flow")
-object flexGrow extends CssBuilder("flex-grow")
-object flexShrink extends CssBuilder("flex-shrink")
-object flexWrap extends CssBuilder("flex-wrap") { self =>
+case object flexFlow extends CssBuilder("flex-flow")
+case object flexGrow extends CssBuilder("flex-grow")
+case object flexShrink extends CssBuilder("flex-shrink")
+case object flexWrap extends CssBuilder("flex-wrap") { self =>
   def nowrap: CSSAttr = self := "nowrap"
   def wrap: CSSAttr = self := "wrap"
   def wrapReverse: CSSAttr = self := "wrap-reverse"
 }
-object alignItems extends CssBuilder("align-items") { self =>
+case object alignItems extends CssBuilder("align-items") { self =>
   def stretch: CSSAttr = self := "stretch"
   def center: CSSAttr = self := "center"
   def flexStart: CSSAttr = self := "flex-start"
   def flexEnd: CSSAttr = self := "flex-end"
   def baseline: CSSAttr = self := "baseline"
 }
-object alignContent extends CssBuilder("align-content")
-object alignSelf extends CssBuilder("align-self")
-object justifyContent extends CssBuilder("justify-content") { self =>
+case object alignContent extends CssBuilder("align-content")
+case object alignSelf extends CssBuilder("align-self")
+case object justifyContent extends CssBuilder("justify-content") { self =>
   def flexStart: CSSAttr = self := "flex-start"
   def flexEnd: CSSAttr = self := "flex-end"
   def center: CSSAttr = self := "center"
@@ -294,7 +296,7 @@ object justifyContent extends CssBuilder("justify-content") { self =>
   def spaceAround: CSSAttr = self := "space-around"
   def spaceEvenly: CSSAttr = self := "space-evenly"
 }
-object justifyItems extends CssBuilder("justify-items") { self =>
+case object justifyItems extends CssBuilder("justify-items") { self =>
   def stretch: CSSAttr = self := "stretch"
   def center: CSSAttr = self := "center"
   def start: CSSAttr = self := "start"
@@ -302,7 +304,7 @@ object justifyItems extends CssBuilder("justify-items") { self =>
   def left: CSSAttr = self := "left"
   def right: CSSAttr = self := "right"
 }
-object justifySelf extends CssBuilder("justify-self") { self =>
+case object justifySelf extends CssBuilder("justify-self") { self =>
   def stretch: CSSAttr = self := "stretch"
   def center: CSSAttr = self := "center"
   def start: CSSAttr = self := "start"
@@ -310,63 +312,63 @@ object justifySelf extends CssBuilder("justify-self") { self =>
   def left: CSSAttr = self := "left"
   def right: CSSAttr = self := "right"
 }
-object gap extends CssBuilder("gap")
-object rowGap extends CssBuilder("row-gap")
-object columnGap extends CssBuilder("column-gap")
+case object gap extends CssBuilder("gap")
+case object rowGap extends CssBuilder("row-gap")
+case object columnGap extends CssBuilder("column-gap")
 
 // Grid
-object grid extends CssBuilder("grid")
-object gridArea extends CssBuilder("grid-area")
-object gridTemplate extends CssBuilder("grid-template")
-object gridTemplateAreas extends CssBuilder("grid-template-areas")
-object gridTemplateColumns extends CssBuilder("grid-template-columns")
-object gridTemplateRows extends CssBuilder("grid-template-rows")
-object gridColumn extends CssBuilder("grid-column")
-object gridRow extends CssBuilder("grid-row")
-object gridColumnStart extends CssBuilder("grid-column-start")
-object gridColumnEnd extends CssBuilder("grid-column-end")
-object gridRowStart extends CssBuilder("grid-row-start")
-object gridRowEnd extends CssBuilder("grid-row-end")
-object gridAutoColumns extends CssBuilder("grid-auto-columns")
-object gridAutoRows extends CssBuilder("grid-auto-rows")
-object gridAutoFlow extends CssBuilder("grid-auto-flow")
+case object grid extends CssBuilder("grid")
+case object gridArea extends CssBuilder("grid-area")
+case object gridTemplate extends CssBuilder("grid-template")
+case object gridTemplateAreas extends CssBuilder("grid-template-areas")
+case object gridTemplateColumns extends CssBuilder("grid-template-columns")
+case object gridTemplateRows extends CssBuilder("grid-template-rows")
+case object gridColumn extends CssBuilder("grid-column")
+case object gridRow extends CssBuilder("grid-row")
+case object gridColumnStart extends CssBuilder("grid-column-start")
+case object gridColumnEnd extends CssBuilder("grid-column-end")
+case object gridRowStart extends CssBuilder("grid-row-start")
+case object gridRowEnd extends CssBuilder("grid-row-end")
+case object gridAutoColumns extends CssBuilder("grid-auto-columns")
+case object gridAutoRows extends CssBuilder("grid-auto-rows")
+case object gridAutoFlow extends CssBuilder("grid-auto-flow")
 
 // Misc
-object tabIndex extends CssBuilder("tab-index")
-object listStyle extends CssBuilder("list-style")
-object listStyleType extends CssBuilder("list-style-type")
-object listStylePosition extends CssBuilder("list-style-position")
-object listStyleImage extends CssBuilder("list-style-image")
-object quotes extends CssBuilder("quotes")
-object counterReset extends CssBuilder("counter-reset")
-object counterIncrement extends CssBuilder("counter-increment")
-object willChange extends CssBuilder("will-change")
-object objectPosition extends CssBuilder("object-position")
-object wordBreak extends CssBuilder("word-break")
-object wordWrap extends CssBuilder("word-wrap")
-object hyphens extends CssBuilder("hyphens")
-object caretColor extends CssBuilder("caret-color")
-object scrollBehavior extends CssBuilder("scroll-behavior")
-object scrollSnapType extends CssBuilder("scroll-snap-type")
-object scrollSnapAlign extends CssBuilder("scroll-snap-align")
-object scrollMargin extends CssBuilder("scroll-margin")
-object scrollPadding extends CssBuilder("scroll-padding")
-object touchAction extends CssBuilder("touch-action")
-object accentColor extends CssBuilder("accent-color")
-object aspectRatio extends CssBuilder("aspect-ratio")
-object inset extends CssBuilder("inset")
-object insetBlock extends CssBuilder("inset-block")
-object insetInline extends CssBuilder("inset-inline")
-object insetBlockStart extends CssBuilder("inset-block-start")
-object insetBlockEnd extends CssBuilder("inset-block-end")
-object insetInlineStart extends CssBuilder("inset-inline-start")
-object insetInlineEnd extends CssBuilder("inset-inline-end")
+case object tabIndex extends CssBuilder("tab-index")
+case object listStyle extends CssBuilder("list-style")
+case object listStyleType extends CssBuilder("list-style-type")
+case object listStylePosition extends CssBuilder("list-style-position")
+case object listStyleImage extends CssBuilder("list-style-image")
+case object quotes extends CssBuilder("quotes")
+case object counterReset extends CssBuilder("counter-reset")
+case object counterIncrement extends CssBuilder("counter-increment")
+case object willChange extends CssBuilder("will-change")
+case object objectPosition extends CssBuilder("object-position")
+case object wordBreak extends CssBuilder("word-break")
+case object wordWrap extends CssBuilder("word-wrap")
+case object hyphens extends CssBuilder("hyphens")
+case object caretColor extends CssBuilder("caret-color")
+case object scrollBehavior extends CssBuilder("scroll-behavior")
+case object scrollSnapType extends CssBuilder("scroll-snap-type")
+case object scrollSnapAlign extends CssBuilder("scroll-snap-align")
+case object scrollMargin extends CssBuilder("scroll-margin")
+case object scrollPadding extends CssBuilder("scroll-padding")
+case object touchAction extends CssBuilder("touch-action")
+case object accentColor extends CssBuilder("accent-color")
+case object aspectRatio extends CssBuilder("aspect-ratio")
+case object inset extends CssBuilder("inset")
+case object insetBlock extends CssBuilder("inset-block")
+case object insetInline extends CssBuilder("inset-inline")
+case object insetBlockStart extends CssBuilder("inset-block-start")
+case object insetBlockEnd extends CssBuilder("inset-block-end")
+case object insetInlineStart extends CssBuilder("inset-inline-start")
+case object insetInlineEnd extends CssBuilder("inset-inline-end")
 
-object boxSizing extends CssBuilder("box-sizing") { self =>
+case object boxSizing extends CssBuilder("box-sizing") { self =>
   def contentBox: CSSAttr = self := "content-box"
   def borderBox: CSSAttr = self := "border-box"
 }
-object pointerEvents extends CssBuilder("pointer-events") { self =>
+case object pointerEvents extends CssBuilder("pointer-events") { self =>
   def auto: CSSAttr = self := "auto"
   def none: CSSAttr = self := "none"
   def visible: CSSAttr = self := "visible"
@@ -378,7 +380,7 @@ object pointerEvents extends CssBuilder("pointer-events") { self =>
   def stroke: CSSAttr = self := "stroke"
   def all: CSSAttr = self := "all"
 }
-object resize extends CssBuilder("resize") { self =>
+case object resize extends CssBuilder("resize") { self =>
   def none: CSSAttr = self := "none"
   def both: CSSAttr = self := "both"
   def horizontal: CSSAttr = self := "horizontal"
@@ -386,14 +388,14 @@ object resize extends CssBuilder("resize") { self =>
   def block: CSSAttr = self := "block"
   def inline: CSSAttr = self := "inline"
 }
-object objectFit extends CssBuilder("object-fit") { self =>
+case object objectFit extends CssBuilder("object-fit") { self =>
   def fill: CSSAttr = self := "fill"
   def contain: CSSAttr = self := "contain"
   def cover: CSSAttr = self := "cover"
   def none: CSSAttr = self := "none"
   def scaleDown: CSSAttr = self := "scale-down"
 }
-object isolation extends CssBuilder("isolation") { self =>
+case object isolation extends CssBuilder("isolation") { self =>
   def auto: CSSAttr = self := "auto"
   def isolate: CSSAttr = self := "isolate"
 }
@@ -402,7 +404,7 @@ object isolation extends CssBuilder("isolation") { self =>
 //      Builder(s)
 //////////////////////////////////////////////////////////////////////////////////////////////////////
 
-abstract class CssBuilder(key: String) { self =>
+sealed abstract class CssBuilder(private[web] val key: String) { self =>
 
   final def :=(value: String): CSSAttr = Widget.raw.css(key, value)
   final def :=(value: Int): CSSAttr = self := value.toString
@@ -415,8 +417,60 @@ abstract class CssBuilder(key: String) { self =>
   final def revertLayer: CSSAttr = self := "revert-layer"
   final def unset: CSSAttr = self := "unset"
 
+  /**
+    * Removes any previously set inline values.
+    * Imagine you have a component which sets a `borderColor := "red"`,
+    * and you really want to do `fragment(borderColor.dynamic := "red", borderColor.dynamic.hover := "green")`.
+    * Because `borderColor := "red"` is a const inline style, it will override any of the dynamic styling capabilities.
+    *
+    * imagine you had:
+    *
+    * ```
+    * val myComponent: Widget = div(borderColor := "red")
+    * ```
+    *
+    * you could do:
+    *
+    * ```
+    * myComponent(borderColor.removeInline, borderColor.dynamic := "red", borderColor.dynamic.hover := "green")
+    * ```
+    *
+    * this would remove the const borderColor
+    */
+  final def removeInline: CSSAttr = self := DOMElement.removeInlineValue
+
+  abstract class InlinePseudoAttr(pseudoSuffix: String, varSuffix: String) {
+
+    private[web] final val baseName: String = s"inline-pseudo--$key--$varSuffix"
+    private[web] final val varName: String = s"--$baseName---dynamic"
+    private[web] final val cssClassName: String = s".$baseName$pseudoSuffix"
+
+    final def :=(value: String): Widget =
+      fragment(
+        Widget.raw.`class`(baseName),
+        Widget.raw.css(varName, value),
+      )
+
+    final def csss(strs: String*): Widget =
+      this := strs.mkString(" ")
+
+  }
+
+  object dynamic extends InlinePseudoAttr("", "base") {
+    // TODO (KR) : figure out a composable way to do this
+    object hover extends InlinePseudoAttr(":hover", "hover")
+    object active extends InlinePseudoAttr(":active", "active")
+    object hoverActive extends InlinePseudoAttr(":hover:active", "hover-active")
+    object focus extends InlinePseudoAttr(":focus", "focus")
+    object hoverFocus extends InlinePseudoAttr(":hover:focus", "hover-focus")
+  }
+
 }
 object CssBuilder {
+
+  def apply(key: String): CssBuilder = Custom(key)
+
+  private final case class Custom(k: String) extends CssBuilder(k)
 
   trait ColorBuilder { self: CssBuilder =>
     final def red: CSSAttr = self := "red"
@@ -475,6 +529,7 @@ object CssBuilder {
   trait BorderBuilder { self: CssBuilder =>
 
     def apply(width: String, style: String, color: String): CSSAttr = self.csss(width, style, color)
+    def apply(width: String, color: String): CSSAttr = self.csss(width, "solid", color)
 
   }
 
