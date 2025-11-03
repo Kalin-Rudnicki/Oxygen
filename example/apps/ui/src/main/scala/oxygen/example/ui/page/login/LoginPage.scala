@@ -77,7 +77,7 @@ object LoginPage extends RoutablePage[UserApi & LocalService] {
               )
               .required
               .zoomOut[State](_.password) <*>
-            Form.submitButton("Login", _.large)
+            Form.submitButton("Login", _.medium)
         ).handleActionStateful { case (_, (email, password)) =>
           for {
             _ <- ZIO.logInfo("submitting form...")
