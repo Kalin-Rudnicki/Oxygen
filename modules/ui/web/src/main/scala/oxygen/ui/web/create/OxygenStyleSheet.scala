@@ -285,6 +285,61 @@ object OxygenStyleSheet extends StyleSheetBuilder {
   }
 
   //////////////////////////////////////////////////////////////////////////////////////////////////////
+  //      Table
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
+
+  object Table extends Class("table") { tab =>
+
+    object Bordered extends tab.Modifier("bordered")
+    object HeaderCellVars extends CellVars("header")
+    object CellCellVars extends CellVars("cell")
+
+    object RowBorders extends tab.Modifier("row-borders")
+    object CellBorders extends tab.Modifier("cell-borders")
+
+    abstract class CellVars(n: String) extends tab.Class(s"$n-vars") { vars =>
+      val fgColor: CSSVar = vars.cssVar("fg-color")
+      val bgColor: CSSVar = vars.cssVar("bg-color")
+      val padding: CSSVar = vars.cssVar("padding")
+      val alignment: CSSVar = vars.cssVar("alignment")
+    }
+
+    val defaultBorderColor: CSSVar = tab.cssVar("border-color")
+    val defaultBorderWidth: CSSVar = tab.cssVar("border-width")
+
+    ///////  ///////////////////////////////////////////////////////////////
+
+    Table(
+      borderCollapse.collapse,
+    )
+
+    (
+      ((Table & Table.RowBorders) >> T.tr) |
+        ((Table & Table.CellBorders) >> (T.th | T.td)) |
+        (Table >> Bordered)
+    )(
+      borderColor := defaultBorderColor,
+      borderWidth := defaultBorderWidth,
+      borderStyle.solid,
+    )
+
+    (Table >> T.th)(
+      color := HeaderCellVars.fgColor,
+      backgroundColor := HeaderCellVars.bgColor,
+      padding := HeaderCellVars.padding,
+      textAlign := HeaderCellVars.alignment,
+    )
+
+    (Table >> T.td)(
+      color := CellCellVars.fgColor,
+      backgroundColor := CellCellVars.bgColor,
+      padding := CellCellVars.padding,
+      textAlign := CellCellVars.alignment,
+    )
+
+  }
+
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
   //      Compiled
   //////////////////////////////////////////////////////////////////////////////////////////////////////
 
