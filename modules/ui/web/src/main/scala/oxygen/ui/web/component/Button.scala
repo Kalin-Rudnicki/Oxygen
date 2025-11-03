@@ -64,12 +64,16 @@ object Button {
 
     /////// Size ///////////////////////////////////////////////////////////////
 
+    final lazy val extraSmall: Decorator =
+      wrap("ExtraSmall") { _.copy(_padding = StandardProps.Padding(S.spacing._2px, S.spacing._3), _borderRadius = S.borderRadius._2, _fontSize = S.fontSize._2, _fontWeight = "600") }
     final lazy val small: Decorator =
-      wrap("Small") { _.copy(_padding = StandardProps.Padding(S.spacing._2px, S.spacing._3), _borderRadius = S.borderRadius._2, _fontSize = S.fontSize._2, _fontWeight = "600") }
+      wrap("Small") { _.copy(_padding = StandardProps.Padding(S.spacing._1, S.spacing._4), _borderRadius = S.borderRadius._4, _fontSize = S.fontSize._3, _fontWeight = "600") }
     final lazy val medium: Decorator =
-      wrap("Medium") { _.copy(_padding = StandardProps.Padding(S.spacing._1, S.spacing._4), _borderRadius = S.borderRadius._4, _fontSize = S.fontSize._3, _fontWeight = "600") }
+      wrap("Medium") { _.copy(_padding = StandardProps.Padding(S.spacing._2, S.spacing._8), _borderRadius = S.borderRadius._5, _fontSize = S.fontSize._4, _fontWeight = "700") }
     final lazy val large: Decorator =
-      wrap("Large") { _.copy(_padding = StandardProps.Padding(S.spacing._2, S.spacing._8), _borderRadius = S.borderRadius._5, _fontSize = S.fontSize._4, _fontWeight = "700") }
+      wrap("Large") { _.copy(_padding = StandardProps.Padding(S.spacing._3, S.spacing._10), _borderRadius = S.borderRadius._5, _fontSize = S.fontSize._4, _fontWeight = "700") }
+    final lazy val extraLarge: Decorator =
+      wrap("ExtraLarge") { _.copy(_padding = StandardProps.Padding(S.spacing._4, S.spacing._14), _borderRadius = S.borderRadius._7, _fontSize = S.fontSize._5, _fontWeight = "700") }
 
     /////// Color ///////////////////////////////////////////////////////////////
 
@@ -180,8 +184,8 @@ object Button {
         cursor = "progress",
       )
 
-    final def disabledWhen(condition: Boolean): Decorator = if (condition) this.disabled else Decorator.empty
-    final def disabledProgressWhen(condition: Boolean): Decorator = if (condition) this.disabledProgress else Decorator.empty
+    final def disabledWhen(condition: Boolean): Decorator = if (condition) this.disabled else Decorator(decorator)
+    final def disabledProgressWhen(condition: Boolean): Decorator = if (condition) this.disabledProgress else Decorator(decorator)
 
     /////// Misc ///////////////////////////////////////////////////////////////
 

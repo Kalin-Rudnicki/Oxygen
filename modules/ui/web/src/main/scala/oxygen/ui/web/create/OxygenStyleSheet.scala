@@ -123,20 +123,35 @@ object OxygenStyleSheet extends StyleSheetBuilder {
   //      Scrollable
   //////////////////////////////////////////////////////////////////////////////////////////////////////
 
-  object Scrollable extends Class("scrollable") {
+  object Scrollable extends Class("scrollable") { s =>
 
-    selector(
+    val scrollbarColor: CSSVar = s.cssVar("scrollbar-color")
+    val scrollbarWidth: CSSVar = s.cssVar("scrollbar-width")
+    val scrollbarThumbColor: CSSVar = s.cssVar("scrollbar-thumb-color")
+    val thumbRadius: CSSVar = s.cssVar("scrollbar-thumb-radius")
+    val scrollbarBottomRightRadius: CSSVar = s.cssVar("scrollbar-bottom-right-radius")
+
+    Scrollable(
       overflowY.auto,
+      scrollbarColor := "transparent",
+      scrollbarThumbColor := colorPalette.czr.gray._1000,
+      scrollbarWidth := 10.px,
+      thumbRadius := 5.px,
+      scrollbarBottomRightRadius := "0",
     )
 
-    selector.pc(":-webkit-scrollbar")(
-      backgroundColor.transparent,
-      width := 10.px,
+    Scrollable.pc(":-webkit-scrollbar")(
+      backgroundColor := scrollbarColor,
+      width := scrollbarWidth,
+      borderBottomRightRadius := scrollbarBottomRightRadius,
+    )
+    Scrollable.pc(":-webkit-scrollbar-corner")(
+      backgroundColor := scrollbarColor,
     )
 
-    selector.pc(":-webkit-scrollbar-thumb")(
-      backgroundColor := colorPalette.czr.gray._1000,
-      borderRadius := 5.px,
+    Scrollable.pc(":-webkit-scrollbar-thumb")(
+      backgroundColor := scrollbarThumbColor,
+      borderRadius := thumbRadius,
     )
 
   }
@@ -251,25 +266,25 @@ object OxygenStyleSheet extends StyleSheetBuilder {
     )
 
     Dropdown.Display(
+      width := 100.pct,
       cursor.pointer,
       userSelect.none,
-      width := 100.pct,
     )
 
     (Dropdown >> Dropdown.Options)(
+      width := 100.pct,
       display.none,
       position.absolute,
       zIndex := "100",
-      width := 100.pct,
     )
     ((Dropdown & Dropdown.Expanded) >> Dropdown.Options)(
       display.block,
     )
 
     Dropdown.Options.Option(
+      width := 100.pct,
       cursor.pointer,
       userSelect.none,
-      width := 100.pct,
     )
 
     object Expanded extends dd.Modifier("expanded")

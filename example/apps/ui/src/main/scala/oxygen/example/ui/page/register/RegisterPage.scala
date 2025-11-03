@@ -94,7 +94,7 @@ object RegisterPage extends RoutablePage[UserApi & LocalService] {
               )
               .required
               .zoomOut[State](_.password) <*>
-            Form.submitButton("Sign Up", _.large)
+            Form.submitButton("Sign Up", _.medium)
         ).onSubmit { case (_, (firstName, lastName, email, password)) =>
           for {
             _ <- ZIO.logInfo("submitting form...")

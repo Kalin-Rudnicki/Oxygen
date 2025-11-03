@@ -128,9 +128,9 @@ object Dropdown {
         )
       }
 
-    final lazy val small: Decorator = makeSize("Small", StandardProps.Padding(S.spacing._2px, S.spacing._3), S.borderRadius._3, S.borderRadius._2, S.fontSize._2, 20.ch, 75.px)
-    final lazy val medium: Decorator = makeSize("Medium", StandardProps.Padding(S.spacing._1, S.spacing._4), S.borderRadius._4, S.borderRadius._2, S.fontSize._3, 30.ch, 100.px)
-    final lazy val large: Decorator = makeSize("Large", StandardProps.Padding(s"calc(${S.spacing._1} * 1.5)", S.spacing._5), S.borderRadius._5, S.borderRadius._3, S.fontSize._4, 50.ch, 150.px)
+    final lazy val small: Decorator = makeSize("Small", StandardProps.Padding(S.spacing._2px, S.spacing._3), S.borderRadius._3, S.borderRadius._2, S.fontSize._2, 20.ch, 100.px)
+    final lazy val medium: Decorator = makeSize("Medium", StandardProps.Padding(S.spacing._1, S.spacing._4), S.borderRadius._4, S.borderRadius._2, S.fontSize._3, 30.ch, 150.px)
+    final lazy val large: Decorator = makeSize("Large", StandardProps.Padding(s"calc(${S.spacing._1} * 1.5)", S.spacing._5), S.borderRadius._5, S.borderRadius._3, S.fontSize._4, 50.ch, 250.px)
 
     /////// Style ///////////////////////////////////////////////////////////////
 
@@ -216,6 +216,8 @@ object Dropdown {
     final lazy val noSetNone: Decorator = wrap("NoSetNone") { _.copy(_showSetNone = ___) }
 
     final lazy val closeOnMouseLeave: Decorator = wrap("CloseOnMouseLeave") { _.copy(_closeOnMouseLeave = true) }
+
+    final def maxDropdownHeight(height: String): Decorator = wrap("custom(maxDropdownHeight") { _.copy(_optionsMaxHeight = height) }
 
   }
 
@@ -305,8 +307,6 @@ object Dropdown {
             padding := props._optionPadding.show,
             fontSize := props._fontSize,
             borderTop(props._internalBorderSize, props._internalBorderColor),
-            borderLeft(props._externalBorderSize, props._externalBorderColor),
-            borderRight(props._externalBorderSize, props._externalBorderColor),
             if (isFirst) // is first
               fragment(
               )
@@ -315,9 +315,9 @@ object Dropdown {
               ),
             if (isLast) // is last
               fragment(
-                borderBottom(props._externalBorderSize, props._externalBorderColor),
-                borderBottomLeftRadius := props._optionsBorderRadius,
-                borderBottomRightRadius := props._optionsBorderRadius,
+                // borderBottom(props._externalBorderSize, props._externalBorderColor),
+                // borderBottomLeftRadius := props._optionsBorderRadius,
+                // borderBottomRightRadius := props._optionsBorderRadius,
               )
             else // is not last
               fragment(
@@ -369,7 +369,16 @@ object Dropdown {
         val options: WidgetA[A] =
           div(
             O.Dropdown.Options,
+            O.Scrollable,
+            O.Scrollable.scrollbarColor := props._notSelectedBGColor,
+            O.Scrollable.scrollbarBottomRightRadius := props._optionsBorderRadius,
+            overflowX.hidden,
             maxHeight := props._optionsMaxHeight,
+            borderLeft(props._externalBorderSize, props._externalBorderColor),
+            borderRight(props._externalBorderSize, props._externalBorderColor),
+            borderBottom(props._externalBorderSize, props._externalBorderColor),
+            borderBottomLeftRadius := props._optionsBorderRadius,
+            borderBottomRightRadius := props._optionsBorderRadius,
             Widget.foreach(props._showSetNone.toOption) { str =>
               makeOption(
                 None,

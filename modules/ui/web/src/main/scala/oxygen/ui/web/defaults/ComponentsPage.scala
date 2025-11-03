@@ -14,7 +14,7 @@ object ComponentsPage extends RoutablePage.NoParams[Any] {
       individualToggleThumbs: Set[String],
       globalToggleThumbs: Boolean,
       horizontalRadio: HorizontalRadio.State[SmallEnum],
-      dropdown1: Dropdown.State[SmallEnum],
+      dropdown1: Dropdown.State[BigEnum],
       dropdown2: Dropdown.State[SmallEnum],
       modal: Option[ModalForm],
       textValue: String,
@@ -61,6 +61,8 @@ object ComponentsPage extends RoutablePage.NoParams[Any] {
     )
 
   enum SmallEnum derives StrictEnum { case A, B, C }
+
+  enum BigEnum derives StrictEnum { case A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P }
 
   //////////////////////////////////////////////////////////////////////////////////////////////////////
   //      Misc Section
@@ -269,9 +271,11 @@ object ComponentsPage extends RoutablePage.NoParams[Any] {
         )
     val sizes: Seq[Button.Decorator] =
       Seq(
+        Button.Decorator.extraSmall,
         Button.Decorator.small,
         Button.Decorator.medium,
         Button.Decorator.large,
+        Button.Decorator.extraLarge,
       )
 
     Section.section1("Buttons")(
@@ -493,9 +497,12 @@ object ComponentsPage extends RoutablePage.NoParams[Any] {
         .discardAction
         .zoomOut[State](_.horizontalRadio),
       Form.horizontalRadio[SmallEnum]("Horizontal Radio 2", "descr").widget.discardAction.zoomOut[State](_.horizontalRadio),
-      Form.dropdown[SmallEnum]("Dropdown 1", "descr").widget.discardAction.zoomOut[State](_.dropdown1),
+      Form.dropdown[BigEnum]("Dropdown 1", "descr").widget.discardAction.zoomOut[State](_.dropdown1),
       Form
-        .dropdown[SmallEnum]("Dropdown 2", dropdownDecorator = _.negative.closeOnMouseLeave.setNone("Unset").externalBorder(3.px, "red").internalBorder(1.px, "blue"))
+        .dropdown[SmallEnum](
+          "Dropdown 2",
+          dropdownDecorator = _.negative.closeOnMouseLeave.setNone("Unset").externalBorder(3.px, "red").internalBorder(1.px, "blue").maxDropdownHeight(250.px),
+        )
         .widget
         .discardAction
         .zoomOut[State](_.dropdown2),
