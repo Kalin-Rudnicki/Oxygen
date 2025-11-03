@@ -180,8 +180,8 @@ object Button {
         cursor = "progress",
       )
 
-    final def disabledWhen(condition: Boolean): Decorator = if (condition) this.disabled else Decorator.empty
-    final def disabledProgressWhen(condition: Boolean): Decorator = if (condition) this.disabledProgress else Decorator.empty
+    final def disabledWhen(condition: Boolean): Decorator = if (condition) this.disabled else Decorator(decorator)
+    final def disabledProgressWhen(condition: Boolean): Decorator = if (condition) this.disabledProgress else Decorator(decorator)
 
     /////// Misc ///////////////////////////////////////////////////////////////
 
