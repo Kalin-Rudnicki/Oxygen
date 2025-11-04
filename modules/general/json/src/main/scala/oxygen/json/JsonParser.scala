@@ -239,13 +239,14 @@ object JsonParser {
         jsonError.asLeft
       case e: ArrayIndexOutOfBoundsException =>
         // FIX-PRE-MERGE (KR) : remove
-        println("ArrayIndexOutOfBoundsException...")
+        println(s"ArrayIndexOutOfBoundsException...${e.getStackTrace.map { t => s"\n  - $t" }.mkString}")
         JsonError(Nil, JsonError.Cause.InvalidJson(parser.idx, e.some)).asLeft
       case e: IndexOutOfBoundsException =>
         // FIX-PRE-MERGE (KR) : remove
-        println("IndexOutOfBounds...")
+        println(s"IndexOutOfBounds...${e.getStackTrace.map { t => s"\n  - $t" }.mkString}")
         JsonError(Nil, JsonError.Cause.InvalidJson(parser.idx, e.some)).asLeft
       case e: Throwable =>
+        println(s"IndexOutOfBounds...${e.getStackTrace.map { t => s"\n  - $t" }.mkString}")
         JsonError(Nil, JsonError.Cause.InvalidJson(parser.idx, e.some)).asLeft
     }
   }
