@@ -11,9 +11,16 @@ private[json] final class JsonParser private (string: String) {
   private inline def fail(): Nothing =
     throw new JsonError(Nil, JsonError.Cause.InvalidJson(idx, None))
 
+  private inline def fail(msg: String): Nothing =
+    throw new JsonError(Nil, JsonError.Cause.InvalidJson(idx, new RuntimeException(s"error: $msg").some))
+
   private inline def expectChar(char: Char): Unit =
-    if (arr(idx) == char) idx += 1
-    else fail()
+    if (idx >= arr.length) fail(s"Expected char ${char.unesc}, but got EOF")
+    else {
+      val c = arr(idx)
+      if (c == char) idx += 1
+      else fail(s"Expected char ${char.unesc}, but got ${c.unesc}")
+    }
 
   /**
     * Will skip white space, not caring to watch out for array bounds.
@@ -31,7 +38,7 @@ private[json] final class JsonParser private (string: String) {
 
   private inline def assertEOF(): Unit =
     if (idx != arr.length)
-      fail()
+      fail(s"Expected EOF, but got char ${arr(idx).unesc}")
 
   private def parseRemainingString(): String = {
     val sb = mutable.StringBuilder()
@@ -207,22 +214,41 @@ private[json] final class JsonParser private (string: String) {
 }
 object JsonParser {
 
-  def parse(string: String): Either[JsonError, Json] =
+  def parse(string: String): Either[JsonError, Json] = {
+    val parser = new JsonParser(string)
+
     try {
-      val parser = new JsonParser(string)
 
       parser.skipWhiteSpace()
 
+      println("parsing root json...")
       val json = parser.parseAnyJson()
+      println("parsed root json...")
 
+      println("skipping whitespace...")
       parser.safeSkipWhiteSpace()
+      println("skipped whitespace...")
+
+      println("asserting EOF...")
       parser.assertEOF()
+      println("asserted EOF...")
 
       json.asRight
     } catch {
-      case jsonError: JsonError         => jsonError.asLeft
-      case _: IndexOutOfBoundsException => JsonError(Nil, JsonError.Cause.InvalidJson(string.length, None)).asLeft
-      case e: Throwable                 => JsonError(Nil, JsonError.Cause.InvalidJson(-1, e.some)).asLeft
+      case jsonError: JsonError =>
+        jsonError.asLeft
+      case e: ArrayIndexOutOfBoundsException =>
+        // FIX-PRE-MERGE (KR) : remove
+        println(s"ArrayIndexOutOfBoundsException...${e.getStackTrace.map { t => s"\n  - $t" }.mkString}")
+        JsonError(Nil, JsonError.Cause.InvalidJson(parser.idx, e.some)).asLeft
+      case e: IndexOutOfBoundsException =>
+        // FIX-PRE-MERGE (KR) : remove
+        println(s"IndexOutOfBounds...${e.getStackTrace.map { t => s"\n  - $t" }.mkString}")
+        JsonError(Nil, JsonError.Cause.InvalidJson(parser.idx, e.some)).asLeft
+      case e: Throwable =>
+        println(s"IndexOutOfBounds...${e.getStackTrace.map { t => s"\n  - $t" }.mkString}")
+        JsonError(Nil, JsonError.Cause.InvalidJson(parser.idx, e.some)).asLeft
     }
+  }
 
 }
