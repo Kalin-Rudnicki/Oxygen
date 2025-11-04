@@ -237,12 +237,16 @@ object JsonParser {
     } catch {
       case jsonError: JsonError =>
         jsonError.asLeft
-      case e: (IndexOutOfBoundsException | ArrayIndexOutOfBoundsException) =>
+      case e: ArrayIndexOutOfBoundsException =>
         // FIX-PRE-MERGE (KR) : remove
-        println("IndexOutOfBounds..")
-
+        println("ArrayIndexOutOfBoundsException...")
         JsonError(Nil, JsonError.Cause.InvalidJson(parser.idx, e.some)).asLeft
-      case e: Throwable => JsonError(Nil, JsonError.Cause.InvalidJson(-1, e.some)).asLeft
+      case e: IndexOutOfBoundsException =>
+        // FIX-PRE-MERGE (KR) : remove
+        println("IndexOutOfBounds...")
+        JsonError(Nil, JsonError.Cause.InvalidJson(parser.idx, e.some)).asLeft
+      case e: Throwable =>
+        JsonError(Nil, JsonError.Cause.InvalidJson(parser.idx, e.some)).asLeft
     }
   }
 
