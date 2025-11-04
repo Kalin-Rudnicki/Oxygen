@@ -43,6 +43,8 @@ private[json] final class JsonParser private (string: String) {
   private def parseRemainingString(): String = {
     val sb = mutable.StringBuilder()
 
+    val idx0 = idx
+
     @tailrec
     def continue(): Unit =
       arr(idx) match {
@@ -63,7 +65,13 @@ private[json] final class JsonParser private (string: String) {
           continue()
       }
 
-    continue()
+    try {
+      continue()
+    } catch {
+      case e: Throwable =>
+        println(s"continue($idx0, $idx)")
+        throw e
+    }
 
     sb.toString()
   }
@@ -218,36 +226,18 @@ object JsonParser {
     val parser = new JsonParser(string)
 
     try {
-
       parser.skipWhiteSpace()
-
-      println("parsing root json...")
       val json = parser.parseAnyJson()
-      println("parsed root json...")
-
-      println("skipping whitespace...")
       parser.safeSkipWhiteSpace()
-      println("skipped whitespace...")
 
-      println("asserting EOF...")
       parser.assertEOF()
-      println("asserted EOF...")
 
       json.asRight
     } catch {
-      case jsonError: JsonError =>
-        jsonError.asLeft
-      case e: ArrayIndexOutOfBoundsException =>
-        // FIX-PRE-MERGE (KR) : remove
-        println(s"ArrayIndexOutOfBoundsException...${e.getStackTrace.map { t => s"\n  - $t" }.mkString}")
-        JsonError(Nil, JsonError.Cause.InvalidJson(parser.idx, e.some)).asLeft
-      case e: IndexOutOfBoundsException =>
-        // FIX-PRE-MERGE (KR) : remove
-        println(s"IndexOutOfBounds...${e.getStackTrace.map { t => s"\n  - $t" }.mkString}")
-        JsonError(Nil, JsonError.Cause.InvalidJson(parser.idx, e.some)).asLeft
-      case e: Throwable =>
-        println(s"IndexOutOfBounds...${e.getStackTrace.map { t => s"\n  - $t" }.mkString}")
-        JsonError(Nil, JsonError.Cause.InvalidJson(parser.idx, e.some)).asLeft
+      case jsonError: JsonError              => jsonError.asLeft
+      case e: ArrayIndexOutOfBoundsException => JsonError(Nil, JsonError.Cause.InvalidJson(parser.idx, e.some)).asLeft
+      case e: IndexOutOfBoundsException      => JsonError(Nil, JsonError.Cause.InvalidJson(parser.idx, e.some)).asLeft
+      case e: Throwable                      => JsonError(Nil, JsonError.Cause.InvalidJson(parser.idx, e.some)).asLeft
     }
   }
 
