@@ -213,6 +213,7 @@ private[json] final class JsonParser private (string: String) {
 
 }
 object JsonParser {
+  e
 
   def parse(string: String): Either[JsonError, Json] = {
     val parser = new JsonParser(string)
@@ -235,8 +236,9 @@ object JsonParser {
 
       json.asRight
     } catch {
-      case jsonError: JsonError         => jsonError.asLeft
-      case _: IndexOutOfBoundsException =>
+      case jsonError: JsonError =>
+        jsonError.asLeft
+      case (_: IndexOutOfBoundsException | _: ArrayIndexOutOfBoundsException) =>
         // FIX-PRE-MERGE (KR) : remove
         println("IndexOutOfBounds..")
 
