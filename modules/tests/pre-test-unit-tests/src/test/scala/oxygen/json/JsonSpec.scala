@@ -105,6 +105,13 @@ object JsonSpec extends OxygenSpecDefault {
           directRoundTripTest[Sum3]("""{"type":"Case2","b":true}""")(Sum3.Case2(true)),
         ),
       ),
+      // FIX-PRE-MERGE (KR) : remove
+      test("dying?") {
+        for {
+          contents <- ZIO.readFile("/Users/krudnicki1/Library/Application Support/JetBrains/IntelliJIdea2025.1/scratches/dying.json")
+          _ <- ZIO.fromEither(Json.parse(contents))
+        } yield assertCompletes
+      },
     )
 
 }
