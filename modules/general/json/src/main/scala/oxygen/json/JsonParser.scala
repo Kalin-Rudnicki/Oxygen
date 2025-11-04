@@ -213,7 +213,6 @@ private[json] final class JsonParser private (string: String) {
 
 }
 object JsonParser {
-  e
 
   def parse(string: String): Either[JsonError, Json] = {
     val parser = new JsonParser(string)
