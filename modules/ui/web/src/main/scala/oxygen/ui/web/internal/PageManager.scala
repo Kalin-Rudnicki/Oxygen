@@ -8,6 +8,7 @@ import zio.http.Path
 
 trait PageManager {
 
+  def currentPageInstance: UIO[PageInstance.Untyped]
   def currentPageRef: UIO[PageReference]
 
   def currentErrorLocation: UIO[RootErrorHandler.ErrorLocation]
@@ -29,8 +30,11 @@ object PageManager {
       errorHandler: RootErrorHandler,
   ) extends PageManager {
 
+    override def currentPageInstance: UIO[PageInstance.Untyped] =
+      currentRef.get.someOrElseZIO { ZIO.dieMessage("No current page...") }
+
     override def currentPageRef: UIO[PageReference] =
-      currentRef.get.someOrElseZIO { ZIO.dieMessage("No current page...") }.map(_.pageReference)
+      currentPageInstance.map(_.pageReference)
 
     override def currentErrorLocation: UIO[RootErrorHandler.ErrorLocation] =
       currentRef.get.map {
@@ -137,6 +141,9 @@ object PageManager {
 
   private val currentPage: UIO[PageManager] =
     currentPageManagerRef.get.someOrElseZIO { ZIO.dieMessage("No current PageManager") }
+
+  private[web] def currentPageInstance: UIO[PageInstance.Untyped] =
+    currentPage.flatMap(_.currentPageInstance)
 
   private[web] def currentPageRef: UIO[PageReference] =
     currentPage.flatMap(_.currentPageRef)

@@ -1,13 +1,20 @@
 package oxygen.ui.web.service
 
 import org.scalajs.dom.{document as D, window as W}
+import org.scalajs.dom.window
 import oxygen.ui.web.PageURL
+import oxygen.ui.web.internal.Router
 import zio.*
 
 object Window {
 
   def newTab(url: String): UIO[Unit] = ZIO.succeed { W.open(url, "_blank") }
-  def newTab(url: PageURL): UIO[Unit] = newTab(url.formatted)
+  def newTab(url: PageURL): UIO[Unit] =
+    for {
+      origin <- ZIO.succeed { window.location.origin }
+      prefix <- Router.pagePrefixPath
+      _ <- newTab(origin + url.addPrefix(prefix).formatted)
+    } yield ()
 
   // ideally, this would open a new window, but it does not seem possible to do this in javascript
   def newWindow(url: String): UIO[Unit] = ZIO.succeed { W.open(url, "_blank") }

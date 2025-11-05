@@ -4,7 +4,9 @@ import oxygen.predef.core.*
 import oxygen.ui.web.*
 import oxygen.ui.web.component.*
 import oxygen.ui.web.create.{*, given}
+import oxygen.ui.web.service.Window
 import zio.{Scope, ZIO}
+import zio.http.{Path, QueryParams}
 
 object ComponentsPage extends RoutablePage.NoParams[Any] {
 
@@ -70,6 +72,11 @@ object ComponentsPage extends RoutablePage.NoParams[Any] {
 
   private lazy val miscSection: WidgetS[State] =
     Section.section1("Misc.")(
+      Section.section2.empty(
+        Button("Open new page")(
+          onClick := Window.newTab(PageURL(Path.root, QueryParams.empty)),
+        ),
+      ),
       pageMessageSection,
       modalSection.zoomOut[State](_.modal),
     )

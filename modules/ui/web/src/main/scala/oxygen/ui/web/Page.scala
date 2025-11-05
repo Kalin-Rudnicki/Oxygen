@@ -2,6 +2,7 @@ package oxygen.ui.web
 
 import oxygen.ui.web.create.*
 import oxygen.ui.web.internal.*
+import oxygen.ui.web.service.Window
 import zio.*
 
 // TODO (KR) : try to eliminate contravariance from Env. potentially add `.widen` and implicit conversion for `.widen`
@@ -83,6 +84,7 @@ trait RoutablePage[-Env] extends Page[Env] { page =>
   object navigate { // Env is enforced by checking that the page exists in the typed page router
     def push(params: Params): IO[UIError.Redirect, Nothing] = ZIO.fail(UIError.Redirect(NavigationEvent.pushPage(page)(params)))
     def replace(params: Params): IO[UIError.Redirect, Nothing] = ZIO.fail(UIError.Redirect(NavigationEvent.replacePage(page)(params)))
+    def openInNewTab(params: Params): UIO[Unit] = Window.newTab(paramCodec.encode(params))
   }
 
 }

@@ -25,7 +25,7 @@ object RootErrorHandler {
   final case class Default[Env](defaultPages: DefaultPages[Env]) extends RootErrorHandler {
 
     private def showErrors(pageInstance: PageInstance.Untyped, errors: NonEmptyList[PageMessage]): UIO[Unit] =
-      PageMessages.PageLocal.update(pageInstance)(_ :++ errors.toList)
+      PageMessages.PageLocal.toState(using pageInstance).update(_ :++ errors.toList)
 
     private def handleCauses(pageInstance: PageInstance.Untyped, causes: ExtractedCauses[UIError.NonRedirect]): UIO[Unit] =
       causes match {
