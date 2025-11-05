@@ -26,7 +26,7 @@ abstract class GlobalState[S](final val name: String)(initial: => S) {
   final def toState(using pageInstance: PageInstance.Untyped): WidgetState[S] = WidgetState.GlobalValue.fromGlobalState(this, pageInstance)
 
   final def get: UIO[S] = ZIO.succeed { getValue().get() }
-  final def set(pageInstance: PageInstance.Untyped)(value: S): UIO[Unit] = toState(using pageInstance).set(value)
-  final def update(pageInstance: PageInstance.Untyped)(f: S => S): UIO[Unit] = toState(using pageInstance).update(f)
+  final def set(value: S): UIO[Unit] = PageManager.currentPageInstance.flatMap { pageInstance => toState(using pageInstance).set(value) }
+  final def update(f: S => S): UIO[Unit] = PageManager.currentPageInstance.flatMap { pageInstance => toState(using pageInstance).update(f) }
 
 }

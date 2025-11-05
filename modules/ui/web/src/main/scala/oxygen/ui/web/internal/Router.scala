@@ -12,6 +12,8 @@ trait Router {
 
   def route(navEvent: NavigationEvent, redirectNo: Int): UIO[Unit]
 
+  val pagePrefixPath: Path
+
   private[web] def routeWindowURL: UIO[Unit] =
     PageURL.fromWindow.flatMap { url => route(NavigationEvent.browserLoad(url), 0) }
 
@@ -27,9 +29,14 @@ object Router {
       .someOrElseZIO { ZIO.dieMessage("No router set") }
       .flatMap(_.route(navEvent, redirectNo))
 
+  def pagePrefixPath: UIO[Path] =
+    currentRouterRef.get
+      .someOrElseZIO { ZIO.dieMessage("No router set") }
+      .map(_.pagePrefixPath)
+
   private final class Inst[Env: HasNoScope] private[Router] (
       pages: ArraySeq[RoutablePage[Env]],
-      pagePrefixPath: Path,
+      val pagePrefixPath: Path,
       pageManager: PageManager,
       uiRuntime: UIRuntime[Env],
       rootErrorHandler: RootErrorHandler,
