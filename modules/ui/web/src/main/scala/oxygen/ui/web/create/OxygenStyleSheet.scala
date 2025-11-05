@@ -262,6 +262,7 @@ object OxygenStyleSheet extends StyleSheetBuilder {
     Dropdown(
       display.inlineBlock,
       position.relative,
+      overflowY.visible,
       margin(S.spacing._2, S.spacing._0), // TODO (KR) : remove..?
     )
 
