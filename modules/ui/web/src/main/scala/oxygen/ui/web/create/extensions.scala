@@ -1,5 +1,7 @@
 package oxygen.ui.web.create
 
+import oxygen.predef.core.*
+
 //////////////////////////////////////////////////////////////////////////////////////////////////////
 //      CSS
 //////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -18,3 +20,13 @@ extension (self: Double)
 extension (self: String) def __(that: String): String = s"$self $that"
 
 def css(values: String*): String = values.mkString(" ")
+
+extension [S[_], I](self: S[I])
+  def foreachWidget[Env, Action, StateGet, StateSet <: StateGet](
+      f: I => Widget.Polymorphic[Env, Action, StateGet, StateSet],
+  )(using SeqRead[S]): Widget.Polymorphic[Env, Action, StateGet, StateSet] =
+    Widget.foreach(self)(f)
+
+extension [S[_], Env, Action, StateGet, StateSet <: StateGet](self: S[Widget.Polymorphic[Env, Action, StateGet, StateSet]])
+  def toFragment(using SeqRead[S]): Widget.Polymorphic[Env, Action, StateGet, StateSet] =
+    Widget.fragment(self)

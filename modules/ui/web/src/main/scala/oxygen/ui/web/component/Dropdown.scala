@@ -219,6 +219,9 @@ object Dropdown {
 
     final def maxDropdownHeight(height: String): Decorator = wrap("custom(maxDropdownHeight") { _.copy(_optionsMaxHeight = height) }
 
+    final def width(width: String): Decorator = wrap("custom(width") { _.copy(_width = width) }
+    final def fontSize(size: String): Decorator = wrap("custom(frontSize") { _.copy(_fontSize = size) }
+
   }
 
   //////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -254,6 +257,11 @@ object Dropdown {
 
     def initial[S: StrictEnum as e](initial: S): State[S] =
       State(e.enumValues, initial.some, false)
+
+    def initial[S](options: Seq[S], initial: S): State[S] =
+      State(options, initial.some, false)
+
+    def empty[S]: State[S] = State(Nil, None, false)
 
   }
 
