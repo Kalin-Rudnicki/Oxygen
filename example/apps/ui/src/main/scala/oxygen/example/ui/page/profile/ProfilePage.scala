@@ -12,7 +12,7 @@ import zio.*
 
 object ProfilePage extends RoutablePage.NoParams[LocalService] {
 
-  final case class State(
+  final case class PageState(
       userToken: UserToken,
   ) {
 
@@ -20,20 +20,20 @@ object ProfilePage extends RoutablePage.NoParams[LocalService] {
 
   }
 
-  override def initialLoad(params: Params): ZIO[LocalService & Scope, UIError, State] =
+  override def initialLoad(params: PageParams): ZIO[LocalService & Scope, UIError, PageState] =
     for {
       userToken <- ZIO.serviceWithZIO[LocalService](_.userToken.get)
-    } yield State(userToken)
+    } yield PageState(userToken)
 
-  override def postLoad(state: WidgetState[State]): ZIO[Scope, UIError, Unit] =
+  override def postLoad(state: WidgetState[PageState], initialState: PageState): ZIO[Scope, UIError, Unit] =
     ZIO.unit
 
-  override def title(state: State): String = "Profile"
+  override def title(state: PageState): String = "Profile"
 
   override val path: Seq[String] = Seq("profile")
 
-  override protected def component(state: State): WidgetES[LocalService, State] =
-    PageLayout.layout(signedInNavBar(state.user))(
+  override protected def component(state: WidgetState[PageState], renderState: PageState): WidgetES[LocalService, PageState] =
+    PageLayout.layout(signedInNavBar(renderState.user))(
       PageMessagesBottomCorner.attached,
       h1("Profile"),
       profileInfo,
@@ -44,22 +44,22 @@ object ProfilePage extends RoutablePage.NoParams[LocalService] {
   //      Components
   //////////////////////////////////////////////////////////////////////////////////////////////////////
 
-  private lazy val profileInfo: WidgetS[State] =
-    Widget.state[State].get { state =>
+  private lazy val profileInfo: WidgetS[PageState] =
+    Widget.state[PageState].get { state =>
       Section.section1("Profile Info")(
         p(s"Name : ${state.user.fullName}"),
         p(s"Email : ${state.user.email}"),
       )
     }
 
-  private lazy val profileActions: WidgetES[LocalService, State] =
-    Widget.state[State].get { state =>
+  private lazy val profileActions: WidgetES[LocalService, PageState] =
+    Widget.state[PageState].get { state =>
       Section.section1("Profile Actions")(
         Button(
           "Sign Out",
           _.destructive.minimal,
         )(
-          onClick := { ZIO.serviceWithZIO[LocalService](_.userToken.clear) *> P.login.LoginPage.navigate.push(P.login.LoginPage.Params(state.user.email.email.some)) },
+          onClick := { ZIO.serviceWithZIO[LocalService](_.userToken.clear) *> P.login.LoginPage.navigate.push(P.login.LoginPage.PageParams(state.user.email.email.some)) },
         ),
       )
     }

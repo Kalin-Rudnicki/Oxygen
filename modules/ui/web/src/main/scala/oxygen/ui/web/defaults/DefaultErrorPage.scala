@@ -7,15 +7,15 @@ import zio.*
 
 object DefaultErrorPage extends NonRoutablePage.StateSameAsParams[Any] {
 
-  override type Params = Cause[UIError.NonRedirect]
+  override type PageParams = Cause[UIError.NonRedirect]
 
   override def title(state: Cause[UIError.NonRedirect]): String = "Page Load Error"
 
-  override protected def component(state: State): WidgetS[State] =
+  override protected def component(state: WidgetState[PageState], renderState: PageState): WidgetS[PageState] =
     fragment(
       PageMessagesBottomCorner.attached,
       h1("Error"),
-      p(whiteSpace.pre, state.prettyPrint),
+      p(whiteSpace.pre, renderState.prettyPrint),
     )
 
 }

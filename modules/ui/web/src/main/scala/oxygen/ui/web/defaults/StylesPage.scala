@@ -7,7 +7,7 @@ import zio.{Scope, ZIO}
 
 object StylesPage extends RoutablePage.NoParams[Any] {
 
-  override type State = Unit
+  override type PageState = Unit
 
   override val path: Seq[String] = Seq("internal", "styles")
 
@@ -15,9 +15,9 @@ object StylesPage extends RoutablePage.NoParams[Any] {
 
   override def initialLoad(params: Unit): ZIO[Scope, UIError, Unit] = ZIO.unit
 
-  override def postLoad(state: WidgetState[Unit]): ZIO[Scope, UIError, Unit] = ZIO.unit
+  override def postLoad(state: WidgetState[Unit], initialState: Unit): ZIO[Scope, UIError, Unit] = ZIO.unit
 
-  override protected def component(state: Unit): WidgetS[State] =
+  override protected def component(state: WidgetState[Unit], renderState: Unit): WidgetS[PageState] =
     fragment(
       h1("Styles"),
       OxygenStyleSheet.Scrollable,

@@ -10,7 +10,7 @@ import zio.http.{Path, QueryParams}
 
 object ComponentsPage extends RoutablePage.NoParams[Any] {
 
-  final case class State(
+  final case class PageState(
       sequence: ArraySeq[Int],
       useGlobalToggleThumbs: Boolean,
       individualToggleThumbs: Set[String],
@@ -28,11 +28,11 @@ object ComponentsPage extends RoutablePage.NoParams[Any] {
 
   override val path: Seq[String] = Seq("internal", "components")
 
-  override def title(state: State): String = "Components"
+  override def title(state: PageState): String = "Components"
 
-  override def initialLoad(params: Unit): ZIO[Scope, UIError, State] =
+  override def initialLoad(params: Unit): ZIO[Scope, UIError, PageState] =
     ZIO.succeed {
-      State(
+      PageState(
         sequence = ArraySeq.empty,
         useGlobalToggleThumbs = false,
         individualToggleThumbs = Set.empty,
@@ -45,9 +45,9 @@ object ComponentsPage extends RoutablePage.NoParams[Any] {
       )
     }
 
-  override def postLoad(state: WidgetState[State]): ZIO[Scope, UIError, Unit] = ZIO.unit
+  override def postLoad(state: WidgetState[PageState], initialState: PageState): ZIO[Scope, UIError, Unit] = ZIO.unit
 
-  override protected def component(state: State): WidgetS[State] =
+  override protected def component(state: WidgetState[PageState], renderState: PageState): WidgetS[PageState] =
     fragment(
       O.Scrollable,
       h1("Components"),
@@ -55,7 +55,7 @@ object ComponentsPage extends RoutablePage.NoParams[Any] {
       miscSection,
       sectionSection,
       buttonsSection,
-      sequenceSection.zoomOut[State](_.sequence),
+      sequenceSection.zoomOut[PageState](_.sequence),
       toggleThumbSection,
       horizontalRadioSection,
       formSection,
@@ -70,7 +70,7 @@ object ComponentsPage extends RoutablePage.NoParams[Any] {
   //      Misc Section
   //////////////////////////////////////////////////////////////////////////////////////////////////////
 
-  private lazy val miscSection: WidgetS[State] =
+  private lazy val miscSection: WidgetS[PageState] =
     Section.section1("Misc.")(
       Section.section2.empty(
         Button("Open new page")(
@@ -78,7 +78,7 @@ object ComponentsPage extends RoutablePage.NoParams[Any] {
         ),
       ),
       pageMessageSection,
-      modalSection.zoomOut[State](_.modal),
+      modalSection.zoomOut[PageState](_.modal),
     )
 
   private lazy val pageMessageSection: Widget =
@@ -312,7 +312,7 @@ object ComponentsPage extends RoutablePage.NoParams[Any] {
     )
   }
 
-  private lazy val toggleThumbSection: WidgetS[State] = {
+  private lazy val toggleThumbSection: WidgetS[PageState] = {
     val sizes: Seq[ToggleThumb.Decorator] =
       Seq(
         ToggleThumb.Decorator.extraSmall,
@@ -334,7 +334,7 @@ object ComponentsPage extends RoutablePage.NoParams[Any] {
         ToggleThumb.Decorator.primaryEnabled.alertDisabled,
       )
 
-    Widget.state[State].fix { state =>
+    Widget.state[PageState].fix { state =>
       def row(style: ToggleThumb.Decorator): Widget =
         tr(
           border.csss(2.px, "solid", "black"),
@@ -381,7 +381,7 @@ object ComponentsPage extends RoutablePage.NoParams[Any] {
     }
   }
 
-  private lazy val horizontalRadioSection: WidgetS[State] = {
+  private lazy val horizontalRadioSection: WidgetS[PageState] = {
     val sizes: Seq[HorizontalRadio.Decorator] =
       Seq(HorizontalRadio.Decorator.small, HorizontalRadio.Decorator.medium, HorizontalRadio.Decorator.large)
     val styles: Seq[HorizontalRadio.Decorator] =
@@ -397,7 +397,7 @@ object ComponentsPage extends RoutablePage.NoParams[Any] {
         HorizontalRadio.Decorator.primarySelected.alertNotSelected,
       )
 
-    Widget.state[State].fix { state =>
+    Widget.state[PageState].fix { state =>
       def row(style: HorizontalRadio.Decorator): Widget =
         tr(
           border.csss(2.px, "solid", "black"),
@@ -489,12 +489,12 @@ object ComponentsPage extends RoutablePage.NoParams[Any] {
     )
   }
 
-  private lazy val formSection: WidgetS[State] = {
+  private lazy val formSection: WidgetS[PageState] = {
     Section.section1("Form")(
-      Form.textField[String]("Text Field 1").widget.discardAction.zoomOut[State](_.textValue),
-      Form.textField[String]("Text Field 2", "test").widget.discardAction.zoomOut[State](_.textValue),
-      Form.textField[String]("Text Field 3", fragment("a", br, "b")).widget.discardAction.zoomOut[State](_.textValue),
-      Form.textArea[String]("Text Area").widget.discardAction.zoomOut[State](_.textValue),
+      Form.textField[String]("Text Field 1").widget.discardAction.zoomOut[PageState](_.textValue),
+      Form.textField[String]("Text Field 2", "test").widget.discardAction.zoomOut[PageState](_.textValue),
+      Form.textField[String]("Text Field 3", fragment("a", br, "b")).widget.discardAction.zoomOut[PageState](_.textValue),
+      Form.textArea[String]("Text Area").widget.discardAction.zoomOut[PageState](_.textValue),
       Form
         .horizontalRadio[SmallEnum](
           "Horizontal Radio 1",
@@ -502,9 +502,9 @@ object ComponentsPage extends RoutablePage.NoParams[Any] {
         )
         .widget
         .discardAction
-        .zoomOut[State](_.horizontalRadio),
-      Form.horizontalRadio[SmallEnum]("Horizontal Radio 2", "descr").widget.discardAction.zoomOut[State](_.horizontalRadio),
-      Form.dropdown[BigEnum]("Dropdown 1", "descr").widget.discardAction.zoomOut[State](_.dropdown1),
+        .zoomOut[PageState](_.horizontalRadio),
+      Form.horizontalRadio[SmallEnum]("Horizontal Radio 2", "descr").widget.discardAction.zoomOut[PageState](_.horizontalRadio),
+      Form.dropdown[BigEnum]("Dropdown 1", "descr").widget.discardAction.zoomOut[PageState](_.dropdown1),
       Form
         .dropdown[SmallEnum](
           "Dropdown 2",
@@ -512,7 +512,7 @@ object ComponentsPage extends RoutablePage.NoParams[Any] {
         )
         .widget
         .discardAction
-        .zoomOut[State](_.dropdown2),
+        .zoomOut[PageState](_.dropdown2),
     )
   }
 

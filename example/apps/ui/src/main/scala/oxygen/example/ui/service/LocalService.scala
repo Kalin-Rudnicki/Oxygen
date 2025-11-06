@@ -24,7 +24,7 @@ final class LocalService(
       userTokenCache.find
 
     def get: IO[UIError.ClientSide.InternalDefect | UIError.Redirect, UserToken] =
-      getOption.someOrElseZIO { P.login.LoginPage.navigate.replace(P.login.LoginPage.Params(None)) }
+      getOption.someOrElseZIO { P.login.LoginPage.navigate.replace(P.login.LoginPage.PageParams(None)) }
 
   }
 

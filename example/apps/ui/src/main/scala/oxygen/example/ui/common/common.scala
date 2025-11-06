@@ -10,8 +10,8 @@ def signedOutNavBar(loginRegisterEmail: Option[String]): NavBar.Const =
   NavBar.make()(
     _.simplePush("Oxygen Example")(P.index.IndexPage)(()),
   )(
-    _.simplePush("Login")(P.login.LoginPage)(P.login.LoginPage.Params(loginRegisterEmail)),
-    _.simplePush("Sign Up")(P.register.RegisterPage)(P.register.RegisterPage.Params(loginRegisterEmail)),
+    _.simplePush("Login")(P.login.LoginPage)(P.login.LoginPage.PageParams(loginRegisterEmail)),
+    _.simplePush("Sign Up")(P.register.RegisterPage)(P.register.RegisterPage.PageParams(loginRegisterEmail)),
   )
 
 def signedInNavBar(user: User): NavBar.Const =

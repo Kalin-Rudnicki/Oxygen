@@ -53,7 +53,7 @@ object PageManager {
             pageId <- Random.nextUUID
             stateRef <- Ref.make(PageInstance.ActiveState.Active(scope))
             lastEvalRef <- Ref.make(Option.empty[PageInstance.Routable.LastEval[Params, State]])
-          } yield PageInstance.Routable[Env, page.Params, page.State](
+          } yield PageInstance.Routable[Env, page.PageParams, page.PageState](
             pageId = pageId,
             errorHandler = errorHandler,
             activeRef = stateRef,
@@ -67,7 +67,7 @@ object PageManager {
             pageId <- Random.nextUUID
             stateRef <- Ref.make(PageInstance.ActiveState.Active(scope))
             lastEvalRef <- Ref.make(Option.empty[PageInstance.NonRoutable.LastEval[State]])
-          } yield PageInstance.NonRoutable[Env, page.Params, page.State](
+          } yield PageInstance.NonRoutable[Env, page.PageParams, page.PageState](
             pageId = pageId,
             errorHandler = errorHandler,
             activeRef = stateRef,
@@ -105,7 +105,7 @@ object PageManager {
           // TODO (KR) : what happens if one page takes 5s to load, and in that time, you try to load another page
 
           _ <- ZIO.logTrace("Creating page instance")
-          pageInstance <- makeRaw[Env, target.page.Params, target.page.State](newScope, uiRuntime, target.page) // TODO (KR) : thread Params and State into `makeRaw`
+          pageInstance <- makeRaw[Env, target.page.PageParams, target.page.PageState](newScope, uiRuntime, target.page) // TODO (KR) : thread Params and State into `makeRaw`
           _ <- ZIO.succeed { pageInstance.pageStateValue.set(initialState) }
 
           _ <- ZIO.logTrace("Switching current and closing previous")
@@ -118,7 +118,12 @@ object PageManager {
           _ <-
             RootErrorHandler
               .rootError(RootErrorHandler.ErrorLocation.NavigationPagePostLoad(pageInstance)) {
-                newScope.extend[Env] { target.page.postLoad(pageInstance.pageState) }
+                newScope.extend[Env] {
+                  ZIO.suspendSucceed {
+                    val state = pageInstance.pageState
+                    target.page.postLoad(state, state.renderTimeValue)
+                  }
+                }
               }
               .catchAll {
                 case RootErrorHandler.ErrorWithLocation(loc, error) => errorHandler.handleErrorCause(loc, error)

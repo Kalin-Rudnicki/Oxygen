@@ -4,7 +4,7 @@ import org.scalajs.dom.document
 import oxygen.predef.core.*
 import oxygen.ui.web.create.StyleSheet
 import oxygen.ui.web.internal.{DefaultPages, NavigationEvent, RootErrorHandler, Router}
-import oxygen.zio.logging.LogConfig
+import oxygen.zio.logging.{LogConfig, RichLogLevel}
 import zio.*
 
 abstract class PageApp[Env: HasNoScope] extends ZIOAppDefault {
@@ -31,16 +31,20 @@ abstract class PageApp[Env: HasNoScope] extends ZIOAppDefault {
 
   private def effect: RIO[Env, Unit] =
     for {
+      pageUrl <- PageURL.fromWindow
+      logLevel = pageUrl.queryParams.queryParams("oxygen-log-level").headOption.flatMap(RichLogLevel.strictEnum.decodeOption).getOrElse(RichLogLevel.Info)
+      _ <- LogConfig.usingConfig(LogConfig.oxygenDefault(logLevel.level)).set
+
       _ <- ZIO.logInfo("Welcome to Oxygen Web UI!")
       router <- Router.init[Env](pages, pagePrefix, RootErrorHandler.Default(defaultPages))
 
       _ <- ZIO.foreachDiscard(styleSheets)(addStyleSheet)
       _ <- router.route(NavigationEvent.renderPage(defaultPages.initial)(()), 0)
-      _ <- router.routeWindowURL
+
+      _ <- router.route(NavigationEvent.browserLoad(pageUrl), 0)
     } yield ()
 
   override def run: ZIO[Any, Any, Unit] =
-    LogConfig.usingConfig(LogConfig.oxygenDefault(logLevel)).set *>
-      effect.provide(layer)
+    effect.provide(layer)
 
 }
