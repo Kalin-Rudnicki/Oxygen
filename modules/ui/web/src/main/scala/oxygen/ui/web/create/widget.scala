@@ -103,6 +103,12 @@ object Widget {
   def fragment[S[_]: SeqRead, Env, Action, StateGet, StateSet <: StateGet](widgets: S[Widget.Polymorphic[Env, Action, StateGet, StateSet]]): Fragment.Polymorphic[Env, Action, StateGet, StateSet] =
     PWidget.Fragment(Growable.many(widgets))
 
+  def intersperse[S[_]: SeqOps, Env, Action, StateGet, StateSet <: StateGet](
+      widgets: S[Widget.Polymorphic[Env, Action, StateGet, StateSet]],
+      join: Widget.Polymorphic[Env, Action, StateGet, StateSet],
+  ): Fragment.Polymorphic[Env, Action, StateGet, StateSet] =
+    Widget.fragment(widgets.intersperse(join))
+
   def foreach[S[_]: SeqRead, I, Env, Action, StateGet, StateSet <: StateGet](input: S[I])(
       f: I => Widget.Polymorphic[Env, Action, StateGet, StateSet],
   ): Widget.Polymorphic[Env, Action, StateGet, StateSet] =
