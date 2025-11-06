@@ -18,11 +18,11 @@ import zio.*
 //           : switching back and forth between login/register should maintain redirect url
 object RegisterPage extends RoutablePage[UserApi & LocalService] {
 
-  final case class Params(
+  final case class PageParams(
       email: Option[String],
   )
 
-  final case class State(
+  final case class PageState(
       firstName: String,
       lastName: String,
       email: String,
@@ -36,21 +36,21 @@ object RegisterPage extends RoutablePage[UserApi & LocalService] {
 
   }
 
-  override lazy val paramCodec: PageCodec[Params] =
+  override lazy val paramCodec: PageCodec[PageParams] =
     ("register" / PageCodec.query.plain.optional[String]("email")).autoTransform
 
-  override def paramsFromState(state: State): Params =
-    Params(state.optEmail)
+  override def paramsFromState(state: PageState): PageParams =
+    PageParams(state.optEmail)
 
-  override def initialLoad(params: Params): ZIO[Scope, UIError, State] =
-    ZIO.succeed(State("", "", params.email.getOrElse(""), ""))
+  override def initialLoad(params: PageParams): ZIO[Scope, UIError, PageState] =
+    ZIO.succeed(PageState("", "", params.email.getOrElse(""), ""))
 
-  override def postLoad(state: WidgetState[State]): ZIO[Scope, UIError, Unit] = ZIO.unit
+  override def postLoad(state: WidgetState[PageState], initialState: PageState): ZIO[Scope, UIError, Unit] = ZIO.unit
 
-  override def title(state: State): String = "Sign Up"
+  override def title(state: PageState): String = "Sign Up"
 
-  override protected def component(state: State): WidgetES[UserApi & LocalService, State] =
-    PageLayout.layout(signedOutNavBar(state.optEmail))(
+  override protected def component(state: WidgetState[PageState], renderState: PageState): WidgetES[UserApi & LocalService, PageState] =
+    PageLayout.layout(signedOutNavBar(renderState.optEmail))(
       PageMessagesBottomCorner.attached,
       PageBodies.centeredCard(
         boxShadow := "0 4px 32px #01810120",
@@ -69,7 +69,7 @@ object RegisterPage extends RoutablePage[UserApi & LocalService] {
               inputProps = TextField.Props(width = 100.pct),
             )
             .required
-            .zoomOut[State](_.firstName) <*>
+            .zoomOut[PageState](_.firstName) <*>
             Form
               .textField[String](
                 "Last Name",
@@ -77,7 +77,7 @@ object RegisterPage extends RoutablePage[UserApi & LocalService] {
                 inputProps = TextField.Props(width = 100.pct),
               )
               .required
-              .zoomOut[State](_.lastName) <*>
+              .zoomOut[PageState](_.lastName) <*>
             Form
               .textField[Email](
                 "Email",
@@ -85,7 +85,7 @@ object RegisterPage extends RoutablePage[UserApi & LocalService] {
                 inputProps = TextField.Props(inputType = "email", width = 100.pct),
               )
               .required
-              .zoomOut[State](_.email) <*>
+              .zoomOut[PageState](_.email) <*>
             Form
               .textField[String](
                 "Password",
@@ -93,7 +93,7 @@ object RegisterPage extends RoutablePage[UserApi & LocalService] {
                 inputProps = TextField.Props(inputType = "password", width = 100.pct),
               )
               .required
-              .zoomOut[State](_.password) <*>
+              .zoomOut[PageState](_.password) <*>
             Form.submitButton("Sign Up", _.medium)
         ).onSubmit { case (_, (firstName, lastName, email, password)) =>
           for {

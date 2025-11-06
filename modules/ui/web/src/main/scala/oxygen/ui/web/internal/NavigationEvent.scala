@@ -18,9 +18,9 @@ object NavigationEvent {
   def replace(url: PageURL): NavigationEvent = NavigationEvent(Target.Url(url), NavType.Replace)
 
   private[web] def browserLoad(url: PageURL): NavigationEvent = NavigationEvent(Target.Url(url), NavType.None)
-  private[web] def pushPage(page: RoutablePage[?])(params: page.Params): NavigationEvent = NavigationEvent(Target.RoutablePageWithParams(page)(params), NavType.Push)
-  private[web] def replacePage(page: RoutablePage[?])(params: page.Params): NavigationEvent = NavigationEvent(Target.RoutablePageWithParams(page)(params), NavType.Replace)
-  private[web] def renderPage(page: NonRoutablePage[?])(params: page.Params): NavigationEvent = NavigationEvent(Target.NonRoutablePageWithParams(page)(params), NavType.None)
+  private[web] def pushPage(page: RoutablePage[?])(params: page.PageParams): NavigationEvent = NavigationEvent(Target.RoutablePageWithParams(page)(params), NavType.Push)
+  private[web] def replacePage(page: RoutablePage[?])(params: page.PageParams): NavigationEvent = NavigationEvent(Target.RoutablePageWithParams(page)(params), NavType.Replace)
+  private[web] def renderPage(page: NonRoutablePage[?])(params: page.PageParams): NavigationEvent = NavigationEvent(Target.NonRoutablePageWithParams(page)(params), NavType.None)
 
   /////// Types ///////////////////////////////////////////////////////////////
 
@@ -29,9 +29,9 @@ object NavigationEvent {
     final case class Url(url: PageURL) extends Target
 
     // format: off
-    sealed abstract class PageWithParams[Env](final val page: Page[Env])(final val params: page.Params) extends Target
-    final class RoutablePageWithParams[Env](val routablePage: RoutablePage[Env])(val routableParams: routablePage.Params) extends Target.PageWithParams[Env](routablePage)(routableParams)
-    final class NonRoutablePageWithParams[Env](val nonRoutablePage: NonRoutablePage[Env])(val nonRoutableParams: nonRoutablePage.Params) extends Target.PageWithParams[Env](nonRoutablePage)(nonRoutableParams)
+    sealed abstract class PageWithParams[Env](final val page: Page[Env])(final val params: page.PageParams) extends Target
+    final class RoutablePageWithParams[Env](val routablePage: RoutablePage[Env])(val routableParams: routablePage.PageParams) extends Target.PageWithParams[Env](routablePage)(routableParams)
+    final class NonRoutablePageWithParams[Env](val nonRoutablePage: NonRoutablePage[Env])(val nonRoutableParams: nonRoutablePage.PageParams) extends Target.PageWithParams[Env](nonRoutablePage)(nonRoutableParams)
     // format: on
   }
 

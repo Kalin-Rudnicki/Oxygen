@@ -11,7 +11,7 @@ import zio.*
 
 object IndexPage extends RoutablePage.NoParams[LocalService] {
 
-  final case class State(
+  final case class PageState(
       userToken: Option[UserToken],
   ) {
 
@@ -19,20 +19,20 @@ object IndexPage extends RoutablePage.NoParams[LocalService] {
 
   }
 
-  override def initialLoad(params: Params): ZIO[LocalService & Scope, UIError, State] =
+  override def initialLoad(params: PageParams): ZIO[LocalService & Scope, UIError, PageState] =
     for {
       userToken <- ZIO.serviceWithZIO[LocalService](_.userToken.getOption)
-    } yield State(userToken)
+    } yield PageState(userToken)
 
-  override def postLoad(state: WidgetState[State]): ZIO[Scope, UIError, Unit] =
+  override def postLoad(state: WidgetState[PageState], initialState: PageState): ZIO[Scope, UIError, Unit] =
     ZIO.unit
 
-  override def title(state: State): String = "Index"
+  override def title(state: PageState): String = "Index"
 
   override val path: Seq[String] = Seq()
 
-  override protected def component(state: State): WidgetES[LocalService, State] =
-    PageLayout.layout(optionalSignedInNavBar(state.user))(
+  override protected def component(state: WidgetState[PageState], renderState: PageState): WidgetES[LocalService, PageState] =
+    PageLayout.layout(optionalSignedInNavBar(renderState.user))(
       PageMessagesBottomCorner.attached,
       h1("Oxygen Example"),
     )

@@ -10,32 +10,32 @@ sealed trait Page[-Env] { page =>
 
   ///////  ///////////////////////////////////////////////////////////////
 
-  type Params
-  type State
+  type PageParams
+  type PageState
 
-  final type PageWidgetState = WidgetState[State]
-
-  ///////  ///////////////////////////////////////////////////////////////
-
-  def title(state: State): String
-
-  def initialLoad(params: Params): ZIO[Env & Scope, UIError, State]
-  def postLoad(state: WidgetState[State]): ZIO[Env & Scope, UIError, Unit]
+  final type PageWidgetState = WidgetState[PageState]
 
   ///////  ///////////////////////////////////////////////////////////////
 
-  private[web] object InternalPageState extends PageLocalState[State](s"InternalPageState[$pageName]")(null.asInstanceOf[State])
+  def title(state: PageState): String
 
-  protected def component(state: State): WidgetES[Env, State]
+  def initialLoad(params: PageParams): ZIO[Env & Scope, UIError, PageState]
+  def postLoad(state: WidgetState[PageState], initialState: PageState): ZIO[Env & Scope, UIError, Unit]
+
+  ///////  ///////////////////////////////////////////////////////////////
+
+  private[web] object InternalPageState extends PageLocalState[PageState](s"InternalPageState[$pageName]")(null.asInstanceOf[PageState])
+
+  protected def component(state: WidgetState[PageState], renderState: PageState): WidgetES[Env, PageState]
 
   private[web] final def render[Env2 <: Env: HasNoScope](
-      pageInstance: PageInstance.TypedEnv[Env2, Params, State],
+      pageInstance: PageInstance.TypedEnv[Env2, PageParams, PageState],
       navType: NavigationEvent.NavType,
   ): URIO[Env2 & Scope, Unit] = {
-    val state: WidgetState[State] = pageInstance.pageState
+    val state: WidgetState[PageState] = pageInstance.pageState
     ZIO.logTrace(s"rendering page $page") *>
       pageInstance.recordNewValues(state.renderTimeValue, navType) *>
-      Renderer.renderBody(component(state.renderTimeValue).build[Env2](state, RaiseHandler.Empty, pageInstance, pageInstance.uiRuntime))
+      Renderer.renderBody(component(state, state.renderTimeValue).build[Env2](state, RaiseHandler.Empty, pageInstance, pageInstance.uiRuntime))
   }
 
   final def pageName: String = getClass.getSimpleName.stripSuffix("$")
@@ -45,17 +45,17 @@ sealed trait Page[-Env] { page =>
 }
 object Page {
 
-  type AuxE[E, P, S] = Page[E] { type Params = P; type State = S }
-  type Aux[P, S] = Page[?] { type Params = P; type State = S }
+  type AuxE[E, P, S] = Page[E] { type PageParams = P; type PageState = S }
+  type Aux[P, S] = Page[?] { type PageParams = P; type PageState = S }
 
 }
 
 trait NonRoutablePage[-Env] extends Page[Env] { page =>
 
-  override def initialLoad(params: Params): ZIO[Env & Scope, Nothing, State]
+  override def initialLoad(params: PageParams): ZIO[Env & Scope, Nothing, PageState]
 
   object navigate { // Env is enforced by this effect returning Env in the R type
-    def render(params: Params): ZIO[Env, UIError.Redirect, Nothing] = ZIO.fail(UIError.Redirect(NavigationEvent.renderPage(page)(params)))
+    def render(params: PageParams): ZIO[Env, UIError.Redirect, Nothing] = ZIO.fail(UIError.Redirect(NavigationEvent.renderPage(page)(params)))
   }
 
 }
@@ -63,43 +63,43 @@ object NonRoutablePage {
 
   trait StateSameAsParams[-Env] extends NonRoutablePage[Env] {
 
-    override final type State = Params
+    override final type PageState = PageParams
 
-    override def initialLoad(params: Params): ZIO[Env & Scope, Nothing, Params] = ZIO.succeed(params)
-    override def postLoad(state: WidgetState[Params]): ZIO[Env & Scope, UIError, Unit] = ZIO.unit
+    override def initialLoad(params: PageParams): ZIO[Env & Scope, Nothing, PageParams] = ZIO.succeed(params)
+    override def postLoad(state: WidgetState[PageParams], initialState: PageState): ZIO[Env & Scope, UIError, Unit] = ZIO.unit
 
   }
 
-  type AuxE[E, P, S] = NonRoutablePage[E] { type Params = P; type State = S }
-  type AuxEP[E, P] = NonRoutablePage[E] { type Params = P }
-  type Aux[P, S] = NonRoutablePage[?] { type Params = P; type State = S }
+  type AuxE[E, P, S] = NonRoutablePage[E] { type PageParams = P; type PageState = S }
+  type AuxEP[E, P] = NonRoutablePage[E] { type PageParams = P }
+  type Aux[P, S] = NonRoutablePage[?] { type PageParams = P; type PageState = S }
 
 }
 
 trait RoutablePage[-Env] extends Page[Env] { page =>
 
-  lazy val paramCodec: PageCodec[Params]
-  def paramsFromState(state: State): Params
+  lazy val paramCodec: PageCodec[PageParams]
+  def paramsFromState(state: PageState): PageParams
 
   object navigate { // Env is enforced by checking that the page exists in the typed page router
-    def push(params: Params): IO[UIError.Redirect, Nothing] = ZIO.fail(UIError.Redirect(NavigationEvent.pushPage(page)(params)))
-    def replace(params: Params): IO[UIError.Redirect, Nothing] = ZIO.fail(UIError.Redirect(NavigationEvent.replacePage(page)(params)))
-    def openInNewTab(params: Params): UIO[Unit] = Window.newTab(paramCodec.encode(params))
+    def push(params: PageParams): IO[UIError.Redirect, Nothing] = ZIO.fail(UIError.Redirect(NavigationEvent.pushPage(page)(params)))
+    def replace(params: PageParams): IO[UIError.Redirect, Nothing] = ZIO.fail(UIError.Redirect(NavigationEvent.replacePage(page)(params)))
+    def openInNewTab(params: PageParams): UIO[Unit] = Window.newTab(paramCodec.encode(params))
   }
 
 }
 object RoutablePage {
 
-  type AuxE[E, P, S] = RoutablePage[E] { type Params = P; type State = S }
-  type Aux[P, S] = RoutablePage[?] { type Params = P; type State = S }
+  type AuxE[E, P, S] = RoutablePage[E] { type PageParams = P; type PageState = S }
+  type Aux[P, S] = RoutablePage[?] { type PageParams = P; type PageState = S }
 
   trait NoParams[-Env] extends RoutablePage[Env] {
 
     val path: Seq[String]
 
-    override final type Params = Unit
+    override final type PageParams = Unit
     override final lazy val paramCodec: PageCodec[Unit] = PageCodec.ConstPaths(path.toList)
-    override final def paramsFromState(state: State): Unit = ()
+    override final def paramsFromState(state: PageState): Unit = ()
 
   }
 

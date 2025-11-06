@@ -59,10 +59,44 @@ object RootErrorHandler {
 
   type RootError = ErrorWithLocation | UIError.Redirect
 
-  def rootError[R, A](loc: => ErrorLocation)(effect: ZIO[R, UIError, A]): ZIO[R, RootError, A] =
-    effect.catchAllTrace {
-      case (nonRedirect: UIError.NonRedirect, trace) => ZIO.fail(ErrorWithLocation(loc, Cause.fail(nonRedirect, trace)))
-      case (redirect: UIError.Redirect, trace)       => ZIO.refailCause(Cause.fail(redirect, trace))
+  private val folder: Cause.Folder[ErrorLocation, UIError, RootError] =
+    new Cause.Folder[ErrorLocation, UIError, RootError] {
+
+      override def empty(context: ErrorLocation): RootError =
+        ErrorWithLocation(context, Cause.empty)
+
+      override def failCase(context: ErrorLocation, error: UIError, stackTrace: StackTrace): RootError =
+        error match {
+          case nonRedirect: UIError.NonRedirect => ErrorWithLocation(context, Cause.fail(nonRedirect, stackTrace))
+          case redirect: UIError.Redirect       => redirect
+        }
+
+      override def dieCase(context: ErrorLocation, t: Throwable, stackTrace: StackTrace): RootError =
+        ErrorWithLocation(context, Cause.die(t, stackTrace))
+
+      override def interruptCase(context: ErrorLocation, fiberId: FiberId, stackTrace: StackTrace): RootError =
+        ErrorWithLocation(context, Cause.interrupt(fiberId, stackTrace))
+
+      override def bothCase(context: ErrorLocation, left: RootError, right: RootError): RootError =
+        (left, right) match
+          case (left: ErrorWithLocation, right: ErrorWithLocation) => ErrorWithLocation(context, Cause.Both(left.error, right.error))
+          case (left: UIError.Redirect, _)                         => left
+          case (_: ErrorWithLocation, right: UIError.Redirect)     => right
+
+      override def thenCase(context: ErrorLocation, left: RootError, right: RootError): RootError =
+        (left, right) match
+          case (left: ErrorWithLocation, right: ErrorWithLocation) => ErrorWithLocation(context, Cause.Then(left.error, right.error))
+          case (left: UIError.Redirect, _)                         => left
+          case (_: ErrorWithLocation, right: UIError.Redirect)     => right
+
+      override def stacklessCase(context: ErrorLocation, value: RootError, stackless: Boolean): RootError =
+        value match
+          case value: UIError.Redirect  => value
+          case value: ErrorWithLocation => ErrorWithLocation(value.loc, Cause.Stackless(value.error, stackless))
+
     }
+
+  def rootError[R, A](loc: => ErrorLocation)(effect: ZIO[R, UIError, A]): ZIO[R, RootError, A] =
+    effect.catchAllCause { cause => ZIO.fail(cause.foldContext(loc)(folder)) }
 
 }

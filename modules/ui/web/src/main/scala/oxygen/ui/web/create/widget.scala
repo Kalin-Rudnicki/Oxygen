@@ -215,7 +215,10 @@ object widgetBuilders {
   final class WidgetStateBuilder[State] {
 
     def fix[Env, Action](f: WidgetState[State] => WidgetEAS[Env, Action, State]): WidgetEAS[Env, Action, State] = PWidget.FixState(f)
-    def get[Env, Action](f: State => WidgetEAS[Env, Action, State]): WidgetEAS[Env, Action, State] = fix { state => f(state.renderTimeValue) }
+    def get[Env, Action](f: State => WidgetEAS[Env, Action, State]): WidgetEAS[Env, Action, State] =
+      fix { state => f(state.renderTimeValue) }
+    def fixGet[Env, Action](f: (WidgetState[State], State) => WidgetEAS[Env, Action, State]): WidgetEAS[Env, Action, State] =
+      fix { state => f(state, state.renderTimeValue) }
 
     def attach[Env, Action](b: PageLocalState[State])(f: WidgetState[State] => WidgetEAS[Env, Action, State]): WidgetEA[Env, Action] = fix(f).attach(b)
     def attach[Env, Action](b: GlobalState[State])(f: WidgetState[State] => WidgetEAS[Env, Action, State]): WidgetEA[Env, Action] = fix(f).attach(b)

@@ -7,9 +7,9 @@ import zio.*
 
 object onClick extends EventHandlerBuilder[MouseEvent]("onclick") {
 
-  def push(page: RoutablePage[?])(using ev: Unit <:< page.Params): Widget =
+  def push(page: RoutablePage[?])(using ev: Unit <:< page.PageParams): Widget =
     push(page)(ev(()))
-  def push(page: RoutablePage[?])(params: page.Params): Widget = {
+  def push(page: RoutablePage[?])(params: page.PageParams): Widget = {
     def url: PageURL = page.paramCodec.encode(params)
 
     fragment(
@@ -24,9 +24,9 @@ object onClick extends EventHandlerBuilder[MouseEvent]("onclick") {
     )
   }
 
-  def replace(page: RoutablePage[?])(using ev: Unit <:< page.Params): Widget =
+  def replace(page: RoutablePage[?])(using ev: Unit <:< page.PageParams): Widget =
     replace(page)(ev(()))
-  def replace(page: RoutablePage[?])(params: page.Params): Widget = {
+  def replace(page: RoutablePage[?])(params: page.PageParams): Widget = {
     def url: PageURL = page.paramCodec.encode(params)
 
     fragment(
@@ -41,9 +41,9 @@ object onClick extends EventHandlerBuilder[MouseEvent]("onclick") {
     )
   }
 
-  def render[Env](page: NonRoutablePage[Env])(using ev: Unit <:< page.Params): WidgetE[Env] =
+  def render[Env](page: NonRoutablePage[Env])(using ev: Unit <:< page.PageParams): WidgetE[Env] =
     render(page)(ev(()))
-  def render[Env](page: NonRoutablePage[Env])(params: page.Params): WidgetE[Env] =
+  def render[Env](page: NonRoutablePage[Env])(params: page.PageParams): WidgetE[Env] =
     this := page.navigate.render(params)
 
 }
