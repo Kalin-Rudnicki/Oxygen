@@ -54,7 +54,10 @@ private[json] final class JsonParser private (string: String) {
   private def parseRemainingString(): String = {
 
     @tailrec
-    def continue(): Unit =
+    def continue(): Unit = {
+      if (idx >= string.length)
+        fail("JSON body terminated before end of string")
+
       string(idx) match {
         case '"' =>
           idx += 1
@@ -72,6 +75,7 @@ private[json] final class JsonParser private (string: String) {
           idx += 1
           continue()
       }
+    }
 
     continue()
 
