@@ -5,44 +5,61 @@ import scala.annotation.tailrec
 import scala.collection.mutable
 
 private[json] final class JsonParser private (string: String) {
-  private val arr: IArray[Char] = IArray.unsafeFromArray(string.toCharArray)
   private var idx: Int = 0
+
+  private object sb {
+    private val inner: mutable.StringBuilder = mutable.StringBuilder()
+
+    def append(c: Char): Unit = inner.append(c)
+    def append(s: String): Unit = inner.append(s)
+
+    def getAndClear(): String = {
+      val str = inner.toString()
+      inner.clear()
+      str
+    }
+
+  }
 
   private inline def fail(): Nothing =
     throw new JsonError(Nil, JsonError.Cause.InvalidJson(idx, None))
 
-  private inline def expectChar(char: Char): Unit =
-    if (arr(idx) == char) idx += 1
-    else fail()
+  private inline def fail(errMsg: String): Nothing =
+    throw new JsonError(Nil, JsonError.Cause.InvalidJson(idx, new RuntimeException(errMsg).some))
+
+  private inline def expectChar(char: Char): Unit = {
+    val actual = string(idx)
+    if (actual == char) idx += 1
+    else fail(s"Expected char ${char.unesc}, but got: ${actual.unesc}")
+  }
 
   /**
     * Will skip white space, not caring to watch out for array bounds.
     */
   private inline def skipWhiteSpace(): Unit =
-    while (arr(idx).isWhitespace)
+    while (string(idx).isWhitespace)
       idx += 1
 
   /**
     * Will skip white space, caring to watch out for array bounds.
     */
   private inline def safeSkipWhiteSpace(): Unit =
-    while (idx < arr.length && arr(idx).isWhitespace)
+    while (idx < string.length && string(idx).isWhitespace)
       idx += 1
 
   private inline def assertEOF(): Unit =
-    if (idx != arr.length)
-      fail()
+    if (idx != string.length)
+      fail("Expected EOF, but is not")
 
   private def parseRemainingString(): String = {
-    val sb = mutable.StringBuilder()
 
     @tailrec
     def continue(): Unit =
-      arr(idx) match {
+      string(idx) match {
         case '"' =>
           idx += 1
         case '\\' =>
-          arr(idx + 1) match {
+          string(idx + 1) match {
             case '"' => sb.append('"')
             case 'n' => sb.append('\n')
             case 't' => sb.append('\t')
@@ -58,16 +75,16 @@ private[json] final class JsonParser private (string: String) {
 
     continue()
 
-    sb.toString()
+    sb.getAndClear()
   }
 
   // TODO (KR) : this is going to break if parsing a root json
   private def parseRemainingNumber(init: String): Json.Number = {
-    val sb = mutable.StringBuilder(init)
+    sb.append(init)
 
     @tailrec
     def continue(): Unit =
-      arr.lift(idx) match {
+      string.lift(idx) match {
         case Some(c) if c >= '0' && c <= '9' =>
           sb.append(c)
           idx += 1
@@ -78,9 +95,9 @@ private[json] final class JsonParser private (string: String) {
 
     continue()
 
-    arr.lift(idx) match {
+    string.lift(idx) match {
       case Some('.') =>
-        arr.lift(idx + 1) match {
+        string.lift(idx + 1) match {
           case Some(c) if c >= '0' && c <= '9' =>
             sb.append('.')
             sb.append(c)
@@ -91,7 +108,7 @@ private[json] final class JsonParser private (string: String) {
             fail()
         }
       case _ =>
-        Json.Number(BigDecimal(sb.toString))
+        Json.Number(BigDecimal(sb.getAndClear()))
     }
   }
 
@@ -106,7 +123,7 @@ private[json] final class JsonParser private (string: String) {
   }
 
   private def parseAnyJson(): Json =
-    arr(idx) match {
+    string(idx) match {
       case '"' =>
         idx += 1
         Json.Str(parseRemainingString())
@@ -134,7 +151,7 @@ private[json] final class JsonParser private (string: String) {
         @tailrec
         def loop(): Json.Obj = {
           skipWhiteSpace()
-          arr(idx) match {
+          string(idx) match {
             case ',' =>
               idx += 1
               skipWhiteSpace()
@@ -150,7 +167,7 @@ private[json] final class JsonParser private (string: String) {
 
         idx += 1
         skipWhiteSpace()
-        arr(idx) match {
+        string(idx) match {
           case '"' =>
             builder.addOne(parseObjectPair())
             loop()
@@ -165,7 +182,7 @@ private[json] final class JsonParser private (string: String) {
         @tailrec
         def loop(): Json.Arr = {
           skipWhiteSpace()
-          arr(idx) match {
+          string(idx) match {
             case ',' =>
               idx += 1
               skipWhiteSpace()
@@ -181,7 +198,7 @@ private[json] final class JsonParser private (string: String) {
 
         idx += 1
         skipWhiteSpace()
-        arr(idx) match {
+        string(idx) match {
           case ']' =>
             idx += 1
             Json.Arr(ArraySeq.empty)
@@ -190,7 +207,7 @@ private[json] final class JsonParser private (string: String) {
             loop()
         }
       case '-' =>
-        arr(idx + 1) match {
+        string(idx + 1) match {
           case c if c >= '0' && c <= '9' =>
             idx += 2
             parseRemainingNumber(new String(Array('-', c)))
