@@ -90,6 +90,18 @@ object Parser {
 
   }
 
+  final case class Const[A](value: A) extends Parser[A] {
+
+    override def optionalName: Option[Name] = None
+
+    override def helpMessage: HelpMessage = HelpMessage.RootMessage.Empty
+
+    override def parse(values: List[Arg.ValueLike], params: List[Arg.ParamLike]): Parser.ParseResult[A] = Parser.ParseResult.Success(value, Nil, values, params)
+
+    override def buildInternal(usedParams: Set[SimpleName]): Either[BuildError, (Set[SimpleName], Parser[A])] = (usedParams, this).asRight
+
+  }
+
   final case class Then[A, B, O](
       left: Parser[A],
       right: Parser[B],
@@ -282,6 +294,7 @@ object Parser {
   // =====|  |=====
 
   val unit: Parser[Unit] = Parser.Empty
+  def const[A](value: A): Parser[A] = Parser.Const(value)
 
   private[cli] val help: Parser[HelpType] =
     Values.Ignored ^>>
@@ -349,7 +362,22 @@ object Values {
       )
       .mapOrFail(StringDecoder[A].decode)
 
+  def const[A](value: A): Values[A] = Values.Const(value)
+  val unit: Values[Unit] = Values.const(())
+
   // =====|  |=====
+
+  final case class Const[A](value: A) extends Values[A] {
+
+    override def optionalName: Option[Name] = None
+
+    override def helpMessage: HelpMessage.ValueMessage = HelpMessage.ValueMessage.Empty
+
+    override def parseValues(values: List[Arg.ValueLike]): Values.ParseResult[A] = Values.ParseResult.Success(value, Nil, values)
+
+    override def buildInternal(usedParams: Set[SimpleName]): Either[BuildError, (Set[SimpleName], Values[A])] = (usedParams, this).asRight
+
+  }
 
   final case class SingleValue(
       name: LongName,
@@ -726,6 +754,9 @@ sealed trait Params[+A] extends Parser[A] {
 object Params {
 
   // =====| Builders |=====
+
+  def const[A](value: A): Params[A] = Params.Const(value)
+  val unit: Params[Unit] = Params.const(())
 
   def value[A: StringDecoder](
       longName: LongName,
