@@ -33,7 +33,7 @@ object HomePage extends RoutablePage.NoParams[LocalService] {
 
   override protected def component(state: WidgetState[PageState], renderState: PageState): WidgetES[LocalService, PageState] =
     PageLayout.layout(signedInNavBar(renderState.user))(
-      PageMessagesBottomCorner.attached,
+      PageMessagesBottomCorner.default,
       h1("Home"),
     )
 

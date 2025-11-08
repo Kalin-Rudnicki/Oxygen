@@ -19,11 +19,13 @@ object ComponentsPage extends RoutablePage.NoParams[Any] {
       dropdown1: Dropdown.State[BigEnum],
       dropdown2: Dropdown.State[SmallEnum],
       modal: Option[ModalForm],
-      textValue: String,
+      textField: TextField.State,
+      textArea: TextArea.State,
+      heart: Boolean,
   )
 
   final case class ModalForm(
-      value: String,
+      value: TextField.State,
   )
 
   override val path: Seq[String] = Seq("internal", "components")
@@ -41,7 +43,9 @@ object ComponentsPage extends RoutablePage.NoParams[Any] {
         dropdown1 = Dropdown.State.initialNone,
         dropdown2 = Dropdown.State.initialNone,
         modal = None,
-        textValue = "",
+        textField = TextField.State.empty,
+        textArea = TextArea.State.empty,
+        heart = false,
       )
     }
 
@@ -71,9 +75,10 @@ object ComponentsPage extends RoutablePage.NoParams[Any] {
   //////////////////////////////////////////////////////////////////////////////////////////////////////
 
   private lazy val miscSection: WidgetS[PageState] =
-    Section.section1("Misc.")(
-      Section.section2.empty(
-        Button("Open new page")(
+    SectionWithHeader.section1("Misc.")(
+      Section.section2()(
+        Button()(
+          "Open new page",
           onClick := Window.newTab(PageURL(Path.root, QueryParams.empty)),
         ),
       ),
@@ -82,10 +87,12 @@ object ComponentsPage extends RoutablePage.NoParams[Any] {
     )
 
   private lazy val pageMessageSection: Widget =
-    Section.section2("Page Messages")(
-      PageMessagesBottomCorner.attached,
+    SectionWithHeader.section2("Page Messages")(
+      PageMessagesBottomCorner.default,
       Widget.foreach(
-        PageMessage.Type.Success -> Button.Decorator.positive,
+        PageMessage.Type.Primary -> Button.Decorator.primary,
+        PageMessage.Type.Positive -> Button.Decorator.positive,
+        PageMessage.Type.Negative -> Button.Decorator.negative,
         PageMessage.Type.Info -> Button.Decorator.informational,
         PageMessage.Type.Warning -> Button.Decorator.alert,
         PageMessage.Type.Error -> Button.Decorator.negative,
@@ -94,9 +101,9 @@ object ComponentsPage extends RoutablePage.NoParams[Any] {
           display.inlineBlock,
           padding(S.spacing._3, S.spacing._5),
           Button(
-            messageType.toString,
             _ >> buttonType,
           )(
+            messageType.toString,
             Widget.withPageInstance {
               onClick := PageMessages.add(PageMessage.make(messageType, s"This is a \"$messageType\" page message"))
             },
@@ -106,18 +113,18 @@ object ComponentsPage extends RoutablePage.NoParams[Any] {
     )
 
   private lazy val modalSection: WidgetS[Option[ModalForm]] =
-    Section.section2("Modal")(
-      Button("Show Modal")(onClick.s[Option[ModalForm]].setState(ModalForm("").some)),
+    SectionWithHeader.section2("Modal")(
+      Button()("Show Modal", onClick.s[Option[ModalForm]].setState(ModalForm(TextField.State.empty).some)),
       Modal.option()(
         h1("Hello Modal"),
         padding(S.spacing._0, S.spacing._5),
-        Section.info(_(borderColor = S.color.status.informational))(
+        InfoSection(_.informational)(
           "This is a modal",
         ),
         Widget.withPageInstance {
           {
-            Form.textField[String]("Value").zoomOut[ModalForm](_.value).required <*>
-              Form.submitButton("Submit")
+            TextField.form[String]("Value").zoomOut[ModalForm](_.value).required <*>
+              Button.form("Submit")
           }.handleActionStateful.a[Modal.Close] { (rh, _, v) =>
             PageMessages.add(PageMessage.info(s"Submit:\n$v")) *>
               rh.raiseAction(Modal.Close)
@@ -126,7 +133,7 @@ object ComponentsPage extends RoutablePage.NoParams[Any] {
       ),
     )
 
-  private lazy val iconSection: Widget = {
+  private lazy val iconSection: WidgetS[PageState] = {
     val space: Widget =
       span(
         display.inlineBlock,
@@ -134,95 +141,106 @@ object ComponentsPage extends RoutablePage.NoParams[Any] {
         height := 24.px,
       )
 
-    Section.section1("Icon")(
-      color.blue,
-      svg(
-        htmlWidth := 24,
-        htmlHeight := 24,
-        svgViewBox := "0 0 24 24",
-        svgFill := "none",
-        svgStroke := "currentColor",
-        svgStrokeWidth := 2,
-        svgStrokeLineCap.round,
-        svgStrokeLineJoin.round,
-        svgPolygon(
-          svgPoints := "12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2",
-        ),
-      )(
-        color.yellow,
-      ),
-      space,
-      svg(
-        htmlWidth := 24,
-        htmlHeight := 24,
-        svgViewBox := "0 0 24 24",
-        svgFill := "currentColor",
-        svgStroke := "currentColor",
-        svgStrokeWidth := 2,
-        svgStrokeLineCap.round,
-        svgStrokeLineJoin.round,
-        svgPath(
-          svgD := "M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z",
-        ),
-      )(
-        color.red,
-      ),
-      space,
-      svg(
-        htmlWidth := 24,
-        htmlHeight := 24,
-        svgViewBox := "0 0 24 24",
-        svgFill := "none",
-        svgStroke := "currentColor",
-        svgG(),
-        svgG(svgStrokeLineCap.round, svgStrokeLineJoin.round),
-        svgG(
-          svgStrokeWidth := 1,
-          svgPath(
-            svgD := "M4.67,18.788A9.991,9.991,0,0,0,22,12V6a1,1,0,0,0-1.062-1,21.6,21.6,0,0,0-3.854.731,10.569,10.569,0,0,0-4.767-3.681,1,1,0,0,0-.635,0A10.592,10.592,0,0,0,6.931,5.713,21.024,21.024,0,0,0,3.063,5,1,1,0,0,0,2,6v6a9.93,9.93,0,0,0,2.592,6.679A.938.938,0,0,0,4.67,18.788ZM20,12a8.009,8.009,0,0,1-8,8,7.892,7.892,0,0,1-5.481-2.186C8.13,11.586,13.731,8.049,20,7.12ZM8.954,6.368A8.9,8.9,0,0,1,12,4.078a8.749,8.749,0,0,1,3.045,2.288A20.715,20.715,0,0,0,12,7.788c-.031-.018-.066-.033-.1-.051q-.655-.369-1.308-.676L10.44,6.99c-.5-.23-.989-.435-1.469-.615ZM4,7.128a21.322,21.322,0,0,1,6.091,1.917A14.7,14.7,0,0,0,5.1,15.656c-.019.05-.041.1-.06.148-.008.022-.018.042-.026.064A7.908,7.908,0,0,1,4,12Z",
+    Widget.state[PageState].fix { state =>
+      SectionWithHeader.section1("Icon")(
+        color.blue,
+        // star
+        svg(
+          htmlWidth := 24,
+          htmlHeight := 24,
+          svgViewBox := "0 0 24 24",
+          svgFill := "none",
+          svgStroke.currentColor,
+          svgStrokeWidth := 2,
+          svgStrokeLineCap.round,
+          svgStrokeLineJoin.round,
+          svgPolygon(
+            svgPoints := "12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2",
           ),
+        )(
+          color.yellow,
         ),
-      )(
-        color.cyan,
-        backgroundColor.red,
-        borderRadius := 15.px,
-        padding := 4.px,
-        width := 50.px,
-        height := 50.px,
-      ),
-      space,
-      basicSvg(24, 24)(
-        svgPath(
-          svgFill.none,
-          svgStrokeWidth := 2,
-          svgStroke := S.color.brand.primary1.getColorValue.toUpperCase,
-          svgD := "M 12 0 L 4 24 L 24 8 L 0 8 L 20 24 Z",
+        space,
+        // heart
+        svg(
+          htmlWidth := 24,
+          htmlHeight := 24,
+          svgViewBox := "0 0 24 24",
+          svgFill := (if (state.get.heart) "red" else "transparent"),
+          svgStroke.currentColor,
+          svgStrokeWidth := 3,
+          svgStrokeLineCap.round,
+          svgStrokeLineJoin.round,
+          svgPath(
+            cursor.pointer,
+            onClick := state.update(s => s.copy(heart = !s.heart)),
+            svgD := "M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z",
+          ),
+        )(
+          color.red,
         ),
-      )(
-        backgroundColor.black,
-        padding := 6.px,
-        borderRadius := 16.px,
-      ),
-      space,
-      basicSvg(24, 24)(
-        svgPath(
-          svgFill.none,
-          svgStrokeWidth := 2,
-          svgStroke := S.color.brand.primary1.getColorValue,
-          svgD := "M 12 0 L 0 24 L 24 24 Z",
+        space,
+        // rose
+        svg(
+          htmlWidth := 24,
+          htmlHeight := 24,
+          svgViewBox := "0 0 24 24",
+          svgFill := "none",
+          svgStroke.currentColor,
+          svgG(),
+          svgG(svgStrokeLineCap.round, svgStrokeLineJoin.round),
+          svgG(
+            svgStrokeWidth := 1,
+            svgPath(
+              svgD := "M4.67,18.788A9.991,9.991,0,0,0,22,12V6a1,1,0,0,0-1.062-1,21.6,21.6,0,0,0-3.854.731,10.569,10.569,0,0,0-4.767-3.681,1,1,0,0,0-.635,0A10.592,10.592,0,0,0,6.931,5.713,21.024,21.024,0,0,0,3.063,5,1,1,0,0,0,2,6v6a9.93,9.93,0,0,0,2.592,6.679A.938.938,0,0,0,4.67,18.788ZM20,12a8.009,8.009,0,0,1-8,8,7.892,7.892,0,0,1-5.481-2.186C8.13,11.586,13.731,8.049,20,7.12ZM8.954,6.368A8.9,8.9,0,0,1,12,4.078a8.749,8.749,0,0,1,3.045,2.288A20.715,20.715,0,0,0,12,7.788c-.031-.018-.066-.033-.1-.051q-.655-.369-1.308-.676L10.44,6.99c-.5-.23-.989-.435-1.469-.615ZM4,7.128a21.322,21.322,0,0,1,6.091,1.917A14.7,14.7,0,0,0,5.1,15.656c-.019.05-.041.1-.06.148-.008.022-.018.042-.026.064A7.908,7.908,0,0,1,4,12Z",
+            ),
+          ),
+        )(
+          color.cyan,
+          backgroundColor.red,
+          borderRadius := 15.px,
+          padding := 4.px,
+          width := 50.px,
+          height := 50.px,
         ),
-        svgPath(
-          svgFill.none,
-          svgStrokeWidth := 2,
-          svgStroke := S.color.brand.primary2.getColorValue,
-          svgD := "M 12 7 L 6 20 L 18 20 Z",
+        space,
+        // star 2
+        basicSvg(24, 24)(
+          svgPath(
+            svgFill.none,
+            svgStrokeWidth := 2,
+            svgStroke := S.color.brand.primary1.getColorValue.toUpperCase,
+            svgD := "M 12 0 L 4 24 L 24 8 L 0 8 L 20 24 Z",
+          ),
+        )(
+          backgroundColor.black,
+          padding := 6.px,
+          borderRadius := 16.px,
         ),
-      )(
-        backgroundColor.black,
-        padding := 6.px,
-        borderRadius := 10.px,
-      ),
-    )
+        space,
+        // pyramid
+        basicSvg(24, 24)(
+          svgPath(
+            svgFill.none,
+            svgStrokeWidth := 2,
+            svgStroke := S.color.brand.primary1.getColorValue,
+            svgD := "M 12 0 L 0 24 L 24 24 Z",
+          ),
+          svgPath(
+            svgFill.none,
+            svgStrokeWidth := 2,
+            svgStroke := S.color.brand.primary2.getColorValue,
+            svgD := "M 12 7 L 6 20 L 18 20 Z",
+          ),
+        )(
+          backgroundColor.black,
+          padding := 6.px,
+          borderRadius := 10.px,
+          width := 50.px,
+          height := 50.px,
+        ),
+      )
+    }
   }
 
   //////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -230,24 +248,25 @@ object ComponentsPage extends RoutablePage.NoParams[Any] {
   //////////////////////////////////////////////////////////////////////////////////////////////////////
 
   private lazy val sectionSection: Widget =
-    Section.section1("Section 1")(
-      Section.section2("Section 2")(
+    SectionWithHeader.section1("Section 1")(
+      SectionWithHeader.section2("Section 2")(
         span("TODO", color := S.color.status.negative, fontSize := S.fontSize._6),
       ),
-      Section.section2("Section 2", _(headerColor = S.color.status.alert))(
-        Section.info()(
+      SectionWithHeader.section2("Section 2", _.informational)(
+        InfoSection()(
           "Info Section",
         ),
-        Section.info(_(borderColor = S.color.status.positive, backHighlight = true))(
+        InfoSection(_.positive.backHighlight)(
           "Positive Info Section",
         ),
-        Section.info(_(borderColor = S.color.status.negative))(
+        InfoSection(_.negative.backHighlight)(
           "Negative Info Section",
         ),
-        Section.info(_(borderColor = S.color.status.alert, backHighlight = true))(
+        InfoSection(_.alert.backHighlight)(
           width := 50.pct,
           "Alert Info Section",
         ),
+        SectionWithHeader.section3("Section 3"),
       ),
     )
 
@@ -285,7 +304,7 @@ object ComponentsPage extends RoutablePage.NoParams[Any] {
         Button.Decorator.extraLarge,
       )
 
-    Section.section1("Buttons")(
+    SectionWithHeader.section1("Buttons")(
       table(
         borderCollapse.collapse,
         tr(
@@ -302,7 +321,7 @@ object ComponentsPage extends RoutablePage.NoParams[Any] {
             Widget.foreach(sizes) { size =>
               td(
                 textAlign.center,
-                Button("Click Me!", style >> size),
+                Button(style >> size)("Click Me!"),
                 padding(S.spacing._2, S.spacing._5),
               )
             },
@@ -356,7 +375,7 @@ object ComponentsPage extends RoutablePage.NoParams[Any] {
           },
         )
 
-      Section.section1("Toggle Thumb")(
+      SectionWithHeader.section1("Toggle Thumb")(
         div(
           display.flex,
           alignItems.center,
@@ -412,7 +431,7 @@ object ComponentsPage extends RoutablePage.NoParams[Any] {
           },
         )
 
-      Section.section1("Horizontal Radio")(
+      SectionWithHeader.section1("Horizontal Radio")(
         table(
           borderCollapse.collapse,
           tr(
@@ -438,28 +457,32 @@ object ComponentsPage extends RoutablePage.NoParams[Any] {
           ),
           td(
             padding(S.spacing._1, S.spacing._3),
-            Button("+")(
-              onClick := state.update(_ + 1),
-            ),
-          ),
-          td(
-            padding(S.spacing._1, S.spacing._3),
-            Button("-")(
+            Button(_.small)(
+              "-",
               onClick := state.update(_ - 1),
             ),
           ),
           td(
             padding(S.spacing._1, S.spacing._3),
-            Button("Remove", _.destructive.minimal)(
+            Button(_.small)(
+              "+",
+              onClick := state.update(_ + 1),
+            ),
+          ),
+          td(
+            padding(S.spacing._1, S.spacing._3),
+            Button(_.destructive.minimal.small)(
+              "Remove",
               onClick.action(idx),
             ),
           ),
         )
       }
 
-    Section.section1("Sequence")(
+    SectionWithHeader.section1("Sequence")(
       div(
-        Button("Add")(
+        Button()(
+          "Add",
           onClick.updateState[ArraySeq[Int]](0 +: _),
         ),
       ),
@@ -469,8 +492,8 @@ object ComponentsPage extends RoutablePage.NoParams[Any] {
         tr(
           border.csss(2.px, "solid", "black"),
           th(padding(S.spacing._1, S.spacing._3))("Value"),
-          th(padding(S.spacing._1, S.spacing._3))("+"),
           th(padding(S.spacing._1, S.spacing._3))("-"),
+          th(padding(S.spacing._1, S.spacing._3))("+"),
           th(padding(S.spacing._1, S.spacing._3))("Remove"),
         ),
         Widget.seq[ArraySeq].withIndex(elem).handleActionStateful.s { (s, idx) =>
@@ -482,7 +505,8 @@ object ComponentsPage extends RoutablePage.NoParams[Any] {
       ),
       div(height := 10.px),
       div(
-        Button("Add")(
+        Button()(
+          "Add",
           onClick.updateState[ArraySeq[Int]](_ :+ 0),
         ),
       ),
@@ -490,29 +514,30 @@ object ComponentsPage extends RoutablePage.NoParams[Any] {
   }
 
   private lazy val formSection: WidgetS[PageState] = {
-    Section.section1("Form")(
-      Form.textField[String]("Text Field 1").widget.discardAction.zoomOut[PageState](_.textValue),
-      Form.textField[String]("Text Field 2", "test").widget.discardAction.zoomOut[PageState](_.textValue),
-      Form.textField[String]("Text Field 3", fragment("a", br, "b")).widget.discardAction.zoomOut[PageState](_.textValue),
-      Form.textArea[String]("Text Area").widget.discardAction.zoomOut[PageState](_.textValue),
-      Form
-        .horizontalRadio[SmallEnum](
+    SectionWithHeader.section1("Form")(
+      TextField.form[String]("Text Field 1").widget.discardAction.zoomOut[PageState](_.textField),
+      TextField.form[String]("Text Field 2", _.describe("test")).widget.discardAction.zoomOut[PageState](_.textField),
+      TextField.form[String]("Text Field 3", _.describe("a\nb").label(_.mod(color.red))).widget.discardAction.zoomOut[PageState](_.textField),
+      TextArea.form[String]("Text Area").widget.discardAction.zoomOut[PageState](_.textArea),
+      HorizontalRadio
+        .form[SmallEnum](
           "Horizontal Radio 1",
-          radioDecorator = _.surroundButton("[ ")(" ]", fontWeight := S.fontWeight.extraBold),
+          _.horizontalRadio(_.buttonMod.surround("[ ")(" ]", fontWeight := S.fontWeight.extraBold)),
         )
         .widget
         .discardAction
         .zoomOut[PageState](_.horizontalRadio),
-      Form.horizontalRadio[SmallEnum]("Horizontal Radio 2", "descr").widget.discardAction.zoomOut[PageState](_.horizontalRadio),
-      Form.dropdown[BigEnum]("Dropdown 1", "descr").widget.discardAction.zoomOut[PageState](_.dropdown1),
-      Form
-        .dropdown[SmallEnum](
+      HorizontalRadio.form[SmallEnum]("Horizontal Radio 2", _.describe("descr")).widget.discardAction.zoomOut[PageState](_.horizontalRadio),
+      Dropdown.form[BigEnum]("Dropdown 1", _.describe("descr")).widget.discardAction.zoomOut[PageState](_.dropdown1),
+      Dropdown
+        .form[SmallEnum](
           "Dropdown 2",
-          dropdownDecorator = _.negative.closeOnMouseLeave.setNone("Unset").externalBorder(3.px, "red").internalBorder(1.px, "blue").maxDropdownHeight(250.px),
+          _.dropdown(_.negative.closeOnMouseLeave.setNone("Unset").externalBorder(3.px, "red").internalBorder(1.px, "blue").maxDropdownHeight(250.px)),
         )
         .widget
         .discardAction
         .zoomOut[PageState](_.dropdown2),
+      Button.form("Submit").widget.discardAction,
     )
   }
 

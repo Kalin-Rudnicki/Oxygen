@@ -419,7 +419,7 @@ object StylesPage extends RoutablePage.NoParams[Any] {
         Widget.foreach(percents) { p => colorCell(c.increaseLightness(p), s"+$p%") },
       )
 
-    Section.section1("Color Mixing")(
+    SectionWithHeader.section1("Color Mixing")(
       table(
         borderCollapse.collapse,
         tr(

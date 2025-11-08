@@ -3,7 +3,7 @@ package oxygen.ui.web.component
 import oxygen.predef.core.*
 import oxygen.ui.web.create.{*, given}
 
-object Button {
+object Button extends Decorable {
 
   //////////////////////////////////////////////////////////////////////////////////////////////////////
   //      Props
@@ -18,9 +18,9 @@ object Button {
       _cursor: String,
       _mod: NodeModifier,
   )
-  object Props {
+  object Props extends PropsCompanion {
 
-    private[Button] lazy val initial: Props =
+    override protected lazy val initialProps: Props =
       Props(StandardProps.DerivedColors.empty, StandardProps.Padding("0", "0"), S.borderRadius._0, S.fontSize._1, "0", "pointer", NodeModifier.empty)
 
   }
@@ -29,43 +29,12 @@ object Button {
   //      Decorator
   //////////////////////////////////////////////////////////////////////////////////////////////////////
 
-  final class Decorator private[Button] (private[Button] val decorator: GenericDecorator[Props]) extends DecoratorBuilder {
-
-    def name: String = decorator.show
-
-    private[Button] lazy val computed: Props = decorator.decorate(Props.initial)
-
-    def >>(that: Decorator): Decorator = Decorator { this.decorator >> that.decorator }
-    def <<(that: Decorator): Decorator = Decorator { this.decorator << that.decorator }
-
-  }
-  object Decorator extends DecoratorBuilder {
-
-    override private[Button] val decorator: GenericDecorator[Props] = GenericDecorator.empty
-
-    def all[S[_]: SeqRead](decorators: S[Decorator]): Decorator =
-      Decorator { decorators.newIterator.foldLeft(GenericDecorator.empty) { (a, b) => a >> b.decorator } }
-
-    def all(decorators: Decorator*): Decorator =
-      all(decorators)
-
-    val identity: Decorator = Decorator { GenericDecorator.empty }
-    val empty: Decorator = identity
-
-    lazy val defaultStyling: Decorator = empty.primary.standard.medium
-
-  }
-
-  trait DecoratorBuilder {
-    private[Button] val decorator: GenericDecorator[Props]
-
-    private def wrap(dec: GenericDecorator[Props]): Decorator = Decorator { decorator >> dec }
-    private def wrap(name: String)(f: Props => Props): Decorator = wrap { GenericDecorator(name)(f) }
+  trait DecoratorBuilder extends DecoratorBuilder0 {
 
     /////// Size ///////////////////////////////////////////////////////////////
 
     private def makeSize(name: String)(padding: StandardProps.Padding, borderRadius: String, fontSize: String, fontWeight: String): Decorator =
-      wrap(name) { _.copy(_padding = padding, _borderRadius = borderRadius, _fontSize = fontSize, _fontWeight = fontWeight) }
+      make(name) { _.copy(_padding = padding, _borderRadius = borderRadius, _fontSize = fontSize, _fontWeight = fontWeight) }
 
     final lazy val extraSmall: Decorator =
       makeSize("ExtraSmall")(StandardProps.Padding(S.spacing._2px, S.spacing._3), S.borderRadius._2, S.fontSize._2, S.fontWeight.semiBold)
@@ -81,14 +50,14 @@ object Button {
     /////// Color ///////////////////////////////////////////////////////////////
 
     final def modifyColors(name: String)(f: StandardProps.DerivedColors => StandardProps.DerivedColors): Decorator =
-      wrap(name) { p => p.copy(_colors = f(p._colors)) }
+      make(name) { p => p.copy(_colors = f(p._colors)) }
 
     final def baseColor(color: CSSColor): Decorator = modifyColors(s"baseColor($color)")(_.baseColor(color))
     final def baseColor(color: CSSVar): Decorator = modifyColors(s"baseColor($color)")(_.baseColor(color))
     final def baseColor(color: String): Decorator = modifyColors(s"baseColor($color)")(_.baseColor(color))
 
     private def baseStyleNamed(name: String, color: CSSVar): Decorator =
-      wrap(name) { p => p.copy(_colors = p._colors.copy(_baseColor = color.getColorValue)) }
+      make(name) { p => p.copy(_colors = p._colors.copy(_baseColor = color.getColorValue)) }
 
     final lazy val primary: Decorator = baseStyleNamed("Primary", S.color.primary)
     final lazy val positive: Decorator = baseStyleNamed("Positive", S.color.status.positive)
@@ -110,7 +79,7 @@ object Button {
         borderColor: StandardProps.DerivedColors.Group,
         cursor: Specified[String] = ___,
     ): Decorator =
-      wrap(name) { p => p.copy(_colors = p._colors.mod(modColor = _ => color, modBackgroundColor = _ => backgroundColor, modBorderColor = _ => borderColor), _cursor = cursor.getOrElse(p._cursor)) }
+      make(name) { p => p.copy(_colors = p._colors.mod(modColor = _ => color, modBackgroundColor = _ => backgroundColor, modBorderColor = _ => borderColor), _cursor = cursor.getOrElse(p._cursor)) }
 
     final lazy val standard: Decorator =
       makeStyle(
@@ -187,27 +156,32 @@ object Button {
         cursor = "progress",
       )
 
-    final def disabledWhen(condition: Boolean): Decorator = if (condition) this.disabled else Decorator(decorator)
-    final def disabledProgressWhen(condition: Boolean): Decorator = if (condition) this.disabledProgress else Decorator(decorator)
+    final def disabledWhen(condition: Boolean): Decorator = if (condition) this.disabled else Decorator(genericDecorator)
+    final def disabledProgressWhen(condition: Boolean): Decorator = if (condition) this.disabledProgress else Decorator(genericDecorator)
 
     /////// Misc ///////////////////////////////////////////////////////////////
 
-    final def padding(topBottom: String, leftRight: String): Decorator = wrap("custom(padding)") { _.copy(_padding = StandardProps.Padding(topBottom, leftRight)) }
-    final def borderRadius(radius: String): Decorator = wrap("custom(borderRadius)") { _.copy(_borderRadius = radius) }
-    final def fontSize(size: String): Decorator = wrap("custom(fontSize)") { _.copy(_fontSize = size) }
-    final def fontWeight(weight: String): Decorator = wrap("custom(fontWeight)") { _.copy(_fontWeight = weight) }
-    final def cursor(cursor: String): Decorator = wrap("custom(cursor)") { _.copy(_cursor = cursor) }
+    final def padding(topBottom: String, leftRight: String): Decorator = make("custom(padding)") { _.copy(_padding = StandardProps.Padding(topBottom, leftRight)) }
+    final def borderRadius(radius: String): Decorator = make("custom(borderRadius)") { _.copy(_borderRadius = radius) }
+    final def fontSize(size: String): Decorator = make("custom(fontSize)") { _.copy(_fontSize = size) }
+    final def fontWeight(weight: String): Decorator = make("custom(fontWeight)") { _.copy(_fontWeight = weight) }
+    final def cursor(cursor: String): Decorator = make("custom(cursor)") { _.copy(_cursor = cursor) }
 
     // TODO (KR) : some ability to wrap the element?
 
-    final def setCustomMod(mod: NodeModifier): Decorator = wrap("custom(setMod)") { _.copy(_mod = mod) }
-    final def addCustomMod(mod: NodeModifier): Decorator = wrap("custom(addMod)") { p => p.copy(_mod = p._mod <> mod) }
-    final def prepend(before: Widget*): Decorator = addCustomMod(NodeModifier.before(before*))
-    final def append(after: Widget*): Decorator = addCustomMod(NodeModifier.after(after*))
-    final def surround(before: Widget*)(after: Widget*): Decorator = addCustomMod(NodeModifier.surround(before*)(after*))
+    final lazy val mod: FocusNodeModifier = focusNodeModifier("mod")(_._mod)
 
     lazy val defaultFG: Decorator = modifyColors("Default FG") { _.setColor(S.color.fg.default) }
     lazy val inverseFG: Decorator = modifyColors("Inverse FG") { _.setColor(S.color.fg.inverse) }
+
+  }
+
+  final class Decorator private[Button] (protected val genericDecorator: GenericDecorator[Props]) extends DecoratorBuilder, DecoratorBuilderType
+  object Decorator extends DecoratorBuilder, DecoratorBuilderCompanion {
+
+    override protected def wrapGeneric(genericDecorator: GenericDecorator[Props]): Decorator = new Decorator(genericDecorator)
+
+    override lazy val defaultStyling: Decorator = empty.primary.standard.medium
 
   }
 
@@ -216,7 +190,6 @@ object Button {
   //////////////////////////////////////////////////////////////////////////////////////////////////////
 
   def apply(
-      mainText: String,
       decorator: Decorator,
   ): Node = {
     val props: Props = decorator.computed
@@ -231,20 +204,84 @@ object Button {
       fontWeight := props._fontWeight,
       cursor := props._cursor,
       props._colors.styles,
-    )(
-      mainText,
     )(props._mod)
   }
 
   def apply(
-      mainText: String,
       decorator: Decorator => Decorator,
   ): Node =
-    Button(mainText, decorator(Decorator.defaultStyling))
+    Button(decorator(Decorator.defaultStyling))
 
-  def apply(
-      mainText: String,
-  ): Node =
-    Button(mainText, Decorator.defaultStyling)
+  def apply(): Node =
+    default
+
+  lazy val default: Node = Button(Decorator.defaultStyling)
+
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
+  //      Form
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
+
+  object form extends Decorable {
+
+    //////////////////////////////////////////////////////////////////////////////////////////////////////
+    //      Props
+    //////////////////////////////////////////////////////////////////////////////////////////////////////
+
+    final case class Props(
+        button: Button.Decorator,
+        surroundingPadding: String,
+    )
+    object Props extends PropsCompanion {
+
+      override protected lazy val initialProps: Props =
+        Props(
+          button = Button.Decorator.defaultStyling,
+          surroundingPadding = css(10.px, 35.px),
+        )
+
+    }
+
+    //////////////////////////////////////////////////////////////////////////////////////////////////////
+    //      Decorator
+    //////////////////////////////////////////////////////////////////////////////////////////////////////
+
+    trait DecoratorBuilder extends DecoratorBuilder0 {
+
+      final def button(f: Button.Decorator => Button.Decorator): Decorator = {
+        val dec = f(Button.Decorator.empty)
+        make(s"button { ${dec.name} }") { current => current.copy(button = current.button >> dec) }
+      }
+
+    }
+
+    final class Decorator private[form] (protected val genericDecorator: GenericDecorator[Props]) extends DecoratorBuilder, DecoratorBuilderType
+    object Decorator extends DecoratorBuilder, DecoratorBuilderCompanion {
+
+      override protected def wrapGeneric(genericDecorator: GenericDecorator[Props]): Decorator = new Decorator(genericDecorator)
+
+      override lazy val defaultStyling: Decorator = empty
+
+    }
+
+    //////////////////////////////////////////////////////////////////////////////////////////////////////
+    //      Widget
+    //////////////////////////////////////////////////////////////////////////////////////////////////////
+
+    def apply(
+        buttonMainText: String,
+        decorator: Decorator => Decorator = identity,
+    ): SubmitForm[Unit] = {
+      val props = decorator(Decorator.empty.button(_.mod(buttonMainText))).computed
+
+      Form.unit(
+        div(
+          padding := props.surroundingPadding,
+          Button(props.button)(
+            onClick.action(Form.Submit),
+          ),
+        ),
+      )
+    }
+  }
 
 }

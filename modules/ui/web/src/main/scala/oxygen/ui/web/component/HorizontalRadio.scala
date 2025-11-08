@@ -5,7 +5,7 @@ import oxygen.ui.web.{RaiseHandler, UIError}
 import oxygen.ui.web.create.{*, given}
 import zio.*
 
-object HorizontalRadio {
+object HorizontalRadio extends Decorable {
 
   //////////////////////////////////////////////////////////////////////////////////////////////////////
   //      Props
@@ -33,9 +33,9 @@ object HorizontalRadio {
     lazy val notSelectedHoverColor: CSSColor = _notSelectedHoverTransform.transform(_notSelectedBGColor)
 
   }
-  object Props {
+  object Props extends PropsCompanion {
 
-    private[HorizontalRadio] lazy val initial: Props =
+    override protected lazy val initialProps: Props =
       Props(
         _selectedFGColor = "transparent",
         _selectedBGColor = CSSColor.transparent,
@@ -60,43 +60,12 @@ object HorizontalRadio {
   //      Decorator
   //////////////////////////////////////////////////////////////////////////////////////////////////////
 
-  final class Decorator private[HorizontalRadio] (private[HorizontalRadio] val decorator: GenericDecorator[Props]) extends DecoratorBuilder {
-
-    def name: String = decorator.show
-
-    private[HorizontalRadio] lazy val computed: Props = decorator.decorate(Props.initial)
-
-    def >>(that: Decorator): Decorator = Decorator { this.decorator >> that.decorator }
-    def <<(that: Decorator): Decorator = Decorator { this.decorator << that.decorator }
-
-  }
-  object Decorator extends DecoratorBuilder {
-
-    override private[HorizontalRadio] val decorator: GenericDecorator[Props] = GenericDecorator.empty
-
-    def all[S[_]: SeqRead](decorators: S[Decorator]): Decorator =
-      Decorator { decorators.newIterator.foldLeft(GenericDecorator.empty) { (a, b) => a >> b.decorator } }
-
-    def all(decorators: Decorator*): Decorator =
-      all(decorators)
-
-    val identity: Decorator = Decorator { GenericDecorator.empty }
-    val empty: Decorator = identity
-
-    lazy val defaultStyling: Decorator = empty.positive.medium
-
-  }
-
-  trait DecoratorBuilder {
-    private[HorizontalRadio] val decorator: GenericDecorator[Props]
-
-    private def wrap(dec: GenericDecorator[Props]): Decorator = Decorator { decorator >> dec }
-    private def wrap(name: String)(f: Props => Props): Decorator = wrap { GenericDecorator(name)(f) }
+  trait DecoratorBuilder extends DecoratorBuilder0 {
 
     /////// Size ///////////////////////////////////////////////////////////////
 
     private def makeSize(name: String, padding: StandardProps.Padding, borderRadius: String, fontSize: String): Decorator =
-      wrap(name) { _.copy(_padding = padding, _borderRadius = borderRadius, _fontSize = fontSize) }
+      make(name) { _.copy(_padding = padding, _borderRadius = borderRadius, _fontSize = fontSize) }
 
     final lazy val small: Decorator = makeSize("Small", StandardProps.Padding(S.spacing._1, S.spacing._3), S.borderRadius._3, S.fontSize._2)
     final lazy val medium: Decorator = makeSize("Medium", StandardProps.Padding(s"calc(${S.spacing._1} * 1.5)", S.spacing._4), S.borderRadius._4, S.fontSize._4)
@@ -105,9 +74,9 @@ object HorizontalRadio {
     /////// Colors ///////////////////////////////////////////////////////////////
 
     private def makeSelected(name: String, bgColor: String, fgColor: String, transform: ColorTransform): Decorator =
-      wrap(s"Selected($name)") { _.copy(_selectedBGColor = CSSColor.eval(bgColor), _selectedFGColor = fgColor, _selectedHoverTransform = transform) }
+      make(s"Selected($name)") { _.copy(_selectedBGColor = CSSColor.eval(bgColor), _selectedFGColor = fgColor, _selectedHoverTransform = transform) }
     private def makeNotSelected(name: String, bgColor: String, fgColor: String, transform: ColorTransform): Decorator =
-      wrap(s"NotSelected($name)") { _.copy(_notSelectedBGColor = CSSColor.eval(bgColor), _notSelectedFGColor = fgColor, _notSelectedHoverTransform = transform) }
+      make(s"NotSelected($name)") { _.copy(_notSelectedBGColor = CSSColor.eval(bgColor), _notSelectedFGColor = fgColor, _notSelectedHoverTransform = transform) }
 
     final lazy val primarySelected: Decorator = makeSelected("Primary", S.color.primary, S.color.fg.inverse, ColorTransform.lighten(30.0))
     final lazy val positiveSelected: Decorator = makeSelected("Positive", S.color.status.positive, S.color.fg.inverse, ColorTransform.lighten(30.0))
@@ -148,40 +117,28 @@ object HorizontalRadio {
     final lazy val brandPrimary2: Decorator = brandPrimary2Selected.offNotSelected
     final lazy val positiveNegative: Decorator = positiveSelected.negativeNotSelected
 
-    final def selectedFGColor(color: String): Decorator = wrap("custom(selectedFGColor)") { _.copy(_selectedFGColor = color) }
-    final def selectedBGColor(color: String): Decorator = wrap("custom(selectedBGColor)") { _.copy(_selectedBGColor = CSSColor.eval(color)) }
-    final def notSelectedFGColor(color: String): Decorator = wrap("custom(notSelectedFGColor)") { _.copy(_notSelectedFGColor = color) }
-    final def notSelectedBGColor(color: String): Decorator = wrap("custom(notSelectedBGColor)") { _.copy(_notSelectedBGColor = CSSColor.eval(color)) }
-    final def selectedHoverColorTransform(transform: ColorTransform): Decorator = wrap("custom(selectedHoverColorTransform)") { _.copy(_selectedHoverTransform = transform) }
-    final def notSelectedHoverColorTransform(transform: ColorTransform): Decorator = wrap("custom(notSelectedHoverColorTransform)") { _.copy(_notSelectedHoverTransform = transform) }
+    final def selectedFGColor(color: String): Decorator = make("custom(selectedFGColor)") { _.copy(_selectedFGColor = color) }
+    final def selectedBGColor(color: String): Decorator = make("custom(selectedBGColor)") { _.copy(_selectedBGColor = CSSColor.eval(color)) }
+    final def notSelectedFGColor(color: String): Decorator = make("custom(notSelectedFGColor)") { _.copy(_notSelectedFGColor = color) }
+    final def notSelectedBGColor(color: String): Decorator = make("custom(notSelectedBGColor)") { _.copy(_notSelectedBGColor = CSSColor.eval(color)) }
+    final def selectedHoverColorTransform(transform: ColorTransform): Decorator = make("custom(selectedHoverColorTransform)") { _.copy(_selectedHoverTransform = transform) }
+    final def notSelectedHoverColorTransform(transform: ColorTransform): Decorator = make("custom(notSelectedHoverColorTransform)") { _.copy(_notSelectedHoverTransform = transform) }
 
     /////// Misc ///////////////////////////////////////////////////////////////
 
-    final def setCustomMod(mod: NodeModifier): Decorator = wrap("custom(setMod)") { _.copy(_mod = mod) }
-    final def addCustomMod(mod: NodeModifier): Decorator = wrap("custom(addMod)") { p => p.copy(_mod = p._mod <> mod) }
-    final def prepend(before: Widget*): Decorator = addCustomMod(NodeModifier.before(before*))
-    final def append(after: Widget*): Decorator = addCustomMod(NodeModifier.after(after*))
-    final def surround(before: Widget*)(after: Widget*): Decorator = addCustomMod(NodeModifier.surround(before*)(after*))
+    final lazy val mod: FocusNodeModifier = focusNodeModifier("mod")(_._mod)
+    final lazy val buttonMod: FocusNodeModifier = focusNodeModifier("buttonMod")(_._selectedButtonMod, _._notSelectedButtonMod)
+    final lazy val selectedButtonMod: FocusNodeModifier = focusNodeModifier("selectedButtonMod")(_._selectedButtonMod)
+    final lazy val notSelectedButtonMod: FocusNodeModifier = focusNodeModifier("notSelectedButtonMod")(_._notSelectedButtonMod)
 
-    final def setCustomButtonMod(mod: NodeModifier): Decorator =
-      wrap("custom(setButtonMod)") { _.copy(_selectedButtonMod = mod, _notSelectedButtonMod = mod) }
-    final def addCustomButtonMod(mod: NodeModifier): Decorator =
-      wrap("custom(addButtonMod)") { p => p.copy(_selectedButtonMod = p._selectedButtonMod <> mod, _notSelectedButtonMod = p._notSelectedButtonMod <> mod) }
-    final def prependButton(before: Widget*): Decorator = addCustomButtonMod(NodeModifier.before(before*))
-    final def appendButton(after: Widget*): Decorator = addCustomButtonMod(NodeModifier.after(after*))
-    final def surroundButton(before: Widget*)(after: Widget*): Decorator = addCustomButtonMod(NodeModifier.surround(before*)(after*))
+  }
 
-    final def setCustomSelectedButtonMod(mod: NodeModifier): Decorator = wrap("custom(setSelectedButtonMod)") { _.copy(_selectedButtonMod = mod) }
-    final def addCustomSelectedButtonMod(mod: NodeModifier): Decorator = wrap("custom(addSelectedButtonMod)") { p => p.copy(_selectedButtonMod = p._selectedButtonMod <> mod) }
-    final def prependSelectedButton(before: Widget*): Decorator = addCustomSelectedButtonMod(NodeModifier.before(before*))
-    final def appendSelectedButton(after: Widget*): Decorator = addCustomSelectedButtonMod(NodeModifier.after(after*))
-    final def surroundSelectedButton(before: Widget*)(after: Widget*): Decorator = addCustomSelectedButtonMod(NodeModifier.surround(before*)(after*))
+  final class Decorator private[HorizontalRadio] (protected val genericDecorator: GenericDecorator[Props]) extends DecoratorBuilder, DecoratorBuilderType
+  object Decorator extends DecoratorBuilder, DecoratorBuilderCompanion {
 
-    final def setCustomNotSelectedButtonMod(mod: NodeModifier): Decorator = wrap("custom(setNotSelectedButtonMod)") { _.copy(_notSelectedButtonMod = mod) }
-    final def addCustomNotSelectedButtonMod(mod: NodeModifier): Decorator = wrap("custom(addNotSelectedButtonMod)") { p => p.copy(_notSelectedButtonMod = p._notSelectedButtonMod <> mod) }
-    final def prependNotSelectedButton(before: Widget*): Decorator = addCustomNotSelectedButtonMod(NodeModifier.before(before*))
-    final def appendNotSelectedButton(after: Widget*): Decorator = addCustomNotSelectedButtonMod(NodeModifier.after(after*))
-    final def surroundNotSelectedButton(before: Widget*)(after: Widget*): Decorator = addCustomNotSelectedButtonMod(NodeModifier.surround(before*)(after*))
+    override protected def wrapGeneric(genericDecorator: GenericDecorator[Props]): Decorator = new Decorator(genericDecorator)
+
+    override lazy val defaultStyling: Decorator = empty.positive.medium
 
   }
 
@@ -315,6 +272,100 @@ object HorizontalRadio {
 
     final def apply(): WidgetAS[A, State[S]] =
       default
+
+  }
+
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
+  //      Form
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
+
+  object form extends Decorable {
+
+    //////////////////////////////////////////////////////////////////////////////////////////////////////
+    //      Props
+    //////////////////////////////////////////////////////////////////////////////////////////////////////
+
+    final case class Props(
+        label: Label.Decorator,
+        horizontalRadio: HorizontalRadio.Decorator,
+        labelSpacing: Option[String],
+        surroundingPadding: String,
+    )
+    object Props extends PropsCompanion {
+
+      override protected lazy val initialProps: Props =
+        Props(
+          label = Label.Decorator.defaultStyling,
+          horizontalRadio = HorizontalRadio.Decorator.defaultStyling,
+          labelSpacing = Label.defaultInputSpacing.some,
+          surroundingPadding = 10.px,
+        )
+
+    }
+
+    //////////////////////////////////////////////////////////////////////////////////////////////////////
+    //      Decorator
+    //////////////////////////////////////////////////////////////////////////////////////////////////////
+
+    trait DecoratorBuilder extends DecoratorBuilder0 {
+
+      final def label(f: Label.Decorator => Label.Decorator): Decorator = {
+        val dec = f(Label.Decorator.empty)
+        make(s"label { ${dec.name} }") { current => current.copy(label = current.label >> dec) }
+      }
+
+      final def horizontalRadio(f: HorizontalRadio.Decorator => HorizontalRadio.Decorator): Decorator = {
+        val dec = f(HorizontalRadio.Decorator.empty)
+        make(s"horizontalRadio { ${dec.name} }") { current => current.copy(horizontalRadio = current.horizontalRadio >> dec) }
+      }
+
+      final def describe(description: Widget): Decorator =
+        make("describe") { current => current.copy(label = current.label.describe(description)) }
+
+    }
+
+    final class Decorator private[form] (protected val genericDecorator: GenericDecorator[Props]) extends DecoratorBuilder, DecoratorBuilderType
+    object Decorator extends DecoratorBuilder, DecoratorBuilderCompanion {
+
+      override protected def wrapGeneric(genericDecorator: GenericDecorator[Props]): Decorator = new Decorator(genericDecorator)
+
+      override lazy val defaultStyling: Decorator = empty
+
+    }
+
+    //////////////////////////////////////////////////////////////////////////////////////////////////////
+    //      Widget
+    //////////////////////////////////////////////////////////////////////////////////////////////////////
+
+    def apply[A](
+        label: String,
+        show: A => String,
+        decorator: Decorator => Decorator,
+    ): FormS[HorizontalRadio.State[A], A] = {
+      val props = decorator(Decorator.empty.label(_.label(label))).computed
+
+      Form.makeWith(
+        label,
+        div(
+          padding := props.surroundingPadding,
+          width.fitContent,
+          Label(props.label),
+          Spacing.vertical.opt(props.labelSpacing),
+          div(HorizontalRadio[A].show(show).decorate(props.horizontalRadio)),
+        ),
+      )(_.selected)
+    }
+
+    def apply[A](
+        label: String,
+        decorator: Decorator => Decorator,
+    ): FormS[HorizontalRadio.State[A], A] =
+      apply[A](label, _.toString, decorator)
+
+    def apply[A](
+        label: String,
+    ): FormS[HorizontalRadio.State[A], A] =
+      apply[A](label, _.toString, identity)
 
   }
 

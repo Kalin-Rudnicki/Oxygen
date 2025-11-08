@@ -3,98 +3,78 @@ package oxygen.ui.web.component
 import oxygen.ui.web.*
 import oxygen.ui.web.create.{*, given}
 
-// TODO (KR) : give this the decorator treatment
-object Section {
+object Section extends Decorable {
 
-  object section1 {
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
+  //      Props
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
 
-    // TODO (KR) : add more of these spacing properties to Props
-    final case class Props(
-        headerColor: String = S.color.primary,
-    )
+  final case class Props(
+      margin: String,
+      padding: String,
+      borderRadius: String,
+      backgroundColor: String,
+  )
+  object Props extends PropsCompanion {
 
-    val empty: Node =
-      div(
-        margin(S.spacing._2, S.spacing._14),
-        padding(S.spacing._5, S.spacing._10),
-        borderRadius := S.borderRadius._8,
-        backgroundColor := S.color.bg.layerOne,
-      )
-
-    def header(headerText: String, props: Props.type => Props = _()): Node = {
-      val _props: Props = props(Props)
-      h2(
-        headerText,
-        color := _props.headerColor,
-        padding(S.spacing._1, S.spacing._10),
-        margin(0.px, S.spacing._10),
-        borderBottom(2.px, "solid", _props.headerColor),
-        width.fitContent,
-      )
-    }
-
-    def apply(headerText: String, props: Props.type => Props = _()): Node =
-      empty(
-        header(headerText, props),
-        div(height := S.spacing._5),
+    override protected lazy val initialProps: Props =
+      Props(
+        margin = "0",
+        padding = "0",
+        borderRadius = "0",
+        backgroundColor = "transparent",
       )
 
   }
 
-  object section2 {
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
+  //      Decorator
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
 
-    // TODO (KR) : add more of these spacing properties to Props
-    final case class Props(
-        headerColor: String = S.color.fg.moderate,
-    )
+  trait DecoratorBuilder extends DecoratorBuilder0 {
 
-    val empty: Node =
-      div(
-        margin(S.spacing._2, S.spacing._0),
-        padding(S.spacing._5, S.spacing._10),
-        borderRadius := S.borderRadius._5,
-        backgroundColor := S.color.bg.layerTwo,
-      )
+    final lazy val section1: Decorator =
+      make("section1") { _.copy(margin = css(S.spacing._2, S.spacing._14), padding = css(S.spacing._5, S.spacing._10), borderRadius = S.borderRadius._8, backgroundColor = S.color.bg.layerOne) }
 
-    def header(headerText: String, props: Props.type => Props = _()): Node = {
-      val _props: Props = props(Props)
-      h2(
-        headerText,
-        color := _props.headerColor,
-        padding(S.spacing._1, S.spacing._5),
-        margin(0.px, S.spacing._10),
-        borderBottom(2.px, "solid", _props.headerColor),
-        width.fitContent,
-      )
-    }
+    final lazy val section2: Decorator =
+      make("section2") { _.copy(margin = css(S.spacing._2, S.spacing._0), padding = css(S.spacing._5, S.spacing._10), borderRadius = S.borderRadius._5, backgroundColor = S.color.bg.layerTwo) }
 
-    def apply(headerText: String, props: Props.type => Props = _()): Node =
-      empty(
-        header(headerText, props),
-        div(height := S.spacing._5),
-      )
+    final lazy val section3: Decorator =
+      make("section3") { _.copy(margin = css(S.spacing._1, S.spacing._0), padding = css(S.spacing._3, S.spacing._6), borderRadius = S.borderRadius._3, backgroundColor = S.color.bg.layerThree) }
 
   }
 
-  object info {
+  final class Decorator private[Section] (protected val genericDecorator: GenericDecorator[Props]) extends DecoratorBuilder, DecoratorBuilderType
+  object Decorator extends DecoratorBuilder, DecoratorBuilderCompanion {
 
-    final case class Props(
-        borderColor: String = S.color.status.informational,
-        backHighlight: Boolean = false, // if you want to use this, your color must be a 6-digit hex string, or a variable that points to one
-    )
+    override protected def wrapGeneric(genericDecorator: GenericDecorator[Props]): Decorator = new Decorator(genericDecorator)
 
-    def apply(props: Props.type => Props = _()): Node = {
-      val _props: Props = props(Props)
-      p(
-        margin(S.spacing._2, S.spacing._0),
-        padding(S.spacing._2, S.spacing._4),
-        borderLeft(2.px, "solid", _props.borderColor),
-        Widget.when(_props.backHighlight) {
-          backgroundColor := CSSColor.eval(_props.borderColor).setOpacity(10.0)
-        },
-      )
-    }
+    override lazy val defaultStyling: Decorator = empty
 
   }
+
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
+  //      Widget
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
+
+  def apply(decorator: Decorator): Node = {
+    val props = decorator.computed
+
+    div(
+      margin := props.margin,
+      padding := props.padding,
+      borderRadius := props.borderRadius,
+      backgroundColor := props.backgroundColor,
+    )
+  }
+
+  def section1(decorator: Decorator => Decorator = identity): Node =
+    apply(decorator(Decorator.section1))
+
+  def section2(decorator: Decorator => Decorator = identity): Node =
+    apply(decorator(Decorator.section2))
+
+  def section3(decorator: Decorator => Decorator = identity): Node =
+    apply(decorator(Decorator.section3))
 
 }

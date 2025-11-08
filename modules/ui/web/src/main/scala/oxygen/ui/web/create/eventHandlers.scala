@@ -66,6 +66,7 @@ object onKeyUp extends EventHandlerBuilder[KeyboardEvent]("onkeyup")
 object onKeyPress extends EventHandlerBuilder[KeyboardEvent]("onkeypress")
 
 object onChange extends EventHandlerBuilder[Event]("onchange")
+object onInput extends EventHandlerBuilder[Event]("oninput")
 object onSubmit extends EventHandlerBuilder[Event]("onsubmit")
 object onReset extends EventHandlerBuilder[Event]("onreset")
 

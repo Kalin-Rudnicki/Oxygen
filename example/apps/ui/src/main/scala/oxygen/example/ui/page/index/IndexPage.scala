@@ -33,7 +33,7 @@ object IndexPage extends RoutablePage.NoParams[LocalService] {
 
   override protected def component(state: WidgetState[PageState], renderState: PageState): WidgetES[LocalService, PageState] =
     PageLayout.layout(optionalSignedInNavBar(renderState.user))(
-      PageMessagesBottomCorner.attached,
+      PageMessagesBottomCorner.default,
       h1("Oxygen Example"),
     )
 

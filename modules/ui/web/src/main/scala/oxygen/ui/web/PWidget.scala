@@ -4,7 +4,7 @@ import monocle.Lens
 import org.scalajs.dom.CanvasRenderingContext2D
 import oxygen.meta.typing.UnionRemoving
 import oxygen.predef.core.*
-import oxygen.ui.web.component.{Form, FormWidget}
+import oxygen.ui.web.component.Form
 import oxygen.ui.web.create.{Component, NodeModifier}
 import oxygen.ui.web.internal.*
 import scala.annotation.tailrec
@@ -105,13 +105,13 @@ object PWidget {
     def asFormWith[Value](f: State => Value): Form.Stateful[Env, Action, State, Value] =
       Form.makeWith(self)(f)
 
-    def asFormWithValidation[Value](fields: List[String])(f: State => FormWidget.EitherMessage[Value]): Form.Stateful[Env, Action, State, Value] =
+    def asFormWithValidation[Value](fields: List[String])(f: State => PForm.EitherMessage[Value]): Form.Stateful[Env, Action, State, Value] =
       Form.makeWithValidation(fields, self)(f)
 
-    def asFormWithValidation[Value](field: String)(f: State => FormWidget.EitherMessage[Value]): Form.Stateful[Env, Action, State, Value] =
+    def asFormWithValidation[Value](field: String)(f: State => PForm.EitherMessage[Value]): Form.Stateful[Env, Action, State, Value] =
       Form.makeWithValidation(field, self)(f)
 
-    def asFormWithValidation[Value](f: State => FormWidget.EitherMessage[Value]): Form.Stateful[Env, Action, State, Value] =
+    def asFormWithValidation[Value](f: State => PForm.EitherMessage[Value]): Form.Stateful[Env, Action, State, Value] =
       Form.makeWithValidation(self)(f)
 
   }
@@ -618,7 +618,7 @@ object PWidget {
     def wrapForm[Env2 <: Env, Action2 >: Action, StateGet2 <: StateGet, StateSet2 >: StateSet <: StateGet2, Value](
         form: Form.Polymorphic[Env2, Action2, StateGet2, StateSet2, Value],
     ): Form.Polymorphic[Env2, Action2, StateGet2, StateSet2, Value] =
-      Form(this.apply(form.widget), form.fields, form.stateToValue)
+      PForm(this.apply(form.widget), form.value)
 
     def wrapForm[Env2 <: Env, Action2 >: Action, StateGet2 <: StateGet, StateSet2 >: StateSet <: StateGet2, Value](
         beforeForm: PWidget[Env2, Action2, StateGet2, StateSet2]*,
@@ -627,7 +627,7 @@ object PWidget {
     )(
         afterForm: PWidget[Env2, Action2, StateGet2, StateSet2]*,
     ): Form.Polymorphic[Env2, Action2, StateGet2, StateSet2, Value] =
-      Form(this.apply(beforeForm*).apply(form.widget).apply(afterForm*), form.fields, form.stateToValue)
+      PForm(this.apply(beforeForm*).apply(form.widget).apply(afterForm*), form.value)
 
   }
   object Node {
@@ -686,6 +686,11 @@ object PWidget {
     ): Fragment[Env2, Action2, StateGet2, StateSet2] =
       if (addElements.isEmpty) this
       else Fragment(elements ++ Growable.many(addElements))
+
+    def apply(mod: NodeModifier): PWidget.Fragment[Env, Action, StateGet, StateSet] =
+      PWidget.Fragment(
+        Growable.single(mod.before) ++ elements ++ Growable.single(mod.after),
+      )
 
   }
   object Fragment {
