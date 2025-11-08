@@ -25,6 +25,7 @@ object OxygenStyleSheet extends StyleSheetBuilder {
   T.apply("*")
     .apply(
       boxSizing.borderBox,
+      fontStyle := S.fontStyle.default,
     )
 
   //////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -208,7 +209,7 @@ object OxygenStyleSheet extends StyleSheetBuilder {
     HorizontalRadio.Button(
       display.inlineBlock,
       margin := "0",
-      fontWeight._500,
+      fontWeight := S.fontWeight.medium,
     )
 
     object Button extends hr.Class("button")

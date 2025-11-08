@@ -188,6 +188,21 @@ object OxygenStyleVarDefaults {
       val _15: String = 4.rem
     }
 
+    object fontStyle extends FontStyle {
+      val default: String = "Roboto Flex, Roboto Condensed"
+    }
+
+    object fontWeight extends FontWeight {
+      val thin: String = "100"
+      val light: String = "300"
+      val regular: String = "400"
+      val medium: String = "500"
+      val semiBold: String = "600"
+      val bold: String = "700"
+      val extraBold: String = "800"
+      val black: String = "900"
+    }
+
   }
 
 }

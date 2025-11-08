@@ -9,7 +9,7 @@ object Button {
   //      Props
   //////////////////////////////////////////////////////////////////////////////////////////////////////
 
-  final case class Props private[Button] (
+  final case class Props(
       _colors: StandardProps.DerivedColors,
       _padding: StandardProps.Padding,
       _borderRadius: String,
@@ -64,16 +64,19 @@ object Button {
 
     /////// Size ///////////////////////////////////////////////////////////////
 
+    private def makeSize(name: String)(padding: StandardProps.Padding, borderRadius: String, fontSize: String, fontWeight: String): Decorator =
+      wrap(name) { _.copy(_padding = padding, _borderRadius = borderRadius, _fontSize = fontSize, _fontWeight = fontWeight) }
+
     final lazy val extraSmall: Decorator =
-      wrap("ExtraSmall") { _.copy(_padding = StandardProps.Padding(S.spacing._2px, S.spacing._3), _borderRadius = S.borderRadius._2, _fontSize = S.fontSize._2, _fontWeight = "600") }
+      makeSize("ExtraSmall")(StandardProps.Padding(S.spacing._2px, S.spacing._3), S.borderRadius._2, S.fontSize._2, S.fontWeight.semiBold)
     final lazy val small: Decorator =
-      wrap("Small") { _.copy(_padding = StandardProps.Padding(S.spacing._1, S.spacing._4), _borderRadius = S.borderRadius._4, _fontSize = S.fontSize._3, _fontWeight = "600") }
+      makeSize("Small")(StandardProps.Padding(S.spacing._1, S.spacing._4), S.borderRadius._4, S.fontSize._3, S.fontWeight.semiBold)
     final lazy val medium: Decorator =
-      wrap("Medium") { _.copy(_padding = StandardProps.Padding(S.spacing._2, S.spacing._8), _borderRadius = S.borderRadius._5, _fontSize = S.fontSize._4, _fontWeight = "700") }
+      makeSize("Medium")(StandardProps.Padding(S.spacing._2, S.spacing._8), S.borderRadius._5, S.fontSize._4, S.fontWeight.bold)
     final lazy val large: Decorator =
-      wrap("Large") { _.copy(_padding = StandardProps.Padding(S.spacing._3, S.spacing._10), _borderRadius = S.borderRadius._5, _fontSize = S.fontSize._4, _fontWeight = "700") }
+      makeSize("Large")(StandardProps.Padding(S.spacing._3, S.spacing._10), S.borderRadius._5, S.fontSize._4, S.fontWeight.bold)
     final lazy val extraLarge: Decorator =
-      wrap("ExtraLarge") { _.copy(_padding = StandardProps.Padding(S.spacing._4, S.spacing._14), _borderRadius = S.borderRadius._7, _fontSize = S.fontSize._5, _fontWeight = "700") }
+      makeSize("ExtraLarge")(StandardProps.Padding(S.spacing._4, S.spacing._14), S.borderRadius._7, S.fontSize._5, S.fontWeight.bold)
 
     /////// Color ///////////////////////////////////////////////////////////////
 

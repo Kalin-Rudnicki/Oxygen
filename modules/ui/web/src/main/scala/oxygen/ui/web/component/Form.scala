@@ -157,7 +157,7 @@ object Form {
       labelMod: NodeModifier = NodeModifier.empty,
   ): Widget.Const =
     Widget.fragment(
-      div(label(labelText, padding(S.spacing._2, S.spacing._5), fontWeight._600, fontSize := S.fontSize._4)(labelMod)),
+      div(label(labelText, padding(S.spacing._2, S.spacing._5), fontWeight := S.fontWeight.semiBold, fontSize := S.fontSize._4)(labelMod)),
       Widget.foreach(descriptionText.toOption) { descr =>
         div(padding(S.spacing._0, S.spacing._8))(
           descr,

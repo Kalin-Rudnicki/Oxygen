@@ -7,6 +7,8 @@ abstract class OxygenStyleVars[T] {
   val borderWidth: BorderWidth
   val borderRadius: BorderRadius
   val fontSize: FontSize
+  val fontStyle: FontStyle
+  val fontWeight: FontWeight
 
   // TODO (KR) : add missing:
   //           : - font family
@@ -164,6 +166,21 @@ abstract class OxygenStyleVars[T] {
     val _15: T
   }
 
+  abstract class FontStyle {
+    val default: T
+  }
+
+  abstract class FontWeight {
+    val thin: T
+    val light: T
+    val regular: T
+    val medium: T
+    val semiBold: T
+    val bold: T
+    val extraBold: T
+    val black: T
+  }
+
   ///////  ///////////////////////////////////////////////////////////////
 
   abstract class ColorWithStrength {
@@ -318,6 +335,17 @@ object OxygenStyleVars extends OxygenStyleVars[CSSVar] {
       OxygenStyleVars.fontSize._13 -> vars.fontSize._13,
       OxygenStyleVars.fontSize._14 -> vars.fontSize._14,
       OxygenStyleVars.fontSize._15 -> vars.fontSize._15,
+      // font style
+      OxygenStyleVars.fontStyle.default -> vars.fontStyle.default,
+      // font weight
+      OxygenStyleVars.fontWeight.thin -> vars.fontWeight.thin,
+      OxygenStyleVars.fontWeight.light -> vars.fontWeight.light,
+      OxygenStyleVars.fontWeight.regular -> vars.fontWeight.regular,
+      OxygenStyleVars.fontWeight.medium -> vars.fontWeight.medium,
+      OxygenStyleVars.fontWeight.semiBold -> vars.fontWeight.semiBold,
+      OxygenStyleVars.fontWeight.bold -> vars.fontWeight.bold,
+      OxygenStyleVars.fontWeight.extraBold -> vars.fontWeight.extraBold,
+      OxygenStyleVars.fontWeight.black -> vars.fontWeight.black,
     )
 
   object color extends Colors {
@@ -494,6 +522,21 @@ object OxygenStyleVars extends OxygenStyleVars[CSSVar] {
     val _13: CSSVar = CSSVar("style--font-size--13")
     val _14: CSSVar = CSSVar("style--font-size--14")
     val _15: CSSVar = CSSVar("style--font-size--15")
+  }
+
+  object fontStyle extends FontStyle {
+    val default: CSSVar = CSSVar("style--font-style--default")
+  }
+
+  object fontWeight extends FontWeight {
+    val thin: CSSVar = CSSVar("style--font-weight--thin")
+    val light: CSSVar = CSSVar("style--font-weight--light")
+    val regular: CSSVar = CSSVar("style--font-weight--regular")
+    val medium: CSSVar = CSSVar("style--font-weight--medium")
+    val semiBold: CSSVar = CSSVar("style--font-weight--semi-bold")
+    val bold: CSSVar = CSSVar("style--font-weight--bold")
+    val extraBold: CSSVar = CSSVar("style--font-weight--extra-bold")
+    val black: CSSVar = CSSVar("style--font-weight--black")
   }
 
 }
