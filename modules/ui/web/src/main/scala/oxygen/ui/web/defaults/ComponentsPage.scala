@@ -498,7 +498,7 @@ object ComponentsPage extends RoutablePage.NoParams[Any] {
       Form
         .horizontalRadio[SmallEnum](
           "Horizontal Radio 1",
-          radioDecorator = _.surroundButton("[ ")(" ]", fontWeight._800),
+          radioDecorator = _.surroundButton("[ ")(" ]", fontWeight := S.fontWeight.extraBold),
         )
         .widget
         .discardAction
