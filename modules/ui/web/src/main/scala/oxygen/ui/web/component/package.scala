@@ -10,6 +10,5 @@ package oxygen.ui.web
 //           : - Link
 //           : - RadioButtons
 //           : - SearchBar
-//           : - Table
 //           : - Tabs
 package object component

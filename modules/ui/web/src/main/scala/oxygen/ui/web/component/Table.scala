@@ -1,25 +1,12 @@
 package oxygen.ui.web.component
 
-import oxygen.predef.core.*
 import oxygen.ui.web.create.{*, given}
 
-object Table {
+object Table extends Decorable {
 
   //////////////////////////////////////////////////////////////////////////////////////////////////////
   //      Props
   //////////////////////////////////////////////////////////////////////////////////////////////////////
-
-  final case class Defaults(
-      _defaultFGColor: String,
-      _defaultBGColor: String,
-      _defaultPadding: StandardProps.Padding,
-      _defaultAlignment: String,
-  )
-
-  enum Borders {
-    case Rows
-    case Cells
-  }
 
   final case class Props(
       _header: Defaults,
@@ -28,9 +15,9 @@ object Table {
       _borderColor: String,
       _borderWidth: String,
   )
-  object Props {
+  object Props extends PropsCompanion {
 
-    private[Table] lazy val initial: Props =
+    override protected lazy val initialProps: Props =
       Props(
         _header = Defaults(
           _defaultFGColor = "transparent",
@@ -51,45 +38,26 @@ object Table {
 
   }
 
+  final case class Defaults(
+      _defaultFGColor: String,
+      _defaultBGColor: String,
+      _defaultPadding: StandardProps.Padding,
+      _defaultAlignment: String,
+  )
+
+  enum Borders {
+    case Rows
+    case Cells
+  }
+
   //////////////////////////////////////////////////////////////////////////////////////////////////////
   //      Decorator
   //////////////////////////////////////////////////////////////////////////////////////////////////////
 
-  final class Decorator private[Table] (private[Table] val decorator: GenericDecorator[Props]) extends DecoratorBuilder {
+  trait DecoratorBuilder extends DecoratorBuilder0 {
 
-    def name: String = decorator.show
-
-    private[Table] lazy val computed: Props = decorator.decorate(Props.initial)
-
-    def >>(that: Decorator): Decorator = Decorator { this.decorator >> that.decorator }
-    def <<(that: Decorator): Decorator = Decorator { this.decorator << that.decorator }
-
-  }
-  object Decorator extends DecoratorBuilder {
-
-    override private[Table] val decorator: GenericDecorator[Props] = GenericDecorator.empty
-
-    def all[S[_]: SeqRead](decorators: S[Decorator]): Decorator =
-      Decorator { decorators.newIterator.foldLeft(GenericDecorator.empty) { (a, b) => a >> b.decorator } }
-
-    def all(decorators: Decorator*): Decorator =
-      all(decorators)
-
-    val identity: Decorator = Decorator { GenericDecorator.empty }
-    val empty: Decorator = identity
-
-    lazy val defaultStyling: Decorator = empty.primaryHeaders.baseCells
-
-  }
-
-  trait DecoratorBuilder {
-    private[Table] val decorator: GenericDecorator[Props]
-
-    private def wrap(dec: GenericDecorator[Props]): Decorator = Decorator { decorator >> dec }
-    private def wrap(name: String)(f: Props => Props): Decorator = wrap { GenericDecorator(name)(f) }
-
-    private def modHeaders(name: String)(f: Defaults => Defaults): Decorator = wrap(name) { p => p.copy(_header = f(p._header)) }
-    private def modCells(name: String)(f: Defaults => Defaults): Decorator = wrap(name) { p => p.copy(_cell = f(p._cell)) }
+    private def modHeaders(name: String)(f: Defaults => Defaults): Decorator = make(name) { p => p.copy(_header = f(p._header)) }
+    private def modCells(name: String)(f: Defaults => Defaults): Decorator = make(name) { p => p.copy(_cell = f(p._cell)) }
 
     /////// Alignment ///////////////////////////////////////////////////////////////
 
@@ -147,10 +115,19 @@ object Table {
 
     /////// Borders ///////////////////////////////////////////////////////////////
 
-    final lazy val rowBorders: Decorator = wrap("Borders(Rows)") { _.copy(_borders = Borders.Rows) }
-    final lazy val cellBorders: Decorator = wrap("Borders(Cells)") { _.copy(_borders = Borders.Cells) }
+    final lazy val rowBorders: Decorator = make("Borders(Rows)") { _.copy(_borders = Borders.Rows) }
+    final lazy val cellBorders: Decorator = make("Borders(Cells)") { _.copy(_borders = Borders.Cells) }
 
-    final def borders(color: String, width: String): Decorator = wrap("custom(borders)") { _.copy(_borderWidth = width, _borderColor = color) }
+    final def borders(color: String, width: String): Decorator = make("custom(borders)") { _.copy(_borderWidth = width, _borderColor = color) }
+
+  }
+
+  final class Decorator private[Table] (protected val genericDecorator: GenericDecorator[Props]) extends DecoratorBuilder, DecoratorBuilderType
+  object Decorator extends DecoratorBuilder, DecoratorBuilderCompanion {
+
+    override protected def wrapGeneric(genericDecorator: GenericDecorator[Props]): Decorator = new Decorator(genericDecorator)
+
+    override lazy val defaultStyling: Decorator = empty.primaryHeaders.baseCells
 
   }
 

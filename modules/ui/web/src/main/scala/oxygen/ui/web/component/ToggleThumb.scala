@@ -1,13 +1,26 @@
 package oxygen.ui.web.component
 
-import oxygen.predef.core.*
 import oxygen.ui.web.create.{*, given}
 
-object ToggleThumb {
+object ToggleThumb extends Decorable {
 
   //////////////////////////////////////////////////////////////////////////////////////////////////////
   //      Props
   //////////////////////////////////////////////////////////////////////////////////////////////////////
+
+  final case class Props(
+      _enabledColor: String,
+      _disabledColor: String,
+      _sizing: Sizing,
+      _trackMod: NodeModifier,
+      _thumbMod: NodeModifier,
+  )
+  object Props extends PropsCompanion {
+
+    override protected lazy val initialProps: Props =
+      Props("transparent", "transparent", Sizing(0, 0, 0, 0, 0), NodeModifier.empty, NodeModifier.empty)
+
+  }
 
   final case class Sizing(
       trackHeight: Int,
@@ -31,61 +44,16 @@ object ToggleThumb {
 
   }
 
-  private final case class Props(
-      _enabledColor: String,
-      _disabledColor: String,
-      _sizing: Sizing,
-      _trackMod: NodeModifier,
-      _thumbMod: NodeModifier,
-  )
-  object Props {
-
-    private[ToggleThumb] lazy val initial: Props =
-      Props("transparent", "transparent", Sizing(0, 0, 0, 0, 0), NodeModifier.empty, NodeModifier.empty)
-
-  }
-
   //////////////////////////////////////////////////////////////////////////////////////////////////////
   //      Decorator
   //////////////////////////////////////////////////////////////////////////////////////////////////////
 
-  final class Decorator private[ToggleThumb] (private[ToggleThumb] val decorator: GenericDecorator[Props]) extends DecoratorBuilder {
-
-    def name: String = decorator.show
-
-    private[ToggleThumb] lazy val computed: Props = decorator.decorate(Props.initial)
-
-    def >>(that: Decorator): Decorator = Decorator { this.decorator >> that.decorator }
-    def <<(that: Decorator): Decorator = Decorator { this.decorator << that.decorator }
-
-  }
-  object Decorator extends DecoratorBuilder {
-
-    override private[ToggleThumb] val decorator: GenericDecorator[Props] = GenericDecorator.empty
-
-    def all[S[_]: SeqRead](decorators: S[Decorator]): Decorator =
-      Decorator { decorators.newIterator.foldLeft(GenericDecorator.empty) { (a, b) => a >> b.decorator } }
-
-    def all(decorators: Decorator*): Decorator =
-      all(decorators)
-
-    val identity: Decorator = Decorator { GenericDecorator.empty }
-    val empty: Decorator = identity
-
-    lazy val defaultStyling: Decorator = empty.primary.medium
-
-  }
-
-  trait DecoratorBuilder {
-    private[ToggleThumb] val decorator: GenericDecorator[Props]
-
-    private def wrap(dec: GenericDecorator[Props]): Decorator = Decorator { decorator >> dec }
-    private def wrap(name: String)(f: Props => Props): Decorator = wrap { GenericDecorator(name)(f) }
+  trait DecoratorBuilder extends DecoratorBuilder0 {
 
     /////// Size ///////////////////////////////////////////////////////////////
 
     private def makeSize(name: String, size: Sizing): Decorator =
-      wrap(name)(_.copy(_sizing = size))
+      make(name)(_.copy(_sizing = size))
 
     final lazy val extraSmall: Decorator = makeSize("ExtraSmall", Sizing.extraSmall)
     final lazy val small: Decorator = makeSize("Small", Sizing.small)
@@ -96,8 +64,8 @@ object ToggleThumb {
 
     /////// Colors ///////////////////////////////////////////////////////////////
 
-    private def makeEnabled(name: String, color: String): Decorator = wrap(s"EnabledColor($name)") { _.copy(_enabledColor = color) }
-    private def makeDisabled(name: String, color: String): Decorator = wrap(s"DisabledColor($name)") { _.copy(_disabledColor = color) }
+    private def makeEnabled(name: String, color: String): Decorator = make(s"EnabledColor($name)") { _.copy(_enabledColor = color) }
+    private def makeDisabled(name: String, color: String): Decorator = make(s"DisabledColor($name)") { _.copy(_disabledColor = color) }
 
     final lazy val primaryEnabled: Decorator = makeEnabled("Primary", S.color.primary)
     final lazy val positiveEnabled: Decorator = makeEnabled("Positive", S.color.status.positive)
@@ -132,17 +100,26 @@ object ToggleThumb {
 
     /////// Misc ///////////////////////////////////////////////////////////////
 
-    final def setCustomMod(mod: NodeModifier): Decorator = wrap("custom(setMod)") { _.copy(_trackMod = mod) }
-    final def addCustomMod(mod: NodeModifier): Decorator = wrap("custom(addMod)") { p => p.copy(_trackMod = p._trackMod <> mod) }
+    final def setCustomMod(mod: NodeModifier): Decorator = make("custom(setMod)") { _.copy(_trackMod = mod) }
+    final def addCustomMod(mod: NodeModifier): Decorator = make("custom(addMod)") { p => p.copy(_trackMod = p._trackMod <> mod) }
     final def prepend(before: Widget*): Decorator = addCustomMod(NodeModifier.before(before*))
     final def append(after: Widget*): Decorator = addCustomMod(NodeModifier.after(after*))
     final def surround(before: Widget*)(after: Widget*): Decorator = addCustomMod(NodeModifier.surround(before*)(after*))
 
-    final def setCustomThumbMod(mod: NodeModifier): Decorator = wrap("custom(setThumbMod)") { _.copy(_thumbMod = mod) }
-    final def addCustomThumbMod(mod: NodeModifier): Decorator = wrap("custom(addThumbMod)") { p => p.copy(_thumbMod = p._thumbMod <> mod) }
+    final def setCustomThumbMod(mod: NodeModifier): Decorator = make("custom(setThumbMod)") { _.copy(_thumbMod = mod) }
+    final def addCustomThumbMod(mod: NodeModifier): Decorator = make("custom(addThumbMod)") { p => p.copy(_thumbMod = p._thumbMod <> mod) }
     final def prependThumb(before: Widget*): Decorator = addCustomThumbMod(NodeModifier.before(before*))
     final def appendThumb(after: Widget*): Decorator = addCustomThumbMod(NodeModifier.after(after*))
     final def surroundThumb(before: Widget*)(after: Widget*): Decorator = addCustomThumbMod(NodeModifier.surround(before*)(after*))
+
+  }
+
+  final class Decorator private[ToggleThumb] (protected val genericDecorator: GenericDecorator[Props]) extends DecoratorBuilder, DecoratorBuilderType
+  object Decorator extends DecoratorBuilder, DecoratorBuilderCompanion {
+
+    override protected def wrapGeneric(genericDecorator: GenericDecorator[Props]): Decorator = new Decorator(genericDecorator)
+
+    override lazy val defaultStyling: Decorator = empty.primary.medium
 
   }
 

@@ -23,16 +23,14 @@ object RegisterPage extends RoutablePage[UserApi & LocalService] {
   )
 
   final case class PageState(
-      firstName: String,
-      lastName: String,
-      email: String,
-      password: String,
+      firstName: TextField.State,
+      lastName: TextField.State,
+      email: TextField.State,
+      password: TextField.State,
   ) {
 
-    def optEmail: Option[String] = {
-      val trimmed = email.trim
-      trimmed.someWhen(_.nonEmpty)
-    }
+    def optEmail: Option[String] =
+      email.text.trim.someWhen(_.nonEmpty)
 
   }
 
@@ -43,7 +41,7 @@ object RegisterPage extends RoutablePage[UserApi & LocalService] {
     PageParams(state.optEmail)
 
   override def initialLoad(params: PageParams): ZIO[Scope, UIError, PageState] =
-    ZIO.succeed(PageState("", "", params.email.getOrElse(""), ""))
+    ZIO.succeed(PageState(TextField.State.empty, TextField.State.empty, TextField.State.initial(params.email.getOrElse("")), TextField.State.empty))
 
   override def postLoad(state: WidgetState[PageState], initialState: PageState): ZIO[Scope, UIError, Unit] = ZIO.unit
 
@@ -51,7 +49,7 @@ object RegisterPage extends RoutablePage[UserApi & LocalService] {
 
   override protected def component(state: WidgetState[PageState], renderState: PageState): WidgetES[UserApi & LocalService, PageState] =
     PageLayout.layout(signedOutNavBar(renderState.optEmail))(
-      PageMessagesBottomCorner.attached,
+      PageMessagesBottomCorner.default,
       PageBodies.centeredCard(
         boxShadow := "0 4px 32px #01810120",
         h1(
@@ -61,49 +59,9 @@ object RegisterPage extends RoutablePage[UserApi & LocalService] {
           color := S.color.primary,
           borderBottom := css(S.borderWidth._2, "solid", S.color.primary),
         ),
-        (
-          Form
-            .textField[String](
-              "First Name",
-              formProps = Form.textField.Props(width = 300.px),
-              inputProps = TextField.Props(width = 100.pct),
-            )
-            .required
-            .zoomOut[PageState](_.firstName) <*>
-            Form
-              .textField[String](
-                "Last Name",
-                formProps = Form.textField.Props(width = 300.px),
-                inputProps = TextField.Props(width = 100.pct),
-              )
-              .required
-              .zoomOut[PageState](_.lastName) <*>
-            Form
-              .textField[Email](
-                "Email",
-                formProps = Form.textField.Props(width = 300.px),
-                inputProps = TextField.Props(inputType = "email", width = 100.pct),
-              )
-              .required
-              .zoomOut[PageState](_.email) <*>
-            Form
-              .textField[String](
-                "Password",
-                formProps = Form.textField.Props(width = 300.px),
-                inputProps = TextField.Props(inputType = "password", width = 100.pct),
-              )
-              .required
-              .zoomOut[PageState](_.password) <*>
-            Form.submitButton("Sign Up", _.medium)
-        ).onSubmit { case (_, (firstName, lastName, email, password)) =>
+        registerForm.onSubmit { (_, req) =>
           for {
             _ <- ZIO.logInfo("submitting form...")
-            req = RegisterRequest(
-              email = email,
-              firstName = firstName,
-              lastName = lastName,
-              password = Password.PlainText.wrap(password),
-            )
             res <- UserApi.register(req).toUILogged(_.toUI)
             _ <- ZIO.serviceWithZIO[LocalService](_.userToken.set(res.authorization))
             _ <- P.home.HomePage.navigate.push(())
@@ -115,5 +73,34 @@ object RegisterPage extends RoutablePage[UserApi & LocalService] {
   //////////////////////////////////////////////////////////////////////////////////////////////////////
   //      Components
   //////////////////////////////////////////////////////////////////////////////////////////////////////
+
+  private lazy val registerForm: SubmitFormS[PageState, RegisterRequest] =
+    for {
+      (firstNameWidget, firstNameValue) <-
+        TextField
+          .form[String]("First Name", _.width(300.px))
+          .required
+          .zoomOut[PageState](_.firstName)
+      (lastNameWidget, lastNameValue) <-
+        TextField
+          .form[String]("Last Name", _.width(300.px))
+          .required
+          .zoomOut[PageState](_.lastName)
+      (emailWidget, emailValue) <-
+        TextField
+          .form[Email]("Email", _.email.width(300.px))
+          .required
+          .zoomOut[PageState](_.email)
+      (passwordWidget, passwordValue) <-
+        TextField
+          .form[String]("Password", _.password.width(300.px))
+          .required
+          .mapValue(Password.PlainText.wrap)
+          .zoomOut[PageState](_.password)
+      (submitWidget, _) <- Button.form("Sign Up", _.button(_.medium))
+    } yield (
+      fragment(firstNameWidget, lastNameWidget, emailWidget, passwordWidget, submitWidget),
+      (emailValue <*> firstNameValue <*> lastNameValue <*> passwordValue).mapValue(RegisterRequest.apply),
+    )
 
 }

@@ -142,3 +142,9 @@ def basicSvg(w: Int, h: Int): Node =
     htmlHeight := h,
     svgViewBox := s"0 0 $w $h",
   )
+def basicSvg(w: Int, h: Int, vbw: Int, vbh: Int): Node =
+  svg(
+    htmlWidth := w,
+    htmlHeight := h,
+    svgViewBox := s"0 0 $vbw $vbh",
+  )
