@@ -29,10 +29,10 @@ object StyleSheetElement {
 
   }
 
-  final case class CSS(key: String, value: String, loc: SourceLocation) extends StyleSheetElement {
+  final case class CSS(key: String, value: Lazy[String], loc: SourceLocation) extends StyleSheetElement {
 
     override def leafs(parent: StyleSheetSelector): Growable[Leaf] =
-      Growable.single(Leaf(parent, loc, key, value))
+      Growable.single(Leaf(parent, loc, key, value.value))
 
   }
 

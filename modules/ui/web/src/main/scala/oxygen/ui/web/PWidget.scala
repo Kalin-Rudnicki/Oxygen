@@ -721,7 +721,7 @@ object PWidget {
 
     def text(value: String): PWidget.Raw.Text = Raw(DOMElement.Text(value))
 
-    def css(key: String, value: String): PWidget.Raw.CSSAttr = Raw(DOMElement.CSSAttr(key, value))
+    def css(key: String, value: => String): PWidget.Raw.CSSAttr = Raw(DOMElement.CSSAttr(key, Lazy { value }))
     def attr(key: String, value: String): PWidget.Raw.HtmlAttr = Raw(DOMElement.HtmlAttr(key, value))
     def objectAttr(key: String, value: js.Any): PWidget.Raw.ObjectAttr = Raw(DOMElement.ObjectAttr(key, value))
     def `class`(classes: String*): PWidget.Raw.ClassAttr = Raw(DOMElement.ClassAttr(classes.toSet))

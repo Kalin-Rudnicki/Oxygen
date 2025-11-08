@@ -406,10 +406,10 @@ case object isolation extends CssBuilder("isolation") { self =>
 
 sealed abstract class CssBuilder(private[web] val key: String) { self =>
 
-  final def :=(value: String): CSSAttr = Widget.raw.css(key, value)
+  final def :=(value: => String): CSSAttr = Widget.raw.css(key, value)
   final def :=(value: Int): CSSAttr = self := value.toString
 
-  def csss(strs: String*): CSSAttr = self := strs.mkString(" ")
+  def csss(strs: => String*): CSSAttr = self := strs.mkString(" ")
 
   final def inherit: CSSAttr = self := "inherit"
   final def initial: CSSAttr = self := "initial"

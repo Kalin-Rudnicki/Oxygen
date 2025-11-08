@@ -157,7 +157,7 @@ object Widget {
     def apply[E <: DOMElement](value: E): RawWidget[E] = PWidget.Raw(value)
 
     def text(value: String): Text = Widget.raw(DOMElement.Text(value))
-    def css(key: String, value: String): CSSAttr = Widget.raw(DOMElement.CSSAttr(key, value))
+    def css(key: String, value: => String): CSSAttr = Widget.raw(DOMElement.CSSAttr(key, Lazy { value }))
     def htmlAttr(key: String, value: String): HtmlAttr = Widget.raw(DOMElement.HtmlAttr(key, value))
     def objectAttr(key: String, value: js.Any): ObjectAttr = Widget.raw(DOMElement.ObjectAttr(key, value))
     def `class`(classes: String*): ClassAttr = Widget.raw(DOMElement.ClassAttr(classes.toSet))
