@@ -31,6 +31,7 @@ object UIMain extends PageApp[UIMain.Env] {
     P.register.RegisterPage,
     P.home.HomePage,
     P.profile.ProfilePage,
+    P.RingPage,
     StylesPage,
     ComponentsPage,
   )
