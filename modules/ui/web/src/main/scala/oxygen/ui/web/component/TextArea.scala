@@ -27,20 +27,24 @@ object TextArea {
       },
       onKeyUp.eas[Form.Submit, String].handle { (s, rh, e) =>
         val target = e.target.asInstanceOf[scala.scalajs.js.Dynamic]
-        val targetValue = target.value.asInstanceOf[String]
+        def targetValue: String = target.value.asInstanceOf[String]
+        // weird weird out-of-order dom events
 
-        if (e.keyCode == KeyCode.Enter.keyCode) {
-          ZIO.succeed { e.preventDefault() } *>
-            s.set(targetValue) *>
+        if (e.keyCode == KeyCode.Enter.keyCode && e.ctrlKey) {
+          // cant be in a ZIO
+          e.preventDefault()
+          
+          s.update(_ => targetValue) *>
             rh.raiseAction(Form.Submit)
         } else
-          s.set(targetValue)
+          s.update(_ => targetValue)
       },
       onChange.es[String].handle { (s, e) =>
         val target = e.target.asInstanceOf[scala.scalajs.js.Dynamic]
-        val targetValue = target.value.asInstanceOf[String]
+        def targetValue: String = target.value.asInstanceOf[String]
+        // weird weird out-of-order dom events
 
-        s.set(targetValue)
+        s.update(_ => targetValue)
       },
     )(props.inputMod)
 
