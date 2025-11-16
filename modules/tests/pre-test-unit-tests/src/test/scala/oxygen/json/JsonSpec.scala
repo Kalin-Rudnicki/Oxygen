@@ -33,6 +33,11 @@ object JsonSpec extends OxygenSpecDefault {
       @jsonField("f2") b: String,
   ) derives JsonCodec
 
+  final case class WrappedBoolean(internal: Boolean)
+  object WrappedBoolean {
+    given JsonCodec[WrappedBoolean] = JsonCodec.deriveWrapped
+  }
+
   enum Sum1 derives JsonCodec {
     case S(s: String)
     case B(b: Boolean)
@@ -88,6 +93,9 @@ object JsonSpec extends OxygenSpecDefault {
         ),
         suite("Product3")(
           directRoundTripTest("""{"f1":1,"f2":"hi"}""")(Product3(1, "hi")),
+        ),
+        suite("WrappedBoolean")(
+          directRoundTripTest("""true""")(WrappedBoolean(true)),
         ),
         suite("Sum1")(
           directRoundTripTest("""{"S":{"s":"ABC"}}""")(Sum1.S("ABC")),

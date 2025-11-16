@@ -35,6 +35,11 @@ trait JsonDecoder[A] {
   final def <>[B >: A](that: JsonDecoder[B]): JsonDecoder[B] =
     JsonDecoder.OrElse(this, that)
 
+  inline final def autoMap[B]: JsonDecoder[B] = {
+    val (ab, _) = K0.ProductGeneric.deriveTransform[A, B]
+    map(ab)
+  }
+
 }
 object JsonDecoder extends K0.Derivable[JsonDecoder.ObjectDecoder], JsonDecoderLowPriority.LowPriority1 {
 
@@ -329,6 +334,16 @@ object JsonDecoder extends K0.Derivable[JsonDecoder.ObjectDecoder], JsonDecoderL
     K0.Derivable.SumDeriver.withInstances { DeriveSumJsonDecoder[A](_) }
 
   override inline def derived[A]: JsonDecoder.ObjectDecoder[A] = ${ derivedImpl[A] }
+
+  private def deriveWrappedImpl[A: Type](using Quotes): Expr[JsonDecoder[A]] = {
+    type B
+    val wrapping = K0.ProductGeneric.extractSingleCaseClassField[A, B]
+    given Type[B] = wrapping.field.tpe
+
+    '{ ${ wrapping.field.summonTypeClass[JsonDecoder] }.map[A](${ wrapping.wrapExpr }) }
+  }
+
+  inline def deriveWrapped[A]: JsonDecoder[A] = ${ deriveWrappedImpl[A] }
 
 }
 

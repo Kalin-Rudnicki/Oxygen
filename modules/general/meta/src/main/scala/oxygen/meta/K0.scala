@@ -1135,7 +1135,7 @@ object K0 {
       */
     inline def deriveTransform[SourceT, TargetT]: (SourceT => TargetT, TargetT => SourceT) = ${ deriveTransformImpl[SourceT, TargetT] }
 
-    def deriveTransformImpl[SourceT: Type, TargetT: Type](using Quotes): Expr[(SourceT => TargetT, TargetT => SourceT)] = {
+    def deriveTransformExprsImpl[SourceT: Type, TargetT: Type](using Quotes): (Expr[SourceT => TargetT], Expr[TargetT => SourceT]) = {
       val productGeneric: ProductGeneric[TargetT] = ProductGeneric.of[TargetT]
       val sourceTypeRepr: TypeRepr = TypeRepr.of[SourceT].widen
 
@@ -1160,7 +1160,7 @@ object K0 {
           val abExpr: Expr[SourceT => TargetT] = '{ { (_: SourceT) => ${ productGeneric.instantiate.fieldsToInstance(Nil) } } }
           val baExpr: Expr[TargetT => SourceT] = '{ { (_: TargetT) => $typedUnitExpr } }
 
-          '{ ($abExpr, $baExpr) }
+          (abExpr, baExpr)
         case field :: Nil =>
           if (!(field.typeRepr =:= sourceTypeRepr))
             fail(s"Target type has 1 field (${field.name}: ${field.typeRepr.showAnsiCode}), therefore source type must match that single field", field.typeRepr)
@@ -1168,7 +1168,7 @@ object K0 {
           val abExpr: Expr[SourceT => TargetT] = '{ { (source: SourceT) => ${ productGeneric.instantiate.fieldsToInstance('source :: Nil) } } }
           val baExpr: Expr[TargetT => SourceT] = '{ { (target: TargetT) => ${ field.fromParent('target).asExprOf[SourceT] } } }
 
-          '{ ($abExpr, $baExpr) }
+          (abExpr, baExpr)
         case fields =>
           type TupleT
           val tupleGeneric: ProductGeneric[TupleT] = ProductGeneric.ofTuple[TupleT](fields.map(_.typeRepr))
@@ -1186,9 +1186,55 @@ object K0 {
           val abExpr: Expr[SourceT => TargetT] = transformGeneric(reTypedTupleGeneric, productGeneric)
           val baExpr: Expr[TargetT => SourceT] = transformGeneric(productGeneric, reTypedTupleGeneric)
 
-          '{ ($abExpr, $baExpr) }
+          (abExpr, baExpr)
       }
     }
+
+    def deriveTransformImpl[SourceT: Type, TargetT: Type](using Quotes): Expr[(SourceT => TargetT, TargetT => SourceT)] = {
+      val (abExpr, baExpr) = deriveTransformExprsImpl[SourceT, TargetT]
+      '{ ($abExpr, $baExpr) }
+    }
+
+    final class CaseClassWithSingleField[A, B](val gen: ProductGeneric[A])(val field: gen.Field[B]) {
+      private given Type[A] = gen.tpe
+      private given Type[B] = field.tpe
+
+      def wrap(expr: Expr[B])(using Quotes): Expr[A] =
+        gen.instantiate.fieldsToInstance(expr :: Nil)
+
+      def wrapExpr(using Quotes): Expr[B => A] =
+        '{ (expr: B) => ${ wrap('expr) } }
+
+      def unwrap(expr: Expr[A])(using Quotes): Expr[B] =
+        field.fromParent(expr)
+
+      def unwrapExpr(using Quotes): Expr[A => B] =
+        '{ (expr: A) => ${ unwrap('expr) } }
+
+    }
+
+    def extractSingleCaseClassField[A: Type, B](using Quotes): CaseClassWithSingleField[A, B] = {
+      val productGeneric: ProductGeneric.CaseClassGeneric[A] =
+        ProductGeneric.of[A] match
+          case gen: CaseClassGeneric[A] => gen
+          case gen                      => report.errorAndAbort(s"Not a case-class generic:\n${gen.toIndentedString}")
+
+      productGeneric.fields.toList match {
+        case field :: Nil =>
+          CaseClassWithSingleField(productGeneric)(field.typedAs[B])
+        case fields =>
+          report.errorAndAbort(
+            s"""Error deriving single case class field for ${productGeneric.typeRepr.showAnsiCode}:
+               |
+               |Expected exactly (1) field, but got (${fields.size}).
+               |
+               |${productGeneric.toIndentedString}""".stripMargin,
+          )
+      }
+    }
+
+    def extractSingleCaseClassFieldType[A: Type](using Quotes): TypeRepr =
+      extractSingleCaseClassField[A, Any].field.typeRepr
 
   }
 

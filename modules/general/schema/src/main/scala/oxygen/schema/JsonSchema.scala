@@ -203,7 +203,7 @@ object JsonSchema extends Derivable[JsonSchema.ProductLike], JsonSchemaLowPriori
     Derivable.ProductDeriver.withDisjointInstances[JsonSchema.ProductLike, JsonSchema, A] { instances =>
       new Derivable.ProductDeriver[JsonSchema.ProductLike, A] {
 
-        private val typeTagExpr: Expr[TypeTag[A]] = Implicits.companion.searchRequiredIgnoreMessage[TypeTag[A]]
+        private val typeTagExpr: Expr[TypeTag[A]] = Implicits.companion.searchRequiredIgnoreExplanation[TypeTag[A]]
 
         private val jsonEncoderInstances: Expressions[JsonEncoder, A] =
           instances.mapK { [a] => _ ?=> (expr: Expr[JsonSchema[a]]) => '{ $expr.jsonEncoder } }
@@ -243,7 +243,7 @@ object JsonSchema extends Derivable[JsonSchema.ProductLike], JsonSchemaLowPriori
     Derivable.SumDeriver.withInstances[JsonSchema.ProductLike, A] { instances =>
       new Derivable.SumDeriver[JsonSchema.ProductLike, A] {
 
-        private val typeTagExpr: Expr[TypeTag[A]] = Implicits.companion.searchRequiredIgnoreMessage[TypeTag[A]]
+        private val typeTagExpr: Expr[TypeTag[A]] = Implicits.companion.searchRequiredIgnoreExplanation[TypeTag[A]]
 
         private val jsonEncoderInstances: Expressions[JsonEncoder.ObjectEncoder, A] =
           instances.mapK { [a] => _ ?=> (expr: Expr[JsonSchema.ProductLike[a]]) => '{ $expr.jsonEncoder } }
