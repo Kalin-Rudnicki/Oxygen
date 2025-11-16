@@ -31,6 +31,8 @@ object Executable extends SingleBuilders.Builder0 {
     protected val envTag: EnvironmentTag[Env]
     protected val cliParser: ExecutableContext => Parser[CLIConfig]
 
+    private[executable] final def getCliParser(ctx: ExecutableContext): Parser[CLIConfig] = cliParser(ctx)
+
     protected def logger(jsonConfig: JsonConfig, cliConfig: CLIConfig, context: ExecutableContext): ZIO[Scope, ExecuteError, LogConfig]
 
     protected def env(jsonConfig: JsonConfig, cliConfig: CLIConfig): Layer[Any, Env]
@@ -55,7 +57,7 @@ object Executable extends SingleBuilders.Builder0 {
 
   final case class Many(options: NonEmptyList[(String, Executable)]) extends Executable {
 
-    private val optionMap: Map[String, Executable] = options.toMap
+    val optionMap: Map[String, Executable] = options.toMap
 
     override private[executable] def apply(
         jsonConfig: Json,

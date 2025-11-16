@@ -18,19 +18,23 @@ trait ExecutableApp extends ZIOAppDefault {
   val additionalLoggerParsers: ArraySeq[Params[Logger]] = ArraySeq.empty[Params[Logger]]
 
   private def parseAndExecute(args: List[String]): ZIO[Scope, ExecuteError, Unit] =
-    for {
-      (internalArgs, executableArgs) <- ZIO.succeed(Arg.splitOn_--(args))
-      executableConfig <- Parsing.parse(ExecutableApp.Config.parser, internalArgs)
-      _ <- LogConfig.usingConfig(LogConfig.oxygenDefault).set.unlessDiscard(executableConfig.keepZioLogger)
-      parsedJsons <- ZIO.foreach(executableConfig.sources)(ExecutableApp.Config.Source.eval)
-      jsonConfig = parsedJsons.foldLeft[Json](Json.obj())(_ merge _)
-      context = ExecutableContext(
-        logTargetDecoder = KeyedMapDecoder(LogConfig.elemDecoders.default ++ additionalLoggerDecoders),
-        additionalLoggerParsers = additionalLoggerParsers,
-        executableConfig = executableConfig,
-      )
-      _ <- executable(jsonConfig, executableArgs, context)
-    } yield ()
+    args match {
+      case "--:" :: args => AutoComplete.handleArgs(args, this)
+      case _             =>
+        for {
+          (internalArgs, executableArgs) <- ZIO.succeed(Arg.splitOn_--(args))
+          executableConfig <- Parsing.parse(ExecutableApp.Config.parser, internalArgs)
+          _ <- LogConfig.usingConfig(LogConfig.oxygenDefault).set.unlessDiscard(executableConfig.keepZioLogger)
+          parsedJsons <- ZIO.foreach(executableConfig.sources)(ExecutableApp.Config.Source.eval)
+          jsonConfig = parsedJsons.foldLeft[Json](Json.obj())(_ merge _)
+          context = ExecutableContext(
+            logTargetDecoder = KeyedMapDecoder(LogConfig.elemDecoders.default ++ additionalLoggerDecoders),
+            additionalLoggerParsers = additionalLoggerParsers,
+            executableConfig = executableConfig,
+          )
+          _ <- executable(jsonConfig, executableArgs, context)
+        } yield ()
+    }
 
   private def parseExecuteAndRecover(args: List[String]): URIO[Scope, ExitCode] =
     parseAndExecute(args)

@@ -66,4 +66,7 @@ object ExecuteError {
 
   final case class Generic(operation: String, cause: Throwable) extends ExecuteError
 
+  def help(message: String): ExecuteError.Parsing.Help =
+    ExecuteError.Parsing.Help(HelpMessage.RootMessage.Raw(message), HelpType.Help)
+
 }

@@ -65,6 +65,8 @@ sealed trait HelpMessage {
 
       // --- Special ---
 
+      case HelpMessage.RootMessage.Raw(message) =>
+        HelpMessage.Repr(message.detailedSplit("\n".r, true, true).toList.map(ColorString.make(_)), Nil, color"") :: Nil
       case HelpMessage.ValueMessage.Raw(name) =>
         HelpMessage.Repr(color"[${name.showValue}] (raw value)" :: Nil, hints.map(HelpMessage.Repr.hintToColorString), color"|    ") :: Nil
       case HelpMessage.ValueMessage.Value(name) =>
@@ -212,6 +214,7 @@ object HelpMessage {
     final case class Or(left: HelpMessage, right: HelpMessage) extends RootMessage.Base
 
     case object Empty extends RootMessage
+    final case class Raw(message: String) extends RootMessage
     final case class WithHints(annotated: RootMessage.Base, messages: NonEmptyList[HelpHint]) extends RootMessage
 
   }

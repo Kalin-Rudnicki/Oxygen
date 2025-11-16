@@ -16,7 +16,13 @@ sealed trait Name {
   lazy val showParam: ColorString
 }
 
-sealed trait SimpleName extends Name
+sealed trait SimpleName extends Name {
+
+  final lazy val nameWithDashes: String = this match
+    case name: LongName  => s"--${name.name}"
+    case name: ShortName => s"-${name.name}"
+
+}
 sealed trait BooleanName extends Name {
   val trueName: SimpleName
   val falseName: SimpleName
