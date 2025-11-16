@@ -5,16 +5,40 @@ import scala.annotation.tailrec
 
 sealed trait Arg {
   val index: Int
+
+  private[oxygen] def subtractIdx(num: Int): Arg
+
+  private[oxygen] final lazy val selfAndChildIndices: Set[Int] =
+    this match {
+      case Arg.Value(index, _)                  => Set(index)
+      case Arg.Bracketed(index, values, params) => Seq(index :: Nil, values.flatMap(_.selfAndChildIndices), params.flatMap(_.selfAndChildIndices)).flatten.toSet
+      case Arg.ShortParamMulti(_, _, _)         => Set.empty // not sure what to do here
+      case Arg.ScopedParam(index, _, values)    => Seq(index :: Nil, values.flatMap(_.selfAndChildIndices)).flatten.toSet
+    }
+
 }
 object Arg {
 
   // =====| Types |=====
 
-  sealed trait ValueLike extends Arg
+  sealed trait ValueLike extends Arg {
+
+    override private[oxygen] final def subtractIdx(num: Int): Arg.ValueLike = this match
+      case Value(index, value)              => Value(index - num, value)
+      case Bracketed(index, values, params) => Bracketed(index - num, values.map(_.subtractIdx(num)), params.map(_.subtractIdx(num)))
+
+  }
+
   sealed trait ParamLike extends Arg {
+
     val name: SimpleName
     val values: List[Arg.ValueLike]
     val subIndex: Int = 0
+
+    override private[oxygen] final def subtractIdx(num: Int): Arg.ParamLike = this match
+      case ShortParamMulti(index, subIndex, name) => ShortParamMulti(index - num, subIndex, name)
+      case ScopedParam(index, name, values)       => ScopedParam(index - num, name, values.map(_.subtractIdx(num)))
+
   }
   object ParamLike {
     implicit val ordering: Ordering[ParamLike] = Ordering.by[ParamLike, Int](_.index).orElseBy(_.subIndex)
@@ -36,18 +60,23 @@ object Arg {
       bracketed <- parseBracketed(-1, groupedArgs)
     } yield (bracketed.values, bracketed.params)
 
+  def splitOnRaw_--(stringArgs: List[String]): (Boolean, List[String], List[String]) = {
+    @tailrec
+    def loop(queue: List[String], rStack: List[String]): (Boolean, List[String], List[String]) = queue match
+      case "--" :: tail => (true, rStack.reverse, tail)
+      case head :: tail => loop(tail, head :: rStack)
+      case Nil          => (false, Nil, stringArgs)
+
+    loop(stringArgs, Nil)
+  }
+
   /**
     * Splits on the first occurrence of the string "--", returning args `(before the "--", after the "--")`.
     * If no "--" is found, returns `(Nil, all args)`.
     */
   def splitOn_--(stringArgs: List[String]): (List[String], List[String]) = {
-    @tailrec
-    def loop(queue: List[String], rStack: List[String]): (List[String], List[String]) = queue match
-      case "--" :: tail => (rStack.reverse, tail)
-      case head :: tail => loop(tail, head :: rStack)
-      case Nil          => (Nil, stringArgs)
-
-    loop(stringArgs, Nil)
+    val (_, a, b) = splitOnRaw_--(stringArgs)
+    (a, b)
   }
 
   @tailrec
@@ -139,10 +168,10 @@ object Arg {
 
   }
 
-  private sealed trait GroupedArg {
+  private[oxygen] sealed trait GroupedArg {
     val index: Int
   }
-  private object GroupedArg {
+  private[oxygen] object GroupedArg {
 
     final case class Value(index: Int, value: String) extends GroupedArg
     final case class Bracketed(index: Int, values: List[GroupedArg]) extends GroupedArg
@@ -193,8 +222,10 @@ object Arg {
           s"Unexpected closing brace at index $i".asLeft
       }
 
-    def parse(args: List[RawArg]): Either[String, List[GroupedArg]] =
+    private[Arg] def parse(args: List[RawArg]): Either[String, List[GroupedArg]] =
       parseRoot(args.zipWithIndex, Nil)
+
+    // private[oxygen] def parseStrings(args: List[String]): Either[String, List[GroupedArg]]
 
   }
 

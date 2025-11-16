@@ -784,8 +784,8 @@ object Params {
       longName = longName,
       shortName = shortName,
       aliases = aliases,
-      hints = hints.map(HelpHint(_)) :+ HelpHint.EnumValues(e.encodedValues),
-      valueParser = Values.value[A](longName),
+      hints = hints.map(HelpHint(_)),
+      valueParser = Values.value[A](longName, HelpHint.EnumValues(e.encodedValues) :: Nil),
     )
   }
 

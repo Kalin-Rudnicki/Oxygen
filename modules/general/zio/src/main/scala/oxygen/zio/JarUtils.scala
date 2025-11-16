@@ -24,4 +24,13 @@ object JarUtils {
   def getString(path: String): IO[JarResourceError, String] =
     ZIO.scoped { getInputStream(path).flatMap(readStream(path, _)) }
 
+  def findJarURL: Task[Option[java.net.URL]] =
+    ZIO.attempt { Option { this.getClass.getProtectionDomain.getCodeSource.getLocation } }
+
+  def getJarURL: Task[java.net.URL] =
+    findJarURL.someOrFail(new RuntimeException("No jar URL found"))
+
+  def getJarFile: Task[String] =
+    getJarURL.map(_.getFile)
+
 }

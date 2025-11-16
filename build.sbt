@@ -635,11 +635,18 @@ lazy val `example-domain-impl`: Project =
 lazy val `example-web-server`: Project =
   project
     .in(file("example/apps/web-server"))
+    .enablePlugins(AssemblyPlugin)
     .settings(
       nonPublishedProjectSettings,
       scalacOptions += "-experimental",
       name := "oxygen-example-web-server",
       description := "oxygen-example-web-server",
+      mainClass := Some("oxygen.example.webServer.WebServerMain"),
+      assemblyJarName := "../../../../../example-web-server.jar",
+      assemblyMergeStrategy := {
+        case PathList("META-INF", _*) => MergeStrategy.discard
+        case _                        => MergeStrategy.first // Use default for other files
+      },
     )
     .dependsOn(
       `oxygen-executable`.jvm % testAndCompile,
