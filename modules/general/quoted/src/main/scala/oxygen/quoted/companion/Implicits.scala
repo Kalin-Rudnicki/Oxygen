@@ -35,20 +35,41 @@ final class ImplicitsCompanion(using quotes: Quotes) {
       case ImplicitSearchSuccess(tree) => Some(tree.asExprOf[A])
       case ImplicitSearchFailure(_)    => None
 
-  def searchRequired[A: Type]: Expr[A] = // TODO (KR) : improve error message
+  private def noGivenInstanceFound[A: Type]: String =
+    s"No given instance found for ${TypeRepr.of[A].showAnsiCode}"
+
+  def searchRequired[A: Type]: Expr[A] =
     search(TypeRepr.of[A]) match
       case ImplicitSearchSuccess(tree)        => tree.asExprOf[A]
       case ImplicitSearchFailure(explanation) => report.errorAndAbort(explanation)
-  def searchRequired[A: Type](pos: Position): Expr[A] = // TODO (KR) : improve error message
+  def searchRequired[A: Type](pos: Position): Expr[A] =
     search(TypeRepr.of[A]) match
       case ImplicitSearchSuccess(tree)        => tree.asExprOf[A]
       case ImplicitSearchFailure(explanation) => report.errorAndAbort(explanation, pos)
+  def searchRequired[A: Type](missingMessage: => String): Expr[A] =
+    search(TypeRepr.of[A]) match
+      case ImplicitSearchSuccess(tree)        => tree.asExprOf[A]
+      case ImplicitSearchFailure(explanation) => report.errorAndAbort(s"${noGivenInstanceFound[A]}\n\n$missingMessage\n\n$explanation")
+  def searchRequired[A: Type](missingMessage: => String, pos: Position): Expr[A] =
+    search(TypeRepr.of[A]) match
+      case ImplicitSearchSuccess(tree)        => tree.asExprOf[A]
+      case ImplicitSearchFailure(explanation) => report.errorAndAbort(s"${noGivenInstanceFound[A]}\n\n$missingMessage\n\n$explanation", pos)
 
   // ImplicitSearchFailure yielding some severely useless messages...
-  def searchRequiredIgnoreMessage[A: Type]: Expr[A] =
-    Expr.summon[A].getOrElse { report.errorAndAbort(s"No given instance found for ${TypeRepr.of[A].showAnsiCode}") }
-  def searchRequiredIgnoreMessage[A: Type](pos: Position): Expr[A] =
-    Expr.summon[A].getOrElse { report.errorAndAbort(s"No given instance found for ${TypeRepr.of[A].showAnsiCode}", pos) }
+  def searchRequiredIgnoreExplanation[A: Type]: Expr[A] =
+    Expr.summon[A].getOrElse { report.errorAndAbort(noGivenInstanceFound[A]) }
+  def searchRequiredIgnoreExplanation[A: Type](pos: Position): Expr[A] =
+    Expr.summon[A].getOrElse { report.errorAndAbort(noGivenInstanceFound[A], pos) }
+  def searchRequiredIgnoreExplanation[A: Type](missingMessage: => String): Expr[A] =
+    Expr.summon[A].getOrElse { report.errorAndAbort(s"${noGivenInstanceFound[A]}\n\n$missingMessage") }
+  def searchRequiredIgnoreExplanation[A: Type](missingMessage: => String, pos: Position): Expr[A] =
+    Expr.summon[A].getOrElse { report.errorAndAbort(s"${noGivenInstanceFound[A]}\n\n$missingMessage", pos) }
+
+  // ImplicitSearchFailure yielding some severely useless messages...
+  @deprecated("use 'searchRequiredIgnoreExplanation'", "0.0.93")
+  def searchRequiredIgnoreMessage[A: Type]: Expr[A] = searchRequiredIgnoreExplanation[A]
+  @deprecated("use 'searchRequiredIgnoreExplanation'", "0.0.93")
+  def searchRequiredIgnoreMessage[A: Type](pos: Position): Expr[A] = searchRequiredIgnoreExplanation[A](pos)
 
   def searchIgnoringOption[A: Type](ignored: Symbol*): Option[Expr[A]] =
     searchIgnoring(TypeRepr.of[A])(ignored*) match

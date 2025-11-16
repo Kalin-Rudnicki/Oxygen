@@ -15,7 +15,7 @@ final class EndpointRepr[Api](val route: RouteRepr[Api])(using Quotes) {
   import route.given
 
   private val serverErrorHandlerExpr: Expr[ServerErrorHandler[route.ErrorOut]] =
-    Implicits.searchRequiredIgnoreMessage[ServerErrorHandler[route.ErrorOut]]
+    Implicits.searchRequiredIgnoreExplanation[ServerErrorHandler[route.ErrorOut]]
 
   private final case class Context(
       apiExpr: Expr[Api],

@@ -28,6 +28,11 @@ trait JsonEncoder[A] {
   final def mapJsonOutput(f: PartialFunction[Json, Json]): JsonEncoder[A] =
     JsonEncoder.MapJsonOutput(this, json => f.lift(json).getOrElse(json))
 
+  inline final def autoContramap[B]: JsonEncoder[B] = {
+    val (_, ba) = K0.ProductGeneric.deriveTransform[A, B]
+    contramap(ba)
+  }
+
 }
 object JsonEncoder extends K0.Derivable[JsonEncoder.ObjectEncoder], JsonEncoderLowPriority.LowPriority1 {
 
@@ -236,6 +241,16 @@ object JsonEncoder extends K0.Derivable[JsonEncoder.ObjectEncoder], JsonEncoderL
     K0.Derivable.SumDeriver.withInstances { DeriveSumJsonEncoder[A](_) }
 
   override inline def derived[A]: JsonEncoder.ObjectEncoder[A] = ${ derivedImpl[A] }
+
+  private def deriveWrappedImpl[A: Type](using Quotes): Expr[JsonEncoder[A]] = {
+    type B
+    val wrapping = K0.ProductGeneric.extractSingleCaseClassField[A, B]
+    given Type[B] = wrapping.field.tpe
+
+    '{ ${ wrapping.field.summonTypeClass[JsonEncoder] }.contramap[A](${ wrapping.unwrapExpr }) }
+  }
+
+  inline def deriveWrapped[A]: JsonEncoder[A] = ${ deriveWrappedImpl[A] }
 
 }
 

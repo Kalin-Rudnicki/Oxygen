@@ -155,6 +155,19 @@ lazy val `oxygen-modules-native`: Project =
       `ut`.native,
     )
 
+lazy val `oxygen-all`: Project =
+  project
+    .in(file("modules/aggregates/all"))
+    .settings(
+      nonPublishedProjectSettings,
+      name := "oxygen-all",
+      description := "oxygen-all",
+    )
+    .aggregate(
+      `oxygen-modules`,
+      `it`,
+    )
+
 //////////////////////////////////////////////////////////////////////////////////////////////////////
 //      General
 //////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -721,3 +734,5 @@ addCommandAlias("native-test", "oxygen-modules-native/test")
 
 addCommandAlias("fmt", "scalafmtSbt; scalafmtAll; it/scalafmtAll; example/scalafmtAll;")
 addCommandAlias("fmt-check", "scalafmtSbtCheck; scalafmtCheckAll; it/scalafmtCheckAll; example/scalafmtCheckAll;")
+
+addCommandAlias("comp", "oxygen-all/test:compile;")

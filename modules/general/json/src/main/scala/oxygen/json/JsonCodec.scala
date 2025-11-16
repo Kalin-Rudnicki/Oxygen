@@ -3,7 +3,9 @@ package oxygen.json
 import java.time.*
 import java.util.TimeZone
 import java.util.UUID
+import oxygen.meta.K0
 import oxygen.predef.core.*
+import scala.quoted.*
 import scala.reflect.ClassTag
 
 final case class JsonCodec[A](
@@ -16,6 +18,11 @@ final case class JsonCodec[A](
 
   def transformOrFail[B](ab: A => Either[String, B], ba: B => A): JsonCodec[B] =
     JsonCodec(encoder.contramap(ba), decoder.mapOrFail(ab))
+
+  inline def autoTransform[B]: JsonCodec[B] = {
+    val (ab, ba) = K0.ProductGeneric.deriveTransform[A, B]
+    transform(ab, ba)
+  }
 
 }
 object JsonCodec extends JsonCodecLowPriority.LowPriority1 {
@@ -84,6 +91,28 @@ object JsonCodec extends JsonCodecLowPriority.LowPriority1 {
   //////////////////////////////////////////////////////////////////////////////////////////////////////
 
   inline def derived[A]: JsonCodec[A] = JsonCodec(JsonEncoder.derived[A], JsonDecoder.derived[A])
+
+  private def deriveWrappedImpl[A: Type](using Quotes): Expr[JsonCodec[A]] = {
+    type B
+    val wrapping = K0.ProductGeneric.extractSingleCaseClassField[A, B]
+    given Type[B] = wrapping.field.tpe
+
+    '{ ${ wrapping.field.summonTypeClass[JsonCodec] }.transform[A](${ wrapping.wrapExpr }, ${ wrapping.unwrapExpr }) }
+  }
+
+  /**
+    * Expects [[A]] to be a case class with a single field.
+    * Will then derive an instance
+    *
+    * Example:
+    * ```scala
+    * final case class Wrapped(value: String)
+    * object Wrapped {
+    *   given JsonCodec[Wrapped] = JsonCodec.deriveWrapped
+    * }
+    * ```
+    */
+  inline def deriveWrapped[A]: JsonCodec[A] = ${ deriveWrappedImpl[A] }
 
 }
 
