@@ -1,6 +1,6 @@
 #!/bin/bash
 
-if git grep "FIX-PRE-MERGE" -- ":!check-for-fix.sh"; then
+if git grep "FIX-PRE-MERGE" -- ":!scripts/check-for-fix.sh"; then
   if [[ "$ALLOW_FIX_PRE_MERGE" != "true" ]]; then
     echo "Detected 'FIX-PRE-MERGE'"
     exit 1

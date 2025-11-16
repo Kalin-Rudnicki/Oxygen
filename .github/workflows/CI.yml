@@ -84,7 +84,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v2
       - name: Check for fix todo
-        run: bash check-for-fix.sh
+        run: bash scripts/check-for-fix.sh
 
   check-formatting:
     runs-on: ubuntu-22.04
