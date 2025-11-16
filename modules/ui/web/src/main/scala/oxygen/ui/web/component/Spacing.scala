@@ -7,6 +7,7 @@ object Spacing {
   object horizontal {
 
     def apply(w: String): Widget.Const = span(display.inlineBlock, width := w)
+    def opt(w: Option[String]): Widget.Const = Widget.foreach(w)(apply)
 
     val xxs: Widget.Const = horizontal(S.spacing.xxs)
     val xs: Widget.Const = horizontal(S.spacing.xs)
@@ -48,6 +49,7 @@ object Spacing {
   object vertical {
 
     def apply(h: String): Widget.Const = div(height := h)
+    def opt(h: Option[String]): Widget.Const = Widget.foreach(h)(apply)
 
     val xxs: Widget.Const = vertical(S.spacing.xxs)
     val xs: Widget.Const = vertical(S.spacing.xs)

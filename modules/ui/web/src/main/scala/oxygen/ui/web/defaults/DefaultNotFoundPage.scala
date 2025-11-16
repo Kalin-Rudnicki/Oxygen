@@ -15,7 +15,7 @@ object DefaultNotFoundPage extends NonRoutablePage.StateSameAsParams[Any] {
 
   override protected def component(state: WidgetState[PageState], renderState: PageState): WidgetES[Any, PageURL] =
     fragment(
-      PageMessagesBottomCorner.attached,
+      PageMessagesBottomCorner.default,
       h1("404 Not Found"),
       p(s"url: ${renderState.formatted}"),
     )

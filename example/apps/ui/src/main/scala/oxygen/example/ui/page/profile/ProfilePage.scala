@@ -34,7 +34,7 @@ object ProfilePage extends RoutablePage.NoParams[LocalService] {
 
   override protected def component(state: WidgetState[PageState], renderState: PageState): WidgetES[LocalService, PageState] =
     PageLayout.layout(signedInNavBar(renderState.user))(
-      PageMessagesBottomCorner.attached,
+      PageMessagesBottomCorner.default,
       h1("Profile"),
       profileInfo,
       profileActions,
@@ -46,7 +46,7 @@ object ProfilePage extends RoutablePage.NoParams[LocalService] {
 
   private lazy val profileInfo: WidgetS[PageState] =
     Widget.state[PageState].get { state =>
-      Section.section1("Profile Info")(
+      SectionWithHeader.section1("Profile Info")(
         p(s"Name : ${state.user.fullName}"),
         p(s"Email : ${state.user.email}"),
       )
@@ -54,11 +54,9 @@ object ProfilePage extends RoutablePage.NoParams[LocalService] {
 
   private lazy val profileActions: WidgetES[LocalService, PageState] =
     Widget.state[PageState].get { state =>
-      Section.section1("Profile Actions")(
-        Button(
+      SectionWithHeader.section1("Profile Actions")(
+        Button(_.destructive.minimal)(
           "Sign Out",
-          _.destructive.minimal,
-        )(
           onClick := { ZIO.serviceWithZIO[LocalService](_.userToken.clear) *> P.login.LoginPage.navigate.push(P.login.LoginPage.PageParams(state.user.email.email.some)) },
         ),
       )

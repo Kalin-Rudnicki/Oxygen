@@ -5,7 +5,7 @@ import oxygen.ui.web.{RaiseHandler, UIError}
 import oxygen.ui.web.create.{*, given}
 import zio.*
 
-object Dropdown {
+object Dropdown extends Decorable {
 
   //////////////////////////////////////////////////////////////////////////////////////////////////////
   //      Props
@@ -42,10 +42,9 @@ object Dropdown {
     lazy val hoverColor: CSSColor = _hoverTransform.transform(_selectedBGColor)
 
   }
+  object Props extends PropsCompanion {
 
-  object Props {
-
-    private[Dropdown] lazy val initial: Props =
+    protected lazy val initialProps: Props =
       Props(
         _width = 25.ch,
         _optionsMaxHeight = 100.px,
@@ -80,43 +79,12 @@ object Dropdown {
   //      Decorator
   //////////////////////////////////////////////////////////////////////////////////////////////////////
 
-  final class Decorator private[Dropdown] (private[Dropdown] val decorator: GenericDecorator[Props]) extends DecoratorBuilder {
-
-    def name: String = decorator.show
-
-    private[Dropdown] lazy val computed: Props = decorator.decorate(Props.initial)
-
-    def >>(that: Decorator): Decorator = Decorator { this.decorator >> that.decorator }
-    def <<(that: Decorator): Decorator = Decorator { this.decorator << that.decorator }
-
-  }
-  object Decorator extends DecoratorBuilder {
-
-    override private[Dropdown] val decorator: GenericDecorator[Props] = GenericDecorator.empty
-
-    def all[S[_]: SeqRead](decorators: S[Decorator]): Decorator =
-      Decorator { decorators.newIterator.foldLeft(GenericDecorator.empty) { (a, b) => a >> b.decorator } }
-
-    def all(decorators: Decorator*): Decorator =
-      all(decorators)
-
-    val identity: Decorator = Decorator { GenericDecorator.empty }
-    val empty: Decorator = identity
-
-    lazy val defaultStyling: Decorator = empty.primary.medium
-
-  }
-
-  trait DecoratorBuilder {
-    private[Dropdown] val decorator: GenericDecorator[Props]
-
-    private def wrap(dec: GenericDecorator[Props]): Decorator = Decorator { decorator >> dec }
-    private def wrap(name: String)(f: Props => Props): Decorator = wrap { GenericDecorator(name)(f) }
+  trait DecoratorBuilder extends DecoratorBuilder0 {
 
     /////// Size ///////////////////////////////////////////////////////////////
 
     private def makeSize(name: String, padding: StandardProps.Padding, displayBorderRadius: String, optionsBorderRadius: String, fontSize: String, width: String, optionsMaxHeight: String): Decorator =
-      wrap(name) {
+      make(name) {
         _.copy(
           _displayPadding = padding,
           _optionPadding = padding,
@@ -128,16 +96,16 @@ object Dropdown {
         )
       }
 
-    final lazy val small: Decorator = makeSize("Small", StandardProps.Padding(S.spacing._2px, S.spacing._3), S.borderRadius._3, S.borderRadius._2, S.fontSize._2, 20.ch, 100.px)
-    final lazy val medium: Decorator = makeSize("Medium", StandardProps.Padding(S.spacing._1, S.spacing._4), S.borderRadius._4, S.borderRadius._2, S.fontSize._3, 30.ch, 150.px)
-    final lazy val large: Decorator = makeSize("Large", StandardProps.Padding(s"calc(${S.spacing._1} * 1.5)", S.spacing._5), S.borderRadius._5, S.borderRadius._3, S.fontSize._4, 50.ch, 250.px)
+    final lazy val small: Decorator = makeSize("Small", StandardProps.Padding(S.spacing._2px, S.spacing._3), S.borderRadius._3, S.borderRadius._2, S.fontSize._2, 20.ch, 150.px)
+    final lazy val medium: Decorator = makeSize("Medium", StandardProps.Padding(S.spacing._1, S.spacing._4), S.borderRadius._4, S.borderRadius._2, S.fontSize._3, 30.ch, 250.px)
+    final lazy val large: Decorator = makeSize("Large", StandardProps.Padding(s"calc(${S.spacing._1} * 1.5)", S.spacing._5), S.borderRadius._5, S.borderRadius._3, S.fontSize._4, 50.ch, 400.px)
 
     /////// Style ///////////////////////////////////////////////////////////////
 
     private def makeSelected(name: String, bgColor: String, fgColor: String, transform: ColorTransform): Decorator =
-      wrap(s"Selected($name)") { _.copy(_selectedBGColor = CSSColor.eval(bgColor), _selectedFGColor = fgColor, _hoverTransform = transform) }
+      make(s"Selected($name)") { _.copy(_selectedBGColor = CSSColor.eval(bgColor), _selectedFGColor = fgColor, _hoverTransform = transform) }
     private def makeNotSelected(name: String, bgColor: String, fgColor: String): Decorator =
-      wrap(s"NotSelected($name)") { _.copy(_notSelectedBGColor = CSSColor.eval(bgColor), _notSelectedFGColor = fgColor) }
+      make(s"NotSelected($name)") { _.copy(_notSelectedBGColor = CSSColor.eval(bgColor), _notSelectedFGColor = fgColor) }
 
     final lazy val primarySelected: Decorator = makeSelected("Primary", S.color.primary, S.color.fg.inverse, ColorTransform.lighten(30.0))
     final lazy val positiveSelected: Decorator = makeSelected("Positive", S.color.status.positive, S.color.fg.inverse, ColorTransform.lighten(30.0))
@@ -166,61 +134,70 @@ object Dropdown {
     final lazy val brandPrimary2: Decorator = brandPrimary2Selected.offNotSelected
     final lazy val positiveNegative: Decorator = positiveSelected.negativeNotSelected
 
-    final def displayFGColor(color: String): Decorator = wrap("custom(displayFGColor)") { _.copy(_displayFGColor = color) }
-    final def displayBGColor(color: String): Decorator = wrap("custom(displayBGColor)") { _.copy(_displayBGColor = color) }
-    final def selectedFGColor(color: String): Decorator = wrap("custom(selectedFGColor)") { _.copy(_selectedFGColor = color) }
-    final def selectedBGColor(color: String): Decorator = wrap("custom(selectedBGColor)") { _.copy(_selectedBGColor = CSSColor.eval(color)) }
-    final def notSelectedFGColor(color: String): Decorator = wrap("custom(notSelectedFGColor)") { _.copy(_notSelectedFGColor = color) }
-    final def notSelectedBGColor(color: String): Decorator = wrap("custom(notSelectedBGColor)") { _.copy(_notSelectedBGColor = CSSColor.eval(color)) }
-    final def hoverColorTransform(transform: ColorTransform): Decorator = wrap("custom(hoverColorTransform)") { _.copy(_hoverTransform = transform) }
+    final def displayFGColor(color: String): Decorator = make("custom(displayFGColor)") { _.copy(_displayFGColor = color) }
+    final def displayBGColor(color: String): Decorator = make("custom(displayBGColor)") { _.copy(_displayBGColor = color) }
+    final def selectedFGColor(color: String): Decorator = make("custom(selectedFGColor)") { _.copy(_selectedFGColor = color) }
+    final def selectedBGColor(color: String): Decorator = make("custom(selectedBGColor)") { _.copy(_selectedBGColor = CSSColor.eval(color)) }
+    final def notSelectedFGColor(color: String): Decorator = make("custom(notSelectedFGColor)") { _.copy(_notSelectedFGColor = color) }
+    final def notSelectedBGColor(color: String): Decorator = make("custom(notSelectedBGColor)") { _.copy(_notSelectedBGColor = CSSColor.eval(color)) }
+    final def hoverColorTransform(transform: ColorTransform): Decorator = make("custom(hoverColorTransform)") { _.copy(_hoverTransform = transform) }
 
     /////// Misc ///////////////////////////////////////////////////////////////
 
-    final def setCustomMod(mod: NodeModifier): Decorator = wrap("custom(setMod)") { _.copy(_mod = mod) }
-    final def addCustomMod(mod: NodeModifier): Decorator = wrap("custom(addMod)") { p => p.copy(_mod = p._mod <> mod) }
+    final def setCustomMod(mod: NodeModifier): Decorator = make("custom(setMod)") { _.copy(_mod = mod) }
+    final def addCustomMod(mod: NodeModifier): Decorator = make("custom(addMod)") { p => p.copy(_mod = p._mod <> mod) }
     final def prepend(before: Widget*): Decorator = addCustomMod(NodeModifier.before(before*))
     final def append(after: Widget*): Decorator = addCustomMod(NodeModifier.after(after*))
     final def surround(before: Widget*)(after: Widget*): Decorator = addCustomMod(NodeModifier.surround(before*)(after*))
 
-    final def setCustomDisplayMod(mod: NodeModifier): Decorator = wrap("custom(setDisplayMod)") { _.copy(_displayMod = mod) }
-    final def addCustomDisplayMod(mod: NodeModifier): Decorator = wrap("custom(addDisplayMod)") { p => p.copy(_displayMod = p._displayMod <> mod) }
+    final def setCustomDisplayMod(mod: NodeModifier): Decorator = make("custom(setDisplayMod)") { _.copy(_displayMod = mod) }
+    final def addCustomDisplayMod(mod: NodeModifier): Decorator = make("custom(addDisplayMod)") { p => p.copy(_displayMod = p._displayMod <> mod) }
     final def prependDisplay(before: Widget*): Decorator = addCustomDisplayMod(NodeModifier.before(before*))
     final def appendDisplay(after: Widget*): Decorator = addCustomDisplayMod(NodeModifier.after(after*))
     final def surroundDisplay(before: Widget*)(after: Widget*): Decorator = addCustomDisplayMod(NodeModifier.surround(before*)(after*))
 
     final def setCustomOptionMod(mod: NodeModifier): Decorator =
-      wrap("custom(setOptionMod)") { _.copy(_selectedOptionMod = mod, _notSelectedOptionMod = mod) }
+      make("custom(setOptionMod)") { _.copy(_selectedOptionMod = mod, _notSelectedOptionMod = mod) }
     final def addCustomOptionMod(mod: NodeModifier): Decorator =
-      wrap("custom(addOptionMod)") { p => p.copy(_selectedOptionMod = p._selectedOptionMod <> mod, _notSelectedOptionMod = p._notSelectedOptionMod <> mod) }
+      make("custom(addOptionMod)") { p => p.copy(_selectedOptionMod = p._selectedOptionMod <> mod, _notSelectedOptionMod = p._notSelectedOptionMod <> mod) }
     final def prependOption(before: Widget*): Decorator = addCustomOptionMod(NodeModifier.before(before*))
     final def appendOption(after: Widget*): Decorator = addCustomOptionMod(NodeModifier.after(after*))
     final def surroundOption(before: Widget*)(after: Widget*): Decorator = addCustomOptionMod(NodeModifier.surround(before*)(after*))
 
-    final def setCustomSelectedOptionMod(mod: NodeModifier): Decorator = wrap("custom(setSelectedOptionMod)") { _.copy(_selectedOptionMod = mod) }
-    final def addCustomSelectedOptionMod(mod: NodeModifier): Decorator = wrap("custom(addSelectedOptionMod)") { p => p.copy(_selectedOptionMod = p._selectedOptionMod <> mod) }
+    final def setCustomSelectedOptionMod(mod: NodeModifier): Decorator = make("custom(setSelectedOptionMod)") { _.copy(_selectedOptionMod = mod) }
+    final def addCustomSelectedOptionMod(mod: NodeModifier): Decorator = make("custom(addSelectedOptionMod)") { p => p.copy(_selectedOptionMod = p._selectedOptionMod <> mod) }
     final def prependSelectedOption(before: Widget*): Decorator = addCustomSelectedOptionMod(NodeModifier.before(before*))
     final def appendSelectedOption(after: Widget*): Decorator = addCustomSelectedOptionMod(NodeModifier.after(after*))
     final def surroundSelectedOption(before: Widget*)(after: Widget*): Decorator = addCustomSelectedOptionMod(NodeModifier.surround(before*)(after*))
 
-    final def setCustomNotSelectedOptionMod(mod: NodeModifier): Decorator = wrap("custom(setNotSelectedOptionMod)") { _.copy(_notSelectedOptionMod = mod) }
-    final def addCustomNotSelectedOptionMod(mod: NodeModifier): Decorator = wrap("custom(addNotSelectedOptionMod)") { p => p.copy(_notSelectedOptionMod = p._notSelectedOptionMod <> mod) }
+    final def setCustomNotSelectedOptionMod(mod: NodeModifier): Decorator = make("custom(setNotSelectedOptionMod)") { _.copy(_notSelectedOptionMod = mod) }
+    final def addCustomNotSelectedOptionMod(mod: NodeModifier): Decorator = make("custom(addNotSelectedOptionMod)") { p => p.copy(_notSelectedOptionMod = p._notSelectedOptionMod <> mod) }
     final def prependNotSelectedOption(before: Widget*): Decorator = addCustomNotSelectedOptionMod(NodeModifier.before(before*))
     final def appendNotSelectedOption(after: Widget*): Decorator = addCustomNotSelectedOptionMod(NodeModifier.after(after*))
     final def surroundNotSelectedOption(before: Widget*)(after: Widget*): Decorator = addCustomNotSelectedOptionMod(NodeModifier.surround(before*)(after*))
 
-    final def externalBorder(width: String, color: String): Decorator = wrap("custom(externalBorder)") { _.copy(_externalBorderSize = width, _externalBorderColor = color) }
-    final def internalBorder(width: String, color: String): Decorator = wrap("custom(internalBorder)") { _.copy(_internalBorderSize = width, _internalBorderColor = color) }
+    final def externalBorder(width: String, color: String): Decorator = make("custom(externalBorder)") { _.copy(_externalBorderSize = width, _externalBorderColor = color) }
+    final def internalBorder(width: String, color: String): Decorator = make("custom(internalBorder)") { _.copy(_internalBorderSize = width, _internalBorderColor = color) }
 
-    final def displayNone(value: String): Decorator = wrap("CustomDisplayNone") { _.copy(_displayNone = value) }
-    final def setNone(value: String): Decorator = wrap("CustomSetNone") { _.copy(_showSetNone = value) }
-    final lazy val noSetNone: Decorator = wrap("NoSetNone") { _.copy(_showSetNone = ___) }
+    final def displayNone(value: String): Decorator = make("CustomDisplayNone") { _.copy(_displayNone = value) }
+    final def setNone(value: String): Decorator = make("CustomSetNone") { _.copy(_showSetNone = value) }
+    final lazy val noSetNone: Decorator = make("NoSetNone") { _.copy(_showSetNone = ___) }
 
-    final lazy val closeOnMouseLeave: Decorator = wrap("CloseOnMouseLeave") { _.copy(_closeOnMouseLeave = true) }
+    final lazy val closeOnMouseLeave: Decorator = make("CloseOnMouseLeave") { _.copy(_closeOnMouseLeave = true) }
 
-    final def maxDropdownHeight(height: String): Decorator = wrap("custom(maxDropdownHeight") { _.copy(_optionsMaxHeight = height) }
+    final def maxDropdownHeight(height: String): Decorator = make("custom(maxDropdownHeight") { _.copy(_optionsMaxHeight = height) }
 
-    final def width(width: String): Decorator = wrap("custom(width") { _.copy(_width = width) }
-    final def fontSize(size: String): Decorator = wrap("custom(frontSize") { _.copy(_fontSize = size) }
+    final def width(width: String): Decorator = make("custom(width") { _.copy(_width = width) }
+    final def fontSize(size: String): Decorator = make("custom(frontSize") { _.copy(_fontSize = size) }
+
+  }
+
+  final class Decorator private[Dropdown] (protected val genericDecorator: GenericDecorator[Props]) extends DecoratorBuilder, DecoratorBuilderType
+  object Decorator extends DecoratorBuilder, DecoratorBuilderCompanion {
+
+    override protected def wrapGeneric(genericDecorator: GenericDecorator[Props]): Decorator = new Decorator(genericDecorator)
+
+    override lazy val defaultStyling: Decorator = empty.primary.medium
 
   }
 
@@ -429,6 +406,105 @@ object Dropdown {
 
     final def apply(): WidgetAS[A, State[S]] =
       default
+
+  }
+
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
+  //      Form
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
+
+  object form extends Decorable {
+
+    //////////////////////////////////////////////////////////////////////////////////////////////////////
+    //      Props
+    //////////////////////////////////////////////////////////////////////////////////////////////////////
+
+    final case class Props(
+        label: Label.Decorator,
+        dropdown: Dropdown.Decorator,
+        labelSpacing: Option[String],
+        surroundingPadding: String,
+        width: String,
+    )
+    object Props extends PropsCompanion {
+
+      override protected lazy val initialProps: Props =
+        Props(
+          label = Label.Decorator.defaultStyling,
+          dropdown = Dropdown.Decorator.defaultStyling,
+          labelSpacing = Label.defaultInputSpacing.some,
+          surroundingPadding = 10.px,
+          width = "fit-content",
+        )
+
+    }
+
+    //////////////////////////////////////////////////////////////////////////////////////////////////////
+    //      Decorator
+    //////////////////////////////////////////////////////////////////////////////////////////////////////
+
+    trait DecoratorBuilder extends DecoratorBuilder0 {
+
+      final def label(f: Label.Decorator => Label.Decorator): Decorator = {
+        val dec = f(Label.Decorator.empty)
+        make(s"label { ${dec.name} }") { current => current.copy(label = current.label >> dec) }
+      }
+
+      final def dropdown(f: Dropdown.Decorator => Dropdown.Decorator): Decorator = {
+        val dec = f(Dropdown.Decorator.empty)
+        make(s"dropdown { ${dec.name} }") { current => current.copy(dropdown = current.dropdown >> dec) }
+      }
+
+      final def describe(description: Widget): Decorator =
+        make("describe") { current => current.copy(label = current.label.describe(description)) }
+
+      final def width(width: String): Decorator =
+        make(s"custom(width = $width)") { current => current.copy(width = width, dropdown = current.dropdown.width(100.pct)) }
+
+    }
+
+    final class Decorator private[form] (protected val genericDecorator: GenericDecorator[Props]) extends DecoratorBuilder, DecoratorBuilderType
+    object Decorator extends DecoratorBuilder, DecoratorBuilderCompanion {
+
+      override protected def wrapGeneric(genericDecorator: GenericDecorator[Props]): Decorator = new Decorator(genericDecorator)
+
+      override lazy val defaultStyling: Decorator = empty
+
+    }
+
+    //////////////////////////////////////////////////////////////////////////////////////////////////////
+    //      Widget
+    //////////////////////////////////////////////////////////////////////////////////////////////////////
+
+    def apply[A](
+        label: String,
+        show: A => String,
+        decorator: Decorator => Decorator,
+    ): FormS[Dropdown.State[A], Option[A]] = {
+      val props = decorator(Decorator.empty.label(_.label(label))).computed
+
+      Form.makeWith(
+        label,
+        div(
+          padding := props.surroundingPadding,
+          width.fitContent,
+          Label(props.label),
+          Spacing.vertical.opt(props.labelSpacing),
+          div(Dropdown[A].show(show).decorate(props.dropdown)),
+        ),
+      )(_.selected)
+    }
+
+    def apply[A](
+        label: String,
+        decorator: Decorator => Decorator,
+    ): FormS[Dropdown.State[A], Option[A]] =
+      apply[A](label, _.toString, decorator)
+
+    def apply[A](
+        label: String,
+    ): FormS[Dropdown.State[A], Option[A]] =
+      apply[A](label, _.toString, identity)
 
   }
 

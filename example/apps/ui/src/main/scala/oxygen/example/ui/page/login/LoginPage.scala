@@ -23,14 +23,12 @@ object LoginPage extends RoutablePage[UserApi & LocalService] {
   )
 
   final case class PageState(
-      email: String,
-      password: String,
+      email: TextField.State,
+      password: TextField.State,
   ) {
 
-    def optEmail: Option[String] = {
-      val trimmed = email.trim
-      trimmed.someWhen(_.nonEmpty)
-    }
+    def optEmail: Option[String] =
+      email.text.trim.someWhen(_.nonEmpty)
 
   }
 
@@ -41,7 +39,7 @@ object LoginPage extends RoutablePage[UserApi & LocalService] {
     PageParams(state.optEmail)
 
   override def initialLoad(params: PageParams): ZIO[Scope, UIError, PageState] =
-    ZIO.succeed(PageState(params.email.getOrElse(""), ""))
+    ZIO.succeed(PageState(TextField.State.initial(params.email.getOrElse("")), TextField.State.empty))
 
   override def postLoad(state: WidgetState[PageState], initialState: PageState): ZIO[Scope, UIError, Unit] =
     ZIO.unit
@@ -50,7 +48,7 @@ object LoginPage extends RoutablePage[UserApi & LocalService] {
 
   override protected def component(state: WidgetState[PageState], renderState: PageState): WidgetES[UserApi & LocalService, PageState] =
     PageLayout.layout(signedOutNavBar(renderState.optEmail))(
-      PageMessagesBottomCorner.attached,
+      PageMessagesBottomCorner.default,
       PageBodies.centeredCard(
         boxShadow := "0 4px 32px #01810120",
         h1(
@@ -61,23 +59,15 @@ object LoginPage extends RoutablePage[UserApi & LocalService] {
           borderBottom := css(S.borderWidth._2, "solid", S.color.primary),
         ),
         (
-          Form
-            .textField[Email](
-              "Email",
-              formProps = Form.textField.Props(width = 300.px),
-              inputProps = TextField.Props(inputType = "email", width = 100.pct),
-            )
+          TextField
+            .form[Email]("Email", _.email.width(300.px))
             .required
             .zoomOut[PageState](_.email) <*>
-            Form
-              .textField[String](
-                "Password",
-                formProps = Form.textField.Props(width = 300.px),
-                inputProps = TextField.Props(inputType = "password", width = 100.pct),
-              )
+            TextField
+              .form[String]("Password", _.password.width(300.px))
               .required
               .zoomOut[PageState](_.password) <*>
-            Form.submitButton("Login", _.medium)
+            Button.form("Login", _.button(_.medium))
         ).handleActionStateful { case (_, (email, password)) =>
           for {
             _ <- ZIO.logInfo("submitting form...")

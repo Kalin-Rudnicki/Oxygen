@@ -25,7 +25,7 @@ object OxygenStyleSheet extends StyleSheetBuilder {
   T.apply("*")
     .apply(
       boxSizing.borderBox,
-      fontStyle := S.fontStyle.default,
+      fontFamily := S.fontStyle.default,
     )
 
   //////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -201,7 +201,6 @@ object OxygenStyleSheet extends StyleSheetBuilder {
 
     HorizontalRadio(
       display.inlineBlock,
-      margin(S.spacing._2, S.spacing._0), // TODO (KR) : keep this..?
       cursor.pointer,
       userSelect.none,
     )
@@ -264,7 +263,6 @@ object OxygenStyleSheet extends StyleSheetBuilder {
       display.inlineBlock,
       position.relative,
       overflowY.visible,
-      margin(S.spacing._2, S.spacing._0), // TODO (KR) : remove..?
     )
 
     Dropdown.Display(
@@ -354,6 +352,15 @@ object OxygenStyleSheet extends StyleSheetBuilder {
       textAlign := CellCellVars.alignment,
     )
 
+  }
+
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
+  //      Label
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
+
+  object Label extends Class("label") { l =>
+    object LabelText extends l.Class("label-text")
+    object DescriptionText extends l.Class("description-text")
   }
 
   //////////////////////////////////////////////////////////////////////////////////////////////////////

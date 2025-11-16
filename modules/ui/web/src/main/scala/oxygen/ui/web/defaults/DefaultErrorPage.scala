@@ -13,7 +13,7 @@ object DefaultErrorPage extends NonRoutablePage.StateSameAsParams[Any] {
 
   override protected def component(state: WidgetState[PageState], renderState: PageState): WidgetS[PageState] =
     fragment(
-      PageMessagesBottomCorner.attached,
+      PageMessagesBottomCorner.default,
       h1("Error"),
       p(whiteSpace.pre, renderState.prettyPrint),
     )
