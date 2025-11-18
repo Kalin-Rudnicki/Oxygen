@@ -18,7 +18,7 @@ git.gitTagToVersionNumber := { tag =>
   else None
 }
 
-ThisBuild / version := { // TODO (KR) : I hate doing this, but one/both of the git plugins seems to be bricked. Remove if they figure their shit out.
+ThisBuild / version := { // TODO (KR) : I hate doing this, but one/both of the git plugins seems to be bricked. Remove if they figure their shit out. :(
   (for {
     gitDesc <-
       try {
