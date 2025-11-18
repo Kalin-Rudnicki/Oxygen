@@ -9,6 +9,7 @@ import sbtcrossproject.CrossProject
 //////////////////////////////////////////////////////////////////////////////////////////////////////
 
 ThisBuild / watchBeforeCommand := Watch.clearScreen
+ThisBuild / resolvers += Resolver.sonatypeCentralSnapshots
 
 enablePlugins(GitVersioning)
 git.gitTagToVersionNumber := { tag =>
