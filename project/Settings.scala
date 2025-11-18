@@ -47,7 +47,7 @@ object Settings {
           tagV <-
             if (gitDesc.matches("^[0-9]+\\..*$")) Some(gitDesc)
             else None
-        } yield tagV).getOrElse(version.value)
+        } yield tagV).getOrElse(version.value + "-SNAPSHOT")
       },
     )
 
