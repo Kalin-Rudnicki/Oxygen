@@ -3,6 +3,7 @@
 import Dependencies._
 import Settings._
 import sbtcrossproject.CrossProject
+import scala.sys.process._
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////
 //      Settings
@@ -15,6 +16,30 @@ enablePlugins(GitVersioning)
 git.gitTagToVersionNumber := { tag =>
   if (tag.matches("^\\d+\\..*$")) Some(tag)
   else None
+}
+
+ThisBuild / version := { // TODO (KR) : I hate doing this, but one/both of the git plugins seems to be bricked. Remove if they figure their shit out.
+  (for {
+    gitDesc <-
+      try {
+        Some(
+          List("git", "describe", "--tags")
+            .!!(
+              new ProcessLogger {
+                override def out(s: => String): Unit = ()
+                override def err(s: => String): Unit = ()
+                override def buffer[T](f: => T): T = f
+              },
+            )
+            .trim,
+        )
+      } catch { case _: Throwable => None }
+    tagV <-
+      if (gitDesc.matches("^[0-9]+\\..*$")) Some(gitDesc)
+      else None
+    isSnapshot = tagV.matches("^.*-\\d+-.*$")
+    suffix = if (isSnapshot) "-SNAPSHOT" else ""
+  } yield tagV + suffix).getOrElse("unknown")
 }
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////
