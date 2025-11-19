@@ -32,6 +32,13 @@ final case class UserApiImpl(
       } yield AuthResponse(user, token)
     }
 
+  def makeResponse(
+      size: Int,
+  ): UIO[String] = {
+    val str = " " * size
+    ZIO.succeed(s"returning string of size ${str.length}").as(str)
+  }
+
 }
 object UserApiImpl {
 

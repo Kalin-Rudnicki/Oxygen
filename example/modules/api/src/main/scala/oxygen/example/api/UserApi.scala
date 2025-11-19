@@ -18,6 +18,11 @@ trait UserApi derives DeriveClient {
       @param.body req: LoginRequest,
   ): IO[LoginError, AuthResponse]
 
+  @route.get("/api/make-response")
+  def makeResponse(
+      @param.query size: Int,
+  ): UIO[String]
+
 }
 object UserApi {
 
