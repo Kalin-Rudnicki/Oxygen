@@ -18,8 +18,12 @@ object AutoComplete {
       relativeScriptPath: String,
       scriptPath: String,
       baseName: String,
+      programArgs: List[String],
   ): String = {
     val functionName: String = s"__oxygen_cli_complete__$baseName"
+    val programArgsString: String =
+      if (programArgs.nonEmpty) s"\n         ${programArgs.map(_.unesc("\"")).mkString(" ")} \\"
+      else ""
 
     s"""#!/bin/bash
        |
@@ -99,12 +103,13 @@ object AutoComplete {
        |    complete -F $functionName $baseName
        |    complete -F $functionName $relativeScriptPath
        |else
-       |    echo "default call case"
+       |    java -jar $jarPath \\$programArgsString
+       |         "$$@"
        |fi
        |""".stripMargin
   }
 
-  private def generateScript(path: String): Task[Unit] =
+  private def generateScript(path: String, programArgs: List[String]): Task[Unit] =
     for {
       scriptPath <- ZIO.attempt { Paths.get(path).toAbsolutePath }
       parentPath <- ZIO.attempt { scriptPath.getParent }
@@ -112,7 +117,7 @@ object AutoComplete {
       strippedFileName = fileName.stripSuffix(".sh")
 
       jarPath <- JarUtils.getJarFile
-      scriptText = generateScriptText(jarPath, path, scriptPath.toString, strippedFileName)
+      scriptText = generateScriptText(jarPath, path, scriptPath.toString, strippedFileName, programArgs)
 
       _ <- ZIO.attempt { Files.createDirectories(parentPath) }.unlessZIO(ZIO.attempt { Files.exists(parentPath) })
       _ <- ZIO.writeFile(scriptPath.toString, scriptText)
@@ -551,8 +556,18 @@ object AutoComplete {
   def handleArgs(args: List[String], executableApp: ExecutableApp): IO[ExecuteError, Unit] = {
     lazy val base: IO[ExecuteError, Unit] =
       args match {
+        case "generate" :: path :: "--oxygen-args" :: programArgs =>
+          generateScript(path, programArgs :+ "--").mapError {
+            case err: ExecuteError => err
+            case err               => ExecuteError.ProgramError(err)
+          }
+        case "generate" :: path :: "--args" :: programArgs =>
+          generateScript(path, programArgs).mapError {
+            case err: ExecuteError => err
+            case err               => ExecuteError.ProgramError(err)
+          }
         case "generate" :: path :: Nil =>
-          generateScript(path).mapError {
+          generateScript(path, Nil).mapError {
             case err: ExecuteError => err
             case err               => ExecuteError.ProgramError(err)
           }
@@ -566,6 +581,8 @@ object AutoComplete {
             """Invalid special command, supported:
                   |
                   |generate script <path>
+                  |generate script <path> --oxygen-args <program-args*>
+                  |generate script <path> --args <program-args*>
                   |resolve complete
                   |""".stripMargin
           ZIO.fail(ExecuteError.help(msg))
