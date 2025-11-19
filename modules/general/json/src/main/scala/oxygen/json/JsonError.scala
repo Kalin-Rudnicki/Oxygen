@@ -45,7 +45,7 @@ object JsonError {
       case Cause.InvalidKey(message)           => s"Invalid key: $message"
       case Cause.MissingRequired               => "Missing required value"
       case Cause.InvalidType(expected, actual) => s"Invalid type, expected `$expected`, but got `$actual`"
-      case Cause.InvalidJson(idx, cause)       => s"Invalid json at idx $idx${cause.fold("")(c => s", exception=${c.safeGetMessage}")}"
+      case Cause.InvalidJson(idx, cause) => s"Invalid json at idx $idx${cause.fold("")(c => s"\n  exception: ${c.safeGetMessage}\n  stack-trace:${c.getStackTrace.map(t => s"\n    $t").mkString}")}"
 
   }
 

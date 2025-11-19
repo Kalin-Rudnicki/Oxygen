@@ -107,7 +107,7 @@ private[json] final class JsonParser private (string: String) {
             sb.append(c)
             idx += 2
             continue()
-            Json.Number(BigDecimal(sb.toString))
+            Json.Number(BigDecimal(sb.getAndClear()))
           case _ =>
             fail()
         }
