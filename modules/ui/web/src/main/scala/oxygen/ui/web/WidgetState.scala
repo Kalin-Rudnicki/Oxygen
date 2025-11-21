@@ -50,6 +50,9 @@ trait WidgetState[S] extends PWidgetState[S, S] {
   inline final def zoomIn[S2](inline f: S => S2): WidgetState[S2] =
     WidgetState.ZoomIn(this, LensUtil.genLens(f))
 
+  final def zoomInLens[S2](lens: Lens[S, S2]): WidgetState[S2] =
+    WidgetState.ZoomIn(this, lens)
+
 }
 object WidgetState {
 

@@ -66,15 +66,6 @@ object Form {
   def unit[Env, Action, StateGet, StateSet <: StateGet](widget: Widget.Polymorphic[Env, Action, StateGet, StateSet]): Form.Polymorphic[Env, Action, StateGet, StateSet, Unit] =
     Form.const(widget, ())
 
-  def fragment[Env, Action, StateGet, StateSet <: StateGet, Value](
-      before: Widget.Polymorphic[Env, Action, StateGet, StateSet]*,
-  )(
-      form: Form.Polymorphic[Env, Action, StateGet, StateSet, Value],
-  )(
-      after: Widget.Polymorphic[Env, Action, StateGet, StateSet]*,
-  ): Form.Polymorphic[Env, Action, StateGet, StateSet, Value] =
-    PForm(Widget.fragment.apply(before*).apply(form.widget).apply(after*), form.value)
-
   /////// make ///////////////////////////////////////////////////////////////
 
   def makeWithValidation[Env, Action, State, Value](

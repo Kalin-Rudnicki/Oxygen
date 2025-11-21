@@ -1,30 +1,28 @@
 package oxygen.ui.web
 
+import monocle.Lens
 import oxygen.meta.typing.UnionRemoving
 import oxygen.predef.core.*
 import oxygen.ui.web.*
-import oxygen.ui.web.component.Form
+import oxygen.ui.web.component.{Form, Wizard}
 import oxygen.ui.web.create.*
+import oxygen.ui.web.internal.LensUtil
 import scala.annotation.targetName
 import zio.*
 
 // TODO (KR) : be able to attach a "FormLock", which disables submission while an existing effect is already running
-final case class PForm[-Env, +Action, -StateGet, +StateSet <: StateGet, +Value](
-    widget: Widget.Polymorphic[Env, Action, StateGet, StateSet],
-    value: FormValue[StateGet, Value],
-) {
+sealed trait PForm[-Env, +Action, -StateGet, +StateSet <: StateGet, +Value] {
 
-  def valueEffect(s: StateGet): IO[UIError.ClientSide.FormValidationErrors, Value] =
-    ZIO.fromEither(value.valueResult(s).toEither)
+  private[PForm] def buildInternal[State2 >: StateSet <: StateGet](state: WidgetState[State2]): (Widget.Stateful[Env, Action, State2], FormValue[State2, Value])
 
   def mapValue[Value2](f: Value => Value2): PForm[Env, Action, StateGet, StateSet, Value2] =
-    PForm(widget, value.mapValue(f))
+    PForm.TransformValue(this, _.mapValue(f))
   def mapValueEitherMessage[Value2](f: Value => PForm.EitherMessage[Value2]): PForm[Env, Action, StateGet, StateSet, Value2] =
-    PForm(widget, value.mapValueEitherMessage(f))
+    PForm.TransformValue(this, _.mapValueEitherMessage(f))
   def mapValueEitherMessages[Value2](f: Value => PForm.EitherMessages[Value2]): PForm[Env, Action, StateGet, StateSet, Value2] =
-    PForm(widget, value.mapValueEitherMessages(f))
+    PForm.TransformValue(this, _.mapValueEitherMessages(f))
   def mapValueEitherError[Value2](f: Value => PForm.EitherError[Value2]): PForm[Env, Action, StateGet, StateSet, Value2] =
-    PForm(widget, value.mapValueEitherError(f))
+    PForm.TransformValue(this, _.mapValueEitherError(f))
 
   def mapOrFail[Value2](f: Value => PForm.EitherMessage[Value2]): PForm[Env, Action, StateGet, StateSet, Value2] = this.mapValueEitherMessage(f)
 
@@ -32,20 +30,15 @@ final case class PForm[-Env, +Action, -StateGet, +StateSet <: StateGet, +Value](
   def unit: PForm[Env, Action, StateGet, StateSet, Unit] = this.mapValue(_ => ())
 
   def result: PForm[Env, Action, StateGet, StateSet, PForm.Result[Value]] =
-    PForm(widget, value.result)
+    PForm.TransformValue(this, _.result)
 
   @targetName("validateValue_single")
   def validateValue(f: Value => PForm.EitherMessage[Unit]): PForm[Env, Action, StateGet, StateSet, Value] =
-    PForm(widget, value.validateValue(f))
+    PForm.TransformValue(this, _.validateValue(f))
 
   @targetName("validateValue_many")
   def validateValue(f: Value => PForm.EitherMessages[Unit]): PForm[Env, Action, StateGet, StateSet, Value] =
-    PForm(widget, value.validateValue(f))
-
-  def inNode[Env2 <: Env, Action2 >: Action, StateGet2 <: StateGet, StateSet2 >: StateSet <: StateGet2](
-      node: Node.Polymorphic[Env2, Action2, StateGet2, StateSet2],
-  ): PForm.Polymorphic[Env2, Action2, StateGet2, StateSet2, Value] =
-    node.wrapForm(this)
+    PForm.TransformValue(this, _.validateValue(f))
 
 }
 object PForm {
@@ -55,7 +48,9 @@ object PForm {
       fields: List[String],
       valueResult: StateGet => Result[Value],
   ): PForm[Env, Action, StateGet, StateSet, Value] =
-    PForm(widget, FormValue(fields, valueResult))
+    PForm.Basic(widget, FormValue(fields, valueResult))
+
+  def state[S]: StateBuilder[S, S] = StateBuilder(identity)
 
   type Result[+Value] = FormResult[Value]
   type EitherResult[+Value] = Either[UIError.ClientSide.FormValidationErrors, Value]
@@ -65,7 +60,122 @@ object PForm {
 
   type Polymorphic[-Env, +Action, -StateGet, +StateSet <: StateGet, +Value] = PForm[Env, Action, StateGet, StateSet, Value]
   type Stateless[-Env, +Action, +Value] = PForm[Env, Action, Any, Nothing, Value]
+
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
+  //      Impls
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
+
+  sealed trait StatefulImpl[-Env, +Action, State, +Value] extends PForm[Env, Action, State, State, Value] {
+
+    private[PForm] final def buildInternal[State2 >: State <: State](state: WidgetState[State2]): (Widget.Stateful[Env, Action, State2], FormValue[State2, Value]) =
+      buildInternalStateful(state.asInstanceOf[WidgetState[State]]).asInstanceOf[(Widget.Stateful[Env, Action, State2], FormValue[State2, Value])]
+
+    private[PForm] def buildInternalStateful(state: WidgetState[State]): (Widget.Stateful[Env, Action, State], FormValue[State, Value])
+
+  }
+
   type Stateful[-Env, +Action, State, +Value] = PForm[Env, Action, State, State, Value]
+
+  final case class Basic[-Env, +Action, -StateGet, +StateSet <: StateGet, +Value](
+      widget: Widget.Polymorphic[Env, Action, StateGet, StateSet],
+      value: FormValue[StateGet, Value],
+  ) extends PForm[Env, Action, StateGet, StateSet, Value] {
+
+    override private[PForm] def buildInternal[State2 >: StateSet <: StateGet](state: WidgetState[State2]): (Widget.Stateful[Env, Action, State2], FormValue[State2, Value]) =
+      (widget, value)
+
+  }
+
+  final case class TransformValue[Env, Action, StateGet, StateSet <: StateGet, Value1, Value2](
+      inner: PForm[Env, Action, StateGet, StateSet, Value1],
+      f: FormValue[StateGet, Value1] => FormValue[StateGet, Value2],
+  ) extends PForm[Env, Action, StateGet, StateSet, Value2] {
+
+    override private[PForm] def buildInternal[State2 >: StateSet <: StateGet](state: WidgetState[State2]): (Widget.Stateful[Env, Action, State2], FormValue[State2, Value2]) = {
+      val (w, fv) = inner.buildInternal[State2](state)
+      (w, f.asInstanceOf[FormValue[State2, Value1] => FormValue[State2, Value2]].apply(fv))
+    }
+
+  }
+
+  final case class ZoomOut[Env, Action, InnerState, OuterState, Value](
+      inner: PForm.Stateful[Env, Action, InnerState, Value],
+      lens: Lens[OuterState, InnerState],
+  ) extends PForm.StatefulImpl[Env, Action, OuterState, Value] {
+
+    override private[PForm] def buildInternalStateful(state: WidgetState[OuterState]): (Widget.Stateful[Env, Action, OuterState], FormValue[OuterState, Value]) = {
+      val (w, fv) = inner.buildInternal[InnerState](state.zoomInLens(lens))
+      (w.zoomOutLens(lens), FormValue(fv.fields, s => fv.valueResult(lens.get(s))))
+    }
+
+  }
+
+  final case class ZipWith[Env, Action, State, Value1, Value2, Value3](
+      a: PForm.Stateful[Env, Action, State, Value1],
+      b: PForm.Stateful[Env, Action, State, Value2],
+      f: (Value1, Value2) => Value3,
+  ) extends PForm.StatefulImpl[Env, Action, State, Value3] {
+
+    override private[PForm] def buildInternalStateful(state: WidgetState[State]): (Widget.Stateful[Env, Action, State], FormValue[State, Value3]) = {
+      val (wA, fvA) = a.buildInternal[State](state)
+      val (wB, fvB) = b.buildInternal[State](state)
+      (fragment(wA, wB), fvA.zipWith(fvB)(f))
+    }
+
+  }
+
+  final case class Mapped[Env, Action, Env2 <: Env, Action2 >: Action, State, Value1, Value2](
+      inner: PForm.Stateful[Env, Action, State, Value1],
+      f: (Widget.Stateful[Env, Action, State], FormValue[State, Value1]) => (Widget.Stateful[Env2, Action2, State], FormValue[State, Value2]),
+  ) extends PForm.StatefulImpl[Env2, Action2, State, Value2] {
+
+    override private[PForm] def buildInternalStateful(state: WidgetState[State]): (Widget.Stateful[Env2, Action2, State], FormValue[State, Value2]) = {
+      val (w, fv) = inner.buildInternal[State](state)
+      f(w, fv)
+    }
+
+  }
+
+  final case class FlatMapped[Env, Action, Env2 <: Env, Action2 >: Action, State, Value1, Value2](
+      inner: PForm.Stateful[Env, Action, State, Value1],
+      f: (Widget.Stateful[Env, Action, State], FormValue[State, Value1]) => PForm.Stateful[Env2, Action2, State, Value2],
+  ) extends PForm.StatefulImpl[Env2, Action2, State, Value2] {
+
+    override private[PForm] def buildInternalStateful(state: WidgetState[State]): (Widget.Stateful[Env2, Action2, State], FormValue[State, Value2]) = {
+      val (w, fv) = inner.buildInternal[State](state)
+      f(w, fv).buildInternal[State](state)
+    }
+
+  }
+
+  final case class FlatMapWizard[Env, Action, State, Value1, Out, Value2](
+      inner: Wizard[State, Value1, Out],
+      f: Out => PForm.Stateful[Env, Action, State, Value2],
+  ) extends PForm.StatefulImpl[Env, Action, State, Value2] {
+
+    override private[PForm] def buildInternalStateful(state: WidgetState[State]): (Widget.Stateful[Env, Action, State], FormValue[State, Value2]) =
+      f(inner.toOut(inner.formValue.valueResult(state.renderTimeValue))).buildInternal[State](state)
+
+  }
+
+  final case class WithState[Env, Action, State, StateIn, Value](
+      toIn: State => StateIn,
+      f: StateIn => PForm.Stateful[Env, Action, State, Value],
+  ) extends PForm.StatefulImpl[Env, Action, State, Value] {
+
+    override private[PForm] def buildInternalStateful(state: WidgetState[State]): (Widget.Stateful[Env, Action, State], FormValue[State, Value]) =
+      f(toIn(state.renderTimeValue)).buildInternal[State](state)
+
+  }
+
+  final class StateBuilder[State, StateIn](toIn: State => StateIn) {
+
+    def zoomIn[StateIn2](f: StateIn => StateIn2): StateBuilder[State, StateIn2] = StateBuilder(s => f(toIn(s)))
+
+    def flatMap[Env, Action, Value](f: StateIn => Form.Stateful[Env, Action, State, Value]): Form.Stateful[Env, Action, State, Value] =
+      PForm.WithState(toIn, f)
+
+  }
 
   //////////////////////////////////////////////////////////////////////////////////////////////////////
   //      Extensions
@@ -74,43 +184,31 @@ object PForm {
   extension [Env, Action, State, Value](self: PForm.Stateful[Env, Action, State, Value]) {
 
     def <*>[Env2 <: Env, Action2 >: Action, Value2](that: PForm.Stateful[Env2, Action2, State, Value2])(using zip: Zip[Value, Value2]): PForm.Stateful[Env2, Action2, State, zip.Out] =
-      PForm(
-        fragment(self.widget, that.widget),
-        self.value <*> that.value,
-      )
+      PForm.ZipWith(self, that, zip.zip)
 
     def <*[Env2 <: Env, Action2 >: Action, Value2](that: PForm.Stateful[Env2, Action2, State, Value2]): PForm.Stateful[Env2, Action2, State, Value] =
-      PForm(
-        fragment(self.widget, that.widget),
-        self.value <* that.value,
-      )
+      PForm.ZipWith(self, that, (a, _) => a)
 
     def *>[Env2 <: Env, Action2 >: Action, Value2](that: PForm.Stateful[Env2, Action2, State, Value2]): PForm.Stateful[Env2, Action2, State, Value2] =
-      PForm(
-        fragment(self.widget, that.widget),
-        self.value *> that.value,
-      )
+      PForm.ZipWith(self, that, (_, b) => b)
 
     inline def zoomOut[OuterState](inline f: OuterState => State): PForm.Stateful[Env, Action, OuterState, Value] =
-      PForm(
-        self.widget.zoomOut[OuterState](f),
-        self.value.fields,
-        state => self.value.valueResult(f(state)),
-      )
+      PForm.ZoomOut(self, LensUtil.genLens(f))
 
     def handleActionStateful: HandleActionBuilders.Stateful[Env, Action, State, Value] = HandleActionBuilders.Stateful(self)
 
     def map[Env2 <: Env, Action2 >: Action, Value2](
         f: (Widget.Stateful[Env, Action, State], FormValue[State, Value]) => (Widget.Stateful[Env2, Action2, State], FormValue[State, Value2]),
-    ): PForm.Stateful[Env2, Action2, State, Value2] = {
-      val (widgetRes, valueRes) = f(self.widget, self.value)
-      PForm(widgetRes, valueRes)
-    }
+    ): PForm.Stateful[Env2, Action2, State, Value2] =
+      PForm.Mapped(self, f)
 
     def flatMap[Env2 <: Env, Action2 >: Action, Value2](
         f: (Widget.Stateful[Env, Action, State], FormValue[State, Value]) => PForm.Stateful[Env2, Action2, State, Value2],
     ): PForm.Stateful[Env2, Action2, State, Value2] =
-      f(self.widget, self.value)
+      PForm.FlatMapped(self, f)
+
+    def widget: Widget.Stateful[Env, Action, State] =
+      Widget.state[State].fix { self.buildInternal[State](_)._1 }
 
     // TODO (KR) : need some way to allow the `Value` of one form to control how other forms are created.
     //           : (tmp).wizard { (tmpWidget, tmpValue, optValue) => ??? } could be an optional, required, or either value, applying the value function to current state
@@ -145,7 +243,7 @@ object PForm {
   extension [Env, Action, State, Value](self: PForm.Stateful[Env, Action, State, PForm.Result[Value]]) {
 
     def absolve: PForm.Stateful[Env, Action, State, Value] =
-      PForm(self.widget, self.value.absolve)
+      PForm.TransformValue(self, _.absolve)
 
   }
 
@@ -167,7 +265,8 @@ object PForm {
       // handle part of the action, and allow the rest to pass through
       def ps[HandleA](using
           ev: UnionRemoving[Action, HandleA],
-      ): StatefulPS[Env, Action, State, Value, HandleA, ev.Remaining] = new StatefulPS(widget, ev.apply)
+      ): StatefulPS[Env, Action, State, Value, HandleA, ev.Remaining] =
+        new StatefulPS(widget, ev.apply)
 
       def map[Action2](f: (Action, Value) => Action2)(using HasNoScope[Env]): Widget.Stateful[Env, Action2, State] =
         this.a[Action2] { (rh, a, v) => rh.raiseAction(f(a, v)) }
@@ -183,19 +282,28 @@ object PForm {
 
     final class StatefulS[Env, Action, State, Value](widget: PForm.Stateful[Env, Action, State, Value]) {
       def apply[Env2 <: Env: HasNoScope](f: (WidgetState[State], Action, Value) => ZIO[Env2 & Scope, UIError, Unit]): Widget.Stateful[Env2, Nothing, State] =
-        new PWidget.HandleActionBuilders.StatefulS[Env, Action, State](widget.widget).apply[Env2] { (s, a) => widget.valueEffect(s.unsafeCurrentValue).flatMap(f(s, a, _)) }
+        Widget.state[State].fix { widgetState =>
+          val (w, fv) = widget.buildInternal[State](widgetState)
+          new PWidget.HandleActionBuilders.StatefulS[Env, Action, State](w).apply[Env2] { (s, a) => fv.valueEffect[State](s).flatMap(f(s, a, _)) }
+        }
     }
 
     final class StatefulAS[Env, Action, State, Value, Action2](widget: PForm.Stateful[Env, Action, State, Value]) {
       def apply[Env2 <: Env: HasNoScope](f: (WidgetState[State], RaiseHandler[Any, Action2], Action, Value) => ZIO[Env2 & Scope, UIError, Unit]): Widget.Stateful[Env2, Action2, State] =
-        new PWidget.HandleActionBuilders.StatefulAS[Env, Action, State, Action2](widget.widget).apply[Env2] { (s, rh, a) => widget.valueEffect(s.unsafeCurrentValue).flatMap(f(s, rh, a, _)) }
+        Widget.state[State].fix { widgetState =>
+          val (w, fv) = widget.buildInternal[State](widgetState)
+          new PWidget.HandleActionBuilders.StatefulAS[Env, Action, State, Action2](w).apply[Env2] { (s, rh, a) => fv.valueEffect[State](s).flatMap(f(s, rh, a, _)) }
+        }
     }
 
     final class StatefulPS[Env, Action, State, Value, HandledA, UnhandledA](widget: PForm.Stateful[Env, Action, State, Value], toEither: Action => Either[HandledA, UnhandledA]) {
 
       def apply[Env2 <: Env: HasNoScope](f: (WidgetState[State], HandledA, Value) => ZIO[Env2 & Scope, UIError, Unit]): Widget.Stateful[Env2, UnhandledA, State] =
-        new PWidget.HandleActionBuilders.StatefulPS[Env, Action, State, HandledA, UnhandledA](widget.widget, toEither).apply[Env2] { (s, a) =>
-          widget.valueEffect(s.unsafeCurrentValue).flatMap(f(s, a, _))
+        Widget.state[State].fix { widgetState =>
+          val (w, fv) = widget.buildInternal[State](widgetState)
+          new PWidget.HandleActionBuilders.StatefulPS[Env, Action, State, HandledA, UnhandledA](w, toEither).apply[Env2] { (s, a) =>
+            fv.valueEffect[State](s).flatMap(f(s, a, _))
+          }
         }
 
       def a[UnhandledA2 >: UnhandledA]: StatefulPAS[Env, Action, State, Value, HandledA, UnhandledA2] = new StatefulPAS(widget, toEither)
@@ -204,8 +312,11 @@ object PForm {
 
     final class StatefulPAS[Env, Action, State, Value, HandledA, UnhandledA](widget: PForm.Stateful[Env, Action, State, Value], toEither: Action => Either[HandledA, UnhandledA]) {
       def apply[Env2 <: Env: HasNoScope](f: (WidgetState[State], RaiseHandler[Any, UnhandledA], HandledA, Value) => ZIO[Env2 & Scope, UIError, Unit]): Widget.Stateful[Env2, UnhandledA, State] =
-        new PWidget.HandleActionBuilders.StatefulPAS[Env, Action, State, HandledA, UnhandledA](widget.widget, toEither).apply[Env2] { (s, rh, a) =>
-          widget.valueEffect(s.unsafeCurrentValue).flatMap(f(s, rh, a, _))
+        Widget.state[State].fix { widgetState =>
+          val (w, fv) = widget.buildInternal[State](widgetState)
+          new PWidget.HandleActionBuilders.StatefulPAS[Env, Action, State, HandledA, UnhandledA](w, toEither).apply[Env2] { (s, rh, a) =>
+            fv.valueEffect[State](s).flatMap(f(s, rh, a, _))
+          }
         }
     }
 
