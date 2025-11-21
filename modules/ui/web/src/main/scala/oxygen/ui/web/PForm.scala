@@ -187,7 +187,19 @@ object PForm {
 
   }
 
-  final case class WithState[Env, Action, State, StateIn, Value](
+  final case class TransformWidget[Env1, Action1, Env2 <: Env1, Action2, State, Value](
+      inner: PForm.Stateful[Env1, Action1, State, Value],
+      f: Widget.Stateful[Env1, Action1, State] => Widget.Stateful[Env2, Action2, State],
+  ) extends PForm.StatefulImpl[Env2, Action2, State, Value] {
+
+    override private[PForm] def buildInternalStateful(state: WidgetState[State]): (Widget.Stateful[Env2, Action2, State], FormValue[State, Value]) = {
+      val (w, fv) = inner.buildInternal[State](state)
+      (f(w), fv)
+    }
+
+  }
+
+  final case class FlatMapWithState[Env, Action, State, StateIn, Value](
       toIn: State => StateIn,
       f: StateIn => PForm.Stateful[Env, Action, State, Value],
   ) extends PForm.StatefulImpl[Env, Action, State, Value] {
@@ -199,10 +211,11 @@ object PForm {
 
   final class StateBuilder[State, StateIn](toIn: State => StateIn) {
 
-    def zoomIn[StateIn2](f: StateIn => StateIn2): StateBuilder[State, StateIn2] = StateBuilder(s => f(toIn(s)))
+    def zoomIn[StateIn2](f: StateIn => StateIn2): StateBuilder[State, StateIn2] =
+      StateBuilder(s => f(toIn(s)))
 
     def flatMap[Env, Action, Value](f: StateIn => Form.Stateful[Env, Action, State, Value]): Form.Stateful[Env, Action, State, Value] =
-      PForm.WithState(toIn, f)
+      PForm.FlatMapWithState(toIn, f)
 
   }
 
@@ -241,6 +254,9 @@ object PForm {
 
     def widget: Widget.Stateful[Env, Action, State] =
       Widget.state[State].fix { self.buildInternal[State](_)._1 }
+
+    def transformWidget[Env2 <: Env, Action2](f: Widget.Stateful[Env, Action, State] => Widget.Stateful[Env2, Action2, State]): PForm.Stateful[Env2, Action2, State, Value] =
+      PForm.TransformWidget(self, f)
 
     // TODO (KR) : need some way to allow the `Value` of one form to control how other forms are created.
     //           : (tmp).wizard { (tmpWidget, tmpValue, optValue) => ??? } could be an optional, required, or either value, applying the value function to current state
