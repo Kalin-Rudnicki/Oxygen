@@ -77,11 +77,6 @@ object SectionWithHeader extends Decorable {
   def apply(headerText: String, decorator: Decorator): Node = {
     val props = decorator.computed
 
-    println("---")
-    println("decorator: " + decorator.name)
-    println("header: " + props.header.name)
-    println("section: " + props.section.name)
-
     Section(props.section)(
       SectionHeader(headerText, props.header.mod(marginBottom := props.postHeaderSpacing)),
     )
