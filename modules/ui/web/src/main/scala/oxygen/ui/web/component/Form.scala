@@ -51,6 +51,9 @@ object Form {
   ): Form.Polymorphic[Env, Action, StateGet, StateSet, Value] =
     PForm(widget, fields, stateToValue)
 
+  def state[S]: PForm.StateBuilder[S, S] = PForm.StateBuilder(identity)
+  def seq[F[_]: PWidget.Sequence.Ops]: Form.SeqBuilder[F] = new Form.SeqBuilder[F]
+
   def const[Value](value: Value): Form[Value] =
     Form(Widget.empty, Nil, _ => FormResult.Success(value))
 
@@ -136,5 +139,17 @@ object Form {
       stateToValue: State => Value,
   ): Form.Stateful[Env, Action, State, Value] =
     Form.makeWith(Nil, widget)(stateToValue)
+
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
+  //      ...
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
+
+  // TODO (KR) : have a way to include index in message
+  final class SeqBuilder[F[_]: PWidget.Sequence.Ops as ops] {
+
+    def apply[Env, Action, State, Value](form: Form.Stateful[Env, Action, State, Value]): Form.Stateful[Env, Action, F[State], F[Value]] =
+      PForm.Sequence(form, ops)
+
+  }
 
 }

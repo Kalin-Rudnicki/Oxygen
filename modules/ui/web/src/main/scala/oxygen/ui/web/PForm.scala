@@ -105,7 +105,7 @@ object PForm {
 
     override private[PForm] def buildInternalStateful(state: WidgetState[OuterState]): (Widget.Stateful[Env, Action, OuterState], FormValue[OuterState, Value]) = {
       val (w, fv) = inner.buildInternal[InnerState](state.zoomInLens(lens))
-      (w.zoomOutLens(lens), FormValue(fv.fields, s => fv.valueResult(lens.get(s))))
+      (w.zoomOutLens(lens), fv.zoomOutLens(lens))
     }
 
   }
@@ -158,6 +158,35 @@ object PForm {
 
   }
 
+  final case class Sequence[Env, Action, State, Value, F[_]](
+      inner: PForm.Stateful[Env, Action, State, Value],
+      ops: PWidget.Sequence.Ops[F],
+  ) extends PForm.StatefulImpl[Env, Action, F[State], F[Value]] {
+
+    override private[PForm] def buildInternalStateful(state: WidgetState[F[State]]): (Widget.Stateful[Env, Action, F[State]], FormValue[F[State], F[Value]]) = {
+      val lenses: ArraySeq[(Int, Lens[F[State], State])] =
+        ops.lenses(state).toArraySeq
+      val pairs: ArraySeq[(Widget.Stateful[Env, Action, F[State]], FormValue[F[State], Value])] =
+        lenses.map { case (_, lens) => inner.zoomOutLens(lens).buildInternal[F[State]](state) }
+      val formValues: ArraySeq[FormValue[F[State], Value]] =
+        pairs.map(_._2)
+
+      (
+        Widget.foreach(pairs)(_._1),
+        FormValue[F[State], F[Value]](
+          formValues.flatMap(_.fields).toList,
+          { s =>
+            formValues.parTraverse { _.valueResult(s).toEither.leftMap(_.errors) } match {
+              case Right(value) => FormResult.Success(ops.wrap(value))
+              case Left(errors) => FormResult.Error(UIError.ClientSide.FormValidationErrors(errors))
+            }
+          },
+        ),
+      )
+    }
+
+  }
+
   final case class WithState[Env, Action, State, StateIn, Value](
       toIn: State => StateIn,
       f: StateIn => PForm.Stateful[Env, Action, State, Value],
@@ -194,6 +223,9 @@ object PForm {
 
     inline def zoomOut[OuterState](inline f: OuterState => State): PForm.Stateful[Env, Action, OuterState, Value] =
       PForm.ZoomOut(self, LensUtil.genLens(f))
+
+    def zoomOutLens[OuterState](lens: Lens[OuterState, State]): PForm.Stateful[Env, Action, OuterState, Value] =
+      PForm.ZoomOut(self, lens)
 
     def handleActionStateful: HandleActionBuilders.Stateful[Env, Action, State, Value] = HandleActionBuilders.Stateful(self)
 
