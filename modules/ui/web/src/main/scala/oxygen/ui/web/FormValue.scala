@@ -2,6 +2,7 @@ package oxygen.ui.web
 
 import oxygen.predef.core.*
 import scala.annotation.targetName
+import zio.*
 
 final case class FormValue[-StateGet, +Value](fields: List[String], valueResult: StateGet => PForm.Result[Value]) {
 
@@ -31,6 +32,9 @@ final case class FormValue[-StateGet, +Value](fields: List[String], valueResult:
       state => valueResult(state).flatMap { value => FormResult.fromEitherMessages(fields, f(value)).map(_ => value) },
     )
 
+  def valueEffect[State <: StateGet](state: WidgetState[State]): IO[UIError.ClientSide.FormValidationErrors, Value] =
+    state.currentValue.flatMap { s => ZIO.fromEither { valueResult(s).toEither } }
+
 }
 object FormValue {
 
@@ -39,13 +43,16 @@ object FormValue {
   extension [StateGet, Value1](self: FormValue[StateGet, Value1]) {
 
     def <*>[Value2](that: FormValue[StateGet, Value2])(using zip: Zip[Value1, Value2]): FormValue[StateGet, zip.Out] =
-      FormValue(self.fields ++ that.fields, state => self.valueResult(state).zipWith(that.valueResult(state))(zip.zip))
+      self.zipWith(that)(zip.zip)
 
     def <*[Value2](that: FormValue[StateGet, Value2]): FormValue[StateGet, Value1] =
-      FormValue(self.fields ++ that.fields, state => self.valueResult(state).zipWith(that.valueResult(state))((v1, _) => v1))
+      self.zipWith(that)((v1, _) => v1)
 
     def *>[Value2](that: FormValue[StateGet, Value2]): FormValue[StateGet, Value2] =
-      FormValue(self.fields ++ that.fields, state => self.valueResult(state).zipWith(that.valueResult(state))((_, v2) => v2))
+      self.zipWith(that)((_, v2) => v2)
+
+    def zipWith[Value2, Value3](that: FormValue[StateGet, Value2])(f: (Value1, Value2) => Value3): FormValue[StateGet, Value3] =
+      FormValue(self.fields ++ that.fields, state => self.valueResult(state).zipWith(that.valueResult(state))(f))
 
   }
 

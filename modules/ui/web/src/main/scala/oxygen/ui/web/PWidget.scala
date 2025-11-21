@@ -615,20 +615,6 @@ object PWidget {
         Growable.single(mod.before) ++ children ++ Growable.single(mod.after),
       )
 
-    def wrapForm[Env2 <: Env, Action2 >: Action, StateGet2 <: StateGet, StateSet2 >: StateSet <: StateGet2, Value](
-        form: Form.Polymorphic[Env2, Action2, StateGet2, StateSet2, Value],
-    ): Form.Polymorphic[Env2, Action2, StateGet2, StateSet2, Value] =
-      PForm(this.apply(form.widget), form.value)
-
-    def wrapForm[Env2 <: Env, Action2 >: Action, StateGet2 <: StateGet, StateSet2 >: StateSet <: StateGet2, Value](
-        beforeForm: PWidget[Env2, Action2, StateGet2, StateSet2]*,
-    )(
-        form: Form.Polymorphic[Env2, Action2, StateGet2, StateSet2, Value],
-    )(
-        afterForm: PWidget[Env2, Action2, StateGet2, StateSet2]*,
-    ): Form.Polymorphic[Env2, Action2, StateGet2, StateSet2, Value] =
-      PForm(this.apply(beforeForm*).apply(form.widget).apply(afterForm*), form.value)
-
   }
   object Node {
 
