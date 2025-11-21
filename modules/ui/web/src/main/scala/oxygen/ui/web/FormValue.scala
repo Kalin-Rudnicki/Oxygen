@@ -1,6 +1,8 @@
 package oxygen.ui.web
 
+import monocle.Lens
 import oxygen.predef.core.*
+import oxygen.ui.web.component.Wizard
 import scala.annotation.targetName
 import zio.*
 
@@ -53,6 +55,15 @@ object FormValue {
 
     def zipWith[Value2, Value3](that: FormValue[StateGet, Value2])(f: (Value1, Value2) => Value3): FormValue[StateGet, Value3] =
       FormValue(self.fields ++ that.fields, state => self.valueResult(state).zipWith(that.valueResult(state))(f))
+
+    def optionWizard: Wizard[StateGet, Value1, Option[Value1]] =
+      Wizard(self, _.toOption)
+
+    def zoomOutLens[State2](lens: Lens[State2, StateGet]): FormValue[State2, Value1] =
+      FormValue(
+        self.fields,
+        s => self.valueResult(lens.get(s)),
+      )
 
   }
 

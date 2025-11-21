@@ -431,11 +431,16 @@ object PWidget {
   object Sequence {
 
     trait Ops[F[_]] {
-      def childStates[A](state: WidgetState[F[A]]): Growable[(Int, WidgetState[A])]
+      def wrap[A](values: ArraySeq[A]): F[A]
+      def lenses[A](state: WidgetState[F[A]]): Growable[(Int, Lens[F[A], A])]
+
+      final def childStates[A](state: WidgetState[F[A]]): Growable[(Int, WidgetState[A])] =
+        lenses(state).map { case (i, l) => (i, state.zoomInLens(l)) }
+
     }
     object Ops {
 
-      trait FromSizeAndLens[F[_]] extends Ops[F] {
+      abstract class FromSizeAndLens[F[_]] extends Ops[F] {
 
         protected def size[A](fValue: F[A]): Int
         protected def get[A](fValue: F[A], idx: Int): A
@@ -444,10 +449,8 @@ object PWidget {
         private def lens[A](idx: Int): Lens[F[A], A] =
           Lens[F[A], A] { fValue => get(fValue, idx) } { value => fValue => update(fValue, idx, value) }
 
-        override final def childStates[A](state: WidgetState[F[A]]): Growable[(Int, WidgetState[A])] =
-          Growable.fillWithIndex(size(state.renderTimeValue)) { idx =>
-            (idx, WidgetState.ZoomIn(state, lens[A](idx)))
-          }
+        override final def lenses[A](state: WidgetState[F[A]]): Growable[(Int, Lens[F[A], A])] =
+          Growable.fillWithIndex(size(state.renderTimeValue)) { idx => (idx, lens[A](idx)) }
 
       }
 
@@ -456,6 +459,7 @@ object PWidget {
           override protected def size[A](value: ArraySeq[A]): Int = value.length
           override protected def get[A](fValue: ArraySeq[A], idx: Int): A = fValue(idx)
           override protected def update[A](fValue: ArraySeq[A], idx: Int, value: A): ArraySeq[A] = fValue.updated(idx, value)
+          override def wrap[A](values: ArraySeq[A]): ArraySeq[A] = values
         }
 
       given seq: Ops[Seq] =
@@ -463,6 +467,7 @@ object PWidget {
           override protected def size[A](value: Seq[A]): Int = value.length
           override protected def get[A](fValue: Seq[A], idx: Int): A = fValue(idx)
           override protected def update[A](fValue: Seq[A], idx: Int, value: A): Seq[A] = fValue.updated(idx, value)
+          override def wrap[A](values: ArraySeq[A]): Seq[A] = values
         }
 
       given list: Ops[List] =
@@ -470,6 +475,7 @@ object PWidget {
           override protected def size[A](value: List[A]): Int = value.length
           override protected def get[A](fValue: List[A], idx: Int): A = fValue(idx)
           override protected def update[A](fValue: List[A], idx: Int, value: A): List[A] = fValue.updated(idx, value)
+          override def wrap[A](values: ArraySeq[A]): List[A] = values.toList
         }
 
       given vector: Ops[Vector] =
@@ -477,6 +483,7 @@ object PWidget {
           override protected def size[A](value: Vector[A]): Int = value.length
           override protected def get[A](fValue: Vector[A], idx: Int): A = fValue(idx)
           override protected def update[A](fValue: Vector[A], idx: Int, value: A): Vector[A] = fValue.updated(idx, value)
+          override def wrap[A](values: ArraySeq[A]): Vector[A] = values.toVector
         }
 
       given indexedSeq: Ops[IndexedSeq] =
@@ -484,6 +491,7 @@ object PWidget {
           override protected def size[A](value: IndexedSeq[A]): Int = value.length
           override protected def get[A](fValue: IndexedSeq[A], idx: Int): A = fValue(idx)
           override protected def update[A](fValue: IndexedSeq[A], idx: Int, value: A): IndexedSeq[A] = fValue.updated(idx, value)
+          override def wrap[A](values: ArraySeq[A]): IndexedSeq[A] = values
         }
 
       given chunk: Ops[Chunk] =
@@ -491,6 +499,7 @@ object PWidget {
           override protected def size[A](value: Chunk[A]): Int = value.length
           override protected def get[A](fValue: Chunk[A], idx: Int): A = fValue(idx)
           override protected def update[A](fValue: Chunk[A], idx: Int, value: A): Chunk[A] = fValue.updated(idx, value)
+          override def wrap[A](values: ArraySeq[A]): Chunk[A] = Chunk.from(values)
         }
 
     }
