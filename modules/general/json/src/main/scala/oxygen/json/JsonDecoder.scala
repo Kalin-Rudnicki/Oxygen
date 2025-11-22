@@ -40,10 +40,81 @@ trait JsonDecoder[A] {
     map(ab)
   }
 
+  final def toStringDecoder: StringDecoder[A] = StringDecoder.string.mapOrFail(this.decodeJsonString(_).leftMap(_.getMessage))
+
 }
 object JsonDecoder extends K0.Derivable[JsonDecoder.ObjectDecoder], JsonDecoderLowPriority.LowPriority1 {
 
   inline def apply[A](using ev: JsonDecoder[A]): JsonDecoder[A] = ev
+
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
+  //      Givens
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
+
+  given json: JsonDecoder[Json] = AnyJsonDecoder
+  given jsonString: JsonDecoder[Json.Str] = JsonSubtypeDecoder(_.toJsonString, Json.Type.String)
+  given jsonBoolean: JsonDecoder[Json.Bool] = JsonSubtypeDecoder(_.toJsonBoolean, Json.Type.Boolean)
+  given jsonNumber: JsonDecoder[Json.Number] = JsonSubtypeDecoder(_.toJsonNumber, Json.Type.Number)
+  given jsonArray: JsonDecoder[Json.Arr] = JsonSubtypeDecoder(_.toJsonArray, Json.Type.Array)
+  given jsonObject: JsonDecoder[Json.Obj] = JsonSubtypeDecoder(_.toJsonObject, Json.Type.Object)
+  given jsonNull: JsonDecoder[Json.Null.type] = JsonSubtypeDecoder(_.toJsonNull, Json.Type.Null)
+
+  given string: JsonDecoder[String] = StrDecoder
+  given boolean: JsonDecoder[Boolean] = BooleanDecoder
+  given uuid: JsonDecoder[UUID] = StrDecoder.mapAttempt(UUID.fromString)
+
+  given bigDecimal: JsonDecoder[BigDecimal] = BigDecimalDecoder
+  given double: JsonDecoder[Double] = BigDecimalDecoder.narrow(_.toDouble, BigDecimal.exact)
+  given float: JsonDecoder[Float] = BigDecimalDecoder.narrow(_.toFloat, BigDecimal.exact)
+  given bigInt: JsonDecoder[BigInt] = BigDecimalDecoder.narrow(_.toBigInt, BigDecimal.exact)
+  given long: JsonDecoder[Long] = BigDecimalDecoder.narrow(_.toLong, BigDecimal.exact)
+  given int: JsonDecoder[Int] = BigDecimalDecoder.narrow(_.toInt, BigDecimal.exact)
+  given short: JsonDecoder[Short] = BigDecimalDecoder.narrow(_.toShort, BigDecimal.exact)
+  given byte: JsonDecoder[Byte] = BigDecimalDecoder.narrow(_.toByte, BigDecimal.exact)
+
+  given option: [A] => (decoder: JsonDecoder[A]) => JsonDecoder[Option[A]] = OptionDecoder(decoder)
+  given specified: [A] => (decoder: JsonDecoder[A]) => JsonDecoder[Specified[A]] = SpecifiedDecoder(decoder)
+
+  given arraySeq: [A] => (decoder: JsonDecoder[A]) => JsonDecoder[ArraySeq[A]] = ArraySeqDecoder(decoder)
+  given seq: [S[_], A] => (seqOps: SeqOps[S], decoder: JsonDecoder[A]) => JsonDecoder[S[A]] = ArraySeqDecoder(decoder).map(_.transformTo[S])
+
+  given map: [K, V] => (k: JsonFieldDecoder[K], v: JsonDecoder[V]) => JsonDecoder[Map[K, V]] = MapDecoder(k, v)
+
+  given tuple: [A <: Tuple] => (dec: TupleDecoder[A]) => JsonDecoder[A] = dec
+
+  given strictEnum: [A: StrictEnum as e] => JsonDecoder[A] = StrDecoder.mapOrFail(e.decodeEitherWithHint)
+  given enumWithOther: [A: EnumWithOther as e] => JsonDecoder[A] = StrDecoder.map(e.decode)
+
+  given localTime: JsonDecoder[LocalTime] = StrDecoder.mapAttempt(LocalTime.parse)
+  given localDate: JsonDecoder[LocalDate] = StrDecoder.mapAttempt(LocalDate.parse)
+  given localDateTime: JsonDecoder[LocalDateTime] = StrDecoder.mapAttempt(LocalDateTime.parse)
+  given zonedDateTime: JsonDecoder[ZonedDateTime] = StrDecoder.mapAttempt(ZonedDateTime.parse)
+  given offsetDateTime: JsonDecoder[OffsetDateTime] = StrDecoder.mapAttempt(OffsetDateTime.parse)
+  given offsetTime: JsonDecoder[OffsetTime] = StrDecoder.mapAttempt(OffsetTime.parse)
+  given instant: JsonDecoder[Instant] = StrDecoder.mapAttempt(Instant.parse)
+  given duration: JsonDecoder[Duration] = StrDecoder.mapAttempt(Duration.parse)
+  given period: JsonDecoder[Period] = StrDecoder.mapAttempt(Period.parse)
+  given zoneId: JsonDecoder[ZoneId] = StrDecoder.mapAttempt(ZoneId.of)
+  given zoneOffset: JsonDecoder[ZoneOffset] = StrDecoder.mapAttempt(ZoneOffset.of)
+  given timeZone: JsonDecoder[TimeZone] = StrDecoder.mapAttempt(TimeZone.getTimeZone)
+  given monthDay: JsonDecoder[MonthDay] = StrDecoder.mapAttempt(MonthDay.parse)
+  given year: JsonDecoder[Year] = StrDecoder.mapAttempt(Year.parse)
+  given yearMonth: JsonDecoder[YearMonth] = StrDecoder.mapAttempt(YearMonth.parse)
+  given month: JsonDecoder[Month] = strictEnum[Month]
+
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
+  //      Builders
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
+
+  def `enum`[A: StrictEnum]: JsonDecoder[A] = strictEnum[A]
+
+  def jsonStringUsingStringDecoderSimple[A: StringDecoder as dec]: JsonDecoder[A] = JsonDecoder.string.mapOrFail(dec.decodeSimple)
+  def jsonStringUsingStringDecoderDetailed[A: StringDecoder as dec]: JsonDecoder[A] = JsonDecoder.string.mapOrFail(dec.decode)
+  def jsonStringUsingStringDecoder[A: StringDecoder as dec]: JsonDecoder[A] = jsonStringUsingStringDecoderDetailed[A]
+
+  def jsonStringFromStringDecoderSimple[A](dec: StringDecoder[A]): JsonDecoder[A] = JsonDecoder.string.mapOrFail(dec.decodeSimple)
+  def jsonStringFromStringDecoderDetailed[A](dec: StringDecoder[A]): JsonDecoder[A] = JsonDecoder.string.mapOrFail(dec.decode)
+  def jsonStringFromStringDecoder[A](dec: StringDecoder[A]): JsonDecoder[A] = jsonStringFromStringDecoderDetailed[A](dec)
 
   //////////////////////////////////////////////////////////////////////////////////////////////////////
   //      Instances
@@ -65,7 +136,7 @@ object JsonDecoder extends K0.Derivable[JsonDecoder.ObjectDecoder], JsonDecoderL
 
   }
 
-  object StringDecoder extends JsonDecoder[String] {
+  object StrDecoder extends JsonDecoder[String] {
     override def decodeJsonAST(ast: Json): Either[JsonError, String] = ast match
       case Json.Str(value) => value.asRight
       case _               => JsonError(Nil, JsonError.Cause.InvalidType(Json.Type.String, ast.tpe)).asLeft
@@ -213,66 +284,6 @@ object JsonDecoder extends K0.Derivable[JsonDecoder.ObjectDecoder], JsonDecoderL
   }
 
   //////////////////////////////////////////////////////////////////////////////////////////////////////
-  //      Givens
-  //////////////////////////////////////////////////////////////////////////////////////////////////////
-
-  given json: JsonDecoder[Json] = AnyJsonDecoder
-  given jsonString: JsonDecoder[Json.Str] = JsonSubtypeDecoder(_.toJsonString, Json.Type.String)
-  given jsonBoolean: JsonDecoder[Json.Bool] = JsonSubtypeDecoder(_.toJsonBoolean, Json.Type.Boolean)
-  given jsonNumber: JsonDecoder[Json.Number] = JsonSubtypeDecoder(_.toJsonNumber, Json.Type.Number)
-  given jsonArray: JsonDecoder[Json.Arr] = JsonSubtypeDecoder(_.toJsonArray, Json.Type.Array)
-  given jsonObject: JsonDecoder[Json.Obj] = JsonSubtypeDecoder(_.toJsonObject, Json.Type.Object)
-  given jsonNull: JsonDecoder[Json.Null.type] = JsonSubtypeDecoder(_.toJsonNull, Json.Type.Null)
-
-  given string: JsonDecoder[String] = StringDecoder
-  given boolean: JsonDecoder[Boolean] = BooleanDecoder
-  given uuid: JsonDecoder[UUID] = StringDecoder.mapAttempt(UUID.fromString)
-
-  given bigDecimal: JsonDecoder[BigDecimal] = BigDecimalDecoder
-  given double: JsonDecoder[Double] = BigDecimalDecoder.narrow(_.toDouble, BigDecimal.exact)
-  given float: JsonDecoder[Float] = BigDecimalDecoder.narrow(_.toFloat, BigDecimal.exact)
-  given bigInt: JsonDecoder[BigInt] = BigDecimalDecoder.narrow(_.toBigInt, BigDecimal.exact)
-  given long: JsonDecoder[Long] = BigDecimalDecoder.narrow(_.toLong, BigDecimal.exact)
-  given int: JsonDecoder[Int] = BigDecimalDecoder.narrow(_.toInt, BigDecimal.exact)
-  given short: JsonDecoder[Short] = BigDecimalDecoder.narrow(_.toShort, BigDecimal.exact)
-  given byte: JsonDecoder[Byte] = BigDecimalDecoder.narrow(_.toByte, BigDecimal.exact)
-
-  given option: [A] => (decoder: JsonDecoder[A]) => JsonDecoder[Option[A]] = OptionDecoder(decoder)
-  given specified: [A] => (decoder: JsonDecoder[A]) => JsonDecoder[Specified[A]] = SpecifiedDecoder(decoder)
-
-  given arraySeq: [A] => (decoder: JsonDecoder[A]) => JsonDecoder[ArraySeq[A]] = ArraySeqDecoder(decoder)
-  given seq: [S[_], A] => (seqOps: SeqOps[S], decoder: JsonDecoder[A]) => JsonDecoder[S[A]] = ArraySeqDecoder(decoder).map(_.transformTo[S])
-
-  given map: [K, V] => (k: JsonFieldDecoder[K], v: JsonDecoder[V]) => JsonDecoder[Map[K, V]] = MapDecoder(k, v)
-
-  given tuple: [A <: Tuple] => (dec: TupleDecoder[A]) => JsonDecoder[A] = dec
-
-  given strictEnum: [A: StrictEnum as e] => JsonDecoder[A] =
-    StringDecoder.mapOrFail(e.decodeEitherWithHint)
-
-  given enumWithOther: [A: EnumWithOther as e] => JsonDecoder[A] =
-    StringDecoder.map(e.decode)
-
-  def `enum`[A: StrictEnum]: JsonDecoder[A] = strictEnum[A]
-
-  given localTime: JsonDecoder[LocalTime] = StringDecoder.mapAttempt(LocalTime.parse)
-  given localDate: JsonDecoder[LocalDate] = StringDecoder.mapAttempt(LocalDate.parse)
-  given localDateTime: JsonDecoder[LocalDateTime] = StringDecoder.mapAttempt(LocalDateTime.parse)
-  given zonedDateTime: JsonDecoder[ZonedDateTime] = StringDecoder.mapAttempt(ZonedDateTime.parse)
-  given offsetDateTime: JsonDecoder[OffsetDateTime] = StringDecoder.mapAttempt(OffsetDateTime.parse)
-  given offsetTime: JsonDecoder[OffsetTime] = StringDecoder.mapAttempt(OffsetTime.parse)
-  given instant: JsonDecoder[Instant] = StringDecoder.mapAttempt(Instant.parse)
-  given duration: JsonDecoder[Duration] = StringDecoder.mapAttempt(Duration.parse)
-  given period: JsonDecoder[Period] = StringDecoder.mapAttempt(Period.parse)
-  given zoneId: JsonDecoder[ZoneId] = StringDecoder.mapAttempt(ZoneId.of)
-  given zoneOffset: JsonDecoder[ZoneOffset] = StringDecoder.mapAttempt(ZoneOffset.of)
-  given timeZone: JsonDecoder[TimeZone] = StringDecoder.mapAttempt(TimeZone.getTimeZone)
-  given monthDay: JsonDecoder[MonthDay] = StringDecoder.mapAttempt(MonthDay.parse)
-  given year: JsonDecoder[Year] = StringDecoder.mapAttempt(Year.parse)
-  given yearMonth: JsonDecoder[YearMonth] = StringDecoder.mapAttempt(YearMonth.parse)
-  given month: JsonDecoder[Month] = `enum`[Month]
-
-  //////////////////////////////////////////////////////////////////////////////////////////////////////
   //      Transformers
   //////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -346,6 +357,10 @@ object JsonDecoder extends K0.Derivable[JsonDecoder.ObjectDecoder], JsonDecoderL
   inline def deriveWrapped[A]: JsonDecoder[A] = ${ deriveWrappedImpl[A] }
 
 }
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////
+//      Low Priority Instances
+//////////////////////////////////////////////////////////////////////////////////////////////////////
 
 object JsonDecoderLowPriority {
 

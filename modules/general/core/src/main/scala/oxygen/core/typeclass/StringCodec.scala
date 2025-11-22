@@ -15,10 +15,7 @@ final case class StringCodec[A](
   // =====|  |=====
 
   def transformString(that: StringCodec[String]): StringCodec[A] =
-    StringCodec(self.encoder.mapString(that.encoder), self.decoder.cmapString(that.decoder))
-
-  def @@(that: StringCodec[String]): StringCodec[A] =
-    StringCodec(self.encoder.mapString(that.encoder), self.decoder.cmapString(that.decoder))
+    StringCodec(self.encoder.mapOutputString(that.encoder), self.decoder.mapInputString(that.decoder))
 
   /**
     * Transforms the value of this StringCodec in an infallible manner.
@@ -110,7 +107,15 @@ object StringCodec {
   inline def apply[A](implicit ev: StringCodec[A]): ev.type = ev
 
   //////////////////////////////////////////////////////////////////////////////////////////////////////
-  //      Default
+  //      Extensions
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
+
+  extension [A](self: StringCodec[A])
+    def @@(that: StringCodec[String]): StringCodec[A] =
+      StringCodec(self.encoder >>> that.encoder, that.decoder >>> self.decoder)
+
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
+  //      Instances
   //////////////////////////////////////////////////////////////////////////////////////////////////////
 
   given string: StringCodec[String] = StringCodec(StringEncoder.string, StringDecoder.string)
@@ -162,7 +167,7 @@ object StringCodec {
     StringCodec.string.transform(str => Try { Class.forName(str) }.getOrElse { classOf[Any] }, _.getName)
 
   given strictEnum: [A: StrictEnum as e] => StringCodec[A] =
-    StringCodec(StringEncoder.string.contramap(e.encode), StringDecoder.ForStrictEnum(e))
+    StringCodec.string.transformOption(StringDecoder.Hint.AllowedValues(e.encodedValues), e.decodeOption, e.encode)(using e.typeTag)
   given enumWithOther: [A: EnumWithOther as e] => StringCodec[A] =
     StringCodec.string.transform(e.decode, e.encode)(using e.typeTag)
 
@@ -180,10 +185,16 @@ object StringCodec {
 
   def wrappedString(prefix: String, suffix: String): StringCodec[String] =
     StringCodec.string.transformOrFail(
-      string =>
-        if (!string.startsWith(prefix)) s"Missing prefix ${prefix.unesc}".asLeft
-        else if (!string.endsWith(suffix)) s"Missing suffix ${suffix.unesc}".asLeft
-        else string.stripPrefix(prefix).stripSuffix(suffix).asRight,
+      { string =>
+        if (string.startsWith(prefix)) {
+          val tmp: String = string.stripPrefix(prefix)
+          if (tmp.endsWith(suffix))
+            tmp.stripSuffix(suffix).asRight
+          else
+            s"Missing suffix ${suffix.unesc}".asLeft
+        } else
+          s"Missing prefix ${prefix.unesc}".asLeft
+      },
       string => s"$prefix$string$suffix",
     )
 
@@ -207,4 +218,4 @@ object StringCodec {
 
 }
 
-// TODO (KR) : low-priority fromEncoderAndDeocder
+// TODO (KR) : low-priority fromEncoderAndDecoder

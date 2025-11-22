@@ -24,6 +24,10 @@ final case class JsonCodec[A](
     transform(ab, ba)
   }
 
+  def toStringCodecCompact: StringCodec[A] = StringCodec(encoder.toStringEncoderCompact, decoder.toStringDecoder)
+  def toStringCodecPretty: StringCodec[A] = StringCodec(encoder.toStringEncoderPretty, decoder.toStringDecoder)
+  def toStringCodec: StringCodec[A] = toStringCodecCompact
+
 }
 object JsonCodec extends JsonCodecLowPriority.LowPriority1 {
 
@@ -67,8 +71,6 @@ object JsonCodec extends JsonCodecLowPriority.LowPriority1 {
   given strictEnum: [A: StrictEnum] => JsonCodec[A] = fromEncoderAndDecoder
   given enumWithOther: [A: EnumWithOther] => JsonCodec[A] = fromEncoderAndDecoder
 
-  def `enum`[A: StrictEnum]: JsonCodec[A] = strictEnum[A]
-
   given localTime: JsonCodec[LocalTime] = fromEncoderAndDecoder
   given localDate: JsonCodec[LocalDate] = fromEncoderAndDecoder
   given localDateTime: JsonCodec[LocalDateTime] = fromEncoderAndDecoder
@@ -85,6 +87,26 @@ object JsonCodec extends JsonCodecLowPriority.LowPriority1 {
   given year: JsonCodec[Year] = fromEncoderAndDecoder
   given yearMonth: JsonCodec[YearMonth] = fromEncoderAndDecoder
   given month: JsonCodec[Month] = fromEncoderAndDecoder
+
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
+  //      Builders
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
+
+  def `enum`[A: StrictEnum]: JsonCodec[A] = strictEnum[A]
+
+  def jsonStringUsingStringCodecSimple[A: StringCodec as codec]: JsonCodec[A] =
+    JsonCodec(JsonEncoder.jsonStringFromStringEncoder(codec.encoder), JsonDecoder.jsonStringFromStringDecoderSimple(codec.decoder))
+  def jsonStringUsingStringCodecDetailed[A: StringCodec as codec]: JsonCodec[A] =
+    JsonCodec(JsonEncoder.jsonStringFromStringEncoder(codec.encoder), JsonDecoder.jsonStringFromStringDecoderDetailed(codec.decoder))
+  def jsonStringUsingStringCodec[A: StringCodec as codec]: JsonCodec[A] =
+    jsonStringUsingStringCodecDetailed[A]
+
+  def jsonStringFromStringCodecSimple[A](codec: StringCodec[A]): JsonCodec[A] =
+    JsonCodec(JsonEncoder.jsonStringFromStringEncoder(codec.encoder), JsonDecoder.jsonStringFromStringDecoderSimple(codec.decoder))
+  def jsonStringFromStringCodecDetailed[A](codec: StringCodec[A]): JsonCodec[A] =
+    JsonCodec(JsonEncoder.jsonStringFromStringEncoder(codec.encoder), JsonDecoder.jsonStringFromStringDecoderDetailed(codec.decoder))
+  def jsonStringFromStringCodec[A](codec: StringCodec[A]): JsonCodec[A] =
+    jsonStringFromStringCodecDetailed[A](codec)
 
   //////////////////////////////////////////////////////////////////////////////////////////////////////
   //      Generic
@@ -115,6 +137,10 @@ object JsonCodec extends JsonCodecLowPriority.LowPriority1 {
   inline def deriveWrapped[A]: JsonCodec[A] = ${ deriveWrappedImpl[A] }
 
 }
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////
+//      Low Priority Instances
+//////////////////////////////////////////////////////////////////////////////////////////////////////
 
 object JsonCodecLowPriority {
 
