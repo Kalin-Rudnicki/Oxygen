@@ -3,6 +3,7 @@ package oxygen.core.typeclass
 import java.time.*
 import java.util.TimeZone
 import oxygen.core.TypeTag
+import oxygen.json.*
 import oxygen.predef.test.*
 import zio.{Duration as _, *}
 
@@ -23,6 +24,8 @@ object StringCodecSpec extends OxygenSpecDefault {
     test(s"${TypeTag[A].prefixObject} : ${value.toString.unesc("")}") {
       assert(StringDecoder[A].decode(string))(isRight(equalTo(value)))
     }
+
+  final case class MyClass(`type`: String, value: String) derives JsonCodec
 
   override def testSpec: TestSpec =
     suite("StringCodecSpec")(
@@ -104,6 +107,11 @@ object StringCodecSpec extends OxygenSpecDefault {
         roundTripTest("base64UrlNoPadding")("QUJDCkRFRiU", "ABC\nDEF%")(StringCodec[String] @@ StringCodec.base64UrlNoPadding),
         roundTripTest("base64MimeNoPadding")("QUJDCkRFRiU", "ABC\nDEF%")(StringCodec[String] @@ StringCodec.base64MimeNoPadding),
       ),
+      suite("json")(
+        roundTripTest("base64UrlNoPadding")("eyJ0eXBlIjoiYmFzZTY0IiwidmFsdWUiOiJTdHJpbmcifQ", MyClass("base64", "String"))(
+          StringCodec.usingJsonCodec[MyClass] @@ StringCodec.base64UrlNoPadding,
+        ),
+      ),
       suite("misc")(
         roundTripTest("having fun with it (1)")("[[2024-01-02]]", LocalDate.of(2024, 1, 2))(StringCodec.localDate @@ StringCodec.wrappedString("[[", "]]")),
         roundTripTest("having fun with it (2)")("<{MjAyMC0wOS0xM1QxMjoyNjo0MFo}>", Instant.ofEpochSecond(1_600_000_000))(
@@ -112,6 +120,11 @@ object StringCodecSpec extends OxygenSpecDefault {
             StringCodec.wrappedString("{", "}") @@
             StringCodec.wrappedString("<", ">"),
         ),
+        roundTripTest("having fun with it (3)")("--", "")(StringCodec.string @@ StringCodec.wrappedString("-", "-")),
+        test("surround doesn't duplicate") {
+          val codec = StringCodec.string @@ StringCodec.wrappedString("-", "-")
+          assert(codec.decoder.decode("-"))(isLeft)
+        },
       ),
     )
 

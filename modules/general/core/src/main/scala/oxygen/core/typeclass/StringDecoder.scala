@@ -7,23 +7,32 @@ import oxygen.core.syntax.option.*
 import oxygen.core.syntax.string.*
 import oxygen.core.syntax.throwable.*
 import oxygen.core.syntax.traverse.*
+import oxygen.core.typeclass.StringDecoderTimeUtils.*
 import scala.util.Try
+import scala.util.matching.Regex
 
+/**
+  * Represents the ability to decode a [[String]] into an [[A]].
+  * Once an [[A]] is decoded, you can then use standard helpers like [[map]]/[[mapOrFail]] to convert the [[A]] into some other `B`.
+  * In the event you are not able to successfully decode an [[A]], [[StringDecoder.Error]] keeps track of:
+  * - [[StringDecoder.Error.prevTypeInfo]]        : type of the last successfully decoded value
+  * - [[StringDecoder.Error.typeInfo]]            : type you are trying to decode
+  * - [[StringDecoder.Error.lastSuccessfulValue]] : last successfully decoded value
+  * - [[StringDecoder.Error.message]]             : optional message of the failed decode
+  * - [[StringDecoder.Error.hint]]                : optional message of the failed decode
+  */
 trait StringDecoder[A] { self =>
 
   val prevTypeInfo: TypeTag[?]
   val typeInfo: TypeTag[A]
 
   def decodeError(string: String): Either[StringDecoder.Error, A]
-  final def decode(string: String): Either[String, A] = self.decodeError(string).leftMap(_.toString)
-  final def decodeSimple(string: String): Either[String, A] = self.decodeError(string).leftMap(_.showSimple(true))
 
-  final def cmapString(that: StringDecoder[String]): StringDecoder[A] =
-    new StringDecoder[A] {
-      override val prevTypeInfo: TypeTag[?] = that.typeInfo
-      override val typeInfo: TypeTag[A] = self.typeInfo
-      override def decodeError(string: String): Either[StringDecoder.Error, A] = that.decodeError(string).flatMap(self.decodeError)
-    }
+  final def decodeSimple(string: String): Either[String, A] = self.decodeError(string).leftMap(_.showSimple(true))
+  final def decodeDetailed(string: String): Either[String, A] = self.decodeError(string).leftMap(_.showDetailed)
+  final def decode(string: String): Either[String, A] = self.decodeDetailed(string)
+
+  final def mapInputString(that: StringDecoder[String]): StringDecoder[A] = StringDecoder.MapInputString(this, that)
 
   /**
     * Maps the value of this StringDecoder in an infallible manner.
@@ -135,93 +144,41 @@ object StringDecoder extends StringDecoderLowPriority.LowPriority1 {
 
   inline def apply[A](implicit ev: StringDecoder[A]): ev.type = ev
 
-  // =====|  |=====
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
+  //      Extensions
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
 
-  final case class Error(
-      prevTypeInfo: TypeTag[?],
-      typeInfo: TypeTag[?],
-      lastSuccessfulValue: Any,
-      message: Option[String],
-      hint: Option[Hint],
-  ) {
+  extension (self: StringDecoder[String])
+    def >>>[A](that: StringDecoder[A]): StringDecoder[A] =
+      StringDecoder.MapInputString(that, self)
 
-    private def transformHintStr =
-      if (prevTypeInfo == TypeTag[String]) s"Malformed {${typeInfo.prefixObject}}"
-      else s"Failed to transform {${prevTypeInfo.prefixObject}}->{${typeInfo.prefixObject}}"
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
+  //      Instances
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
 
-    def showSimple(includeHintWithMessage: Boolean): String =
-      (message, hint) match
-        case (Some(message), Some(hint)) if includeHintWithMessage => s"$message\n$hint"
-        case (Some(message), _)                                    => message
-        case (None, Some(hint))                                    => s"$transformHintStr: $hint"
-        case (None, None)                                          => transformHintStr
-
-    def showDetailed: String =
-      (message, hint) match
-        case (Some(message), Some(hint)) => s"$transformHintStr$message\n$hint"
-        case (Some(message), None)       => s"$transformHintStr$message"
-        case (None, Some(hint))          => s"$transformHintStr: $hint"
-        case (None, None)                => transformHintStr
-
-    override def toString: String = showDetailed
-
-  }
-
-  sealed trait Hint {
-
-    override final def toString: String = this match
-      case Hint.AllowedValues(values)   => s"Allowed values: ${values.map(_.unesc).mkString(", ")}"
-      case Hint.AllowedFormats(formats) => s"Allowed formats: ${formats.map(_.unesc).mkString(", ")}"
-
-  }
-  object Hint {
-
-    final case class AllowedValues(values: Seq[String]) extends Hint
-    final case class AllowedFormats(formats: Seq[String]) extends Hint
-
-    def allowedValues(value0: String, valueN: String*): Hint.AllowedValues = Hint.AllowedValues(value0 +: valueN)
-    def allowedFormats(format0: String, formatN: String*): Hint.AllowedFormats = Hint.AllowedFormats(format0 +: formatN)
-
-  }
-
-  // =====|  |=====
-
-  case object ForString extends StringDecoder[String] {
+  case object Identity extends StringDecoder[String] {
     override val prevTypeInfo: TypeTag[?] = TypeTag[String]
     override val typeInfo: TypeTag[String] = TypeTag[String]
     override def decodeError(string: String): Either[StringDecoder.Error, String] = string.asRight
   }
 
-  final case class ForStrictEnum[A](strictEnum: StrictEnum[A]) extends StringDecoder[A] {
+  case object Trimmed extends StringDecoder[String] {
     override val prevTypeInfo: TypeTag[?] = TypeTag[String]
-    override val typeInfo: TypeTag[A] = strictEnum.typeTag
-    override def decodeError(string: String): Either[StringDecoder.Error, A] =
-      strictEnum.decodeOption(string).toRight(StringDecoder.Error(prevTypeInfo, typeInfo, string, None, StringDecoder.Hint.AllowedValues(strictEnum.encodedValues).some))
+    override val typeInfo: TypeTag[String] = TypeTag[String]
+    override def decodeError(string: String): Either[StringDecoder.Error, String] = string.trim.asRight
   }
 
-  val string: StringDecoder[String] = ForString
+  final case class MapInputString[A](base: StringDecoder[A], in: StringDecoder[String]) extends StringDecoder[A] {
+    override val prevTypeInfo: TypeTag[?] = in.typeInfo
+    override val typeInfo: TypeTag[A] = base.typeInfo
+    override def decodeError(string: String): Either[StringDecoder.Error, A] = in.decodeError(string).flatMap(base.decodeError)
+  }
 
-  private val numsOneTwo = "(\\d{1,2})".r
-  private val numsTwo = "(\\d{2})".r
-  private val numsFour = "(\\d{4})".r
-  private val optSpacing = "\\s*".r
+  val string: StringDecoder[String] = Identity
 
-  private val us2Year = s"$numsOneTwo/$numsOneTwo/$numsTwo".r
-  private val us4Year = s"$numsOneTwo/$numsOneTwo/$numsFour".r
-  private val other2Year = s"$numsOneTwo\\.$numsOneTwo\\.$numsTwo".r
-  private val other4Year = s"$numsOneTwo\\.$numsOneTwo\\.$numsFour".r
-  private val yearFirst = s"$numsFour-$numsOneTwo-$numsOneTwo".r
-
-  private val hourAM = s"^$numsOneTwo$optSpacing(?:AM|am)$$".r
-  private val hourPM = s"^$numsOneTwo$optSpacing(?:PM|pm)$$".r
-  private val hourMinute = s"^$numsOneTwo:$numsTwo$$".r
-  private val hourMinuteAM = s"^$numsOneTwo:$numsTwo$optSpacing(?:AM|am)$$".r
-  private val hourMinutePM = s"^$numsOneTwo:$numsTwo$optSpacing(?:PM|pm)$$".r
-  private val hourMinuteSecond = s"^$numsOneTwo:$numsTwo$numsTwo$$".r
-  private val hourMinuteSecondAM = s"^$numsOneTwo:$numsTwo:$numsTwo$optSpacing(?:AM|am)$$".r
-  private val hourMinuteSecondPM = s"^$numsOneTwo:$numsTwo:$numsTwo$optSpacing(?:PM|pm)$$".r
-
-  private val spacesOrAt = "([^ ]+)[ ]+(?:@[ ]*)?(.+)".r
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
+  //      Time
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
 
   def localDate(_currentYear: => Int, futureTolerance: => Int): StringDecoder[LocalDate] = {
     def guessYear(y: Int): Int = {
@@ -291,19 +248,128 @@ object StringDecoder extends StringDecoderLowPriority.LowPriority1 {
     }
   }
 
-  private enum TimeUnit { case NS, MS, S, M, H, D, W }
-  private object TimeUnit {
+  val duration: StringDecoder[Duration] =
+    StringDecoder.string.mapOption {
+      _.split("[ ]*\\+[ ]*").toSeq
+        .traverse {
+          case numberAndUnit(num, DecoderTimeUnit(tu)) => DecoderTimeUnit.makeDuration(tu)(num.toLong).some
+          case _                                       => None
+        }
+        .map(_.reduce(_.plus(_)))
+    }
 
-    def makeDuration(tu: TimeUnit): Long => Duration = tu match
-      case TimeUnit.NS => Duration.ofNanos
-      case TimeUnit.MS => Duration.ofMillis
-      case TimeUnit.S  => Duration.ofSeconds
-      case TimeUnit.M  => Duration.ofMinutes
-      case TimeUnit.H  => Duration.ofHours
-      case TimeUnit.D  => Duration.ofDays
-      case TimeUnit.W  => d => Duration.ofDays(7 * d)
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
+  //      Error / Hint
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
 
-    private val lowerMapping: Map[String, TimeUnit] =
+  final case class Error(
+      prevTypeInfo: TypeTag[?],
+      typeInfo: TypeTag[?],
+      lastSuccessfulValue: Any,
+      message: Option[String],
+      hint: Option[Hint],
+  ) {
+
+    private lazy val cameFromString: Boolean = prevTypeInfo == TypeTag[String]
+
+    private def transformHintStr: String =
+      if (cameFromString) s"Malformed {${typeInfo.prefixObject}}"
+      else s"Failed to transform {${prevTypeInfo.prefixObject}}->{${typeInfo.prefixObject}}"
+
+    def showSimple(includeHintWithMessage: Boolean): String =
+      (message, hint) match
+        case (Some(message), Some(hint)) if includeHintWithMessage => s"$message ~ $hint"
+        case (Some(message), _)                                    => message
+        case (None, Some(hint))                                    => s"$transformHintStr ~ $hint"
+        case (None, None)                                          => transformHintStr
+
+    def showDetailed: String =
+      (message, hint) match
+        case (Some(message), Some(hint)) => s"$transformHintStr ~ $message ~ $hint"
+        case (Some(message), None)       => s"$transformHintStr ~ $message"
+        case (None, Some(hint))          => s"$transformHintStr ~ $hint"
+        case (None, None)                => transformHintStr
+
+    override def toString: String = showDetailed
+
+  }
+
+  sealed trait Hint {
+
+    override final def toString: String = this match
+      case Hint.AllowedValues(values)   => s"Allowed values: ${values.map(_.unesc).mkString(", ")}"
+      case Hint.AllowedFormats(formats) => s"Allowed formats: ${formats.map(_.unesc).mkString(", ")}"
+
+  }
+  object Hint {
+
+    final case class AllowedValues(values: Seq[String]) extends Hint
+    final case class AllowedFormats(formats: Seq[String]) extends Hint
+
+    def allowedValues(value0: String, valueN: String*): Hint.AllowedValues = Hint.AllowedValues(value0 +: valueN)
+    def allowedFormats(format0: String, formatN: String*): Hint.AllowedFormats = Hint.AllowedFormats(format0 +: formatN)
+
+  }
+
+}
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////
+//      Instances (Low Priority)
+//////////////////////////////////////////////////////////////////////////////////////////////////////
+
+object StringDecoderLowPriority {
+
+  trait LowPriority1 {
+
+    given fromCodec: [A: StringCodec as codec] => StringDecoder[A] = codec.decoder
+
+  }
+
+}
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////
+//      Helpers
+//////////////////////////////////////////////////////////////////////////////////////////////////////
+
+private[typeclass] object StringDecoderTimeUtils {
+
+  val spacesOrAt: Regex = "([^ ]+)[ ]+(?:@[ ]*)?(.+)".r
+
+  val numsOneTwo: Regex = "(\\d{1,2})".r
+  val numsTwo: Regex = "(\\d{2})".r
+  val numsFour: Regex = "(\\d{4})".r
+  val optSpacing: Regex = "\\s*".r
+
+  val us2Year: Regex = s"$numsOneTwo/$numsOneTwo/$numsTwo".r
+  val us4Year: Regex = s"$numsOneTwo/$numsOneTwo/$numsFour".r
+  val other2Year: Regex = s"$numsOneTwo\\.$numsOneTwo\\.$numsTwo".r
+  val other4Year: Regex = s"$numsOneTwo\\.$numsOneTwo\\.$numsFour".r
+  val yearFirst: Regex = s"$numsFour-$numsOneTwo-$numsOneTwo".r
+
+  val hourAM: Regex = s"^$numsOneTwo$optSpacing(?:AM|am)$$".r
+  val hourPM: Regex = s"^$numsOneTwo$optSpacing(?:PM|pm)$$".r
+  val hourMinute: Regex = s"^$numsOneTwo:$numsTwo$$".r
+  val hourMinuteAM: Regex = s"^$numsOneTwo:$numsTwo$optSpacing(?:AM|am)$$".r
+  val hourMinutePM: Regex = s"^$numsOneTwo:$numsTwo$optSpacing(?:PM|pm)$$".r
+  val hourMinuteSecond: Regex = s"^$numsOneTwo:$numsTwo$numsTwo$$".r
+  val hourMinuteSecondAM: Regex = s"^$numsOneTwo:$numsTwo:$numsTwo$optSpacing(?:AM|am)$$".r
+  val hourMinuteSecondPM: Regex = s"^$numsOneTwo:$numsTwo:$numsTwo$optSpacing(?:PM|pm)$$".r
+
+  val numberAndUnit: Regex = "^(\\d+)[ ]*(.+)$".r
+
+  enum DecoderTimeUnit { case NS, MS, S, M, H, D, W }
+  object DecoderTimeUnit {
+
+    def makeDuration(tu: DecoderTimeUnit): Long => Duration = tu match
+      case DecoderTimeUnit.NS => Duration.ofNanos
+      case DecoderTimeUnit.MS => Duration.ofMillis
+      case DecoderTimeUnit.S  => Duration.ofSeconds
+      case DecoderTimeUnit.M  => Duration.ofMinutes
+      case DecoderTimeUnit.H  => Duration.ofHours
+      case DecoderTimeUnit.D  => Duration.ofDays
+      case DecoderTimeUnit.W  => d => Duration.ofDays(7 * d)
+
+    private val lowerMapping: Map[String, DecoderTimeUnit] =
       Seq(
         NS -> Seq("ns", "nano", "nanos", "nanosecond", "nanoseconds"),
         MS -> Seq("ms"),
@@ -314,29 +380,7 @@ object StringDecoder extends StringDecoderLowPriority.LowPriority1 {
         W -> Seq("w", "week", "weeks"),
       ).flatMap { case (tu, opts) => opts.map((_, tu)) }.toMap
 
-    def unapply(string: String): Option[TimeUnit] = lowerMapping.get(string.toLowerCase.replaceAll("[ ]+", ""))
-
-  }
-
-  private val numberAndUnit = "^(\\d+)[ ]*(.+)$".r
-
-  val duration: StringDecoder[Duration] =
-    StringDecoder.string.mapOption {
-      _.split("[ ]*\\+[ ]*").toSeq
-        .traverse {
-          case numberAndUnit(num, TimeUnit(tu)) => TimeUnit.makeDuration(tu)(num.toLong).some
-          case _                                => None
-        }
-        .map(_.reduce(_.plus(_)))
-    }
-
-}
-
-object StringDecoderLowPriority {
-
-  trait LowPriority1 {
-
-    given fromCodec: [A: StringCodec as codec] => StringDecoder[A] = codec.decoder
+    def unapply(string: String): Option[DecoderTimeUnit] = lowerMapping.get(string.toLowerCase.replaceAll("[ ]+", ""))
 
   }
 

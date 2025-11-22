@@ -61,6 +61,13 @@ object JsonSpec extends OxygenSpecDefault {
     final case class Case2(b: Boolean) extends Sum3
   }
 
+  final case class MyClass1(`type`: String, value: String)
+  object MyClass1 {
+    given JsonCodec[MyClass1] = JsonCodec.jsonStringFromStringCodec { StringCodec.fromDerivedJsonCodec[MyClass1] @@ StringCodec.base64UrlNoPadding }
+  }
+
+  final case class MyClass2(field: MyClass1) derives JsonCodec
+
   override def testSpec: TestSpec =
     suite("JsonSpec")(
       suite("provided instances")(
@@ -112,6 +119,9 @@ object JsonSpec extends OxygenSpecDefault {
           directRoundTripTest[Sum3]("""{"type":"c1","f1":1}""")(Sum3.Case1(1)),
           directRoundTripTest[Sum3]("""{"type":"Case2","b":true}""")(Sum3.Case2(true)),
         ),
+      ),
+      suite("string transform")(
+        directRoundTripTest("""{"field":"eyJ0eXBlIjoiYmFzZTY0IiwidmFsdWUiOiJTdHJpbmcifQ"}""")(MyClass2(MyClass1("base64", "String"))),
       ),
     )
 

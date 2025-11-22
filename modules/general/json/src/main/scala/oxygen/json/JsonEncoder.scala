@@ -33,10 +33,75 @@ trait JsonEncoder[A] {
     contramap(ba)
   }
 
+  final def toStringEncoderCompact: StringEncoder[A] = StringEncoder.string.contramap(this.encodeJsonStringCompact)
+  final def toStringEncoderPretty: StringEncoder[A] = StringEncoder.string.contramap(this.encodeJsonStringPretty)
+  final def toStringEncoder: StringEncoder[A] = toStringEncoderCompact
+
 }
 object JsonEncoder extends K0.Derivable[JsonEncoder.ObjectEncoder], JsonEncoderLowPriority.LowPriority1 {
 
   inline def apply[A](using ev: JsonEncoder[A]): JsonEncoder[A] = ev
+
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
+  //      Givens
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
+
+  def usingToString[A]: JsonEncoder[A] = StringEncoder.contramap(_.toString)
+
+  given json: [A <: Json] => JsonEncoder[A] = new AnyJsonEncoder[A]
+
+  given string: JsonEncoder[String] = StringEncoder
+  given boolean: JsonEncoder[Boolean] = BooleanEncoder
+  given uuid: JsonEncoder[UUID] = usingToString
+
+  given bigDecimal: JsonEncoder[BigDecimal] = BigDecimalEncoder
+  given double: JsonEncoder[Double] = BigDecimalEncoder.contramap(BigDecimal.exact)
+  given float: JsonEncoder[Float] = BigDecimalEncoder.contramap(BigDecimal.exact)
+  given bigInt: JsonEncoder[BigInt] = BigDecimalEncoder.contramap(BigDecimal.exact)
+  given long: JsonEncoder[Long] = BigDecimalEncoder.contramap(BigDecimal.exact)
+  given int: JsonEncoder[Int] = BigDecimalEncoder.contramap(BigDecimal.exact)
+  given short: JsonEncoder[Short] = BigDecimalEncoder.contramap(BigDecimal.exact)
+  given byte: JsonEncoder[Byte] = BigDecimalEncoder.contramap(BigDecimal.exact)
+
+  given option: [A] => (encoder: JsonEncoder[A]) => JsonEncoder[Option[A]] = OptionEncoder(encoder)
+  given specified: [A] => (encoder: JsonEncoder[A]) => JsonEncoder[Specified[A]] = SpecifiedEncoder(encoder)
+
+  given arraySeq: [A] => (encoder: JsonEncoder[A]) => JsonEncoder[ArraySeq[A]] = ArraySeqEncoder(encoder)
+  given seq: [S[_], A] => (seqOps: SeqOps[S], encoder: JsonEncoder[A], ct: ClassTag[A]) => JsonEncoder[S[A]] = ArraySeqEncoder(encoder).contramap(_.toArraySeq)
+
+  given map: [K, V] => (k: JsonFieldEncoder[K], v: JsonEncoder[V]) => JsonEncoder[Map[K, V]] = MapEncoder(k, v)
+
+  given tuple: [A <: Tuple] => (enc: TupleEncoder[A]) => JsonEncoder[A] = enc
+
+  given strictEnum: [A: StrictEnum as e] => JsonEncoder[A] = StringEncoder.contramap(e.encode)
+  given enumWithOther: [A: EnumWithOther as e] => JsonEncoder[A] = StringEncoder.contramap(e.encode)
+
+  given localTime: JsonEncoder[LocalTime] = usingToString
+  given localDate: JsonEncoder[LocalDate] = usingToString
+  given localDateTime: JsonEncoder[LocalDateTime] = usingToString
+  given zonedDateTime: JsonEncoder[ZonedDateTime] = usingToString
+  given offsetDateTime: JsonEncoder[OffsetDateTime] = usingToString
+  given offsetTime: JsonEncoder[OffsetTime] = usingToString
+  given instant: JsonEncoder[Instant] = usingToString
+  given duration: JsonEncoder[Duration] = usingToString
+  given period: JsonEncoder[Period] = usingToString
+  given zoneId: JsonEncoder[ZoneId] = usingToString
+  given zoneOffset: JsonEncoder[ZoneOffset] = usingToString
+  given timeZone: JsonEncoder[TimeZone] = usingToString
+  given monthDay: JsonEncoder[MonthDay] = usingToString
+  given year: JsonEncoder[Year] = usingToString
+  given yearMonth: JsonEncoder[YearMonth] = usingToString
+  given month: JsonEncoder[Month] = `enum`[Month]
+
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
+  //      Builders
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
+
+  def `enum`[A: StrictEnum]: JsonEncoder[A] = strictEnum[A]
+
+  def jsonStringUsingStringEncoder[A: StringEncoder as enc]: JsonEncoder[A] = JsonEncoder.string.contramap(enc.encode)
+
+  def jsonStringFromStringEncoder[A](enc: StringEncoder[A]): JsonEncoder[A] = JsonEncoder.string.contramap(enc.encode)
 
   //////////////////////////////////////////////////////////////////////////////////////////////////////
   //      Instances
@@ -141,59 +206,6 @@ object JsonEncoder extends K0.Derivable[JsonEncoder.ObjectEncoder], JsonEncoderL
   }
 
   //////////////////////////////////////////////////////////////////////////////////////////////////////
-  //      Givens
-  //////////////////////////////////////////////////////////////////////////////////////////////////////
-
-  def usingToString[A]: JsonEncoder[A] = StringEncoder.contramap(_.toString)
-
-  given json: [A <: Json] => JsonEncoder[A] = new AnyJsonEncoder[A]
-
-  given string: JsonEncoder[String] = StringEncoder
-  given boolean: JsonEncoder[Boolean] = BooleanEncoder
-  given uuid: JsonEncoder[UUID] = usingToString
-
-  given bigDecimal: JsonEncoder[BigDecimal] = BigDecimalEncoder
-  given double: JsonEncoder[Double] = BigDecimalEncoder.contramap(BigDecimal.exact)
-  given float: JsonEncoder[Float] = BigDecimalEncoder.contramap(BigDecimal.exact)
-  given bigInt: JsonEncoder[BigInt] = BigDecimalEncoder.contramap(BigDecimal.exact)
-  given long: JsonEncoder[Long] = BigDecimalEncoder.contramap(BigDecimal.exact)
-  given int: JsonEncoder[Int] = BigDecimalEncoder.contramap(BigDecimal.exact)
-  given short: JsonEncoder[Short] = BigDecimalEncoder.contramap(BigDecimal.exact)
-  given byte: JsonEncoder[Byte] = BigDecimalEncoder.contramap(BigDecimal.exact)
-
-  given option: [A] => (encoder: JsonEncoder[A]) => JsonEncoder[Option[A]] = OptionEncoder(encoder)
-  given specified: [A] => (encoder: JsonEncoder[A]) => JsonEncoder[Specified[A]] = SpecifiedEncoder(encoder)
-
-  given arraySeq: [A] => (encoder: JsonEncoder[A]) => JsonEncoder[ArraySeq[A]] = ArraySeqEncoder(encoder)
-  given seq: [S[_], A] => (seqOps: SeqOps[S], encoder: JsonEncoder[A], ct: ClassTag[A]) => JsonEncoder[S[A]] = ArraySeqEncoder(encoder).contramap(_.toArraySeq)
-
-  given map: [K, V] => (k: JsonFieldEncoder[K], v: JsonEncoder[V]) => JsonEncoder[Map[K, V]] = MapEncoder(k, v)
-
-  given tuple: [A <: Tuple] => (enc: TupleEncoder[A]) => JsonEncoder[A] = enc
-
-  given strictEnum: [A: StrictEnum as e] => JsonEncoder[A] = StringEncoder.contramap(e.encode)
-  given enumWithOther: [A: EnumWithOther as e] => JsonEncoder[A] = StringEncoder.contramap(e.encode)
-
-  def `enum`[A: StrictEnum]: JsonEncoder[A] = strictEnum[A]
-
-  given localTime: JsonEncoder[LocalTime] = usingToString
-  given localDate: JsonEncoder[LocalDate] = usingToString
-  given localDateTime: JsonEncoder[LocalDateTime] = usingToString
-  given zonedDateTime: JsonEncoder[ZonedDateTime] = usingToString
-  given offsetDateTime: JsonEncoder[OffsetDateTime] = usingToString
-  given offsetTime: JsonEncoder[OffsetTime] = usingToString
-  given instant: JsonEncoder[Instant] = usingToString
-  given duration: JsonEncoder[Duration] = usingToString
-  given period: JsonEncoder[Period] = usingToString
-  given zoneId: JsonEncoder[ZoneId] = usingToString
-  given zoneOffset: JsonEncoder[ZoneOffset] = usingToString
-  given timeZone: JsonEncoder[TimeZone] = usingToString
-  given monthDay: JsonEncoder[MonthDay] = usingToString
-  given year: JsonEncoder[Year] = usingToString
-  given yearMonth: JsonEncoder[YearMonth] = usingToString
-  given month: JsonEncoder[Month] = `enum`[Month]
-
-  //////////////////////////////////////////////////////////////////////////////////////////////////////
   //      Transformers
   //////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -253,6 +265,10 @@ object JsonEncoder extends K0.Derivable[JsonEncoder.ObjectEncoder], JsonEncoderL
   inline def deriveWrapped[A]: JsonEncoder[A] = ${ deriveWrappedImpl[A] }
 
 }
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////
+//      Low Priority Instances
+//////////////////////////////////////////////////////////////////////////////////////////////////////
 
 object JsonEncoderLowPriority {
 
