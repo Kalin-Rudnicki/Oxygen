@@ -8,9 +8,8 @@ import scala.annotation.tailrec
 import scala.quoted.*
 import scala.reflect.ClassTag
 
-// TODO (KR) : extend AnyKind?
-//           : Support more types of types
-trait TypeTag[A] extends TypeTag.Showable {
+// TODO (KR) : Support more types of types
+trait TypeTag[A <: AnyKind] extends TypeTag.Showable {
 
   type RefT <: TypeTag.TypeRef
 
@@ -42,24 +41,28 @@ trait TypeTag[A] extends TypeTag.Showable {
     case _                => false
   override def toString: String = tag.polyShow(_.prefixObject)
 
+  final def applyHKTArgs(args: List[TypeTag.TypeRef]): TypeTag.TypeRef = this.tag match
+    case hkt: TypeTag.TypeRef.HKT => hkt.make(args)
+    case tag                      => tag
+
 }
 object TypeTag {
 
-  private final case class Inst[A, _RefT <: TypeRef](_tag: _RefT, _closestClass: Class[?]) extends TypeTag[A] {
+  private final case class Inst[A <: AnyKind, _RefT <: TypeRef](_tag: _RefT, _closestClass: Class[?]) extends TypeTag[A] {
     override type RefT = _RefT
     override val tag: _RefT = _tag
     override val closestClass: Class[?] = _closestClass
   }
 
-  inline def apply[A](implicit ev: TypeTag[A]): ev.type = ev
-  inline def apply[A, _RefT <: TypeRef](_tag: _RefT, _closestClass: Class[?]): TypeTag.Aux[A, _RefT] = Inst[A, _RefT](_tag, _closestClass)
+  inline def apply[A <: AnyKind](using ev: TypeTag[A]): ev.type = ev
+  inline def apply[A <: AnyKind, _RefT <: TypeRef](_tag: _RefT, _closestClass: Class[?]): TypeTag.Aux[A, _RefT] = Inst[A, _RefT](_tag, _closestClass)
 
   //////////////////////////////////////////////////////////////////////////////////////////////////////
   //      Types
   //////////////////////////////////////////////////////////////////////////////////////////////////////
 
-  type Aux[A, _RefT <: TypeRef] = TypeTag[A] { type RefT = _RefT }
-  type Single[A] = TypeTag.Aux[A, TypeRef.Single]
+  type Aux[A <: AnyKind, _RefT <: TypeRef] = TypeTag[A] { type RefT = _RefT }
+  type Single[A <: AnyKind] = TypeTag.Aux[A, TypeRef.Single]
 
   enum PackagePrefix { case All, Object, None }
 
@@ -72,6 +75,7 @@ object TypeTag {
         case (self: TypeRef.Intersection, 0) => self.cases.map(rec(_, depth + 1)).mkString(" & ")
         case (self: TypeRef.Union, _)        => self.cases.map(rec(_, depth + 1)).mkString("(", " | ", ")")
         case (self: TypeRef.Intersection, _) => self.cases.map(rec(_, depth + 1)).mkString("(", " & ", ")")
+        case (self: TypeRef.HKT, _)          => s"{ [${self.paramNames.mkString(", ")}] =>> ${self.generic.polyShow(f)} }"
         case (TypeRef.Wildcard, _)           => "?"
 
       rec(this, 0)
@@ -100,8 +104,8 @@ object TypeTag {
         typeName: String,
         typeArgs: List[TypeRef],
         prefix: Either[TypeRef.Single, List[String]], // Either[ another type , package name ]
-    ) extends TypeRef
-        with Showable {
+    ) extends TypeRef,
+          Showable {
 
       lazy val reversePath: NonEmptyList[String] = prefix.fold(r => typeName :: r.reversePath, _ => NonEmptyList.one(typeName))
       lazy val packagePrefixes: List[String] = prefix.fold(_.packagePrefixes, identity)
@@ -183,6 +187,29 @@ object TypeTag {
 
     final case class Intersection(cases: Set[TypeRef]) extends TypeRef
 
+    final case class HKT(paramNames: List[String], make: List[TypeRef] => TypeRef) extends TypeRef, Showable {
+
+      lazy val genericTypeParams: List[TypeRef.Single] = paramNames.map { p => TypeRef.Single(s"<$p>", Nil, Nil.asRight) }
+      lazy val generic: TypeRef = make(genericTypeParams)
+
+      override def prefixAll: String = generic.polyShow(_.prefixAll)
+      override def prefixAll(genericsString: Single => String): String = generic.polyShow(_.prefixAll(genericsString))
+      override def prefixAllNoGenerics: String = generic.polyShow(_.prefixAllNoGenerics)
+
+      override def prefixObject: String = generic.polyShow(_.prefixObject)
+      override def prefixObject(genericsString: Single => String): String = generic.polyShow(_.prefixObject(genericsString))
+      override def prefixObjectNoGenerics: String = generic.polyShow(_.prefixObjectNoGenerics)
+
+      override def prefixNone: String = generic.polyShow(_.prefixNone)
+      override def prefixNone(genericsString: Single => String): String = generic.polyShow(_.prefixNone(genericsString))
+      override def prefixNoneNoGenerics: String = generic.polyShow(_.prefixNoneNoGenerics)
+
+      override def canonicalName: String = generic.polyShow(_.canonicalName)
+      override def canonicalName(genericsString: Single => String): String = generic.polyShow(_.canonicalName(genericsString))
+      override def canonicalNameNoGenerics: String = generic.polyShow(_.canonicalNameNoGenerics)
+
+    }
+
     case object Wildcard extends TypeRef
 
   }
@@ -238,9 +265,9 @@ object TypeTag {
   def usingClassTag[A](implicit ct: ClassTag[A]): TypeTag.Single[A] =
     fromClass(ct.runtimeClass)
 
-  private def derive2impl[A: Type](using quotes: Quotes): Expr[TypeTag[A]] =
+  private def derive2impl[A <: AnyKind: Type](using quotes: Quotes): Expr[TypeTag[A]] =
     oxygen.core.generic.DeriveTypeTag(quotes).summonOrDerive[A]
 
-  inline given derived: [A] => TypeTag[A] = ${ derive2impl[A] }
+  inline given derived: [A <: AnyKind] => TypeTag[A] = ${ derive2impl[A] }
 
 }

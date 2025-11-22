@@ -6,7 +6,7 @@ import oxygen.predef.core.*
 
 object instances {
 
-  given typeTagSchema: JsonSchema[TypeTag[?]] = JsonSchema.string.transform[TypeTag[?]](_ => TypeTag[Any], _.prefixObject)
+  given typeTagSchema: JsonSchema[TypeTag[? <: AnyKind]] = JsonSchema.string.transform[TypeTag[? <: AnyKind]](_ => TypeTag[Any], _.prefixObject)
   given throwableReprSchema: JsonSchema[ThrowableRepr] = JsonSchema.derived
 
   given standardJWTPayloadSchema: [A: JsonSchema] => (typeTag: TypeTag[JWT.StandardPayload[A]]) => JsonSchema[JWT.StandardPayload[A]] = JsonSchema.derived[JWT.StandardPayload[A]]
