@@ -47,6 +47,9 @@ object TypeTagSpec extends OxygenSpecDefault {
   private def optionTag[A: TypeTag]: TypeTag[Option[A]] =
     TypeTag.derived
 
+  private def faTag[F[_]: TypeTag, A: TypeTag]: TypeTag[F[A]] =
+    TypeTag.derived
+
   override def testSpec: TestSpec =
     suite("TypeTagSpec")(
       suite("from:")(
@@ -149,17 +152,53 @@ object TypeTagSpec extends OxygenSpecDefault {
               TypeTag.TypeRef.Single.make("scala")()("Boolean"),
             ),
           ),
-          test("derives param correctly") {
-            assert(optionTag[Int].tag)(
-              equalTo_filteredDiff(
-                TypeTag.TypeRef.Single
-                  .make("scala")()("Option")
-                  .withTypeArgs(
-                    TypeTag.TypeRef.Single.make("scala")()("Int"),
-                  ),
-              ),
-            )
-          },
+          suite("generic param types")(
+            test("optionTag[Int]") {
+              assert(optionTag[Int].tag)(
+                equalTo_filteredDiff(
+                  TypeTag.TypeRef.Single
+                    .make("scala")()("Option")
+                    .withTypeArgs(
+                      TypeTag.TypeRef.Single.make("scala")()("Int"),
+                    ),
+                ),
+              )
+            },
+            test("faTag[Option, Int]") {
+              assert(faTag[Option, Int].tag)(
+                equalTo_filteredDiff(
+                  TypeTag.TypeRef.Single
+                    .make("scala")()("Option")
+                    .withTypeArgs(
+                      TypeTag.TypeRef.Single.make("scala")()("Int"),
+                    ),
+                ),
+              )
+            },
+            test("faTag[_ => Option, Int]") {
+              assert(faTag[[A] =>> Option[Int], String].tag)(
+                equalTo_filteredDiff(
+                  TypeTag.TypeRef.Single
+                    .make("scala")()("Option")
+                    .withTypeArgs(
+                      TypeTag.TypeRef.Single.make("scala")()("Int"),
+                    ),
+                ),
+              )
+            },
+            test("faTag[Either[String, ?], Int]") {
+              assert(faTag[[A] =>> Either[String, A], Int].tag)(
+                equalTo_filteredDiff(
+                  TypeTag.TypeRef.Single
+                    .make("scala", "util")()("Either")
+                    .withTypeArgs(
+                      TypeTag.TypeRef.Single.make("java", "lang")()("String"),
+                      TypeTag.TypeRef.Single.make("scala")()("Int"),
+                    ),
+                ),
+              )
+            },
+          ),
         ),
       ),
     )

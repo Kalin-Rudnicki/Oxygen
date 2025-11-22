@@ -54,14 +54,14 @@ object JsonSchema extends Derivable[JsonSchema.ProductLike], JsonSchemaLowPriori
   given double: JsonSchema[Double] = NumberSchema(TypeTag[Double], JsonEncoder.double, JsonDecoder.double)
   given bigDecimal: JsonSchema[BigDecimal] = NumberSchema(TypeTag[BigDecimal], JsonEncoder.bigDecimal, JsonDecoder.bigDecimal)
 
-  given option: [A: JsonSchema as underlying] => (newTypeTag: TypeTag[Option[A]]) => JsonSchema[Option[A]] =
-    OptionalSchema(underlying, newTypeTag, JsonEncoder.option(using underlying.jsonEncoder), JsonDecoder.option(using underlying.jsonDecoder))
-  given specified: [A: JsonSchema as underlying] => (newTypeTag: TypeTag[Specified[A]]) => JsonSchema[Specified[A]] =
-    OptionalSchema(underlying, newTypeTag, JsonEncoder.specified(using underlying.jsonEncoder), JsonDecoder.specified(using underlying.jsonDecoder))
-  given arraySeq: [A: JsonSchema as underlying] => (tt: TypeTag[ArraySeq[A]]) => JsonSchema[ArraySeq[A]] =
-    ArraySchema(underlying, tt, JsonEncoder.arraySeq[A](using underlying.jsonEncoder), JsonDecoder.arraySeq[A](using underlying.jsonDecoder))
-  given map: [K: PlainTextSchema as keySchema, V: JsonSchema as valueSchema] => (tt: TypeTag[Map[K, V]]) => JsonSchema[Map[K, V]] =
-    MapSchema(tt, keySchema, valueSchema)
+  given option: [A: {JsonSchema as underlying, TypeTag}] => JsonSchema[Option[A]] =
+    OptionalSchema(underlying, TypeTag.derived, JsonEncoder.option(using underlying.jsonEncoder), JsonDecoder.option(using underlying.jsonDecoder))
+  given specified: [A: {JsonSchema as underlying, TypeTag}] => JsonSchema[Specified[A]] =
+    OptionalSchema(underlying, TypeTag.derived, JsonEncoder.specified(using underlying.jsonEncoder), JsonDecoder.specified(using underlying.jsonDecoder))
+  given arraySeq: [A: {JsonSchema as underlying, TypeTag}] => JsonSchema[ArraySeq[A]] =
+    ArraySchema(underlying, TypeTag.derived, JsonEncoder.arraySeq[A](using underlying.jsonEncoder), JsonDecoder.arraySeq[A](using underlying.jsonDecoder))
+  given map: [K: {PlainTextSchema as keySchema, TypeTag}, V: {JsonSchema as valueSchema, TypeTag}] => JsonSchema[Map[K, V]] =
+    MapSchema(TypeTag.derived, keySchema, valueSchema)
 
   given localDate: JsonSchema[LocalDate] = fromPlainText
   given localTime: JsonSchema[LocalTime] = fromPlainText
@@ -290,10 +290,10 @@ object JsonSchemaLowPriority {
 
     given fromPlainText: [A: PlainTextSchema as underlying] => JsonSchema[A] = JsonSchema.StringSchema(underlying)
 
-    given seq: [S[_]: SeqOps as seqOps, A: {JsonSchema as underlying, ClassTag as ct}] => (tt: TypeTag[S[A]]) => JsonSchema[S[A]] =
-      JsonSchema.ArraySchema(underlying, tt, JsonEncoder.seq[S, A](using seqOps, underlying.jsonEncoder, ct), JsonDecoder.seq[S, A](using seqOps, underlying.jsonDecoder))
+    given seq: [S[_]: {SeqOps as seqOps, TypeTag}, A: {JsonSchema as underlying, ClassTag as ct, TypeTag}] => JsonSchema[S[A]] =
+      JsonSchema.ArraySchema(underlying, TypeTag.derived, JsonEncoder.seq[S, A](using seqOps, underlying.jsonEncoder, ct), JsonDecoder.seq[S, A](using seqOps, underlying.jsonDecoder))
 
-    given nonEmptyList: [A: {JsonSchema, ClassTag}] => (ltt: TypeTag[List[A]], neltt: TypeTag[NonEmptyList[A]]) => JsonSchema[NonEmptyList[A]] =
+    given nonEmptyList: [A: {JsonSchema, ClassTag, TypeTag}] => JsonSchema[NonEmptyList[A]] =
       seq[List, A].transformOrFail[NonEmptyList[A]](
         NonEmptyList.fromList(_).toRight("Array can not be empty"),
         _.toList,
