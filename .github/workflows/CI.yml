@@ -6,7 +6,20 @@ on:
 
 jobs:
 
+  warm-cache:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+    env:
+      JAVA_OPTS: -Xms2048M -Xmx2048M -Xss6M -XX:ReservedCodeCacheSize=256M -Dfile.encoding=UTF-8
+      JVM_OPTS:  -Xms2048M -Xmx2048M -Xss6M -XX:ReservedCodeCacheSize=256M -Dfile.encoding=UTF-8
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      - name: Warm Cache
+        uses: ./.github/actions/warm-cache
+
   compiles-on-all-platforms:
+    needs: warm-cache
     runs-on: ubuntu-22.04
     timeout-minutes: 10
     env:
@@ -21,10 +34,13 @@ jobs:
         with:
           distribution: temurin
           java-version: 17
+      - name: Cache dependencies
+        uses: ./.github/actions/sbt-cache
       - name: Compile
         run: sbt +test:compile
 
   example-compiles:
+    needs: warm-cache
     runs-on: ubuntu-22.04
     timeout-minutes: 10
     env:
@@ -39,10 +55,13 @@ jobs:
         with:
           distribution: temurin
           java-version: 17
+      - name: Cache dependencies
+        uses: ./.github/actions/sbt-cache
       - name: Compile
         run: sbt example/test:compile
 
   test-jvm:
+    needs: warm-cache
     runs-on: ubuntu-22.04
     timeout-minutes: 10
     env:
@@ -57,10 +76,13 @@ jobs:
         with:
           distribution: temurin
           java-version: 17
+      - name: Cache dependencies
+        uses: ./.github/actions/sbt-cache
       - name: Build and Test
         run: sbt +jvm-test
 
   integration-test:
+    needs: warm-cache
     runs-on: ubuntu-22.04
     timeout-minutes: 10
     env:
@@ -75,6 +97,8 @@ jobs:
         with:
           distribution: temurin
           java-version: 17
+      - name: Cache dependencies
+        uses: ./.github/actions/sbt-cache
       - name: Build and Test
         run: sbt +it/test
 
@@ -87,6 +111,7 @@ jobs:
         run: bash scripts/check-for-fix.sh
 
   check-formatting:
+    needs: warm-cache
     runs-on: ubuntu-22.04
     env:
       # define Java options for both official sbt and sbt-extras
@@ -100,5 +125,7 @@ jobs:
         with:
           distribution: temurin
           java-version: 17
+      - name: Cache dependencies
+        uses: ./.github/actions/sbt-cache
       - name: Check formatting
         run: sbt fmt-check

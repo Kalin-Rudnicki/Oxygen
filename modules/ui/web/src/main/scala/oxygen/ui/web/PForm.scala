@@ -258,6 +258,9 @@ object PForm {
     def transformWidget[Env2 <: Env, Action2](f: Widget.Stateful[Env, Action, State] => Widget.Stateful[Env2, Action2, State]): PForm.Stateful[Env2, Action2, State, Value] =
       PForm.TransformWidget(self, f)
 
+    def valueEffect(s: WidgetState[State]): IO[UIError.ClientSide.FormValidationErrors, Value] =
+      self.buildInternal[State](s)._2.valueEffect(s)
+
     // TODO (KR) : need some way to allow the `Value` of one form to control how other forms are created.
     //           : (tmp).wizard { (tmpWidget, tmpValue, optValue) => ??? } could be an optional, required, or either value, applying the value function to current state
     /*
