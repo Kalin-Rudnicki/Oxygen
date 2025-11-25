@@ -2,6 +2,7 @@ package oxygen.schema.compiled
 
 import oxygen.json.Json.Type as JsonType
 import oxygen.predef.core.*
+import oxygen.schema.NumberFormat
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////
 //      FullCompiledSchema
@@ -10,6 +11,10 @@ import oxygen.predef.core.*
 sealed trait FullCompiledSchema {
 
   val ref: CompiledSchemaRef
+
+  final def toPlain: FullCompiledPlainSchema = this match
+    case schema: FullCompiledPlainSchema => schema
+    case schema: FullCompiledJsonSchema  => FullCompiledPlainSchema.JsonEncoded(CompiledSchemaRef.JsonEncodedText(schema.ref), Lazy(schema))
 
   protected def __toIndentedStringInternal(seen: Set[CompiledSchemaRef]): IndentedString
 
@@ -37,7 +42,9 @@ sealed trait FullCompiledSchema {
 //      FullCompiledPlainSchema
 //////////////////////////////////////////////////////////////////////////////////////////////////////
 
-sealed trait FullCompiledPlainSchema extends FullCompiledSchema
+sealed trait FullCompiledPlainSchema extends FullCompiledSchema {
+  override val ref: CompiledSchemaRef.PlainLike
+}
 object FullCompiledPlainSchema {
 
   final case class PlainText(
@@ -45,7 +52,9 @@ object FullCompiledPlainSchema {
       rawRepr: RawCompiledPlainSchema.PlainText,
   ) extends FullCompiledPlainSchema {
 
-    override val ref: CompiledSchemaRef = raw.ref
+    override val ref: CompiledSchemaRef.PlainLike = raw.ref
+
+    def sourceFile: RawCompiledSchema.SourceFile = rawRepr.sourceFile
 
     override protected def __toIndentedStringInternal(seen: Set[CompiledSchemaRef]): IndentedString =
       makeIndentedStringOpt("Plain Text")(
@@ -75,7 +84,11 @@ object FullCompiledPlainSchema {
       rawRepr: RawCompiledPlainSchema.Enum,
   ) extends FullCompiledPlainSchema {
 
-    override val ref: CompiledSchemaRef = raw.ref
+    override val ref: CompiledSchemaRef.PlainLike = raw.ref
+
+    def values: Seq[String] = rawRepr.values
+    def caseSensitive: Boolean = rawRepr.caseSensitive
+    def exhaustive: Boolean = rawRepr.exhaustive
 
     override protected def __toIndentedStringInternal(seen: Set[CompiledSchemaRef]): IndentedString =
       makeIndentedString("Enum")(
@@ -131,7 +144,7 @@ object FullCompiledPlainSchema {
       underlyingType: Lazy[FullCompiledPlainSchema],
   ) extends FullCompiledPlainSchema {
 
-    override val ref: CompiledSchemaRef = raw.ref
+    override val ref: CompiledSchemaRef.PlainLike = raw.ref
 
     override protected def __toIndentedStringInternal(seen: Set[CompiledSchemaRef]): IndentedString =
       makeIndentedStringOpt("Transformed")(
@@ -150,15 +163,37 @@ object FullCompiledPlainSchema {
 
 sealed trait FullCompiledJsonSchema extends FullCompiledSchema {
   val isInherentlyNullable: Boolean
+  override val ref: CompiledSchemaRef.JsonLike
 }
 object FullCompiledJsonSchema {
+
+  final case class JsonNumber(
+      raw: RawCompiledJsonSchema,
+      rawRepr: RawCompiledJsonSchema.JsonNumber,
+  ) extends FullCompiledJsonSchema {
+
+    override val ref: CompiledSchemaRef.JsonLike = raw.ref
+
+    def numberFormat: NumberFormat = rawRepr.numberFormat
+
+    override val isInherentlyNullable: Boolean = false
+
+    override protected def __toIndentedStringInternal(seen: Set[CompiledSchemaRef]): IndentedString =
+      makeIndentedString("JsonNumber")(
+        "number-format" -> numberFormat.toString,
+      )
+
+  }
 
   final case class JsonAST(
       raw: RawCompiledJsonSchema,
       rawRepr: RawCompiledJsonSchema.JsonAST,
   ) extends FullCompiledJsonSchema {
 
-    override val ref: CompiledSchemaRef = raw.ref
+    override val ref: CompiledSchemaRef.JsonLike = raw.ref
+
+    def jsonType: Option[JsonType] = rawRepr.jsonType
+    def jsonTypeAnyOr(tpe: JsonType): Boolean = jsonType.fold(true)(_ == tpe)
 
     override val isInherentlyNullable: Boolean =
       rawRepr.jsonType.isEmpty || rawRepr.jsonType.contains(JsonType.Null)
@@ -224,7 +259,7 @@ object FullCompiledJsonSchema {
 
     override val isInherentlyNullable: Boolean = false
 
-    override val ref: CompiledSchemaRef = raw.ref
+    override val ref: CompiledSchemaRef.JsonLike = raw.ref
 
     override protected def __toIndentedStringInternal(seen: Set[CompiledSchemaRef]): IndentedString =
       makeIndentedString("Json Object (Product)")(
@@ -241,7 +276,9 @@ object FullCompiledJsonSchema {
 
     override val isInherentlyNullable: Boolean = false
 
-    override val ref: CompiledSchemaRef = raw.ref
+    override val ref: CompiledSchemaRef.JsonLike = raw.ref
+
+    def discriminator: Option[String] = rawRepr.discriminator
 
     override protected def __toIndentedStringInternal(seen: Set[CompiledSchemaRef]): IndentedString =
       makeIndentedStringOpt("Json Object (Product)")(
@@ -257,9 +294,10 @@ object FullCompiledJsonSchema {
       underlyingType: Lazy[FullCompiledJsonSchema],
   ) extends FullCompiledJsonSchema {
 
-    override val ref: CompiledSchemaRef = raw.ref
+    override val ref: CompiledSchemaRef.JsonLike = raw.ref
 
     override val isInherentlyNullable: Boolean = repr.underlyingIsNullable
+    def sourceFile: RawCompiledSchema.SourceFile = repr.sourceFile
 
     override protected def __toIndentedStringInternal(seen: Set[CompiledSchemaRef]): IndentedString =
       makeIndentedStringOpt("Transformed")(
@@ -277,6 +315,10 @@ object FullCompiledJsonSchema {
       fieldType: Lazy[FullCompiledJsonSchema],
   ) {
 
+    def fieldName: String = raw.fieldName
+    def nullable: Boolean = raw.nullable
+    def onMissing: Option[RawCompiledJsonSchema.ProductField.DecodeMissingAs] = raw.onMissing
+
     def toIndentedString(seen: Set[CompiledSchemaRef]): IndentedString =
       IndentedString.keyValuesSuffixKey(": ")(
         "- name" -> raw.fieldName,
@@ -291,6 +333,8 @@ object FullCompiledJsonSchema {
       raw: RawCompiledJsonSchema.SumCase,
       caseType: Lazy[FullCompiledJsonSchema],
   ) {
+
+    def caseName: String = raw.caseName
 
     def toIndentedString(seen: Set[CompiledSchemaRef]): IndentedString =
       IndentedString.section(s"${raw.caseName}:")(

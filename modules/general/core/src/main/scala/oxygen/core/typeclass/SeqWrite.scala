@@ -12,6 +12,7 @@ trait SeqWrite[F[_]] {
     builder.addAll(i)
     builder.result()
   }
+
 }
 object SeqWrite {
 

@@ -7,9 +7,9 @@ sealed trait Compiled[+A] {
 
   private[Compiled] def compileInternal(compiler: SchemaCompiler): (A, SchemaCompiler)
 
-  final def compiled: (A, RawCompiledSchemas) = {
+  final def compiled: Compiled.Output[A] = {
     val (a, compiler) = compileInternal(SchemaCompiler.initial)
-    (a, compiler.finalizedSchemas)
+    Compiled.Output(a, compiler.finalizedSchemas)
   }
 
   /**
@@ -17,16 +17,17 @@ sealed trait Compiled[+A] {
     * If you are serializing compiled schemas for documentation purposes or for compatibility checking, you may want to remove line numbers.
     * Otherwise, line numbers may cause unnecessary diffs or changes in the serialized output.
     */
-  final def compiledWithoutLineNos: (A, RawCompiledSchemas) = {
-    val (a, schemas) = compiled
-    (a, schemas.withoutLineNos)
-  }
+  final def compiledWithoutLineNos: Compiled.Output[A] = compiled.withoutLineNos
 
   final def map[B](f: A => B): Compiled[B] = Compiled.internal.Mapped(this, f)
   final def flatMap[B](f: A => Compiled[B]): Compiled[B] = Compiled.internal.FlatMapped(this, f)
 
 }
 object Compiled {
+
+  final case class Output[+A](value: A, schemas: RawCompiledSchemas) {
+    def withoutLineNos: Output[A] = Output(value, schemas.withoutLineNos)
+  }
 
   def succeed[A](value: A): Compiled[A] = Compiled.internal.Succeed(value)
 

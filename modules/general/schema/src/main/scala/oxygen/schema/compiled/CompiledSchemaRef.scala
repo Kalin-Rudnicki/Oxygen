@@ -145,6 +145,7 @@ object CompiledSchemaRef {
     ): (CompiledSchemaRef.JsonLike, Boolean, Option[RawCompiledJsonSchema.ProductField.DecodeMissingAs]) =
       reprs.getJson(r) match {
         case _: I.IntermediateRepr.JsonString                        => (CompiledSchemaRef.resolveJson(r, reprs), false, None)
+        case _: I.IntermediateRepr.JsonNumber                        => (CompiledSchemaRef.resolveJson(r, reprs), false, None)
         case _: I.IntermediateRepr.JsonArray                         => (CompiledSchemaRef.resolveJson(r, reprs), false, None)
         case _: I.IntermediateRepr.JsonMap                           => (CompiledSchemaRef.resolveJson(r, reprs), false, None)
         case _: I.IntermediateRepr.JsonProduct                       => (CompiledSchemaRef.resolveJson(r, reprs), false, None)

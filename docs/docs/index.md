@@ -16,8 +16,8 @@ Oxygen is a group of scala libraries aimed to make everyday tasks in scala easie
 
 The story of how `Oxygen` came to be is a very personal one, so I will start with a little bit about me.
 
-I, [Kalin Rudnicki](https://www.linkedin.com/in/kalin-rudnicki-5ab151150/), am a software engineer with 5 years of professional backend scala development.
-I am very passionate about programming. I started my software development journey on my `TI-84 calculator` in math class, and haven't looked back since.
+I, [Kalin Rudnicki](https://www.linkedin.com/in/kalin-rudnicki-5ab151150/), am a software engineer with 5 years of professional backend scala development experience, who is very passionate about programming.
+I started my software development journey on my `TI-84 calculator` in math class, and haven't looked back since.
 
 ### Beginnings in Ruby
 

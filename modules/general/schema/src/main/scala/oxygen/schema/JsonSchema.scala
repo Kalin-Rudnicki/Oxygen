@@ -25,6 +25,7 @@ sealed trait JsonSchema[A] extends SchemaLike[A] {
   override final def encode(value: A): String = jsonEncoder.encodeJsonStringCompact(value)
 
   final def @@(encoding: PlainTextSchema.Encoding): PlainTextSchema[A] = PlainTextSchema.JsonEncoded(this) @@ encoding
+  final def @@@(encoding: PlainTextSchema.Encoding): JsonSchema[A] = JsonSchema.StringSchema(this @@ encoding)
 
 }
 object JsonSchema extends Derivable[JsonSchema.ProductLike], JsonSchemaLowPriority.LowPriority1 {
@@ -47,15 +48,15 @@ object JsonSchema extends Derivable[JsonSchema.ProductLike], JsonSchemaLowPriori
   given boolean: JsonSchema[Boolean] = BooleanSchema
   given uuid: JsonSchema[UUID] = fromPlainText
 
-  given byte: JsonSchema[Byte] = IntNumberSchema(TypeTag[Byte], JsonEncoder.byte, JsonDecoder.byte)
-  given short: JsonSchema[Short] = IntNumberSchema(TypeTag[Short], JsonEncoder.short, JsonDecoder.short)
-  given int: JsonSchema[Int] = IntNumberSchema(TypeTag[Int], JsonEncoder.int, JsonDecoder.int)
-  given long: JsonSchema[Long] = IntNumberSchema(TypeTag[Long], JsonEncoder.long, JsonDecoder.long)
-  given bigInt: JsonSchema[BigInt] = IntNumberSchema(TypeTag[BigInt], JsonEncoder.bigInt, JsonDecoder.bigInt)
+  given byte: JsonSchema[Byte] = IntNumberSchema(TypeTag[Byte], NumberFormat.Int8, JsonEncoder.byte, JsonDecoder.byte)
+  given short: JsonSchema[Short] = IntNumberSchema(TypeTag[Short], NumberFormat.Int16, JsonEncoder.short, JsonDecoder.short)
+  given int: JsonSchema[Int] = IntNumberSchema(TypeTag[Int], NumberFormat.Int32, JsonEncoder.int, JsonDecoder.int)
+  given long: JsonSchema[Long] = IntNumberSchema(TypeTag[Long], NumberFormat.Int64, JsonEncoder.long, JsonDecoder.long)
+  given bigInt: JsonSchema[BigInt] = IntNumberSchema(TypeTag[BigInt], NumberFormat.BigInt, JsonEncoder.bigInt, JsonDecoder.bigInt)
 
-  given float: JsonSchema[Float] = NumberSchema(TypeTag[Float], JsonEncoder.float, JsonDecoder.float)
-  given double: JsonSchema[Double] = NumberSchema(TypeTag[Double], JsonEncoder.double, JsonDecoder.double)
-  given bigDecimal: JsonSchema[BigDecimal] = NumberSchema(TypeTag[BigDecimal], JsonEncoder.bigDecimal, JsonDecoder.bigDecimal)
+  given float: JsonSchema[Float] = NumberSchema(TypeTag[Float], NumberFormat.Float32, JsonEncoder.float, JsonDecoder.float)
+  given double: JsonSchema[Double] = NumberSchema(TypeTag[Double], NumberFormat.Float64, JsonEncoder.double, JsonDecoder.double)
+  given bigDecimal: JsonSchema[BigDecimal] = NumberSchema(TypeTag[BigDecimal], NumberFormat.BigDecimal, JsonEncoder.bigDecimal, JsonDecoder.bigDecimal)
 
   given option: [A: JsonSchema as underlying] => JsonSchema[Option[A]] = OptionSchema(underlying)
   given specified: [A: JsonSchema as underlying] => JsonSchema[Specified[A]] = SpecifiedSchema(underlying)
@@ -142,10 +143,15 @@ object JsonSchema extends Derivable[JsonSchema.ProductLike], JsonSchemaLowPriori
     override protected def __internalReferenceOf(builder: SchemaLike.ReferenceBuilder): String = withHeader("JsonAST", "jsonType" -> specificType.fold("<any>")(_.toString))
   }
 
-  private[schema] final case class IntNumberSchema[A] private[JsonSchema] (typeTag: TypeTag[A], jsonEncoder: JsonEncoder[A], jsonDecoder: JsonDecoder[A]) extends NonProductLike[A] {
+  private[schema] sealed trait JsonNumber[A] extends NonProductLike[A] {
+    val numberFormat: NumberFormat
+  }
+  private[schema] final case class IntNumberSchema[A] private[JsonSchema] (typeTag: TypeTag[A], numberFormat: NumberFormat.Whole, jsonEncoder: JsonEncoder[A], jsonDecoder: JsonDecoder[A])
+      extends JsonNumber[A] {
     override protected def __internalReferenceOf(builder: SchemaLike.ReferenceBuilder): String = withHeader("JsonInt")
   }
-  private[schema] final case class NumberSchema[A] private[JsonSchema] (typeTag: TypeTag[A], jsonEncoder: JsonEncoder[A], jsonDecoder: JsonDecoder[A]) extends NonProductLike[A] {
+  private[schema] final case class NumberSchema[A] private[JsonSchema] (typeTag: TypeTag[A], numberFormat: NumberFormat.Fractional, jsonEncoder: JsonEncoder[A], jsonDecoder: JsonDecoder[A])
+      extends JsonNumber[A] {
     override protected def __internalReferenceOf(builder: SchemaLike.ReferenceBuilder): String = withHeader("JsonNumber")
   }
 

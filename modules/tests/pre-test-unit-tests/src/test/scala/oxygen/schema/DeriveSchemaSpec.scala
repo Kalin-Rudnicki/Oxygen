@@ -163,7 +163,7 @@ object DeriveSchemaSpec extends OxygenSpecDefault {
             ref <- Compiled.usingJson[TestProduct]
           } yield ref
 
-        val rawCompiled = compiling.compiled._2
+        val rawCompiled = compiling.compiled.schemas
         val fullCompiled = FullCompiledSchemas(rawCompiled)
 
         val exportFiles: Boolean = true
