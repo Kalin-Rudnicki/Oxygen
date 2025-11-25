@@ -19,7 +19,7 @@ jobs:
         uses: actions/setup-java@v4
         with:
           java-version: '17'
-          distribution: 'openjdk'
+          distribution: 'temurin'
           cache: sbt
       - uses: olafurpg/setup-scala@v11
         with:
