@@ -25,6 +25,7 @@ sealed trait JsonSchema[A] extends SchemaLike[A] {
   override final def encode(value: A): String = jsonEncoder.encodeJsonStringCompact(value)
 
   final def @@(encoding: PlainTextSchema.Encoding): PlainTextSchema[A] = PlainTextSchema.JsonEncoded(this) @@ encoding
+  final def @@@(encoding: PlainTextSchema.Encoding): JsonSchema[A] = JsonSchema.StringSchema(this @@ encoding)
 
 }
 object JsonSchema extends Derivable[JsonSchema.ProductLike], JsonSchemaLowPriority.LowPriority1 {
