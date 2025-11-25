@@ -3,6 +3,7 @@ package oxygen.schema.compiled
 import oxygen.core.SourcePosition
 import oxygen.json.*
 import oxygen.predef.core.*
+import oxygen.schema.NumberFormat
 import oxygen.schema.intermediate as I
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -24,7 +25,13 @@ sealed trait RawCompiledSchema {
 object RawCompiledSchema {
 
   final case class SourceFile(file: String, lineNo: Option[Int]) derives JsonCodec {
+
     def withoutLineNo: SourceFile = SourceFile(file, None)
+
+    override def toString: String = lineNo match
+      case Some(lineNo) => s"$file : $lineNo"
+      case None         => file
+
   }
   object SourceFile {
     def fromSourcePosition(pos: SourcePosition): SourceFile = SourceFile(pos.estimatedScalaFile, pos.startLine.some)
@@ -139,6 +146,10 @@ final case class RawCompiledJsonSchema(
 
   override def toIndentedString: IndentedString =
     repr match {
+      case RawCompiledJsonSchema.JsonNumber(numberFormat) =>
+        IndentedString.section(s"[${ref.fullTypeName}]: <JsonNumber>")(
+          s"format: $numberFormat",
+        )
       case RawCompiledJsonSchema.JsonAST(specificType) =>
         IndentedString.section(s"[${ref.fullTypeName}]: <JsonAST>")(
           s"type: ${specificType.fold("<any>")(_.toString)}",
@@ -168,6 +179,7 @@ final case class RawCompiledJsonSchema(
   def withoutLineNos: RawCompiledJsonSchema =
     copy(
       repr = repr match {
+        case ja: RawCompiledJsonSchema.JsonNumber    => ja
         case ja: RawCompiledJsonSchema.JsonAST       => ja
         case jp: RawCompiledJsonSchema.JsonProduct   => jp
         case js: RawCompiledJsonSchema.JsonSum       => js
@@ -196,6 +208,7 @@ object RawCompiledJsonSchema {
 
     repr match {
       case I.IntermediateRepr.JsonString(plainRef)               => CompiledSchemaRef.JsonString(CompiledSchemaRef.resolvePlain(plainRef, reprs)).asLeft
+      case I.IntermediateRepr.JsonNumber(numberFormat)           => (typeIdentifier, Lazy(RawCompiledJsonSchema.JsonNumber(numberFormat))).asRight
       case I.IntermediateRepr.JsonAST(specificType)              => (typeIdentifier, Lazy(RawCompiledJsonSchema.JsonAST(specificType))).asRight
       case I.IntermediateRepr.JsonOption(jsonRef)                => CompiledSchemaRef.JsonOption(CompiledSchemaRef.resolveJson(jsonRef, reprs)).asLeft
       case I.IntermediateRepr.JsonSpecified(jsonRef)             => CompiledSchemaRef.JsonSpecified(CompiledSchemaRef.resolveJson(jsonRef, reprs)).asLeft
@@ -225,6 +238,10 @@ object RawCompiledJsonSchema {
   @jsonDiscriminator("reprType")
   sealed trait Repr derives JsonCodec {
     def mapTypeIdentifier(f: TypeIdentifier.MapFunction): Repr
+  }
+
+  final case class JsonNumber(numberFormat: NumberFormat) extends Repr {
+    override def mapTypeIdentifier(f: TypeIdentifier.MapFunction): JsonNumber = this
   }
 
   final case class JsonAST(jsonType: Option[oxygen.json.Json.Type]) extends Repr {

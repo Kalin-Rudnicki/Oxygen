@@ -44,6 +44,8 @@ final case class FullCompiledSchemas(rawSchemas: RawCompiledSchemas) {
 
     def rawJsonSchema(raw: RawCompiledJsonSchema): FullCompiledJsonSchema =
       raw.repr match {
+        case repr: RawCompiledJsonSchema.JsonNumber =>
+          FullCompiledJsonSchema.JsonNumber(raw, repr)
         case repr: RawCompiledJsonSchema.JsonAST =>
           FullCompiledJsonSchema.JsonAST(raw, repr)
         case repr: RawCompiledJsonSchema.JsonProduct =>
