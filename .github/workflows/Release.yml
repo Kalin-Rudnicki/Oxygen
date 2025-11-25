@@ -8,7 +8,20 @@ on:
 
 jobs:
 
+  warm-cache:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+    env:
+      JAVA_OPTS: -Xms2048M -Xmx2048M -Xss6M -XX:ReservedCodeCacheSize=256M -Dfile.encoding=UTF-8
+      JVM_OPTS:  -Xms2048M -Xmx2048M -Xss6M -XX:ReservedCodeCacheSize=256M -Dfile.encoding=UTF-8
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      - name: Warm Cache
+        uses: ./.github/actions/warm-cache
+
   publish:
+    needs: warm-cache
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v2.3.4
@@ -17,7 +30,12 @@ jobs:
       - uses: olafurpg/setup-scala@v11
         with:
           java-version: openjdk@1.14
-      - run: sbt ci-release
+      - name: Cache dependencies
+        uses: ./.github/actions/sbt-cache
+      - name: Pre-Release Compile Run
+        run: sbt +compile
+      - name: Release
+        run: sbt ci-release
         env:
           PGP_PASSPHRASE: ${{ secrets.PGP_PASSPHRASE }}
           PGP_SECRET: ${{ secrets.PGP_SECRET }}

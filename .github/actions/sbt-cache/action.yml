@@ -1,0 +1,21 @@
+
+name: 'SBT Dependency Cache'
+description: 'Caches sbt dependencies to speed up builds and avoid rate limits'
+runs:
+  using: "composite"
+  steps:
+    - name: Cache dependencies
+      id: restore-cache
+      uses: actions/cache@v3
+      with:
+        path: |
+          ~/.sbt
+          ~/.ivy2/cache
+          ~/.cache/coursier
+        key: sbt-cache--${{ runner.os }}--sbt-${{ hashFiles('**/*.sbt') }}--project-scala-${{ hashFiles('project/**/*.scala') }}
+        restore-keys: |
+          sbt-cache--${{ runner.os }}--
+    - name: Ensure dependencies are downloaded
+      if: steps.restore-cache.outputs.cache-hit != 'true'
+      run: sbt +update +Test/update
+      shell: bash

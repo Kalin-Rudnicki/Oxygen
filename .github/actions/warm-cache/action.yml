@@ -1,0 +1,15 @@
+
+name: 'Warm SBT Cache'
+description: 'Checks out code, sets up JDK, and ensures SBT cache is populated'
+runs:
+  using: "composite"
+  steps:
+    - name: Checkout
+      uses: actions/checkout@v2
+    - name: Setup JDK
+      uses: actions/setup-java@v3
+      with:
+        distribution: temurin
+        java-version: 17
+    - name: Cache and Update
+      uses: ./.github/actions/sbt-cache
