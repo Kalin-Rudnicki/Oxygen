@@ -19,11 +19,11 @@ jobs:
         uses: actions/setup-java@v4
         with:
           java-version: '17'
-          distribution: 'temurin'
+          distribution: 'openjdk'
           cache: sbt
       - uses: olafurpg/setup-scala@v11
         with:
-          java-version: temurin@1.17
+          java-version: openjdk@1.17
       - run: sbt ci-release
         env:
           PGP_PASSPHRASE: ${{ secrets.PGP_PASSPHRASE }}
