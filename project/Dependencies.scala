@@ -44,9 +44,7 @@ object Dependencies {
 
     // =====| HTTP |=====
 
-    // TODO (KR) : bump once next versioned release comes out
-    //           : this is necessary because 3.5.1 scalaJS driver is completely bricked
-    val httpVersion = "3.5.1+60-51b6f340-SNAPSHOT"
+    val httpVersion = "3.6.0"
 
     val http = "zio-http"
 
