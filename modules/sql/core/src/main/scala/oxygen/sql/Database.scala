@@ -26,8 +26,8 @@ final class Database(
   //           : Or maybe, keeping track of transaction/savepoints in the db state is not necessary.
   //           : This might be prevented by the mutex, but should be tested.
 
-  private[sql] def getConnection: ZIO[Scope, ConnectionError, Connection] =
-    ref.getWith(_.getConnection)
+  private[sql] def getConnection: ZIO[Scope, ConnectionError, Connection] = ref.getWith(_.getConnection)
+  private[sql] def getConnectionAndType: ZIO[Scope, ConnectionError, (Connection, Database.ConnectionState.ConnectionType.Any)] = ref.getWith(_.getConnectionAndType)
 
   private[sql] def getAtomicChild: ZIO[Scope, ConnectionError, Database.ConnectionState.SingleConnection] =
     ref.getWith(_.getAtomicChild).tap { ref.locallyScoped(_) }
@@ -89,16 +89,26 @@ object Database {
 
   private[sql] sealed trait ConnectionState {
 
+    val connectionType: ConnectionState.ConnectionType.Any
+
     def getConnection: ZIO[Scope, ConnectionError, Connection]
     def getAtomicChild: ZIO[Scope, ConnectionError, ConnectionState.SingleConnection]
+
+    final def getConnectionAndType: ZIO[Scope, ConnectionError, (Connection, ConnectionState.ConnectionType.Any)] =
+      getConnection.map((_, connectionType))
 
   }
   private[sql] object ConnectionState {
 
-    sealed trait ConnectionType
     object ConnectionType {
-      case object Transaction extends ConnectionType
-      final case class Savepoint(id: UUID) extends ConnectionType {
+
+      sealed trait Any
+      case object Transactionless extends Any
+
+      sealed trait Transactional extends Any
+
+      case object Transaction extends Transactional
+      final case class Savepoint(id: UUID) extends Transactional {
         val ref: String = s"sp_${id.toString.filterNot(_ == '-')}"
       }
     }
@@ -107,7 +117,7 @@ object Database {
 
       val connection: Connection
       val mutex: Semaphore
-      val connectionType: ConnectionType
+      override val connectionType: ConnectionType.Transactional
 
       override final def getConnection: ZIO[Scope, ConnectionError, Connection] =
         mutex.withPermitScoped.as(connection)
@@ -123,6 +133,8 @@ object Database {
 
     final case class Pool(pool: ConnectionPool) extends ConnectionState {
 
+      override val connectionType: ConnectionType.Any = ConnectionType.Transactionless
+
       override def getConnection: ZIO[Scope, ConnectionError, Connection] =
         pool.get
 
@@ -131,16 +143,17 @@ object Database {
           connection <- pool.get
           mutex <- Semaphore.make(1L)
           transactionId <- Random.nextUUID
+          _ <- connection.disableAutoCommitScoped
         } yield InTransaction(connection, mutex, transactionId)
 
     }
 
     final case class InTransaction(connection: Connection, mutex: Semaphore, transactionId: UUID) extends ConnectionState.SingleConnection {
-      override val connectionType: ConnectionType = ConnectionType.Transaction
+      override val connectionType: ConnectionType.Transactional = ConnectionType.Transaction
     }
 
     final case class InSavepoint(connection: Connection, mutex: Semaphore, savepointId: UUID) extends ConnectionState.SingleConnection {
-      override val connectionType: ConnectionType = ConnectionType.Savepoint(savepointId)
+      override val connectionType: ConnectionType.Transactional = ConnectionType.Savepoint(savepointId)
     }
 
   }

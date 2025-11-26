@@ -3,7 +3,7 @@ package oxygen.sql.query
 import oxygen.predef.core.*
 import oxygen.predef.zio.*
 import oxygen.sql.{Database, DbConfig}
-import oxygen.sql.error.QueryError
+import oxygen.sql.error.{ConnectionError, QueryError}
 import oxygen.sql.schema.{InputEncoder, ResultDecoder}
 import scala.annotation.tailrec
 import zio.stream.*
@@ -192,20 +192,36 @@ private[sql] final class PreparedStatement private (
       _ <- ZIO.addFinalizer { attemptExecute { rawRS.close() }.orDie }
     } yield rawRS).uninterruptible
 
+  private def setFetchSizeScoped(fetchSize: Int): ZIO[Scope, ConnectionError, Unit] =
+    ZIO
+      .attempt { rawPS.setFetchSize(fetchSize) }
+      .mapError(ConnectionError(_))
+      .withFinalizer { _ => ZIO.attempt { rawPS.setFetchSize(0) }.orDieWith(ConnectionError(_)) }
+
 }
 object PreparedStatement {
 
-  def prepare(ctx: QueryContext): ZIO[Database & Scope, QueryError, PreparedStatement] =
+  def prepare(ctx: QueryContext, fetchSize: Option[Int]): ZIO[Database & Scope, QueryError, PreparedStatement] =
     (for {
       database <- ZIO.service[Database]
       _ <- database.logQuery(ctx)
-      con <- database.getConnection.mapError(QueryError.Connection(_))
-      rawPS <- ZIO.attempt { con.connection.prepareStatement(ctx.sql) }.mapError(QueryError.JDBCError("create prepared statement", _))
-      _ <- ZIO.addFinalizer { ZIO.attempt { rawPS.close() }.mapError(e => QueryError(ctx, QueryError.JDBCError("close prepared statement", e))).orDie }
+      (con, conTpe) <- database.getConnectionAndType.mapError(QueryError.Connection(_))
+      rawPS <-
+        ZIO
+          .attempt { con.connection.prepareStatement(ctx.sql) }
+          .mapError(QueryError.JDBCError("create prepared statement", _))
+          .withFinalizer { rawPS => ZIO.attempt { rawPS.close() }.orDieWith(e => QueryError(ctx, QueryError.JDBCError("close prepared statement", e))) }
 
-      // TODO (KR) : figure out fetch size
-      //           : it sounds like auto_commit needs to be off for this to work
-      //           : some fun needs to be had in order to allow multiple parallel connections, and break out of the nice ` transaction { ... } ` management that oxygen-sql is doing
-    } yield PreparedStatement(ctx, rawPS)).uninterruptible.mapError(QueryError(ctx, _))
+      ps = PreparedStatement(ctx, rawPS)
+
+      _ <- ZIO
+        .foreachDiscard(fetchSize) { fetchSize =>
+          conTpe match {
+            case Database.ConnectionState.ConnectionType.Transactionless  => con.disableAutoCommitScoped *> ps.setFetchSizeScoped(fetchSize)
+            case _: Database.ConnectionState.ConnectionType.Transactional => ps.setFetchSizeScoped(fetchSize)
+          }
+        }
+        .mapError(QueryError.JDBCError("setting fetch size", _))
+    } yield ps).uninterruptible.mapError(QueryError(ctx, _))
 
 }

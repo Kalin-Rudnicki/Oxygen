@@ -35,7 +35,7 @@ final class Query(
       None,
       ZIO.scoped {
         for {
-          ps <- PreparedStatement.prepare(ctx)
+          ps <- PreparedStatement.prepare(ctx, None)
           updated <- encoder match
             case None          => ps.executeUpdate
             case Some(encoder) => ps.executeUpdate(encoder, ())
@@ -69,7 +69,7 @@ final class QueryI[I](
       None,
       ZIO.scoped {
         for {
-          ps <- PreparedStatement.prepare(ctx)
+          ps <- PreparedStatement.prepare(ctx, None)
           updated <- ps.executeUpdate(encoder, input)
         } yield updated
       },
@@ -85,7 +85,7 @@ final class QueryI[I](
       chunk.length,
       ZIO.scoped {
         for {
-          ps <- PreparedStatement.prepare(ctx)
+          ps <- PreparedStatement.prepare(ctx, None)
           updated <- ps.executeBatchUpdate(encoder, chunk)
         } yield updated
       },
@@ -101,7 +101,7 @@ final class QueryI[I](
       size,
       ZIO.scoped {
         for {
-          ps <- PreparedStatement.prepare(ctx)
+          ps <- PreparedStatement.prepare(ctx, None)
           updated <- ps.executeUpdate(encoder, input)
         } yield updated
       },
@@ -114,7 +114,7 @@ final class QueryI[I](
       size,
       ZIO.scoped {
         for {
-          ps <- PreparedStatement.prepare(ctx)
+          ps <- PreparedStatement.prepare(ctx, None)
           updated <- ps.executeBatchUpdate(encoder, input)
         } yield updated.map(_.toLong)
       },
@@ -179,12 +179,13 @@ final class QueryO[O](
   def execute(): QueryResult.Returning[QueryError, O] =
     QueryResult.Returning[QueryError, O](
       ctx,
-      for {
-        ps <- ZStream.scoped { PreparedStatement.prepare(ctx) }
-        o <- encoder match
-          case None          => ps.executeQuery(decoder)
-          case Some(encoder) => ps.executeQuery(encoder, (), decoder)
-      } yield o,
+      cfg =>
+        for {
+          ps <- ZStream.scoped { PreparedStatement.prepare(ctx, cfg.fetchSize) }
+          o <- encoder match
+            case None          => ps.executeQuery(decoder)
+            case Some(encoder) => ps.executeQuery(encoder, (), decoder)
+        } yield o,
     )
 
   def map[O2](f: O => O2): QueryO[O2] = QueryO[O2](self.ctx, self.encoder, self.decoder.map(f))
@@ -216,10 +217,11 @@ final class QueryIO[I, O](
   def execute(input: I): QueryResult.Returning[QueryError, O] =
     QueryResult.Returning[QueryError, O](
       ctx,
-      for {
-        ps <- ZStream.scoped { PreparedStatement.prepare(ctx) }
-        o <- ps.executeQuery(encoder, input, decoder)
-      } yield o,
+      cfg =>
+        for {
+          ps <- ZStream.scoped { PreparedStatement.prepare(ctx, cfg.fetchSize) }
+          o <- ps.executeQuery(encoder, input, decoder)
+        } yield o,
     )
 
   def apply[I1, I2](i1: I1, i2: I2)(using ev: (I1, I2) <:< I): QueryResult.Returning[QueryError, O] =

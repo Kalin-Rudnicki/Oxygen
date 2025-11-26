@@ -90,19 +90,19 @@ object Atomically {
 
   private object queries {
 
-    def begin(ct: Database.ConnectionState.ConnectionType): Query = ct match
+    def begin(ct: Database.ConnectionState.ConnectionType.Transactional): Query = ct match
       case Database.ConnectionState.ConnectionType.Transaction   => raw.begin
       case sp: Database.ConnectionState.ConnectionType.Savepoint => raw.savepoint(sp.ref)
 
-    def commit(ct: Database.ConnectionState.ConnectionType): Query = ct match
+    def commit(ct: Database.ConnectionState.ConnectionType.Transactional): Query = ct match
       case Database.ConnectionState.ConnectionType.Transaction   => raw.commit
       case sp: Database.ConnectionState.ConnectionType.Savepoint => raw.releaseSavepoint(sp.ref)
 
-    def rollback(ct: Database.ConnectionState.ConnectionType): Query = ct match
+    def rollback(ct: Database.ConnectionState.ConnectionType.Transactional): Query = ct match
       case Database.ConnectionState.ConnectionType.Transaction   => raw.rollback
       case sp: Database.ConnectionState.ConnectionType.Savepoint => raw.rollbackSavepoint(sp.ref)
 
-    def commitSavepointRollbackTransaction(ct: Database.ConnectionState.ConnectionType): Query = ct match
+    def commitSavepointRollbackTransaction(ct: Database.ConnectionState.ConnectionType.Transactional): Query = ct match
       case Database.ConnectionState.ConnectionType.Transaction   => raw.rollback
       case sp: Database.ConnectionState.ConnectionType.Savepoint => raw.releaseSavepoint(sp.ref)
 
