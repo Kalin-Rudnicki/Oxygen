@@ -25,6 +25,7 @@ final class DecoderBuilder {
       case (_: QueryExpr.RandomUUID, _)                       => ParseResult.success(GeneratedResultDecoder.single(TypeclassExpr.RowRepr.uuid.resultDecoder, TypeRepr.of[UUID]))
       case (_: QueryExpr.InstantNow, _)                       => ParseResult.success(GeneratedResultDecoder.single(TypeclassExpr.RowRepr.instant.resultDecoder, TypeRepr.of[Instant]))
       case (_: QueryExpr.StringConcat, _)                     => ParseResult.success(GeneratedResultDecoder.single(TypeclassExpr.RowRepr.string.resultDecoder, TypeRepr.of[String]))
+      case (QueryExpr.OptionApply(_, inner), _)               => convert(inner, parentContext.map(_.optional))
     }
 
   def ret(r: ReturningPart, parentContext: Option[TypeclassExpr.RowRepr])(using ParseContext, Quotes): ParseResult[GeneratedResultDecoder] =

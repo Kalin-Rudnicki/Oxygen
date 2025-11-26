@@ -40,6 +40,7 @@ private[generic] sealed trait RawQueryExpr {
     case RawQueryExpr.InstantiateTable(_, gen, _, args)             => args.map(_.show).mkString(s"${gen.typeRepr.showCode}.apply(", ", ", ")")
     case RawQueryExpr.RandomUUID(_)                                 => "UUID.randomUUID()"
     case RawQueryExpr.InstantNow(_)                                 => "Instant.now()"
+    case RawQueryExpr.OptionApply(_, inner)                         => s"Option(${inner.show})"
     case RawQueryExpr.StringConcat(_, args)                         => args.map(_.show).mkString("CONCAT(", ", ", ")")
   }
 
@@ -310,12 +311,22 @@ private[generic] object RawQueryExpr extends Parser[(Term, RefMap), RawQueryExpr
               case t                   => RawQueryExpr.parse((t.toTerm, refs)).unknownAsError: ParseResult[RawQueryExpr]
             }
           }
-
       } yield StringConcat(term, parsedArgs.toList)
     }
 
   }
 
+  final case class OptionApply(fullTerm: Term, inner: RawQueryExpr) extends RawQueryExpr.Other
+  object OptionApply extends Parser[(Term, RefMap), OptionApply] {
+
+    override def parse(input: (Term, RefMap))(using ParseContext, Quotes): ParseResult[OptionApply] = {
+      val (term, refs) = input
+      term.asExpr match
+        case '{ Option.apply(${ inner }) } => RawQueryExpr.parse((inner.toTerm, refs)).map(OptionApply(term, _))
+        case _                             => ParseResult.unknown(term, "not an Option.apply(_)")
+    }
+
+  }
   override def parse(input: (Term, RefMap))(using ParseContext, Quotes): ParseResult[RawQueryExpr] = input match
     case QueryRefIdent.optional(res)       => res
     case ConstValue.optional(res)          => res
@@ -330,6 +341,7 @@ private[generic] object RawQueryExpr extends Parser[(Term, RefMap), RawQueryExpr
     case RandomUUID.optional(res)          => res
     case InstantNow.optional(res)          => res
     case StringConcat.optional(res)        => res
+    case OptionApply.optional(res)         => res
     case (rootTerm, _)                     => ParseResult.unknown(rootTerm, "not a query expr?")
 
 }

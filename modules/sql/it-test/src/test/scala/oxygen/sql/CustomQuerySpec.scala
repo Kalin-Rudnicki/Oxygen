@@ -235,6 +235,29 @@ object CustomQuerySpec extends OxygenSpec[Database] {
           ),
         )
       },
+      test("insert from select 2") {
+        for {
+          groupId <- Random.nextUUID
+
+          randomName = RandomGen.lowerCaseString(25)
+          f1 <- randomName
+          l1 <- randomName
+
+          p1 <- Person.generate(groupId)(first = f1, last = l1)
+          n <- Note2.generate(p1.id)()
+
+          _ <- Person.insert(p1).unit
+          _ <- Note2.insert(n).unit
+          _ <- queries.insertNote2ForNote1.execute(n.id).unit
+
+          res <- Note2.selectAll.map(n => (n.personId, n.note, n.note2)).execute().to[Set]
+        } yield assertTrue(
+          res == Set(
+            (p1.id, n.note, n.note2),
+            (p1.id, s"${p1.first} ${p1.last}", n.note.some),
+          ),
+        )
+      },
     )
 
   override def testAspects: Chunk[CustomQuerySpec.TestSpecAspect] = Chunk(TestAspect.nondeterministic, TestAspect.withLiveClock, SqlAspects.isolateTestsInRollbackTransaction)
@@ -247,7 +270,7 @@ object CustomQuerySpec extends OxygenSpec[Database] {
       MigrationConfig.defaultLayer,
       MigrationService.migrateLayer(
         Migrations(
-          PlannedMigration.auto(1)(Person.tableRepr, Note.tableRepr, Ints.tableRepr, MultiPK1.tableRepr, MultiPK2.tableRepr),
+          PlannedMigration.auto(1)(Person.tableRepr, Note.tableRepr, Note2.tableRepr, Ints.tableRepr, MultiPK1.tableRepr, MultiPK2.tableRepr),
         ),
       ),
       Atomically.LiveDB.layer,
