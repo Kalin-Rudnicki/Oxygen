@@ -63,9 +63,11 @@ object PerformanceQuerySpec extends OxygenSpec[Database] {
   // override def defaultLogLevel: LogLevel = LogLevel.Trace
 
   private object env {
-    def getInt(n: String): Int = java.lang.System.getenv(n).toInt
-    def getInts(n: String): Chunk[Int] = Chunk.from(java.lang.System.getenv(n).split(',')).filter(_.nonEmpty).map(_.toInt)
-    def getBoolean(n: String): Boolean = java.lang.System.getenv(n).toBoolean
+    private def getRequired(n: String): String = Option(java.lang.System.getenv(n)).filter(_.nonEmpty).getOrElse { throw new RuntimeException(s"Missing env var: $n") }
+
+    def getInt(n: String): Int = getRequired(n).toInt
+    def getInts(n: String): Chunk[Int] = Chunk.from(getRequired(n).split(',')).filter(_.nonEmpty).map(_.toInt)
+    def getBoolean(n: String): Boolean = getRequired(n).toBoolean
   }
 
   private lazy val pars: Chunk[Int] = env.getInts("QPERF_PARS")
@@ -180,7 +182,7 @@ object PerformanceQuerySpec extends OxygenSpec[Database] {
   private val cacheStream: ZStream[Database, QueryError, Person] =
     for {
       groupId <- ZStream.fromZIO { Random.nextUUID }
-      pc <- PersonCache.selectAll.execute().stream
+      pc <- PersonCache.selectAll.execute().streamWithFetchSize(4096)
     } yield pc.toPerson(groupId)
 
   override def testSpec: TestSpec =
@@ -194,6 +196,14 @@ object PerformanceQuerySpec extends OxygenSpec[Database] {
           _ <- ZIO.logInfo(s"Completed data generation and insert (${(batchSize * numBatches).toStringCommas}) : ${dur.render}")
           cacheRows <- PersonCache.select_*.execute().single
           _ <- ZIO.logInfo(s"Num rows in cache table: ${cacheRows.toStringCommas}")
+
+          _ <- Clock.sleep(1.second)
+          (readAllSimple, _) <- PersonCache.selectAll.execute().stream.runCount.timed
+          _ <- ZIO.logInfo(s"    Read all simple: ${readAllSimple.render}")
+          _ <- Clock.sleep(1.second)
+          (readAllFetchSize, _) <- PersonCache.selectAll.execute().stream.runCount.timed
+          _ <- ZIO.logInfo(s"Read all fetch size: ${readAllFetchSize.render}")
+          _ <- Clock.sleep(1.second)
 
           allResults <- ZIO.foreach(PerfCase.allCases)(_.executeOption).map(_.flatten)
 

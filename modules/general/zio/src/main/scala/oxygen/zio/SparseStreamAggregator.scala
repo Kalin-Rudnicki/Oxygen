@@ -73,8 +73,11 @@ trait SparseStreamAggregator[_RawInput, _Output] {
   )(using zipInput: Zip[RawInput2, RawInput], zipOutput: Zip[Output2, Output]): SparseStreamAggregator[zipInput.Out, zipOutput.Out] =
     SparseStreamAggregator.AndThen(that, this, zipInput, zipOutput)
 
+  final def toPipeline: ZPipeline[Any, Nothing, RawInput, Output] =
+    ZPipeline.fromChannel(SparseStreamAggregator.aggregatorChannel(this))
+
   final def aggregateStream[R, E](stream: ZStream[R, E, RawInput]): ZStream[R, E, Output] =
-    stream.pipeThroughChannel(SparseStreamAggregator.aggregatorChannel(this))
+    stream >>> toPipeline
 
 }
 object SparseStreamAggregator {

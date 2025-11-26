@@ -3,6 +3,7 @@ package oxygen.sql.query
 import oxygen.predef.core.*
 import oxygen.sql.*
 import oxygen.sql.error.*
+import oxygen.zio.SparseStreamAggregator
 import oxygen.zio.instances.given
 import scala.reflect.ClassTag
 import zio.*
@@ -12,19 +13,26 @@ object QueryResult {
 
   final class Returning[E, A] private[sql] (
       ctx: QueryContext,
-      effect: ZStream[Database, E, A],
+      effect: Returning.Config => ZStream[Database, E, A],
   ) {
 
     // =====| Error Mapping |=====
 
     def orDie(using ev1: E IsSubtypeOfError Throwable, ev2: CanFail[E]): Returning[Nothing, A] =
-      Returning(ctx, effect.orDie)
+      Returning(ctx, effect(_).orDie)
 
     def orDieWith(f: E => Throwable)(using ev1: CanFail[E]): Returning[Nothing, A] =
-      Returning(ctx, effect.orDieWith(f))
+      Returning(ctx, effect(_).orDieWith(f))
 
     def mapError[E2](f: E => E2): Returning[E2, A] =
-      Returning(ctx, effect.mapError(f))
+      Returning(ctx, effect(_).mapError(f))
+
+    // TODO (KR) : This could technically accept a `ZPipeline[Database, ...]` but I am limiting it for now
+    def >>>[E2 >: E, B](pipeline: ZPipeline[Any, E2, A, B]): Returning[E2, B] =
+      Returning(ctx, cfg => effect(cfg) >>> pipeline)
+
+    def >>>[B](agg: SparseStreamAggregator[A, B]): Returning[E, B] =
+      this >>> agg.toPipeline
 
     // =====| Results |=====
 
@@ -55,14 +63,23 @@ object QueryResult {
     // =====| Root Result Functions |=====
 
     def toSink[E1 >: E, B](sink: ZSink[Any, E1, A, Nothing, B]): ZIO[Database, E1, B] =
-      this.effect.run(sink) @@ ctx.metrics.track(QueryContext.ExecutionType.Query)
+      this.effect(Returning.Config.default).run(sink) @@ ctx.metrics.track(QueryContext.ExecutionType.Query)
 
     def toSinkT[E1 >: E, T[_]](sink: ZSink[Any, E1, A, Nothing, T[A]]): ZIO[Database, E1, T[A]] = this.toSink(sink)
     def to[S[_]: SeqOps as ops]: ZIO[Database, E, S[A]] = this.toSink(Sinks.seq[S, A])
 
     // TODO (KR) : support stream metrics
-    def stream: ZStream[Database, E, A] =
-      effect
+    def stream: ZStream[Database, E, A] = effect(Returning.Config.default)
+    def streamWithFetchSize(fetchSize: Int): ZStream[Database, E, A] = effect(Returning.Config(fetchSize.some))
+
+  }
+  object Returning {
+
+    // TODO (KR) : some of the batch stuff probably belongs in here
+    final case class Config(fetchSize: Option[Int])
+    object Config {
+      val default: Config = Config(None)
+    }
 
   }
 
