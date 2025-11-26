@@ -1,7 +1,5 @@
 package oxygen.sql.generic.generation
 
-import java.time.Instant
-import java.util.UUID
 import oxygen.predef.core.*
 import oxygen.quoted.*
 import oxygen.sql.generic.model.*
@@ -11,24 +9,47 @@ import scala.quoted.*
 
 final class DecoderBuilder {
 
-  def convert(queryExpr: QueryExpr, parentContext: Option[TypeclassExpr.RowRepr])(using ParseContext, Quotes): ParseResult[GeneratedResultDecoder] =
-    (queryExpr, parentContext) match {
-      case (QueryExpr.ConstValue(fullTerm, _), Some(rowRepr)) => ParseResult.success(GeneratedResultDecoder.single(rowRepr.resultDecoder, fullTerm.tpe.widen))
-      case (input: QueryExpr.UnaryInput, Some(rowRepr))       => ParseResult.success(GeneratedResultDecoder.single(rowRepr.resultDecoder, input.fullTerm.tpe.widen))
-      case (input: QueryExpr.UnaryInput, _)                   => ParseResult.error(input.fullTerm, "no query reference to compare input to")
-      case (input: QueryExpr.ConstValue, _)                   => ParseResult.error(input.fullTerm, "no query reference to compare input to")
-      case (query: QueryExpr.UnaryQuery, _)                   => ParseResult.success(GeneratedResultDecoder.single(query.rowRepr.resultDecoder, query.fullTerm.tpe.widen))
-      case (QueryExpr.Static(fullTerm, _, rowRepr), _)        => ParseResult.success(GeneratedResultDecoder.single(rowRepr.resultDecoder, fullTerm.tpe.widen))
-      case (_: QueryExpr.BinaryAndOr, _)                      => ParseResult.success(GeneratedResultDecoder.single(TypeclassExpr.RowRepr.boolean.resultDecoder, TypeRepr.of[Boolean]))
-      case (_: QueryExpr.BinaryComp, _)                       => ParseResult.success(GeneratedResultDecoder.single(TypeclassExpr.RowRepr.boolean.resultDecoder, TypeRepr.of[Boolean]))
-      case (QueryExpr.InstantiateTable(_, gen, tr, _), _)     => ParseResult.success(GeneratedResultDecoder.single(tr.tableRowRepr.resultDecoder, gen.typeRepr))
-      case (_: QueryExpr.RandomUUID, _)                       => ParseResult.success(GeneratedResultDecoder.single(TypeclassExpr.RowRepr.uuid.resultDecoder, TypeRepr.of[UUID]))
-      case (_: QueryExpr.InstantNow, _)                       => ParseResult.success(GeneratedResultDecoder.single(TypeclassExpr.RowRepr.instant.resultDecoder, TypeRepr.of[Instant]))
-      case (_: QueryExpr.StringConcat, _)                     => ParseResult.success(GeneratedResultDecoder.single(TypeclassExpr.RowRepr.string.resultDecoder, TypeRepr.of[String]))
-      case (QueryExpr.OptionApply(_, inner), _)               => convert(inner, parentContext.map(_.optional))
-    }
+  object convert {
+
+    def apply(queryExpr: QueryExpr, parentContext: Option[TypeclassExpr.RowRepr])(using ParseContext, Quotes): ParseResult[GeneratedResultDecoder] =
+      (queryExpr, parentContext) match
+        case (queryExpr: QueryExpr.ConstValue, Some(parentContext))                 => convert.const(queryExpr, parentContext)
+        case (queryExpr: QueryExpr.InputVariableReferenceLike, Some(parentContext)) => convert.input(queryExpr, parentContext)
+        case (queryExpr: QueryExpr.QueryVariableReferenceLike, _)                   => convert.query(queryExpr)
+        case (queryExpr: QueryExpr.Binary, _)                                       => convert.binary(queryExpr)
+        case (queryExpr: QueryExpr.BuiltIn, _)                                      => convert.builtIn(queryExpr)
+        case (queryExpr: QueryExpr.Composite, _)                                    => convert.composite(queryExpr, parentContext)
+        case (queryExpr: QueryExpr.ConstValue, None)                                => ParseResult.error(queryExpr.fullTerm, "No RowRepr to compare with")
+        case (queryExpr: QueryExpr.InputVariableReferenceLike, None)                => ParseResult.error(queryExpr.fullTerm, "No RowRepr to compare with")
+
+    def const(queryExpr: QueryExpr.ConstValue, parentContext: TypeclassExpr.RowRepr): ParseResult[GeneratedResultDecoder] =
+      ParseResult.success(GeneratedResultDecoder.single(parentContext.resultDecoder, queryExpr.fullTerm.tpe.widen))
+
+    def query(queryExpr: QueryExpr.QueryVariableReferenceLike)(using Quotes): ParseResult[GeneratedResultDecoder] =
+      ParseResult.success(GeneratedResultDecoder.single(queryExpr.rowRepr.resultDecoder, queryExpr.fullTerm.tpe.widen))
+
+    def input(queryExpr: QueryExpr.InputVariableReferenceLike, rowRepr: TypeclassExpr.RowRepr): ParseResult[GeneratedResultDecoder] =
+      ParseResult.success(GeneratedResultDecoder.single(rowRepr.resultDecoder, queryExpr.fullTerm.tpe.widen))
+
+    def binary(queryExpr: QueryExpr.Binary)(using Quotes): ParseResult[GeneratedResultDecoder] =
+      queryExpr match
+        case _: QueryExpr.BinaryComp  => ParseResult.success(GeneratedResultDecoder.single(TypeclassExpr.RowRepr.boolean.resultDecoder, TypeRepr.of[Boolean]))
+        case _: QueryExpr.BinaryAndOr => ParseResult.success(GeneratedResultDecoder.single(TypeclassExpr.RowRepr.boolean.resultDecoder, TypeRepr.of[Boolean]))
+
+    def builtIn(queryExpr: QueryExpr.BuiltIn)(using Quotes): ParseResult[GeneratedResultDecoder] =
+      queryExpr match
+        case QueryExpr.Static(fullTerm, _, rowRepr) => ParseResult.success(GeneratedResultDecoder.single(rowRepr.resultDecoder, fullTerm.tpe.widen))
+        case _: QueryExpr.CountWithArg              => ParseResult.success(GeneratedResultDecoder.single(TypeclassExpr.RowRepr.long.resultDecoder, TypeRepr.of[Long]))
+
+    def composite(queryExpr: QueryExpr.Composite, parentContext: Option[TypeclassExpr.RowRepr])(using ParseContext, Quotes): ParseResult[GeneratedResultDecoder] =
+      queryExpr match
+        case QueryExpr.InstantiateTable(_, gen, tr, _) => ParseResult.success(GeneratedResultDecoder.single(tr.tableRowRepr.resultDecoder, gen.typeRepr))
+        case _: QueryExpr.StringConcat                 => ParseResult.success(GeneratedResultDecoder.single(TypeclassExpr.RowRepr.string.resultDecoder, TypeRepr.of[String]))
+        case QueryExpr.OptionApply(_, inner)           => convert(inner, parentContext.map(_.optional))
+
+  }
 
   def ret(r: ReturningPart, parentContext: Option[TypeclassExpr.RowRepr])(using ParseContext, Quotes): ParseResult[GeneratedResultDecoder] =
-    r.returningExprs.traverse(convert(_, parentContext)).map(GeneratedResultDecoder.flatten(_))
+    r.returningExprs.traverse(e => convert(e.expr, parentContext)).map(GeneratedResultDecoder.flatten(_))
 
 }

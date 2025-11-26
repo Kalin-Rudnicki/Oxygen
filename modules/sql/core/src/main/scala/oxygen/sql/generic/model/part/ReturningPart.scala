@@ -8,16 +8,21 @@ import scala.quoted.*
 
 final case class ReturningPart(
     fullTree: Tree,
-    returningExprs: List[QueryExpr],
+    returningExprs: List[ReturningPart.Elem],
 ) {
 
   def showOpt(using Quotes): Option[String] = returningExprs match
     case Nil         => None
-    case expr :: Nil => expr.show.some
-    case exprs       => exprs.map(_.show).mkString(", ").some
+    case expr :: Nil => expr.expr.show.some
+    case exprs       => exprs.map(_.expr.show).mkString(", ").some
 
 }
 object ReturningPart extends Parser[(Term, RefMap), ReturningPart] {
+
+  final case class Elem(
+      expr: QueryExpr,
+      as: Option[String],
+  )
 
   override def parse(input: (Term, RefMap))(using ParseContext, Quotes): ParseResult[ReturningPart] =
     for {
@@ -28,6 +33,6 @@ object ReturningPart extends Parser[(Term, RefMap), ReturningPart] {
         case _                => term :: Nil
       exprs <- terms.traverse(t => RawQueryExpr.parse((t, refs)))
       exprs <- exprs.traverse(t => QueryExpr.parse(t))
-    } yield ReturningPart(term, exprs)
+    } yield ReturningPart(term, exprs.map(Elem(_, None)))
 
 }

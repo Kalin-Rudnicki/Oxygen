@@ -4,36 +4,36 @@ import oxygen.predef.core.*
 import oxygen.quoted.*
 import oxygen.sql.generic.model.*
 
-private[generic] final class RefMap private (map: Map[Symbol, QueryParam]) {
+private[generic] final class RefMap private (map: Map[Symbol, VariableReference]) {
 
-  def allQueryRefs: Growable[QueryParam] = Growable.many(map.values)
+  def allQueryRefs: Growable[VariableReference] = Growable.many(map.values)
 
-  def add(elems: QueryParam*): RefMap = new RefMap(map ++ elems.map { qr => qr.param.sym -> qr }.toMap)
+  def add(elems: VariableReference*): RefMap = new RefMap(map ++ elems.map { qr => qr.internalParam.sym -> qr }.toMap)
   def addAlias(from: Function.NamedParam, to: Function.NamedParam): RefMap = new RefMap(map ++ map.get(to.sym).map { (from.sym, _) }.iterator.toMap)
-  def addList(elems: List[QueryParam]): RefMap = new RefMap(map ++ elems.map { qr => qr.param.sym -> qr }.toMap)
+  def addList(elems: List[VariableReference]): RefMap = new RefMap(map ++ elems.map { qr => qr.internalParam.sym -> qr }.toMap)
 
-  def find(ident: Ident): Option[QueryParam] = map.get(ident.symbol)
+  def find(ident: Ident): Option[VariableReference] = map.get(ident.symbol)
 
-  def get(ident: Ident)(using ParseContext): ParseResult[QueryParam] =
+  def get(ident: Ident)(using ParseContext): ParseResult[VariableReference] =
     find(ident) match {
       case Some(queryRef) => ParseResult.Success(queryRef)
       case None           => ParseResult.error(ident, "ident does not belong to an input/query param")
     }
-  def getInput(ident: Ident)(using ParseContext): ParseResult[QueryParam.InputLike] =
+  def getInput(ident: Ident)(using ParseContext): ParseResult[VariableReference.InputLike] =
     find(ident) match {
-      case Some(queryRef: QueryParam.InputLike) => ParseResult.Success(queryRef)
-      case Some(_: QueryParam.Query)            => ParseResult.error(ident, "ident belongs to a query param, but an input param is expected")
-      case None                                 => ParseResult.error(ident, "ident does not belong to an input/query param")
+      case Some(queryRef: VariableReference.InputLike) => ParseResult.Success(queryRef)
+      case Some(_: VariableReference.FromQuery)        => ParseResult.error(ident, "ident belongs to a query param, but an input param is expected")
+      case None                                        => ParseResult.error(ident, "ident does not belong to an input/query param")
     }
-  def getQuery(ident: Ident)(using ParseContext): ParseResult[QueryParam.Query] =
+  def getQuery(ident: Ident)(using ParseContext): ParseResult[VariableReference.FromQuery] =
     find(ident) match {
-      case Some(queryRef: QueryParam.Query) => ParseResult.Success(queryRef)
-      case Some(_: QueryParam.InputLike)    => ParseResult.error(ident, "ident belongs to an input param, but a query param is expected")
-      case None                             => ParseResult.error(ident, "ident does not belong to an input/query param")
+      case Some(queryRef: VariableReference.FromQuery) => ParseResult.Success(queryRef)
+      case Some(_: VariableReference.InputLike)        => ParseResult.error(ident, "ident belongs to an input param, but a query param is expected")
+      case None                                        => ParseResult.error(ident, "ident does not belong to an input/query param")
     }
 
-  def getRootQueryRef(errorPos: Tree)(using ParseContext): ParseResult[QueryParam.Query] =
-    map.valuesIterator.collect { case ref: QueryParam.Query if ref.isRoot => ref }.toList match
+  def getRootQueryRef(errorPos: Tree)(using ParseContext): ParseResult[VariableReference.FromQuery] =
+    map.valuesIterator.collect { case ref: VariableReference.FromQuery if ref.isRoot => ref }.toList match
       case ref :: Nil => ParseResult.Success(ref)
       case Nil        => ParseResult.error(errorPos, "no root param found?")
       case _          => ParseResult.error(errorPos, "many root params found?")

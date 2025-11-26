@@ -7,7 +7,7 @@ import oxygen.sql.query.dsl.{Q, T}
 import scala.quoted.*
 
 final case class LimitPart(
-    limitQueryExpr: QueryExpr.ConstOrDirectUnaryInput,
+    limitQueryExpr: QueryExpr,
 ) {
 
   def show(using Quotes): String =
@@ -26,11 +26,8 @@ object LimitPart extends MapChainParser[LimitPart] {
         case '{ Q.limit($intExpr) } => ParseResult.Success(intExpr)
         case _                      => ParseResult.error(mapAAFC.lhs, "does not look like `limit(...)`")
       }
-      limitQueryExpr <- RawQueryExpr.Unary.parse((intExpr.toTerm, refs))
-      limitQueryExpr <- QueryExpr.Unary.parse(limitQueryExpr)
-      limitQueryExpr <- limitQueryExpr match
-        case limitQueryExpr: QueryExpr.ConstOrDirectUnaryInput => ParseResult.Success(limitQueryExpr)
-        case _                                                 => ParseResult.error(limitQueryExpr.fullTerm, "only const(_) or direct input var are allowed")
+      limitQueryExpr <- RawQueryExpr.parse((intExpr.toTerm, refs))
+      limitQueryExpr <- QueryExpr.parse(limitQueryExpr)
 
     } yield MapChainResult(LimitPart(limitQueryExpr), mapFunctName, refs, mapAAFC.appliedFunctionBody)
 

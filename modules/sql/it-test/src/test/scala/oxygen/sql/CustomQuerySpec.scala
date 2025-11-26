@@ -158,6 +158,11 @@ object CustomQuerySpec extends OxygenSpec[Database] {
           res7 <- queries.intsOrderByABOffset.execute(5, 2).to[List]
           res8 <- queries.intsOrderByABOffset.execute(5, 6).to[List]
 
+          res9 <- queries.intsOrderByABOffsetOptional.execute(5.some, 2.some).to[List]
+          res10 <- queries.intsOrderByABOffsetOptional.execute(5.some, 6.some).to[List]
+
+          res11 <- queries.intsOrderByABOffsetOptional.execute(None, None).to[List]
+
         } yield assertTrue(
           res1.length == 5,
           res2.length == 3,
@@ -167,6 +172,9 @@ object CustomQuerySpec extends OxygenSpec[Database] {
           res6 == List(i13, i23, i33, i12, i22),
           res7 == List(i11, i23, i22, i21, i33),
           res8 == List(i33, i32, i31),
+          res9 == List(i11, i23, i22, i21, i33),
+          res10 == List(i33, i32, i31),
+          res11 == List(i13, i12, i11, i23, i22, i21, i33, i32, i31),
         )
       },
       test("optional inputs") {
@@ -186,6 +194,7 @@ object CustomQuerySpec extends OxygenSpec[Database] {
           p4 <- Person.generate(groupId)(first = f2, last = l2)
 
           _ <- Person.insert.all(p1, p2, p3, p4).unit
+
           res1 <- queries.personSearch.execute(None, None).to[Set]
           res2 <- queries.personSearch.execute(f1.some, None).to[Set]
           res3 <- queries.personSearch.execute(None, l1.some).to[Set]
@@ -256,6 +265,41 @@ object CustomQuerySpec extends OxygenSpec[Database] {
             (p1.id, n.note, n.note2),
             (p1.id, s"${p1.first} ${p1.last}", n.note.some),
           ),
+        )
+      },
+      test("subquery") {
+        for {
+          groupId <- Random.nextUUID
+
+          randomName = RandomGen.lowerCaseString(25)
+          l1 <- randomName
+          l2 <- randomName
+          l3 <- randomName
+
+          p1 <- Person.generate(groupId)(first = "A", last = l1)
+          p2 <- Person.generate(groupId)(first = "B", last = l2)
+          p3 <- Person.generate(groupId)(first = "C", last = l3)
+
+          n11 <- Note.generate(p1.id)()
+          n12 <- Note.generate(p1.id)()
+          n13 <- Note.generate(p1.id)()
+          n31 <- Note.generate(p3.id)()
+          n32 <- Note.generate(p3.id)()
+
+          _ <- Person.insert.all(p1, p2, p3).unit
+          _ <- Note.insert.all(n11, n12, n13, n31, n32).unit
+
+          res1 <- queries.selectSubQuery1.execute().to[Set]
+          res2 <- queries.selectSubQuery2.execute().to[Set]
+          exp = Set(
+            (p1, n11.some),
+            (p1, n12.some),
+            (p1, n13.some),
+            (p2, None),
+          )
+        } yield assertTrue(
+          res1 == exp,
+          res2 == exp,
         )
       },
     )

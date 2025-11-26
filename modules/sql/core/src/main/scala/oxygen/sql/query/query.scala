@@ -5,7 +5,7 @@ import oxygen.sql.error.*
 import oxygen.sql.query.dsl.CompileMacros
 import oxygen.sql.schema.*
 import oxygen.zio.instances.given
-import zio.{Chunk, ZIO}
+import zio.{Chunk, Trace, ZIO}
 import zio.stream.ZStream
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -28,8 +28,8 @@ final class Query(
     private[sql] val encoder: Option[InputEncoder[Any]],
 ) extends QueryLike { self =>
 
-  def apply(): QueryResult.Update[QueryError] = execute()
-  def execute(): QueryResult.Update[QueryError] =
+  def apply()(using Trace): QueryResult.Update[QueryError] = execute()
+  def execute()(using Trace): QueryResult.Update[QueryError] =
     QueryResult.Update[QueryError](
       ctx,
       None,
@@ -62,8 +62,8 @@ final class QueryI[I](
     private[sql] val encoder: InputEncoder[I],
 ) extends QueryLike { self =>
 
-  def apply(input: I): QueryResult.Update[QueryError] = execute(input)
-  def execute(input: I): QueryResult.Update[QueryError] =
+  def apply(input: I)(using Trace): QueryResult.Update[QueryError] = execute(input)
+  def execute(input: I)(using Trace): QueryResult.Update[QueryError] =
     QueryResult.Update[QueryError](
       ctx,
       None,
@@ -77,7 +77,7 @@ final class QueryI[I](
 
   // TODO (KR) : add some sort of hierarchy here... `object batched { def of, def seq, def stream }`
 
-  def batched[S[_]: SeqOps](inputs: S[I]): QueryResult.BatchUpdate[QueryError] = {
+  def batched[S[_]: SeqOps](inputs: S[I])(using Trace): QueryResult.BatchUpdate[QueryError] = {
     val chunk = inputs.into[Chunk]
 
     QueryResult.BatchUpdate[QueryError](
@@ -92,10 +92,10 @@ final class QueryI[I](
     )
   }
 
-  def all(inputs: I*): QueryResult.BatchUpdate[QueryError] =
+  def all(inputs: I*)(using Trace): QueryResult.BatchUpdate[QueryError] =
     batched(inputs)
 
-  private[sql] def optimizedBatch(size: Int, input: I): QueryResult.OptimizedBatchUpdate[QueryError] = {
+  private[sql] def optimizedBatch(size: Int, input: I)(using Trace): QueryResult.OptimizedBatchUpdate[QueryError] = {
     QueryResult.OptimizedBatchUpdate[QueryError](
       ctx,
       size,
@@ -108,7 +108,7 @@ final class QueryI[I](
     )
   }
 
-  private[sql] def optimizedBatchBatch(size: Int, input: Chunk[I]): QueryResult.OptimizedBatchBatchUpdate[QueryError] = {
+  private[sql] def optimizedBatchBatch(size: Int, input: Chunk[I])(using Trace): QueryResult.OptimizedBatchBatchUpdate[QueryError] = {
     QueryResult.OptimizedBatchBatchUpdate[QueryError](
       ctx,
       size,
@@ -121,35 +121,41 @@ final class QueryI[I](
     )
   }
 
-  def apply[I1, I2](i1: I1, i2: I2)(using ev: (I1, I2) <:< I): QueryResult.Update[QueryError] =
-    self(ev((i1, i2)))
-  def apply[I1, I2, I3](i1: I1, i2: I2, i3: I3)(using ev: (I1, I2, I3) <:< I): QueryResult.Update[QueryError] =
-    self(ev((i1, i2, i3)))
-  def apply[I1, I2, I3, I4](i1: I1, i2: I2, i3: I3, i4: I4)(using ev: (I1, I2, I3, I4) <:< I): QueryResult.Update[QueryError] =
-    self(ev((i1, i2, i3, i4)))
-  def apply[I1, I2, I3, I4, I5](i1: I1, i2: I2, i3: I3, i4: I4, i5: I5)(using ev: (I1, I2, I3, I4, I5) <:< I): QueryResult.Update[QueryError] =
-    self(ev((i1, i2, i3, i4, i5)))
-  def apply[I1, I2, I3, I4, I5, I6](i1: I1, i2: I2, i3: I3, i4: I4, i5: I5, i6: I6)(using ev: (I1, I2, I3, I4, I5, I6) <:< I): QueryResult.Update[QueryError] =
-    self(ev((i1, i2, i3, i4, i5, i6)))
-  def apply[I1, I2, I3, I4, I5, I6, I7](i1: I1, i2: I2, i3: I3, i4: I4, i5: I5, i6: I6, i7: I7)(using ev: (I1, I2, I3, I4, I5, I6, I7) <:< I): QueryResult.Update[QueryError] =
-    self(ev((i1, i2, i3, i4, i5, i6, i7)))
-  def apply[I1, I2, I3, I4, I5, I6, I7, I8](i1: I1, i2: I2, i3: I3, i4: I4, i5: I5, i6: I6, i7: I7, i8: I8)(using ev: (I1, I2, I3, I4, I5, I6, I7, I8) <:< I): QueryResult.Update[QueryError] =
-    self(ev((i1, i2, i3, i4, i5, i6, i7, i8)))
+  def apply[I1, I2](i1: I1, i2: I2)(using ev: (I1, I2) <:< I, trace: Trace): QueryResult.Update[QueryError] =
+    self.execute(ev((i1, i2)))
+  def apply[I1, I2, I3](i1: I1, i2: I2, i3: I3)(using ev: (I1, I2, I3) <:< I, trace: Trace): QueryResult.Update[QueryError] =
+    self.execute(ev((i1, i2, i3)))
+  def apply[I1, I2, I3, I4](i1: I1, i2: I2, i3: I3, i4: I4)(using ev: (I1, I2, I3, I4) <:< I, trace: Trace): QueryResult.Update[QueryError] =
+    self.execute(ev((i1, i2, i3, i4)))
+  def apply[I1, I2, I3, I4, I5](i1: I1, i2: I2, i3: I3, i4: I4, i5: I5)(using ev: (I1, I2, I3, I4, I5) <:< I, trace: Trace): QueryResult.Update[QueryError] =
+    self.execute(ev((i1, i2, i3, i4, i5)))
+  def apply[I1, I2, I3, I4, I5, I6](i1: I1, i2: I2, i3: I3, i4: I4, i5: I5, i6: I6)(using ev: (I1, I2, I3, I4, I5, I6) <:< I, trace: Trace): QueryResult.Update[QueryError] =
+    self.execute(ev((i1, i2, i3, i4, i5, i6)))
+  def apply[I1, I2, I3, I4, I5, I6, I7](i1: I1, i2: I2, i3: I3, i4: I4, i5: I5, i6: I6, i7: I7)(using ev: (I1, I2, I3, I4, I5, I6, I7) <:< I, trace: Trace): QueryResult.Update[QueryError] =
+    self.execute(ev((i1, i2, i3, i4, i5, i6, i7)))
+  def apply[I1, I2, I3, I4, I5, I6, I7, I8](i1: I1, i2: I2, i3: I3, i4: I4, i5: I5, i6: I6, i7: I7, i8: I8)(using
+      ev: (I1, I2, I3, I4, I5, I6, I7, I8) <:< I,
+      trace: Trace,
+  ): QueryResult.Update[QueryError] =
+    self.execute(ev((i1, i2, i3, i4, i5, i6, i7, i8)))
 
-  def execute[I1, I2](i1: I1, i2: I2)(using ev: (I1, I2) <:< I): QueryResult.Update[QueryError] =
-    self(ev((i1, i2)))
-  def execute[I1, I2, I3](i1: I1, i2: I2, i3: I3)(using ev: (I1, I2, I3) <:< I): QueryResult.Update[QueryError] =
-    self(ev((i1, i2, i3)))
-  def execute[I1, I2, I3, I4](i1: I1, i2: I2, i3: I3, i4: I4)(using ev: (I1, I2, I3, I4) <:< I): QueryResult.Update[QueryError] =
-    self(ev((i1, i2, i3, i4)))
-  def execute[I1, I2, I3, I4, I5](i1: I1, i2: I2, i3: I3, i4: I4, i5: I5)(using ev: (I1, I2, I3, I4, I5) <:< I): QueryResult.Update[QueryError] =
-    self(ev((i1, i2, i3, i4, i5)))
-  def execute[I1, I2, I3, I4, I5, I6](i1: I1, i2: I2, i3: I3, i4: I4, i5: I5, i6: I6)(using ev: (I1, I2, I3, I4, I5, I6) <:< I): QueryResult.Update[QueryError] =
-    self(ev((i1, i2, i3, i4, i5, i6)))
-  def execute[I1, I2, I3, I4, I5, I6, I7](i1: I1, i2: I2, i3: I3, i4: I4, i5: I5, i6: I6, i7: I7)(using ev: (I1, I2, I3, I4, I5, I6, I7) <:< I): QueryResult.Update[QueryError] =
-    self(ev((i1, i2, i3, i4, i5, i6, i7)))
-  def execute[I1, I2, I3, I4, I5, I6, I7, I8](i1: I1, i2: I2, i3: I3, i4: I4, i5: I5, i6: I6, i7: I7, i8: I8)(using ev: (I1, I2, I3, I4, I5, I6, I7, I8) <:< I): QueryResult.Update[QueryError] =
-    self(ev((i1, i2, i3, i4, i5, i6, i7, i8)))
+  def execute[I1, I2](i1: I1, i2: I2)(using ev: (I1, I2) <:< I, trace: Trace): QueryResult.Update[QueryError] =
+    self.execute(ev((i1, i2)))
+  def execute[I1, I2, I3](i1: I1, i2: I2, i3: I3)(using ev: (I1, I2, I3) <:< I, trace: Trace): QueryResult.Update[QueryError] =
+    self.execute(ev((i1, i2, i3)))
+  def execute[I1, I2, I3, I4](i1: I1, i2: I2, i3: I3, i4: I4)(using ev: (I1, I2, I3, I4) <:< I, trace: Trace): QueryResult.Update[QueryError] =
+    self.execute(ev((i1, i2, i3, i4)))
+  def execute[I1, I2, I3, I4, I5](i1: I1, i2: I2, i3: I3, i4: I4, i5: I5)(using ev: (I1, I2, I3, I4, I5) <:< I, trace: Trace): QueryResult.Update[QueryError] =
+    self.execute(ev((i1, i2, i3, i4, i5)))
+  def execute[I1, I2, I3, I4, I5, I6](i1: I1, i2: I2, i3: I3, i4: I4, i5: I5, i6: I6)(using ev: (I1, I2, I3, I4, I5, I6) <:< I, trace: Trace): QueryResult.Update[QueryError] =
+    self.execute(ev((i1, i2, i3, i4, i5, i6)))
+  def execute[I1, I2, I3, I4, I5, I6, I7](i1: I1, i2: I2, i3: I3, i4: I4, i5: I5, i6: I6, i7: I7)(using ev: (I1, I2, I3, I4, I5, I6, I7) <:< I, trace: Trace): QueryResult.Update[QueryError] =
+    self.execute(ev((i1, i2, i3, i4, i5, i6, i7)))
+  def execute[I1, I2, I3, I4, I5, I6, I7, I8](i1: I1, i2: I2, i3: I3, i4: I4, i5: I5, i6: I6, i7: I7, i8: I8)(using
+      ev: (I1, I2, I3, I4, I5, I6, I7, I8) <:< I,
+      trace: Trace,
+  ): QueryResult.Update[QueryError] =
+    self.execute(ev((i1, i2, i3, i4, i5, i6, i7, i8)))
 
   def contramap[I2](f: I2 => I): QueryI[I2] = QueryI[I2](self.ctx, self.encoder.contramap(f))
 
@@ -162,6 +168,7 @@ object QueryI {
     QueryI(QueryContext(queryName, sql, queryType, constParams = constParams), encoder)
 
   inline def compile[I](inline queryName: String)(inline query: QueryI[I]): QueryI[I] = ${ CompileMacros.queryI('queryName, 'query, '{ false }) }
+  inline def compile[I](inline queryName: String, inline debug: Boolean)(inline query: QueryI[I]): QueryI[I] = ${ CompileMacros.queryI('queryName, 'query, 'debug) }
 
 }
 
@@ -175,8 +182,8 @@ final class QueryO[O](
     private[sql] val decoder: ResultDecoder[O],
 ) extends QueryLike { self =>
 
-  def apply(): QueryResult.Returning[QueryError, O] = execute()
-  def execute(): QueryResult.Returning[QueryError, O] =
+  def apply()(using Trace): QueryResult.Returning[QueryError, O] = execute()
+  def execute()(using Trace): QueryResult.Returning[QueryError, O] =
     QueryResult.Returning[QueryError, O](
       ctx,
       cfg =>
@@ -213,8 +220,8 @@ final class QueryIO[I, O](
     private[sql] val decoder: ResultDecoder[O],
 ) extends QueryLike { self =>
 
-  def apply(input: I): QueryResult.Returning[QueryError, O] = execute(input)
-  def execute(input: I): QueryResult.Returning[QueryError, O] =
+  def apply(input: I)(using Trace): QueryResult.Returning[QueryError, O] = execute(input)
+  def execute(input: I)(using Trace): QueryResult.Returning[QueryError, O] =
     QueryResult.Returning[QueryError, O](
       ctx,
       cfg =>
@@ -224,35 +231,41 @@ final class QueryIO[I, O](
         } yield o,
     )
 
-  def apply[I1, I2](i1: I1, i2: I2)(using ev: (I1, I2) <:< I): QueryResult.Returning[QueryError, O] =
-    self(ev((i1, i2)))
-  def apply[I1, I2, I3](i1: I1, i2: I2, i3: I3)(using ev: (I1, I2, I3) <:< I): QueryResult.Returning[QueryError, O] =
-    self(ev((i1, i2, i3)))
-  def apply[I1, I2, I3, I4](i1: I1, i2: I2, i3: I3, i4: I4)(using ev: (I1, I2, I3, I4) <:< I): QueryResult.Returning[QueryError, O] =
-    self(ev((i1, i2, i3, i4)))
-  def apply[I1, I2, I3, I4, I5](i1: I1, i2: I2, i3: I3, i4: I4, i5: I5)(using ev: (I1, I2, I3, I4, I5) <:< I): QueryResult.Returning[QueryError, O] =
-    self(ev((i1, i2, i3, i4, i5)))
-  def apply[I1, I2, I3, I4, I5, I6](i1: I1, i2: I2, i3: I3, i4: I4, i5: I5, i6: I6)(using ev: (I1, I2, I3, I4, I5, I6) <:< I): QueryResult.Returning[QueryError, O] =
-    self(ev((i1, i2, i3, i4, i5, i6)))
-  def apply[I1, I2, I3, I4, I5, I6, I7](i1: I1, i2: I2, i3: I3, i4: I4, i5: I5, i6: I6, i7: I7)(using ev: (I1, I2, I3, I4, I5, I6, I7) <:< I): QueryResult.Returning[QueryError, O] =
-    self(ev((i1, i2, i3, i4, i5, i6, i7)))
-  def apply[I1, I2, I3, I4, I5, I6, I7, I8](i1: I1, i2: I2, i3: I3, i4: I4, i5: I5, i6: I6, i7: I7, i8: I8)(using ev: (I1, I2, I3, I4, I5, I6, I7, I8) <:< I): QueryResult.Returning[QueryError, O] =
-    self(ev((i1, i2, i3, i4, i5, i6, i7, i8)))
+  def apply[I1, I2](i1: I1, i2: I2)(using ev: (I1, I2) <:< I, trace: Trace): QueryResult.Returning[QueryError, O] =
+    self.execute(ev((i1, i2)))
+  def apply[I1, I2, I3](i1: I1, i2: I2, i3: I3)(using ev: (I1, I2, I3) <:< I, trace: Trace): QueryResult.Returning[QueryError, O] =
+    self.execute(ev((i1, i2, i3)))
+  def apply[I1, I2, I3, I4](i1: I1, i2: I2, i3: I3, i4: I4)(using ev: (I1, I2, I3, I4) <:< I, trace: Trace): QueryResult.Returning[QueryError, O] =
+    self.execute(ev((i1, i2, i3, i4)))
+  def apply[I1, I2, I3, I4, I5](i1: I1, i2: I2, i3: I3, i4: I4, i5: I5)(using ev: (I1, I2, I3, I4, I5) <:< I, trace: Trace): QueryResult.Returning[QueryError, O] =
+    self.execute(ev((i1, i2, i3, i4, i5)))
+  def apply[I1, I2, I3, I4, I5, I6](i1: I1, i2: I2, i3: I3, i4: I4, i5: I5, i6: I6)(using ev: (I1, I2, I3, I4, I5, I6) <:< I, trace: Trace): QueryResult.Returning[QueryError, O] =
+    self.execute(ev((i1, i2, i3, i4, i5, i6)))
+  def apply[I1, I2, I3, I4, I5, I6, I7](i1: I1, i2: I2, i3: I3, i4: I4, i5: I5, i6: I6, i7: I7)(using ev: (I1, I2, I3, I4, I5, I6, I7) <:< I, trace: Trace): QueryResult.Returning[QueryError, O] =
+    self.execute(ev((i1, i2, i3, i4, i5, i6, i7)))
+  def apply[I1, I2, I3, I4, I5, I6, I7, I8](i1: I1, i2: I2, i3: I3, i4: I4, i5: I5, i6: I6, i7: I7, i8: I8)(using
+      ev: (I1, I2, I3, I4, I5, I6, I7, I8) <:< I,
+      trace: Trace,
+  ): QueryResult.Returning[QueryError, O] =
+    self.execute(ev((i1, i2, i3, i4, i5, i6, i7, i8)))
 
-  def execute[I1, I2](i1: I1, i2: I2)(using ev: (I1, I2) <:< I): QueryResult.Returning[QueryError, O] =
-    self(ev((i1, i2)))
-  def execute[I1, I2, I3](i1: I1, i2: I2, i3: I3)(using ev: (I1, I2, I3) <:< I): QueryResult.Returning[QueryError, O] =
-    self(ev((i1, i2, i3)))
-  def execute[I1, I2, I3, I4](i1: I1, i2: I2, i3: I3, i4: I4)(using ev: (I1, I2, I3, I4) <:< I): QueryResult.Returning[QueryError, O] =
-    self(ev((i1, i2, i3, i4)))
-  def execute[I1, I2, I3, I4, I5](i1: I1, i2: I2, i3: I3, i4: I4, i5: I5)(using ev: (I1, I2, I3, I4, I5) <:< I): QueryResult.Returning[QueryError, O] =
-    self(ev((i1, i2, i3, i4, i5)))
-  def execute[I1, I2, I3, I4, I5, I6](i1: I1, i2: I2, i3: I3, i4: I4, i5: I5, i6: I6)(using ev: (I1, I2, I3, I4, I5, I6) <:< I): QueryResult.Returning[QueryError, O] =
-    self(ev((i1, i2, i3, i4, i5, i6)))
-  def execute[I1, I2, I3, I4, I5, I6, I7](i1: I1, i2: I2, i3: I3, i4: I4, i5: I5, i6: I6, i7: I7)(using ev: (I1, I2, I3, I4, I5, I6, I7) <:< I): QueryResult.Returning[QueryError, O] =
-    self(ev((i1, i2, i3, i4, i5, i6, i7)))
-  def execute[I1, I2, I3, I4, I5, I6, I7, I8](i1: I1, i2: I2, i3: I3, i4: I4, i5: I5, i6: I6, i7: I7, i8: I8)(using ev: (I1, I2, I3, I4, I5, I6, I7, I8) <:< I): QueryResult.Returning[QueryError, O] =
-    self(ev((i1, i2, i3, i4, i5, i6, i7, i8)))
+  def execute[I1, I2](i1: I1, i2: I2)(using ev: (I1, I2) <:< I, trace: Trace): QueryResult.Returning[QueryError, O] =
+    self.execute(ev((i1, i2)))
+  def execute[I1, I2, I3](i1: I1, i2: I2, i3: I3)(using ev: (I1, I2, I3) <:< I, trace: Trace): QueryResult.Returning[QueryError, O] =
+    self.execute(ev((i1, i2, i3)))
+  def execute[I1, I2, I3, I4](i1: I1, i2: I2, i3: I3, i4: I4)(using ev: (I1, I2, I3, I4) <:< I, trace: Trace): QueryResult.Returning[QueryError, O] =
+    self.execute(ev((i1, i2, i3, i4)))
+  def execute[I1, I2, I3, I4, I5](i1: I1, i2: I2, i3: I3, i4: I4, i5: I5)(using ev: (I1, I2, I3, I4, I5) <:< I, trace: Trace): QueryResult.Returning[QueryError, O] =
+    self.execute(ev((i1, i2, i3, i4, i5)))
+  def execute[I1, I2, I3, I4, I5, I6](i1: I1, i2: I2, i3: I3, i4: I4, i5: I5, i6: I6)(using ev: (I1, I2, I3, I4, I5, I6) <:< I, trace: Trace): QueryResult.Returning[QueryError, O] =
+    self.execute(ev((i1, i2, i3, i4, i5, i6)))
+  def execute[I1, I2, I3, I4, I5, I6, I7](i1: I1, i2: I2, i3: I3, i4: I4, i5: I5, i6: I6, i7: I7)(using ev: (I1, I2, I3, I4, I5, I6, I7) <:< I, trace: Trace): QueryResult.Returning[QueryError, O] =
+    self.execute(ev((i1, i2, i3, i4, i5, i6, i7)))
+  def execute[I1, I2, I3, I4, I5, I6, I7, I8](i1: I1, i2: I2, i3: I3, i4: I4, i5: I5, i6: I6, i7: I7, i8: I8)(using
+      ev: (I1, I2, I3, I4, I5, I6, I7, I8) <:< I,
+      trace: Trace,
+  ): QueryResult.Returning[QueryError, O] =
+    self.execute(ev((i1, i2, i3, i4, i5, i6, i7, i8)))
 
   def contramap[I2](f: I2 => I): QueryIO[I2, O] = QueryIO[I2, O](self.ctx, self.encoder.contramap(f), self.decoder)
   def map[O2](f: O => O2): QueryIO[I, O2] = QueryIO[I, O2](self.ctx, self.encoder, self.decoder.map(f))

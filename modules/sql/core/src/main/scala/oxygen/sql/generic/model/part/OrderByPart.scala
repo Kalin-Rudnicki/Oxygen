@@ -20,7 +20,7 @@ object OrderByPart extends MapChainParser[OrderByPart] {
   enum Ord { case Asc, Desc }
 
   final case class OrderByExpr(
-      queryExpr: QueryExpr.UnaryQuery,
+      queryExpr: QueryExpr.QueryVariableReferenceLike,
       ord: Ord,
   ) {
 
@@ -35,11 +35,11 @@ object OrderByPart extends MapChainParser[OrderByPart] {
         case '{ Q.desc($rawOrdExpr) } => ParseResult.Success((rawOrdExpr, Ord.Desc))
         case _                        => ParseResult.error(expr.toTerm, "invalid orderBy part")
       }
-      queryExpr <- RawQueryExpr.Unary.parse((rawOrdExpr.toTerm, refs))
-      queryExpr <- QueryExpr.Unary.parse(queryExpr)
+      queryExpr <- RawQueryExpr.VariableReferenceLike.parse((rawOrdExpr.toTerm, refs))
+      queryExpr <- QueryExpr.VariableReferenceLike.parse(queryExpr)
       queryExpr <- queryExpr match
-        case queryExpr: QueryExpr.UnaryQuery => ParseResult.Success(queryExpr)
-        case _                               => ParseResult.error(queryExpr.fullTerm, "expected orderBy part to reference a query param")
+        case queryExpr: QueryExpr.QueryVariableReferenceLike => ParseResult.Success(queryExpr)
+        case _                                               => ParseResult.error(queryExpr.fullTerm, "expected orderBy part to reference a query param")
     } yield OrderByExpr(queryExpr, ordType)
 
   override def parse(term: Term, refs: RefMap, prevFunction: String)(using ParseContext, Quotes): MapChainParseResult[OrderByPart] =

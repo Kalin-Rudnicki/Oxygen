@@ -97,17 +97,17 @@ object TypeclassExpr {
 
     def expr(using quotes: Quotes): Expr[S.Columns[?]] = ctxExpr(using quotes)
 
-    def `ref.a, ref.b, ref.c`(ctx: GenerationContext.Parens, ref: Expr[String])(using Quotes): GeneratedSql = ctx match
+    def `ref.a, ref.b, ref.c`(ctx: GenerationContext.Parens, ref: Expr[String]): GeneratedSql = ctx match
       case GenerationContext.Parens.Always  => GeneratedSql.of("(", '{ $expr.`ref.a, ref.b, ref.c`($ref) }, ")")
       case GenerationContext.Parens.IfMulti => GeneratedSql.of('{ $expr.`(ref.a, ref.b, ref.c)`($ref) })
       case GenerationContext.Parens.Never   => GeneratedSql.of('{ $expr.`ref.a, ref.b, ref.c`($ref) })
 
-    def `a, b, c`(ctx: GenerationContext.Parens)(using Quotes): GeneratedSql = ctx match
+    def `a, b, c`(ctx: GenerationContext.Parens): GeneratedSql = ctx match
       case GenerationContext.Parens.Always  => GeneratedSql.of("(", '{ $expr.`a, b, c` }, ")")
       case GenerationContext.Parens.IfMulti => GeneratedSql.of('{ $expr.`(a, b, c)` })
       case GenerationContext.Parens.Never   => GeneratedSql.of('{ $expr.`a, b, c` })
 
-    def `?, ?, ?`(ctx: GenerationContext.Parens)(using Quotes): GeneratedSql = ctx match
+    def `?, ?, ?`(ctx: GenerationContext.Parens): GeneratedSql = ctx match
       case GenerationContext.Parens.Always  => GeneratedSql.of("(", '{ $expr.`?, ?, ?` }, ")")
       case GenerationContext.Parens.IfMulti => GeneratedSql.of('{ $expr.`(?, ?, ?)` })
       case GenerationContext.Parens.Never   => GeneratedSql.of('{ $expr.`?, ?, ?` })

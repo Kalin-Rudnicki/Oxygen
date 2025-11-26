@@ -296,6 +296,17 @@ object queries {
     } yield i
 
   @compile
+  val intsOrderByABOffsetOptional: QueryIO[(Option[Int], Option[Int]), Ints] =
+    for {
+      l <- input.optional[Int]
+      o <- input.optional[Int]
+      i <- select[Ints]
+      _ <- orderBy(i.a.asc, i.b.desc)
+      _ <- limit(l)
+      _ <- offset(o)
+    } yield i
+
+  @compile
   val personSearch: QueryIO[(Option[String], Option[String]), Person] =
     for {
       first <- input.optional[String]
@@ -321,6 +332,32 @@ object queries {
       p <- select[Person]
       _ <- where if p.first == first && p.last == last
     } yield count(p)
+
+  @compile(true)
+  val selectSubQuery1: QueryO[(Person, Option[Note])] =
+    for {
+      p <- Q.select.subQuery("sub1") {
+        for {
+          p <- Q.select[Person]
+          _ <- Q.orderBy(p.first.asc)
+          _ <- Q.limit(Q.const(2))
+        } yield p
+      }
+      n <- Q.leftJoin[Note] if n.personId == p.id
+    } yield (p, n)
+
+  @compile
+  val selectSubQuery2: QueryO[(Person, Option[Note])] =
+    for {
+      (p, n) <- Q.select.subQuery("sub1") {
+        for {
+          p <- Q.select[Person]
+          n <- Q.leftJoin[Note] if n.personId == p.id
+          _ <- Q.orderBy(p.first.asc)
+        } yield (p, n)
+      }
+      _ <- limit(Q.const(4))
+    } yield (p, n)
 
   //////////////////////////////////////////////////////////////////////////////////////////////////////
   //      Update

@@ -6,9 +6,9 @@ import scala.quoted.*
 
 private[generic] trait TermTransformer {
 
-  def toRoot: TermTransformer.Root
+  def simplified: TermTransformer.Simplified
 
-  final def >>>(that: TermTransformer): TermTransformer.Root = (this.toRoot, that.toRoot) match
+  final def >>>(that: TermTransformer): TermTransformer.Simplified = (this.simplified, that.simplified) match
     case (a: TermTransformer.Transform, b: TermTransformer.Transform) => TermTransformer.AndThen(a, b)
     case (TermTransformer.Die, _)                                     => TermTransformer.Die
     case (_, TermTransformer.Die)                                     => TermTransformer.Die
@@ -18,9 +18,9 @@ private[generic] trait TermTransformer {
 }
 private[generic] object TermTransformer {
 
-  sealed trait Root extends TermTransformer {
+  sealed trait Simplified extends TermTransformer {
 
-    override final def toRoot: Root = this
+    override final def simplified: Simplified = this
 
     def convertTerm(fInTerm: Term)(using Quotes): Term
 
@@ -32,9 +32,11 @@ private[generic] object TermTransformer {
 
   }
 
+  sealed trait SimpleValid extends Simplified
+
   trait Defer extends TermTransformer {
     protected def defer: TermTransformer
-    override final def toRoot: Root = defer.toRoot
+    override final def simplified: Simplified = defer.simplified
   }
 
   trait DeferToParam extends Defer {
@@ -43,9 +45,9 @@ private[generic] object TermTransformer {
   }
 
   trait Die extends TermTransformer {
-    override final def toRoot: Root = Die
+    override final def simplified: Simplified = Die
   }
-  case object Die extends TermTransformer.Root {
+  case object Die extends TermTransformer.Simplified {
 
     override def convertTerm(fInTerm: Term)(using Quotes): Term =
       report.errorAndAbort("Term transformation not allowed. Expected not to be called...")
@@ -53,15 +55,15 @@ private[generic] object TermTransformer {
   }
 
   trait Id extends TermTransformer {
-    override final def toRoot: Root = Id
+    override final def simplified: Simplified = Id
   }
-  case object Id extends TermTransformer.Root {
+  case object Id extends TermTransformer.SimpleValid {
 
     override def convertTerm(fInTerm: Term)(using Quotes): Term = fInTerm
 
   }
 
-  trait Transform extends TermTransformer.Root {
+  trait Transform extends TermTransformer.SimpleValid {
 
     def inTpe: TypeRepr
     def outTpe: TypeRepr

@@ -7,20 +7,20 @@ import oxygen.sql.query.dsl.{Q, T}
 import scala.quoted.*
 
 sealed trait InsertPart {
-  val mapQueryRef: Option[QueryParam.Query]
+  val mapQueryRef: Option[VariableReference.FromQuery]
   val tableRepr: TypeclassExpr.TableRepr
   val mapIntoParam: Function.NamedParam
 
   final def rowRepr: TypeclassExpr.RowRepr = tableRepr.tableRowRepr
 
   final def show: String =
-    mapQueryRef.fold("insert(???)")(queryRef => s"${queryRef.param.tpe.showAnsiCode} ${queryRef.show}")
+    mapQueryRef.fold("insert(???)")(queryRef => s"${queryRef.tpe.showAnsiCode} ${queryRef.show}")
 
 }
 object InsertPart {
 
   final case class Basic(
-      mapQueryRef: Option[QueryParam.Query],
+      mapQueryRef: Option[VariableReference.FromQuery],
       tableRepr: TypeclassExpr.TableRepr,
       mapIntoParam: Function.NamedParam,
   ) extends InsertPart
@@ -34,7 +34,7 @@ object InsertPart {
         (mapParam, mapIntoParam) <- mapAAFC.funct.parseParam2Opt // (varRef, into) <- Q.insert[_]
         f1Name <- functionNames.mapOrFlatMap.parse(mapAAFC.nameRef).unknownAsError
 
-        mapQueryRef = mapParam.map { p1 => QueryParam.Query(p1, tableRepr, true) }
+        mapQueryRef = mapParam.map { p1 => VariableReference.FromQuery(p1, tableRepr, true) }
         newRefs = refs.add(mapQueryRef.toList*)
 
       } yield MapChainResult(Basic(mapQueryRef, tableRepr, mapIntoParam), f1Name, newRefs, mapAAFC.appliedFunctionBody)
@@ -42,7 +42,7 @@ object InsertPart {
   }
 
   final case class FromSelect(
-      mapQueryRef: Option[QueryParam.Query],
+      mapQueryRef: Option[VariableReference.FromQuery],
       tableRepr: TypeclassExpr.TableRepr,
       mapIntoParam: Function.NamedParam,
   ) extends InsertPart
@@ -56,7 +56,7 @@ object InsertPart {
         (mapParam, mapIntoParam) <- mapAAFC.funct.parseParam2Opt // (varRef, into) <- Q.insert[_]
         f1Name <- functionNames.mapOrFlatMap.parse(mapAAFC.nameRef).unknownAsError
 
-        mapQueryRef = mapParam.map { p1 => QueryParam.Query(p1, tableRepr, true) }
+        mapQueryRef = mapParam.map { p1 => VariableReference.FromQuery(p1, tableRepr, true) }
         newRefs = refs.add(mapQueryRef.toList*)
 
       } yield MapChainResult(FromSelect(mapQueryRef, tableRepr, mapIntoParam), f1Name, newRefs, mapAAFC.appliedFunctionBody)

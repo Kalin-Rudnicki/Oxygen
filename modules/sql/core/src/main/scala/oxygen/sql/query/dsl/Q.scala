@@ -1,5 +1,6 @@
 package oxygen.sql.query.dsl
 
+import oxygen.sql.query.QueryO
 import oxygen.sql.schema.*
 
 object Q {
@@ -19,6 +20,8 @@ object Q {
   object select {
 
     def apply[A](using t: TableRepr[A]): T.Select[A] = macroOnly
+
+    def subQuery[A](subQueryTableName: String)(q: QueryO[A]): T.SelectSubQuery[A] = macroOnly
 
   }
 

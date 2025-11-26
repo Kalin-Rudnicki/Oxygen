@@ -21,17 +21,17 @@ private[generic] sealed trait RawQueryExpr {
     */
   val fullTerm: Term
 
+  // TODO (KR) : does this need special handling in case its wrapped in something like Option.apply?
   final def isBin: Boolean = this match
-    case _: RawQueryExpr.Unary  => false
     case _: RawQueryExpr.Binary => true
-    case _: RawQueryExpr.Other  => false
+    case _                      => false
 
   final def show: String = this match {
-    case RawQueryExpr.QueryRefIdent(_, ref)                         => ref.show
+    case RawQueryExpr.ReferencedVariable(_, ref)                    => ref.show
     case RawQueryExpr.ConstValue(_, term)                           => s"{ ${term.showCode} }".cyanFg.toString
     case RawQueryExpr.StaticCount(_, out)                           => s"${"COUNT".cyanFg}( ${out.magentaFg} )"
     case RawQueryExpr.CountWithArg(_, inner)                        => s"${"COUNT".cyanFg}( ${inner.show} )"
-    case RawQueryExpr.ProductField(select, inner)                   => s"${inner.show}.${select.name.magentaFg}"
+    case RawQueryExpr.SelectProductField(select, inner)             => s"${inner.show}.${select.name.magentaFg}"
     case RawQueryExpr.OptionGet(_, inner)                           => s"${inner.show}.${"get".hexFg("#35A7FF")}"
     case RawQueryExpr.SelectPrimaryKey(_, inner, _)                 => s"${inner.show}.${"tablePK".hexFg("#35A7FF")}"
     case RawQueryExpr.SelectNonPrimaryKey(_, inner, _)              => s"${inner.show}.${"tableNPK".hexFg("#35A7FF")}"
@@ -47,37 +47,11 @@ private[generic] sealed trait RawQueryExpr {
 }
 private[generic] object RawQueryExpr extends Parser[(Term, RefMap), RawQueryExpr] {
 
-  sealed trait Unary extends RawQueryExpr
-  object Unary extends Parser[(Term, RefMap), RawQueryExpr.Unary] {
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
+  //      Const
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
 
-    override def parse(input: (Term, RefMap))(using ParseContext, Quotes): ParseResult[RawQueryExpr.Unary] =
-      RawQueryExpr.parse(input).flatMap {
-        case unary: Unary => ParseResult.Success(unary)
-        case _: Binary    => ParseResult.error(input._1, "expected unary")
-        case _: Other     => ParseResult.error(input._1, "expected unary")
-      }
-
-  }
-
-  /**
-    * An [[Ident]] which points at the given [[QueryParam]].
-    * val a: ? = ???
-    * `a`
-    */
-  final case class QueryRefIdent(ident: Ident, queryParam: QueryParam) extends RawQueryExpr.Unary {
-    override val fullTerm: Term = ident
-  }
-  object QueryRefIdent extends Parser[(Term, RefMap), QueryRefIdent] {
-
-    override def parse(input: (Term, RefMap))(using ParseContext, Quotes): ParseResult[QueryRefIdent] =
-      input match {
-        case (ident: Ident, refs) => refs.get(ident).map(QueryRefIdent(ident, _))
-        case (term, _)            => ParseResult.unknown(term, "not a QueryRefIdent")
-      }
-
-  }
-
-  final case class ConstValue(fullTerm: Term, constTerm: Term) extends RawQueryExpr.Unary
+  final case class ConstValue(fullTerm: Term, constTerm: Term) extends RawQueryExpr
   object ConstValue extends Parser[(Term, RefMap), ConstValue] {
 
     override def parse(input: (Term, RefMap))(using ParseContext, Quotes): ParseResult[ConstValue] = {
@@ -89,45 +63,40 @@ private[generic] object RawQueryExpr extends Parser[(Term, RefMap), RawQueryExpr
 
   }
 
-  final case class StaticCount(fullTerm: Term, out: String) extends RawQueryExpr.Unary
-  object StaticCount extends Parser[(Term, RefMap), StaticCount] {
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
+  //      Unary
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
 
-    override def parse(input: (Term, RefMap))(using ParseContext, Quotes): ParseResult[StaticCount] = {
-      val (term, _) = input
+  sealed trait VariableReferenceLike extends RawQueryExpr
+  object VariableReferenceLike extends Parser[(Term, RefMap), RawQueryExpr.VariableReferenceLike] {
 
-      term.asExpr match
-        case '{ Q.count.* }  => ParseResult.Success(StaticCount(term, "*"))
-        case '{ Q.count._1 } => ParseResult.Success(StaticCount(term, "1"))
-        case _               => ParseResult.unknown(term, "not a static count")
-    }
-
-  }
-
-  final case class CountWithArg(fullTerm: Term, inner: RawQueryExpr.Unary) extends RawQueryExpr.Unary
-  object CountWithArg extends Parser[(Term, RefMap), CountWithArg] {
-
-    override def parse(input: (Term, RefMap))(using ParseContext, Quotes): ParseResult[CountWithArg] = {
-      val (term, refs) = input
-
-      term.asExpr match
-        case '{ Q.count { $innerExpr } } => RawQueryExpr.Unary.parse((innerExpr.toTerm, refs)).map(CountWithArg(term, _))
-        case _                           => ParseResult.unknown(term, "not a count with arg")
-    }
+    override def parse(input: (Term, RefMap))(using ParseContext, Quotes): ParseResult[RawQueryExpr.VariableReferenceLike] =
+      RawQueryExpr.parse(input).flatMap {
+        case unary: VariableReferenceLike => ParseResult.Success(unary)
+        case _                            => ParseResult.error(input._1, "expected unary")
+      }
 
   }
 
-  /**
-    * A [[Select]] on a product type.
-    * final case class Person(first: String, last: String)
-    * val a: Person = ???
-    * `a.first`
-    */
-  final case class ProductField(select: Select, inner: RawQueryExpr.Unary) extends RawQueryExpr.Unary {
+  final case class ReferencedVariable(ident: Ident, variableRef: VariableReference) extends RawQueryExpr.VariableReferenceLike {
+    override val fullTerm: Term = ident
+  }
+  object ReferencedVariable extends Parser[(Term, RefMap), ReferencedVariable] {
+
+    override def parse(input: (Term, RefMap))(using ParseContext, Quotes): ParseResult[ReferencedVariable] =
+      input match {
+        case (ident: Ident, refs) => refs.get(ident).map(ReferencedVariable(ident, _))
+        case (term, _)            => ParseResult.unknown(term, "not a QueryRefIdent")
+      }
+
+  }
+
+  final case class SelectProductField(select: Select, inner: RawQueryExpr.VariableReferenceLike) extends RawQueryExpr.VariableReferenceLike {
     override val fullTerm: Term = select
   }
-  object ProductField extends Parser[(Term, RefMap), ProductField] {
+  object SelectProductField extends Parser[(Term, RefMap), SelectProductField] {
 
-    override def parse(input: (Term, RefMap))(using ParseContext, Quotes): ParseResult[ProductField] =
+    override def parse(input: (Term, RefMap))(using ParseContext, Quotes): ParseResult[SelectProductField] =
       input match {
         case (term @ Select(lhs, _), _) if lhs.tpe <:< TypeRepr.of[Option[?]] =>
           ParseResult.unknown(term, "can not parse Option select to product select")
@@ -146,34 +115,29 @@ private[generic] object RawQueryExpr extends Parser[(Term, RefMap), RawQueryExpr
               case Some(field) => ParseResult.Success(field)
               case None        => ParseResult.error(term, s"not a product field: $funct")
             }
-            parsedLHS <- Unary.parse((lhs, refs))
-          } yield ProductField(term, parsedLHS)
+            parsedLHS <- VariableReferenceLike.parse((lhs, refs))
+          } yield SelectProductField(term, parsedLHS)
         case (term, _) =>
           ParseResult.unknown(term, "not a product select")
       }
 
   }
 
-  /**
-    * An Option.get.
-    * val a: Option[?] = ???
-    * `a.get`
-    */
-  final case class OptionGet(select: Select, inner: RawQueryExpr.Unary) extends RawQueryExpr.Unary {
+  final case class OptionGet(select: Select, inner: RawQueryExpr.VariableReferenceLike) extends RawQueryExpr.VariableReferenceLike {
     override val fullTerm: Term = select
   }
   object OptionGet extends Parser[(Term, RefMap), OptionGet] {
 
     override def parse(input: (Term, RefMap))(using ParseContext, Quotes): ParseResult[OptionGet] = {
       input match
-        case (term @ Select(lhs, "get"), refs) if lhs.tpe <:< TypeRepr.of[Option[?]] => Unary.parse((lhs, refs)).map(OptionGet(term, _))
+        case (term @ Select(lhs, "get"), refs) if lhs.tpe <:< TypeRepr.of[Option[?]] => VariableReferenceLike.parse((lhs, refs)).map(OptionGet(term, _))
         case (term @ Select(lhs, funct), _) if lhs.tpe <:< TypeRepr.of[Option[?]]    => ParseResult.error(term, s"invalid function call on Option: $funct")
         case (term, _)                                                               => ParseResult.unknown(term, "not an option.get")
     }
 
   }
 
-  final case class SelectPrimaryKey(apply: Apply, inner: RawQueryExpr.Unary, givenTableRepr: TypeclassExpr.TableRepr) extends RawQueryExpr.Unary {
+  final case class SelectPrimaryKey(apply: Apply, inner: RawQueryExpr.VariableReferenceLike, givenTableRepr: TypeclassExpr.TableRepr) extends RawQueryExpr.VariableReferenceLike {
     override val fullTerm: Term = apply
   }
   object SelectPrimaryKey extends Parser[(Term, RefMap), SelectPrimaryKey] {
@@ -181,14 +145,14 @@ private[generic] object RawQueryExpr extends Parser[(Term, RefMap), RawQueryExpr
     override def parse(input: (Term, RefMap))(using ParseContext, Quotes): ParseResult[SelectPrimaryKey] =
       input match {
         case (apply @ Apply(Apply(TypeApply(Ident("tablePK"), _ :: Nil), lhs :: Nil), givenTableRepr :: Nil), refs) =>
-          Unary.parse((lhs, refs)).map(SelectPrimaryKey(apply, _, TypeclassExpr.TableRepr.wrapTerm(givenTableRepr)))
+          VariableReferenceLike.parse((lhs, refs)).map(SelectPrimaryKey(apply, _, TypeclassExpr.TableRepr.wrapTerm(givenTableRepr)))
         case (term, _) =>
           ParseResult.unknown(term, "not a primary-key select")
       }
 
   }
 
-  final case class SelectNonPrimaryKey(apply: Apply, inner: RawQueryExpr.Unary, givenTableRepr: TypeclassExpr.TableRepr) extends RawQueryExpr.Unary {
+  final case class SelectNonPrimaryKey(apply: Apply, inner: RawQueryExpr.VariableReferenceLike, givenTableRepr: TypeclassExpr.TableRepr) extends RawQueryExpr.VariableReferenceLike {
     override val fullTerm: Term = apply
   }
   object SelectNonPrimaryKey extends Parser[(Term, RefMap), SelectNonPrimaryKey] {
@@ -196,12 +160,16 @@ private[generic] object RawQueryExpr extends Parser[(Term, RefMap), RawQueryExpr
     override def parse(input: (Term, RefMap))(using ParseContext, Quotes): ParseResult[SelectNonPrimaryKey] =
       input match {
         case (apply @ Apply(Apply(TypeApply(Ident("tableNPK"), _ :: Nil), lhs :: Nil), givenTableRepr :: Nil), refs) =>
-          Unary.parse((lhs, refs)).map(SelectNonPrimaryKey(apply, _, TypeclassExpr.TableRepr.wrapTerm(givenTableRepr)))
+          VariableReferenceLike.parse((lhs, refs)).map(SelectNonPrimaryKey(apply, _, TypeclassExpr.TableRepr.wrapTerm(givenTableRepr)))
         case (term, _) =>
           ParseResult.unknown(term, "not a non-primary-key select")
       }
 
   }
+
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
+  //      Binary
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
 
   final case class Binary(fullTerm: Term, lhs: RawQueryExpr, op: BinOp, rhs: RawQueryExpr) extends RawQueryExpr
   object Binary extends Parser[(Term, RefMap), RawQueryExpr.Binary] {
@@ -231,14 +199,78 @@ private[generic] object RawQueryExpr extends Parser[(Term, RefMap), RawQueryExpr
 
   }
 
-  sealed trait Other extends RawQueryExpr
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
+  //      BuiltIn
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
+
+  sealed trait BuiltIn extends RawQueryExpr
+
+  final case class StaticCount(fullTerm: Term, out: String) extends RawQueryExpr.BuiltIn
+  object StaticCount extends Parser[(Term, RefMap), StaticCount] {
+
+    override def parse(input: (Term, RefMap))(using ParseContext, Quotes): ParseResult[StaticCount] = {
+      val (term, _) = input
+
+      term.asExpr match
+        case '{ Q.count.* }  => ParseResult.Success(StaticCount(term, "*"))
+        case '{ Q.count._1 } => ParseResult.Success(StaticCount(term, "1"))
+        case _               => ParseResult.unknown(term, "not a static count")
+    }
+
+  }
+
+  final case class CountWithArg(fullTerm: Term, inner: RawQueryExpr) extends RawQueryExpr.BuiltIn
+  object CountWithArg extends Parser[(Term, RefMap), CountWithArg] {
+
+    override def parse(input: (Term, RefMap))(using ParseContext, Quotes): ParseResult[CountWithArg] = {
+      val (term, refs) = input
+
+      term.asExpr match
+        case '{ Q.count[a] { $innerExpr } } => RawQueryExpr.parse((innerExpr.toTerm, refs)).map(CountWithArg(term, _))
+        case _                              => ParseResult.unknown(term, "not a count with arg")
+    }
+
+  }
+
+  final case class RandomUUID(fullTerm: Term) extends RawQueryExpr.BuiltIn
+  object RandomUUID extends Parser[(Term, RefMap), RandomUUID] {
+
+    override def parse(input: (Term, RefMap))(using ParseContext, Quotes): ParseResult[RandomUUID] = {
+      val (term, _) = input
+
+      term.asExpr match
+        case '{ UUID.randomUUID() } => ParseResult.Success(RandomUUID(term))
+        case '{ UUID.randomUUID }   => ParseResult.Success(RandomUUID(term))
+        case _                      => ParseResult.unknown(term, "not a UUID.randomUUID")
+    }
+
+  }
+
+  final case class InstantNow(fullTerm: Term) extends RawQueryExpr.BuiltIn
+  object InstantNow extends Parser[(Term, RefMap), InstantNow] {
+
+    override def parse(input: (Term, RefMap))(using ParseContext, Quotes): ParseResult[InstantNow] = {
+      val (term, _) = input
+
+      term.asExpr match
+        case '{ Instant.now() } => ParseResult.success(InstantNow(term))
+        case _                  => ParseResult.unknown(term, "not a Instant.now")
+    }
+
+  }
+
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
+  //      Composite
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
+
+  sealed trait Composite extends RawQueryExpr
 
   final case class InstantiateTable(
       fullTerm: Term,
       gen: ProductGeneric[?],
       givenTableRepr: TypeclassExpr.TableRepr,
       args: List[RawQueryExpr],
-  ) extends RawQueryExpr.Other
+  ) extends RawQueryExpr.Composite
   object InstantiateTable extends Parser[(Term, RefMap), InstantiateTable] {
 
     override def parse(input: (Term, RefMap))(using ParseContext, Quotes): ParseResult[RawQueryExpr.InstantiateTable] = {
@@ -267,34 +299,7 @@ private[generic] object RawQueryExpr extends Parser[(Term, RefMap), RawQueryExpr
 
   }
 
-  final case class RandomUUID(fullTerm: Term) extends RawQueryExpr.Other
-  object RandomUUID extends Parser[(Term, RefMap), RandomUUID] {
-
-    override def parse(input: (Term, RefMap))(using ParseContext, Quotes): ParseResult[RandomUUID] = {
-      val (term, _) = input
-
-      term.asExpr match
-        case '{ UUID.randomUUID() } => ParseResult.Success(RandomUUID(term))
-        case '{ UUID.randomUUID }   => ParseResult.Success(RandomUUID(term))
-        case _                      => ParseResult.unknown(term, "not a UUID.randomUUID")
-    }
-
-  }
-
-  final case class InstantNow(fullTerm: Term) extends RawQueryExpr.Other
-  object InstantNow extends Parser[(Term, RefMap), InstantNow] {
-
-    override def parse(input: (Term, RefMap))(using ParseContext, Quotes): ParseResult[InstantNow] = {
-      val (term, _) = input
-
-      term.asExpr match
-        case '{ Instant.now() } => ParseResult.success(InstantNow(term))
-        case _                  => ParseResult.unknown(term, "not a Instant.now")
-    }
-
-  }
-
-  final case class StringConcat(fullTerm: Term, args: List[RawQueryExpr]) extends RawQueryExpr.Other
+  final case class StringConcat(fullTerm: Term, args: List[RawQueryExpr]) extends RawQueryExpr.Composite
   object StringConcat extends Parser[(Term, RefMap), StringConcat] {
 
     override def parse(input: (Term, RefMap))(using ParseContext, Quotes): ParseResult[StringConcat] = {
@@ -316,7 +321,7 @@ private[generic] object RawQueryExpr extends Parser[(Term, RefMap), RawQueryExpr
 
   }
 
-  final case class OptionApply(fullTerm: Term, inner: RawQueryExpr) extends RawQueryExpr.Other
+  final case class OptionApply(fullTerm: Term, inner: RawQueryExpr) extends RawQueryExpr.Composite
   object OptionApply extends Parser[(Term, RefMap), OptionApply] {
 
     override def parse(input: (Term, RefMap))(using ParseContext, Quotes): ParseResult[OptionApply] = {
@@ -327,15 +332,20 @@ private[generic] object RawQueryExpr extends Parser[(Term, RefMap), RawQueryExpr
     }
 
   }
+
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
+  //      Parse
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
+
   override def parse(input: (Term, RefMap))(using ParseContext, Quotes): ParseResult[RawQueryExpr] = input match
-    case QueryRefIdent.optional(res)       => res
     case ConstValue.optional(res)          => res
+    case ReferencedVariable.optional(res)  => res
     case StaticCount.optional(res)         => res
     case CountWithArg.optional(res)        => res
     case SelectPrimaryKey.optional(res)    => res
     case SelectNonPrimaryKey.optional(res) => res
     case OptionGet.optional(res)           => res
-    case ProductField.optional(res)        => res
+    case SelectProductField.optional(res)  => res
     case Binary.optional(res)              => res
     case InstantiateTable.optional(res)    => res
     case RandomUUID.optional(res)          => res
