@@ -137,12 +137,25 @@ object Show extends ShowLowPriority.LowPriority1 {
       }
     }
 
-  final case class Shown(value: String)
+  final case class Shown(value: String) {
+    override def toString: String = value
+  }
   object Shown {
 
     def show[A: Show as showA](value: A): Shown = Shown(showA.show(value))
 
     given showableToShown: [A: Show as s] => Conversion[A, Shown] = a => Shown(s.show(a))
+
+  }
+
+  final case class ValueWithShown[+A](value: A, shown: Lazy[Shown]) {
+    override def toString: String = shown.value.value
+  }
+  object ValueWithShown {
+
+    def show[A: Show](value: A): ValueWithShown[A] = ValueWithShown[A](value, Lazy { Shown.show(value) })
+
+    given valueWithShownToShown: [A: Show as s] => Conversion[A, ValueWithShown[A]] = ValueWithShown.show(_)
 
   }
 

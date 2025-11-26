@@ -16,6 +16,25 @@ private[generic] final case class Function(
     case (_: Function.RootParam.Ignored) :: Nil => ParseResult.Success(())
     case _                                      => ParseResult.error(body, s"expected single function param, but got\n${Function.showParams(params)}") // TODO (KR) : whole function pos
 
+  def parseNonEmptyParams(using ParseContext): ParseResult.Known[NonEmptyList[Function.NamedParam]] = {
+    val tmp: List[Function.AnyParam] = params match
+      case Function.RootParam.TupleUnapply(_, children) :: Nil => children
+      case _                                                   => params
+
+    NonEmptyList
+      .fromList(tmp)
+      .traverse {
+        _.traverse {
+          case n: Function.NamedParam => n.some
+          case _                      => None
+        }
+      }
+      .flatten match {
+      case Some(value) => ParseResult.Success(value)
+      case _           => ParseResult.error(body, s"expected 2 root function params, but got\n${Function.showParams(params)}") // TODO (KR) : whole function pos
+    }
+  }
+
   def parseParam1(using ParseContext): ParseResult.Known[Function.NamedParam] = params match
     case (p1: Function.RootParam.Named) :: Nil => ParseResult.Success(p1)
     case _                                     => ParseResult.error(body, s"expected 1 root function param, but got\n${Function.showParams(params)}") // TODO (KR) : whole function pos

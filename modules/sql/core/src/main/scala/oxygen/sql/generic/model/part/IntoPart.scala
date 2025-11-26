@@ -12,7 +12,7 @@ final case class IntoPart(
 object IntoPart extends MapChainParser[IntoPart] {
 
   final case class FromSelect(into: IntoPart) {
-    def toReturning: ReturningPart = ReturningPart(into.queryExpr.fullTerm, into.queryExpr :: Nil)
+    def toReturning: ReturningPart = ReturningPart(into.queryExpr.fullTerm, ReturningPart.Elem(into.queryExpr, None) :: Nil)
   }
   object FromSelect extends MapChainParser.Deferred[FromSelect] {
 

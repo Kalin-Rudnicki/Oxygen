@@ -7,22 +7,22 @@ import oxygen.sql.query.dsl.{Q, T}
 import scala.quoted.*
 
 final case class UpdatePart(
-    eitherMapQueryRef: Either[Function.RootParam.Ignored, QueryParam.Query],
+    eitherMapQueryRef: Either[Function.RootParam.Ignored, VariableReference.FromQuery],
     tableRepr: TypeclassExpr.TableRepr,
     mapSetParam: Function.NamedParam,
 ) {
 
-  def queryRef: Option[QueryParam.Query] =
+  def queryRef: Option[VariableReference.FromQuery] =
     eitherMapQueryRef.toOption
 
-  def queryRefOrPlaceholder: QueryParam.Query =
+  def queryRefOrPlaceholder: VariableReference.FromQuery =
     eitherMapQueryRef match {
       case Right(queryRef) => queryRef
-      case Left(ignored)   => QueryParam.Query(Function.RootParam.Named(ignored.valDef), tableRepr, true)
+      case Left(ignored)   => VariableReference.FromQuery(Function.RootParam.Named(ignored.valDef), tableRepr, true)
     }
 
   def show: String =
-    queryRef.fold("update(???)") { queryRef => s"${queryRef.param.tpe.showAnsiCode} ${queryRef.show}" }
+    queryRef.fold("update(???)") { queryRef => s"${queryRef.tpe.showAnsiCode} ${queryRef.show}" }
 
 }
 object UpdatePart extends MapChainParser[UpdatePart] {
@@ -35,7 +35,7 @@ object UpdatePart extends MapChainParser[UpdatePart] {
       (mapParam, mapSetParam) <- mapAAFC.funct.parseParam2Either // (varRef, set) <- Q.update[_]
       mapFunctName <- functionNames.mapOrFlatMap.parse(mapAAFC.nameRef).unknownAsError
 
-      mapQueryRef = mapParam.map { p1 => QueryParam.Query(p1, tableRepr, true) }
+      mapQueryRef = mapParam.map { p1 => VariableReference.FromQuery(p1, tableRepr, true) }
       update = UpdatePart(mapQueryRef, tableRepr, mapSetParam)
       newRefs = refs.add(update.queryRefOrPlaceholder)
 

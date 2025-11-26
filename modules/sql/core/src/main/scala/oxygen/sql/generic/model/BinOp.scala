@@ -34,6 +34,8 @@ private[generic] object BinOp {
 
   }
 
+  // TODO (KR) : combine: `+`. `-`, `*`, `/`, `like`
+
   val sql: StrictEnum[BinOp] = StrictEnum.derive[BinOp](_.sql)
   val scala: StrictEnum[BinOp] = StrictEnum.derive[BinOp](_.scala)
 

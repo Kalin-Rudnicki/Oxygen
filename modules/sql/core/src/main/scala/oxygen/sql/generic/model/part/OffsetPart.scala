@@ -7,7 +7,7 @@ import oxygen.sql.query.dsl.{Q, T}
 import scala.quoted.*
 
 final case class OffsetPart(
-    offsetQueryExpr: QueryExpr.ConstOrDirectUnaryInput,
+    offsetQueryExpr: QueryExpr,
 ) {
 
   def show(using Quotes): String =
@@ -26,11 +26,8 @@ object OffsetPart extends MapChainParser[OffsetPart] {
         case '{ Q.offset($intExpr) } => ParseResult.Success(intExpr)
         case _                       => ParseResult.error(mapAAFC.lhs, "does not look like `offset(...)`")
       }
-      offsetQueryExpr <- RawQueryExpr.Unary.parse((intExpr.toTerm, refs))
-      offsetQueryExpr <- QueryExpr.Unary.parse(offsetQueryExpr)
-      offsetQueryExpr <- offsetQueryExpr match
-        case limitQueryExpr: QueryExpr.ConstOrDirectUnaryInput => ParseResult.Success(limitQueryExpr)
-        case _                                                 => ParseResult.error(offsetQueryExpr.fullTerm, "only const(_) or direct input var are allowed")
+      offsetQueryExpr <- RawQueryExpr.parse((intExpr.toTerm, refs))
+      offsetQueryExpr <- QueryExpr.parse(offsetQueryExpr)
 
     } yield MapChainResult(OffsetPart(offsetQueryExpr), mapFunctName, refs, mapAAFC.appliedFunctionBody)
 

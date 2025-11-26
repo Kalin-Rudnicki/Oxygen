@@ -8,26 +8,53 @@ import scala.quoted.*
 import scala.util.NotGiven
 
 final case class GenerationContext private (
-    allowOptionalInput: Boolean,
+    handleOptionalInputs: GenerationContext.HandleOptionalInputs,
     query: GenerationContext.Parens,
     input: GenerationContext.Parens,
 )
 object GenerationContext {
 
-  private val default = GenerationContext(false, Parens.IfMulti, Parens.IfMulti)
+  private val default = GenerationContext(HandleOptionalInputs.Error, Parens.IfMulti, Parens.IfMulti)
+
+  sealed trait HandleOptionalInputs
+  object HandleOptionalInputs {
+
+    case object Error extends HandleOptionalInputs
+
+    final case class Allowed(
+        make: (TypeRepr, GeneratedFragment) => GeneratedFragment,
+    ) extends HandleOptionalInputs
+
+    val id: HandleOptionalInputs =
+      Allowed { (_, frag) => frag }
+
+    def or(f: GeneratedFragment => GeneratedFragment): HandleOptionalInputs =
+      Allowed { (tpe, frag) =>
+        GeneratedFragment.of(
+          GeneratedFragment.both(
+            GeneratedSql.single("( ? OR ( "),
+            GeneratedInputEncoder.nonConst(TypeclassExpr.InputEncoder.isNullEncoder, tpe),
+          ),
+          f(frag),
+          " ) )",
+        )
+      }
+
+  }
 
   enum Parens {
     case Always, IfMulti, Never
 
-    final def `ref.a, ref.b, ref.c`(cols: TypeclassExpr.Columns, ref: Expr[String])(using Quotes): GeneratedSql = cols.`ref.a, ref.b, ref.c`(this, ref)
-    final def `a, b, c`(cols: TypeclassExpr.Columns)(using Quotes): GeneratedSql = cols.`a, b, c`(this)
-    final def `?, ?, ?`(cols: TypeclassExpr.Columns)(using Quotes): GeneratedSql = cols.`?, ?, ?`(this)
+    final def `ref.a, ref.b, ref.c`(cols: TypeclassExpr.Columns, ref: Expr[String]): GeneratedSql = cols.`ref.a, ref.b, ref.c`(this, ref)
+    final def `a, b, c`(cols: TypeclassExpr.Columns): GeneratedSql = cols.`a, b, c`(this)
+    final def `?, ?, ?`(cols: TypeclassExpr.Columns): GeneratedSql = cols.`?, ?, ?`(this)
 
   }
 
-  def enforceOptionalInputAllowed(term: Term)(using gc: GenerationContext, pc: ParseContext): ParseResult[Unit] =
-    if (gc.allowOptionalInput) ParseResult.Success(())
-    else ParseResult.error(term, "optional input not allowed here")
+  def optionalInputHandling(term: Term)(using gc: GenerationContext, pc: ParseContext): ParseResult[HandleOptionalInputs.Allowed] =
+    gc.handleOptionalInputs match
+      case allowed: HandleOptionalInputs.Allowed => ParseResult.success(allowed)
+      case HandleOptionalInputs.Error            => ParseResult.error(term, "optional input not allowed here")
 
   def get(using ctx: GenerationContext): GenerationContext = ctx
 
@@ -35,10 +62,17 @@ object GenerationContext {
     f(using default)
 
   def updated[A](
-      allowOptionalInput: Specified[Boolean] = Specified.WasNotSpecified,
+      handleOptionalInputs: Specified[HandleOptionalInputs] = Specified.WasNotSpecified,
       query: Specified[GenerationContext.Parens] = Specified.WasNotSpecified,
       input: Specified[GenerationContext.Parens] = Specified.WasNotSpecified,
-  )(f: GenerationContext ?=> A)(using ctx: GenerationContext): A =
-    f(using GenerationContext(allowOptionalInput = allowOptionalInput.getOrElse(ctx.allowOptionalInput), query = query.getOrElse(ctx.query), input = input.getOrElse(ctx.input)))
+  )(f: GenerationContext ?=> A)(using ctx0: GenerationContext): A = {
+    val ctx1: GenerationContext =
+      GenerationContext(
+        handleOptionalInputs = handleOptionalInputs.getOrElse(ctx0.handleOptionalInputs),
+        query = query.getOrElse(ctx0.query),
+        input = input.getOrElse(ctx0.input),
+      )
+    f(using ctx1)
+  }
 
 }

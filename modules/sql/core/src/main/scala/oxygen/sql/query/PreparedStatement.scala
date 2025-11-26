@@ -201,7 +201,7 @@ private[sql] final class PreparedStatement private (
 }
 object PreparedStatement {
 
-  def prepare(ctx: QueryContext, fetchSize: Option[Int]): ZIO[Database & Scope, QueryError, PreparedStatement] =
+  def prepare(ctx: QueryContext, fetchSize: Option[Int])(using Trace): ZIO[Database & Scope, QueryError, PreparedStatement] =
     (for {
       database <- ZIO.service[Database]
       _ <- database.logQuery(ctx)

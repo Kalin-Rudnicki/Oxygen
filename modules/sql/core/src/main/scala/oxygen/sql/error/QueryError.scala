@@ -53,8 +53,8 @@ final case class QueryError(
     )
   }
 
-  override def getMessage: String =
-    toIndentedString.toString("    ")
+  override def getMessage: String = toIndentedString.toString("    ")
+  override def toString: String = getMessage
 
 }
 object QueryError {

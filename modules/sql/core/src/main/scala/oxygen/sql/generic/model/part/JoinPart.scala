@@ -9,8 +9,8 @@ import scala.quoted.*
 
 final case class JoinPart(
     joinType: JoinPart.JoinType,
-    mapQueryRef: QueryParam.Query,
-    filterQueryRef: QueryParam.Query,
+    mapQueryRef: VariableReference.FromQuery,
+    filterQueryRef: VariableReference.FromQuery,
     filterExpr: QueryExpr,
     tableRepr: TypeclassExpr.TableRepr,
 ) {
@@ -21,11 +21,11 @@ final case class JoinPart(
       case JoinPart.JoinType.LeftOuter => "Left Join"
 
     s"""
-         |    $joinStr ${filterQueryRef.param.tpe.showAnsiCode} ${filterQueryRef.show}
+         |    $joinStr ${filterQueryRef.tpe.showAnsiCode} ${filterQueryRef.show}
          |      ON ${filterExpr.show}""".stripMargin
   }
 
-  def queryRefs: Growable[QueryParam] =
+  def queryRefs: Growable[VariableReference] =
     mapQueryRef +: filterQueryRef +: filterExpr.queryRefs
 
 }
@@ -50,9 +50,9 @@ object JoinPart extends MapChainParser[JoinPart] {
       _ <- functionNames.withFilter.parse(filterAAFC.nameRef).unknownAsError
 
       mapQueryRef = joinType match
-        case JoinType.Inner     => QueryParam.Query(mapParam, tableRepr, false)
-        case JoinType.LeftOuter => QueryParam.Query(mapParam, tableRepr, tableRepr.tableRowRepr.optional, false)
-      filterQueryRef = QueryParam.Query(filterParam, tableRepr, false)
+        case JoinType.Inner     => VariableReference.FromQuery(mapParam, tableRepr, false)
+        case JoinType.LeftOuter => VariableReference.FromQuery(mapParam, tableRepr, tableRepr.tableRowRepr.optional, false)
+      filterQueryRef = VariableReference.FromQuery(filterParam, tableRepr, false)
       newRefs = refs.add(
         mapQueryRef,
         filterQueryRef,

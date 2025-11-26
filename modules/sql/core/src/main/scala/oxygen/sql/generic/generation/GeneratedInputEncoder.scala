@@ -4,6 +4,7 @@ import oxygen.meta.*
 import oxygen.predef.core.*
 import oxygen.quoted.*
 import oxygen.sql.generic.model.TypeclassExpr
+import oxygen.sql.generic.parsing.TermTransformer
 import oxygen.sql.schema.InputEncoder
 import scala.quoted.*
 
@@ -13,6 +14,16 @@ final class GeneratedInputEncoder private (
 
   def ++(that: GeneratedInputEncoder): GeneratedInputEncoder =
     GeneratedInputEncoder(this.parts ++ that.parts)
+
+  // could technically limit to `TypeclassExpr.Columns`
+  def usingRowRepr(rowRepr: TypeclassExpr.RowRepr)(using GenerationContext): GeneratedFragment =
+    GeneratedFragment.both(
+      GenerationContext.get.input.`?, ?, ?`(rowRepr.columns),
+      this,
+    )
+
+  def contramap(transform: TermTransformer.Transform): GeneratedInputEncoder =
+    GeneratedInputEncoder(parts.map(_.contramap(transform)))
 
   def buildExpr(using Quotes): GeneratedInputEncoder.Built = {
     val many: ArraySeq[GeneratedInputEncoder.Part] = parts.toArraySeq
@@ -51,7 +62,20 @@ final class GeneratedInputEncoder private (
 }
 object GeneratedInputEncoder {
 
-  private final case class Part(buildExpr: TypeclassExpr.InputEncoder, isConst: Boolean, tpe: TypeRepr)
+  private final case class Part(
+      buildExpr: TypeclassExpr.InputEncoder,
+      isConst: Boolean,
+      tpe: TypeRepr,
+  ) {
+
+    def contramap(transform: TermTransformer.Transform): GeneratedInputEncoder.Part =
+      Part(
+        buildExpr.contramap(transform),
+        isConst,
+        transform.inTpe,
+      )
+
+  }
 
   final case class Built(
       tpe: TypeRepr,

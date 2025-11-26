@@ -9,9 +9,9 @@ import zio.Semaphore
 import zio.stream.*
 
 final class Database(
-    private val logConfig: DbConfig.Logging,
     private val executionConfig: DbConfig.Execution,
-    ref: FiberRef[Database.ConnectionState],
+    private val logConfigRef: FiberRef[DbConfig.Logging],
+    connectionStateRef: FiberRef[Database.ConnectionState],
 ) {
 
   def use[R, E, A](effect: ZIO[R & Database, E, A]): ZIO[R, E, A] =
@@ -26,16 +26,17 @@ final class Database(
   //           : Or maybe, keeping track of transaction/savepoints in the db state is not necessary.
   //           : This might be prevented by the mutex, but should be tested.
 
-  private[sql] def getConnection: ZIO[Scope, ConnectionError, Connection] = ref.getWith(_.getConnection)
-  private[sql] def getConnectionAndType: ZIO[Scope, ConnectionError, (Connection, Database.ConnectionState.ConnectionType.Any)] = ref.getWith(_.getConnectionAndType)
+  private[sql] def getConnection: ZIO[Scope, ConnectionError, Connection] = connectionStateRef.getWith(_.getConnection)
+  private[sql] def getConnectionAndType: ZIO[Scope, ConnectionError, (Connection, Database.ConnectionState.ConnectionType.Any)] = connectionStateRef.getWith(_.getConnectionAndType)
 
   private[sql] def getAtomicChild: ZIO[Scope, ConnectionError, Database.ConnectionState.SingleConnection] =
-    ref.getWith(_.getAtomicChild).tap { ref.locallyScoped(_) }
+    connectionStateRef.getWith(_.getAtomicChild).tap { connectionStateRef.locallyScoped(_) }
 
-  private[sql] val logQuery: QueryContext => UIO[Unit] =
-    logConfig match
-      case DbConfig.Logging(queryLogLevel, true)  => ctx => ZIO.logAtLevel(queryLogLevel)(s"Executing query: ${ctx.queryContextHeader}\n\n${ctx.sql}", Cause.Empty)
-      case DbConfig.Logging(queryLogLevel, false) => ctx => ZIO.logAtLevel(queryLogLevel)(s"Executing query: ${ctx.queryContextHeader}", Cause.Empty)
+  private[sql] def logQuery(ctx: QueryContext)(using Trace): UIO[Unit] =
+    logConfigRef.get.flatMap {
+      case DbConfig.Logging(queryLogLevel, true)  => ZIO.logAtLevel(queryLogLevel)(s"Executing query: ${ctx.queryContextHeader}\n\n${ctx.sql}", Cause.Empty)
+      case DbConfig.Logging(queryLogLevel, false) => ZIO.logAtLevel(queryLogLevel)(s"Executing query: ${ctx.queryContextHeader}", Cause.Empty)
+    }
 
 }
 object Database {
@@ -45,8 +46,9 @@ object Database {
       driver <- Driver.makePSQL
       connect = driver.getConnection(config.target, config.credentials)
       pool <- ConnectionPool.makeZPool(connect, config.pool)
-      ref <- FiberRef.make[ConnectionState](ConnectionState.Pool(pool))
-    } yield Database(config.logging, config.execution, ref)
+      logConfigRef <- FiberRef.make(config.logging)
+      connectionStateRef <- FiberRef.make[ConnectionState](ConnectionState.Pool(pool))
+    } yield Database(config.execution, logConfigRef, connectionStateRef)
 
   val baseLayer: URLayer[ConnectionPool & DbConfig.Logging & DbConfig.Execution, Database] =
     ZLayer.scoped {
@@ -54,8 +56,9 @@ object Database {
         pool <- ZIO.service[ConnectionPool]
         logConfig <- ZIO.service[DbConfig.Logging]
         executionConfig <- ZIO.service[DbConfig.Execution]
-        ref <- FiberRef.make[ConnectionState](ConnectionState.Pool(pool))
-      } yield Database(logConfig, executionConfig, ref)
+        logConfigRef <- FiberRef.make(logConfig)
+        connectionStateRef <- FiberRef.make[ConnectionState](ConnectionState.Pool(pool))
+      } yield Database(executionConfig, logConfigRef, connectionStateRef)
     }
 
   val layer: URLayer[DbConfig, Database] =
@@ -155,6 +158,34 @@ object Database {
     final case class InSavepoint(connection: Connection, mutex: Semaphore, savepointId: UUID) extends ConnectionState.SingleConnection {
       override val connectionType: ConnectionType.Transactional = ConnectionType.Savepoint(savepointId)
     }
+
+  }
+
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
+  //      Annotations
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
+
+  private final class ModifyLogConfig(f: DbConfig.Logging => DbConfig.Logging) extends ZIOAspectAtLeastR.Impl[Database] {
+
+    override def apply[R <: Database, E, A](effect: ZIO[R, E, A])(implicit trace: Trace): ZIO[R, E, A] =
+      ZIO.serviceWithZIO[Database](_.logConfigRef.locallyWith(f)(effect))
+
+  }
+
+  object withQueryLogLevel {
+
+    def apply(logLevel: LogLevel): ZIOAspectAtLeastR[Database] = ModifyLogConfig(_.copy(queryLogLevel = logLevel))
+
+    val all: ZIOAspectAtLeastR[Database] = withQueryLogLevel(LogLevels.All)
+    val fatal: ZIOAspectAtLeastR[Database] = withQueryLogLevel(LogLevels.Fatal)
+    val error: ZIOAspectAtLeastR[Database] = withQueryLogLevel(LogLevels.Error)
+    val warning: ZIOAspectAtLeastR[Database] = withQueryLogLevel(LogLevels.Warning)
+    val important: ZIOAspectAtLeastR[Database] = withQueryLogLevel(LogLevels.Important)
+    val info: ZIOAspectAtLeastR[Database] = withQueryLogLevel(LogLevels.Info)
+    val detailed: ZIOAspectAtLeastR[Database] = withQueryLogLevel(LogLevels.Detailed)
+    val debug: ZIOAspectAtLeastR[Database] = withQueryLogLevel(LogLevels.Debug)
+    val trace: ZIOAspectAtLeastR[Database] = withQueryLogLevel(LogLevels.Trace)
+    val none: ZIOAspectAtLeastR[Database] = withQueryLogLevel(LogLevels.None)
 
   }
 

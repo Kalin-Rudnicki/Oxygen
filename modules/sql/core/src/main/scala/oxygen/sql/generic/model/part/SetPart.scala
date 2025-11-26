@@ -18,15 +18,15 @@ final case class SetPart(
 object SetPart extends MapChainParser[SetPart] {
 
   final case class SetExpr(
-      fieldToSetExpr: QueryExpr.UnaryQuery,
-      setValueExpr: QueryExpr.Unary,
+      fieldToSetExpr: QueryExpr.QueryVariableReferenceLike,
+      setValueExpr: QueryExpr,
   ) {
 
     def show(using Quotes): String = s"${fieldToSetExpr.show} := ${setValueExpr.show}"
 
   }
 
-  private def parseSingleSet(term: Term, refs: RefMap, rootQueryRef: QueryParam.Query)(using ParseContext, Quotes): ParseResult[SetExpr] =
+  private def parseSingleSet(term: Term, refs: RefMap, rootQueryRef: VariableReference.FromQuery)(using ParseContext, Quotes): ParseResult[SetExpr] =
     for {
       fun <- Function.parse(term).unknownAsError
       p1 <- fun.parseParam1
@@ -35,21 +35,21 @@ object SetPart extends MapChainParser[SetPart] {
         case _                                                                      => ParseResult.error(fun.body, "invalid set part")
       }
 
-      _ <- ParseResult.validate(p1.tpe =:= rootQueryRef.param.tpe)(p1.tree, "set param does not match type of update table?")
+      _ <- ParseResult.validate(p1.tpe =:= rootQueryRef.tpe)(p1.tree, "set param does not match type of update table?")
       widenedLhsTpe = lhs.tpe.widen
       widenedRhsTpe = rhs.tpe.widen
 
-      refsWithParam = refs.addAlias(p1, rootQueryRef.param)
-      lhsExpr <- RawQueryExpr.Unary.parse((lhs, refsWithParam)).unknownAsError
-      lhsExpr <- QueryExpr.Unary.parse(lhsExpr).unknownAsError
+      refsWithParam = refs.addAlias(p1, rootQueryRef.internalParam)
+      lhsExpr <- RawQueryExpr.VariableReferenceLike.parse((lhs, refsWithParam)).unknownAsError
+      lhsExpr <- QueryExpr.VariableReferenceLike.parse(lhsExpr).unknownAsError
       lhsExpr <- lhsExpr match {
-        case lhsExpr: QueryExpr.UnaryQuery if lhsExpr.param.sym == rootQueryRef.param.sym => ParseResult.Success(lhsExpr)
-        case lhsExpr: QueryExpr.UnaryParam                                                => ParseResult.error(lhsExpr.rootIdent, "root of set lhs is not the update table?")
-        case _                                                                            => ParseResult.error(lhsExpr.fullTerm, "lhsExpr is not a unary param")
+        case lhsExpr: QueryExpr.QueryVariableReferenceLike if lhsExpr.internalParam.sym == rootQueryRef.internalParam.sym => ParseResult.Success(lhsExpr)
+        case lhsExpr: QueryExpr.QueryVariableReferenceLike => ParseResult.error(lhsExpr.rootIdent, "root of set lhs is not the update table?")
+        case _                                             => ParseResult.error(lhsExpr.fullTerm, "lhsExpr is not referencing a variable")
       }
 
-      rhsExpr <- RawQueryExpr.Unary.parse((rhs, refs)).unknownAsError
-      rhsExpr <- QueryExpr.Unary.parse(rhsExpr).unknownAsError
+      rhsExpr <- RawQueryExpr.parse((rhs, refs)).unknownAsError
+      rhsExpr <- QueryExpr.parse(rhsExpr).unknownAsError
 
       _ <- ParseResult.validate(widenedLhsTpe <:< widenedRhsTpe)(fun.body, s"set types do not match:  ${widenedLhsTpe.showAnsiCode} := ${widenedRhsTpe.showAnsiCode}")
     } yield SetExpr(lhsExpr, rhsExpr)
