@@ -57,6 +57,15 @@ private[generic] object MapChainParser {
   //      Combinators
   //////////////////////////////////////////////////////////////////////////////////////////////////////
 
+  trait Deferred[+A] extends MapChainParser[A] {
+
+    lazy val deferTo: MapChainParser[A]
+
+    override final def parse(term: Term, refs: RefMap, prevFunction: String)(using ParseContext, Quotes): MapChainParseResult[A] =
+      deferTo.parse(term, refs, prevFunction)
+
+  }
+
   final case class Maybe[A](inner: MapChainParser[A]) extends MapChainParser[Option[A]] {
 
     override def parse(term: Term, refs: RefMap, prevFunction: String)(using ParseContext, Quotes): MapChainParseResult[Option[A]] =

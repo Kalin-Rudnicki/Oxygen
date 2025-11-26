@@ -128,6 +128,41 @@ object Arrays extends TableCompanion[Arrays, Unit](TableRepr.derived[Arrays])
 object queries {
 
   //////////////////////////////////////////////////////////////////////////////////////////////////////
+  //      Insert
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
+
+  @compile
+  val insertNoteForPeople: Query =
+    for {
+      (_, into) <- Q.insert.fromSelect[Note]
+      p <- Q.select[Person]
+      _ <- into(
+        Note(
+          UUID.randomUUID(),
+          p.id,
+          mkSqlString(Q.const("Adding note for person "), p.first, " ", p.last, " : everyone"),
+        ),
+      )
+    } yield ()
+
+  @compile
+  val insertNoteForPeople2: QueryI[(String, String)] =
+    for {
+      first <- Q.input[String]
+      suffix <- Q.input[String]
+      (_, into) <- Q.insert.fromSelect[Note]
+      p <- Q.select[Person]
+      _ <- where if p.first == first
+      _ <- into(
+        Note(
+          UUID.randomUUID(),
+          p.id,
+          mkSqlString(Q.const("Adding note for person "), p.first, " ", p.last, " : ", suffix),
+        ),
+      )
+    } yield ()
+
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
   //      Select
   //////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -270,7 +305,7 @@ object queries {
     } yield p
 
   //////////////////////////////////////////////////////////////////////////////////////////////////////
-  //      Select
+  //      Delete
   //////////////////////////////////////////////////////////////////////////////////////////////////////
 
   @compile

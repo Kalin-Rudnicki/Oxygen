@@ -87,6 +87,9 @@ object TypeclassExpr {
     val int: TypeclassExpr.RowRepr = TypeclassExpr.RowRepr { '{ S.RowRepr.int } }
     val long: TypeclassExpr.RowRepr = TypeclassExpr.RowRepr { '{ S.RowRepr.long } }
     val boolean: TypeclassExpr.RowRepr = TypeclassExpr.RowRepr { '{ S.RowRepr.boolean } }
+    val uuid: TypeclassExpr.RowRepr = TypeclassExpr.RowRepr { '{ S.RowRepr.uuid } }
+    val instant: TypeclassExpr.RowRepr = TypeclassExpr.RowRepr { '{ S.RowRepr.instant } }
+    val string: TypeclassExpr.RowRepr = TypeclassExpr.RowRepr { '{ S.RowRepr.string } }
 
   }
 

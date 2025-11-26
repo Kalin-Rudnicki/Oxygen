@@ -7,22 +7,31 @@ import oxygen.sql.query.dsl.T
 import scala.quoted.*
 
 final case class IntoPart(
-    queryExpr: QueryExpr.UnaryInput.QueryRefIdent,
+    queryExpr: QueryExpr,
 )
 object IntoPart extends MapChainParser[IntoPart] {
+
+  final case class FromSelect(into: IntoPart) {
+    def toReturning: ReturningPart = ReturningPart(into.queryExpr.fullTerm, into.queryExpr :: Nil)
+  }
+  object FromSelect extends MapChainParser.Deferred[FromSelect] {
+
+    override lazy val deferTo: MapChainParser[FromSelect] =
+      IntoPart.map(FromSelect(_))
+
+  }
 
   override def parse(term: Term, refs: RefMap, prevFunction: String)(using ParseContext, Quotes): MapChainParseResult[IntoPart] =
     for {
       mapAAFC <- AppliedAnonFunctCall.parseTyped[T.InsertValues](term, "map function").ignore
       _ <- mapAAFC.funct.parseEmptyParams
       mapFunctName <- functionNames.mapOrFlatMap.parse(mapAAFC.nameRef).unknownAsError
-      (_, valueIdent) <- mapAAFC.lhs match { // TODO (KR) : validate `intoIdent`
-        case Apply(Select(intoIdent: Ident, "apply"), (valueIdent: Ident) :: Nil) => ParseResult.Success((intoIdent, valueIdent))
-        case _                                                                    => ParseResult.error(mapAAFC.lhs, "does not look like `into(...)`")
+      (_, argTerm) <- mapAAFC.lhs match { // TODO (KR) : validate `intoIdent`
+        case Apply(Select(intoIdent: Ident, "apply"), argTerm :: Nil) => ParseResult.Success((intoIdent, argTerm))
+        case _                                                        => ParseResult.error(mapAAFC.lhs, "does not look like `into(...)`")
       }
-
-      mapQueryRef <- refs.getInput(valueIdent)
-      queryExpr = QueryExpr.UnaryInput.QueryRefIdent(valueIdent, mapQueryRef)
-    } yield MapChainResult(IntoPart(queryExpr), mapFunctName, refs, mapAAFC.appliedFunctionBody)
+      valueQueryExpr <- RawQueryExpr.parse((argTerm, refs)).unknownAsError
+      valueQueryExpr <- QueryExpr.parse(valueQueryExpr).unknownAsError
+    } yield MapChainResult(IntoPart(valueQueryExpr), mapFunctName, refs, mapAAFC.appliedFunctionBody)
 
 }

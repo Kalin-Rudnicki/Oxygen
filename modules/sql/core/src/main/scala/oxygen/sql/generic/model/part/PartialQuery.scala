@@ -5,17 +5,41 @@ import oxygen.sql.generic.parsing.*
 sealed trait PartialQuery
 object PartialQuery extends PartialQueryParsers[PartialQuery] {
 
-  final case class InsertQuery(
-      insert: InsertPart,
-      into: IntoPart,
-  ) extends PartialQuery
+  sealed trait InsertQuery extends PartialQuery
   object InsertQuery extends PartialQueryParsers[InsertQuery] {
 
+    final case class Basic(
+        insert: InsertPart.Basic,
+        into: IntoPart,
+    ) extends InsertQuery
+    object Basic {
+
+      lazy val parser: MapChainParser[InsertQuery.Basic] =
+        (
+          InsertPart.Basic.withContext("Insert") >>>
+            IntoPart.withContext("Into")
+        ).withContext("Basic Insert Query").map { PartialQuery.InsertQuery.Basic.apply }
+
+    }
+
+    final case class FromSelect(
+        insert: InsertPart.FromSelect,
+        select: PartialQuery.SelectQuery,
+        into: IntoPart.FromSelect,
+    ) extends InsertQuery
+    object FromSelect {
+
+      lazy val parser: MapChainParser[InsertQuery.FromSelect] =
+        (
+          InsertPart.FromSelect.withContext("Insert") >>>
+            PartialQuery.SelectQuery.partialParser >>>
+            IntoPart.FromSelect.withContext("Into")
+        ).withContext("Insert From Select Query").map { PartialQuery.InsertQuery.FromSelect.apply }
+
+    }
+
     override lazy val partialParser: MapChainParser[InsertQuery] =
-      (
-        InsertPart.withContext("Insert") >>>
-          IntoPart.withContext("Into")
-      ).withContext("Insert Query").map { PartialQuery.InsertQuery.apply }
+      Basic.parser || FromSelect.parser
 
   }
 

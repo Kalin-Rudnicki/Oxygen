@@ -26,9 +26,9 @@ private[sql] sealed trait ParsedQuery extends Product {
   protected final def showReturning(using Quotes): String =
     ret.showOpt.map { ret => s"\n    RETURNING $ret" }.mkString
 
-  protected def allQueryRefs: Growable[QueryParam]
+  protected[ParsedQuery] def allQueryRefs: Growable[QueryParam]
 
-  def toTerm(queryName: Expr[String])(using ParseContext, GenerationContext, Quotes): ParseResult[Term]
+  def toTerm(queryName: Expr[String], debug: Boolean)(using ParseContext, GenerationContext, Quotes): ParseResult[Term]
 
 }
 private[sql] object ParsedQuery extends Parser[Term, ParsedQuery] {
@@ -37,61 +37,124 @@ private[sql] object ParsedQuery extends Parser[Term, ParsedQuery] {
   //      Insert
   //////////////////////////////////////////////////////////////////////////////////////////////////////
 
-  final case class InsertQuery(
-      inputs: List[InputPart],
-      insert: InsertPart,
-      into: IntoPart,
-      ret: ReturningPart,
-      refs: RefMap,
-  ) extends ParsedQuery {
+  sealed trait InsertQuery extends ParsedQuery
+  object InsertQuery {
 
-    override def show(using Quotes): String =
-      s"""$showInputs
+    final case class Basic(
+        inputs: List[InputPart],
+        insert: InsertPart.Basic,
+        into: IntoPart,
+        ret: ReturningPart,
+        refs: RefMap,
+    ) extends InsertQuery {
+
+      override def show(using Quotes): String =
+        s"""$showInputs
          |INSERT INTO ${insert.show}
          |    VALUES ${into.queryExpr.show}$showReturning
          |""".stripMargin
 
-    override protected def allQueryRefs: Growable[QueryParam] =
-      Growable[Growable[QueryParam]](
-        Growable.option(insert.mapQueryRef),
-        Growable(into.queryExpr.queryRef),
-        Growable.many(ret.returningExprs).flatMap(_.queryRefs),
-      ).flatten
+      override protected[ParsedQuery] def allQueryRefs: Growable[QueryParam] =
+        Growable[Growable[QueryParam]](
+          Growable.option(insert.mapQueryRef),
+          into.queryExpr.queryRefs,
+          Growable.many(ret.returningExprs).flatMap(_.queryRefs),
+        ).flatten
 
-    override def toTerm(queryName: Expr[String])(using ParseContext, GenerationContext, Quotes): ParseResult[Term] =
-      for {
-        _ <- ParseResult.success(())
+      override def toTerm(queryName: Expr[String], debug: Boolean)(using ParseContext, GenerationContext, Quotes): ParseResult[Term] =
+        for {
+          _ <- ParseResult.success(())
 
-        // Input
-        fragmentBuilder = FragmentBuilder(inputs)
-        insertFrag <- fragmentBuilder.insert(insert)
-        valuesFrag <- fragmentBuilder.values(insert, into)
-        returningFrag <- fragmentBuilder.ret(ret, "              ")
-        frag = GeneratedFragment.of(
-          insertFrag,
-          "\n    (",
-          '{ ${ insert.tableRepr.expr }.rowRepr.columns.`a, b, c` },
-          ")",
-          valuesFrag,
-          GeneratedFragment.option(
-            returningFrag.map { ret =>
-              GeneratedFragment.of(
-                "\n    RETURNING ",
-                ret,
-              )
-            },
-          ),
-        )
-        (builtSql, builtEncoder) = frag.buildExpr
+          // Input
+          fragmentBuilder = FragmentBuilder(inputs)
+          insertFrag <- fragmentBuilder.insert(insert)
+          valuesFrag <- fragmentBuilder.values(insert, into)
+          returningFrag <- fragmentBuilder.ret(ret, "              ")
+          frag = GeneratedFragment.of(
+            insertFrag,
+            "\n    (",
+            '{ ${ insert.tableRepr.expr }.rowRepr.columns.`a, b, c` },
+            ")",
+            valuesFrag,
+            GeneratedFragment.option(
+              returningFrag.map { ret =>
+                GeneratedFragment.of(
+                  "\n    RETURNING ",
+                  ret,
+                )
+              },
+            ),
+          )
+          (builtSql, builtEncoder) = frag.buildExpr
 
-        // Output
-        decoderBuilder = new DecoderBuilder
-        retA <- decoderBuilder.ret(ret)
-        builtDecoder = retA.buildExpr
+          // Output
+          decoderBuilder = new DecoderBuilder
+          retA <- decoderBuilder.ret(ret, None)
+          builtDecoder = retA.buildExpr
 
-        // Combine
-        expr = makeQuery(queryName, QueryContext.QueryType.Insert, insert.tableRepr)(builtSql, builtEncoder, builtDecoder)
-      } yield expr.toTerm
+          // Combine
+          expr = makeQuery(queryName, QueryContext.QueryType.Insert, insert.tableRepr, debug)(builtSql, builtEncoder, builtDecoder)
+        } yield expr.toTerm
+
+    }
+
+    final case class FromSelect(
+        inputs: List[InputPart],
+        insert: InsertPart.FromSelect,
+        select: ParsedQuery.SelectQuery,
+        ret: ReturningPart,
+        refs: RefMap,
+    ) extends InsertQuery {
+
+      override def show(using Quotes): String =
+        s"""$showInputs
+         |INSERT INTO ${insert.show}
+         |${select.show}$showReturning
+         |""".stripMargin
+
+      override protected[ParsedQuery] def allQueryRefs: Growable[QueryParam] =
+        Growable[Growable[QueryParam]](
+          Growable.option(insert.mapQueryRef),
+          select.allQueryRefs,
+          Growable.many(ret.returningExprs).flatMap(_.queryRefs),
+        ).flatten
+
+      override def toTerm(queryName: Expr[String], debug: Boolean)(using ParseContext, GenerationContext, Quotes): ParseResult[Term] =
+        for {
+          _ <- ParseResult.success(())
+
+          // Input
+          fragmentBuilder = FragmentBuilder(inputs)
+          insertFrag <- fragmentBuilder.insert(insert)
+          selectFrag <- select.makeFragment
+          returningFrag <- fragmentBuilder.ret(ret, "              ")
+          frag = GeneratedFragment.of(
+            insertFrag,
+            "\n    (",
+            '{ ${ insert.tableRepr.expr }.rowRepr.columns.`a, b, c` },
+            ")\n",
+            selectFrag,
+            GeneratedFragment.option(
+              returningFrag.map { ret =>
+                GeneratedFragment.of(
+                  "\n    RETURNING ",
+                  ret,
+                )
+              },
+            ),
+          )
+          (builtSql, builtEncoder) = frag.buildExpr
+
+          // Output
+          decoderBuilder = new DecoderBuilder
+          retA <- decoderBuilder.ret(ret, None)
+          builtDecoder = retA.buildExpr
+
+          // Combine
+          expr = makeQuery(queryName, QueryContext.QueryType.Insert, insert.tableRepr, debug)(builtSql, builtEncoder, builtDecoder)
+        } yield expr.toTerm
+
+    }
 
   }
 
@@ -117,7 +180,7 @@ private[sql] object ParsedQuery extends Parser[Term, ParsedQuery] {
          |    ${select.show}${joins.map(_.show).mkString}${where.map(_.show).mkString}${orderBy.map(_.show).mkString}${limit.map(_.show).mkString}${offset.map(_.show).mkString}
          |""".stripMargin
 
-    override protected def allQueryRefs: Growable[QueryParam] =
+    override protected[ParsedQuery] def allQueryRefs: Growable[QueryParam] =
       Growable[Growable[QueryParam]](
         Growable(select.mapQueryRef),
         Growable.many(joins).flatMap(_.queryRefs),
@@ -128,12 +191,9 @@ private[sql] object ParsedQuery extends Parser[Term, ParsedQuery] {
         Growable.many(ret.returningExprs).flatMap(_.queryRefs),
       ).flatten
 
-    override def toTerm(queryName: Expr[String])(using ParseContext, GenerationContext, Quotes): ParseResult[Term] =
+    def makeFragment(using ParseContext, GenerationContext, Quotes): ParseResult[GeneratedFragment] = {
+      val fragmentBuilder = FragmentBuilder(inputs)
       for {
-        _ <- ParseResult.success(())
-
-        // Input
-        fragmentBuilder = FragmentBuilder(inputs)
         returningFrag <- fragmentBuilder.requiredRet(ret, "       ")
         selectFrag <- fragmentBuilder.select(select)
         joinFrag <- joins.traverse(fragmentBuilder.join).map(GeneratedFragment.flatten(_))
@@ -141,26 +201,31 @@ private[sql] object ParsedQuery extends Parser[Term, ParsedQuery] {
         orderByFrag <- orderBy.traverse(fragmentBuilder.orderBy).map(GeneratedFragment.option)
         limitFrag <- limit.traverse(fragmentBuilder.limit).map(GeneratedFragment.option)
         offsetFrag <- offset.traverse(fragmentBuilder.offset).map(GeneratedFragment.option)
-        frag = GeneratedFragment.of(
-          "SELECT ",
-          returningFrag,
-          selectFrag,
-          joinFrag,
-          whereFrag,
-          orderByFrag,
-          limitFrag,
-          offsetFrag,
-        )
+      } yield GeneratedFragment.of(
+        "SELECT ",
+        returningFrag,
+        selectFrag,
+        joinFrag,
+        whereFrag,
+        orderByFrag,
+        limitFrag,
+        offsetFrag,
+      )
+    }
+
+    override def toTerm(queryName: Expr[String], debug: Boolean)(using ParseContext, GenerationContext, Quotes): ParseResult[Term] =
+      for {
+        frag <- makeFragment
         (builtSql, builtEncoder) = frag.buildExpr
 
         // Output
         decoderBuilder = new DecoderBuilder
-        retA <- decoderBuilder.ret(ret)
+        retA <- decoderBuilder.ret(ret, None)
         builtDecoder = retA.buildExpr
         _ <- ParseResult.validate(builtDecoder.nonEmpty)(ret.fullTree, "expected non-empty return")
 
         // Combine
-        expr = makeQuery(queryName, QueryContext.QueryType.Select, select.tableRepr)(builtSql, builtEncoder, builtDecoder)
+        expr = makeQuery(queryName, QueryContext.QueryType.Select, select.tableRepr, debug)(builtSql, builtEncoder, builtDecoder)
       } yield expr.toTerm
 
   }
@@ -193,7 +258,7 @@ private[sql] object ParsedQuery extends Parser[Term, ParsedQuery] {
          |${set.show}$showReturning
          |""".stripMargin
 
-    override protected def allQueryRefs: Growable[QueryParam] =
+    override protected[ParsedQuery] def allQueryRefs: Growable[QueryParam] =
       Growable[Growable[QueryParam]](
         Growable(update.queryRefOrPlaceholder),
         Growable.many(joins).flatMap(_.queryRefs),
@@ -202,7 +267,7 @@ private[sql] object ParsedQuery extends Parser[Term, ParsedQuery] {
         Growable.many(ret.returningExprs).flatMap(_.queryRefs),
       ).flatten
 
-    override def toTerm(queryName: Expr[String])(using ParseContext, GenerationContext, Quotes): ParseResult[Term] =
+    override def toTerm(queryName: Expr[String], debug: Boolean)(using ParseContext, GenerationContext, Quotes): ParseResult[Term] =
       for {
         _ <- ParseResult.success(())
 
@@ -229,11 +294,11 @@ private[sql] object ParsedQuery extends Parser[Term, ParsedQuery] {
 
         // Output
         decoderBuilder = new DecoderBuilder
-        retA <- decoderBuilder.ret(ret)
+        retA <- decoderBuilder.ret(ret, None)
         builtDecoder = retA.buildExpr
 
         // Combine
-        expr = makeQuery(queryName, QueryContext.QueryType.Update, update.tableRepr)(builtSql, builtEncoder, builtDecoder)
+        expr = makeQuery(queryName, QueryContext.QueryType.Update, update.tableRepr, debug)(builtSql, builtEncoder, builtDecoder)
       } yield expr.toTerm
 
   }
@@ -256,7 +321,7 @@ private[sql] object ParsedQuery extends Parser[Term, ParsedQuery] {
          |DELETE FROM ${delete.show}${joins.map(_.show).mkString}${where.map(_.show).mkString}$showReturning
          |""".stripMargin
 
-    override protected def allQueryRefs: Growable[QueryParam] =
+    override protected[ParsedQuery] def allQueryRefs: Growable[QueryParam] =
       Growable[Growable[QueryParam]](
         Growable(delete.mapQueryRef),
         Growable.many(joins).flatMap(_.queryRefs),
@@ -264,7 +329,7 @@ private[sql] object ParsedQuery extends Parser[Term, ParsedQuery] {
         Growable.many(ret.returningExprs).flatMap(_.queryRefs),
       ).flatten
 
-    override def toTerm(queryName: Expr[String])(using ParseContext, GenerationContext, Quotes): ParseResult[Term] =
+    override def toTerm(queryName: Expr[String], debug: Boolean)(using ParseContext, GenerationContext, Quotes): ParseResult[Term] =
       for {
         _ <- ParseResult.success(())
 
@@ -291,11 +356,11 @@ private[sql] object ParsedQuery extends Parser[Term, ParsedQuery] {
 
         // Output
         decoderBuilder = new DecoderBuilder
-        retA <- decoderBuilder.ret(ret)
+        retA <- decoderBuilder.ret(ret, None)
         builtDecoder = retA.buildExpr
 
         // Combine
-        expr = makeQuery(queryName, QueryContext.QueryType.Delete, delete.tableRepr)(builtSql, builtEncoder, builtDecoder)
+        expr = makeQuery(queryName, QueryContext.QueryType.Delete, delete.tableRepr, debug)(builtSql, builtEncoder, builtDecoder)
       } yield expr.toTerm
 
   }
@@ -308,8 +373,11 @@ private[sql] object ParsedQuery extends Parser[Term, ParsedQuery] {
     PartialQuery.fullParser
       .parse(input)
       .map {
-        case FullQueryResult(inputs, PartialQuery.InsertQuery(insert, into), ret, refs) =>
-          ParsedQuery.InsertQuery(inputs, insert, into, ret, refs)
+        case FullQueryResult(inputs, PartialQuery.InsertQuery.Basic(insert, into), ret, refs) =>
+          ParsedQuery.InsertQuery.Basic(inputs, insert, into, ret, refs)
+        case FullQueryResult(inputs, PartialQuery.InsertQuery.FromSelect(insert, s, into), ret, refs) =>
+          val fullSelect = ParsedQuery.SelectQuery(inputs, s.select, s.joins, s.where, s.orderBy, s.limit, s.offset, into.toReturning, refs)
+          ParsedQuery.InsertQuery.FromSelect(inputs, insert, fullSelect, ret, refs)
         case FullQueryResult(inputs, PartialQuery.SelectQuery(select, joins, where, orderBy, limit, offset), ret, refs) =>
           ParsedQuery.SelectQuery(inputs, select, joins, where, orderBy, limit, offset, ret, refs)
         case FullQueryResult(inputs, PartialQuery.UpdateQuery(update, joins, where, set), ret, refs) =>
@@ -326,11 +394,11 @@ private[sql] object ParsedQuery extends Parser[Term, ParsedQuery] {
         parsed
       }
 
-  def compile(queryName: Expr[String], input: Term)(using Quotes): (ParsedQuery, Term) =
+  def compile(queryName: Expr[String], input: Term, debug: Boolean)(using Quotes): (ParsedQuery, Term) =
     ParseContext.root("compile") {
       for {
         parsed <- ParseContext.add("parse") { ParsedQuery.parse(input) }
-        res <- ParseContext.add(s"${parsed.productPrefix}.toTerm") { GenerationContext.root { parsed.toTerm(queryName) } }
+        res <- ParseContext.add(s"${parsed.productPrefix}.toTerm") { GenerationContext.root { parsed.toTerm(queryName, debug) } }
       } yield (parsed, res)
     }
 
@@ -340,6 +408,7 @@ private[sql] object ParsedQuery extends Parser[Term, ParsedQuery] {
       queryName: Expr[String],
       queryType: QueryContext.QueryType,
       mainTable: TypeclassExpr.TableRepr,
+      debug: Boolean,
   )(
       sql: GeneratedSql.Built,
       encoder: GeneratedInputEncoder.Built,
@@ -359,6 +428,9 @@ private[sql] object ParsedQuery extends Parser[Term, ParsedQuery] {
           mainTable = ${ mainTable.expr }.some,
         )
       }
+
+    if (debug && false)
+      report.info((encoder.hasNonConstParams, encoder.hasParams, decoder.nonEmpty).toString)
 
     (encoder.hasNonConstParams, encoder.hasParams, decoder.nonEmpty) match {
       case (true, _, true) => // QueryIO - non const inputs

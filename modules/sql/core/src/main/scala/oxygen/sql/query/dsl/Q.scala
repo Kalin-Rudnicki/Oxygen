@@ -22,7 +22,14 @@ object Q {
 
   }
 
-  def insert[A](using t: TableRepr[A]): T.Insert[A] = macroOnly
+  object insert {
+
+    def apply[A](using t: TableRepr[A]): T.Insert[A] = macroOnly
+
+    def fromSelect[A](using t: TableRepr[A]): T.InsertFromSelect[A] = macroOnly
+
+  }
+
   def update[A](using t: TableRepr[A]): T.Update[A] = macroOnly
   def delete[A](using t: TableRepr[A]): T.Delete[A] = macroOnly
 
@@ -53,5 +60,7 @@ object Q {
     def :=(value: A): T.Partial.SetValue = macroOnly
     def asc: T.Partial.OrderByPart = macroOnly
     def desc: T.Partial.OrderByPart = macroOnly
+
+  def mkSqlString(strings: String*): String = macroOnly
 
 }

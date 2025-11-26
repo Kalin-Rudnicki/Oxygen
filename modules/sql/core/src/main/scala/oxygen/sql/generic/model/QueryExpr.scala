@@ -1,5 +1,6 @@
 package oxygen.sql.generic.model
 
+import oxygen.meta.K0.ProductGeneric
 import oxygen.predef.color.given
 import oxygen.predef.core.*
 import oxygen.quoted.*
@@ -31,6 +32,10 @@ private[generic] sealed trait QueryExpr {
     case sel @ QueryExpr.UnaryQuery.SelectNonPrimaryKey(_, inner, _)                 => s"${inner.show}.${"tableNPK".hexFg("#35A7FF")}(using ${sel.rowRepr.show})"
     case QueryExpr.BinaryAndOr(_, lhs, op, rhs)                                      => s"${lhs.showWrapAndOr} ${op.show} ${rhs.showWrapAndOr}"
     case comp: QueryExpr.BinaryComp                                                  => s"${comp.lhs.show} ${comp.op.show} ${comp.rhs.show}"
+    case QueryExpr.InstantiateTable(_, gen, _, args)                                 => args.map(_.show).mkString(s"${gen.typeRepr.showCode}.apply(", ", ", ")")
+    case QueryExpr.RandomUUID(_)                                                     => "UUID.randomUUID()"
+    case QueryExpr.InstantNow(_)                                                     => "Instant.now()"
+    case QueryExpr.StringConcat(_, args)                                             => args.map(_.show).mkString("CONCAT(", ", ", ")")
 
   final def isAndOr: Boolean = this match
     case _: QueryExpr.BinaryAndOr => true
@@ -256,6 +261,38 @@ private[generic] object QueryExpr extends Parser[RawQueryExpr, QueryExpr] {
     final case class InputQuery(fullTerm: Term, lhs: ConstOrUnaryInput, op: BinOp.Comp, rhs: UnaryQuery) extends BinaryComp
   }
 
+  // TODO (KR) : maybe these sometimes belong elsewhere?
+  sealed trait Other extends QueryExpr
+
+  final case class InstantiateTable(
+      fullTerm: Term,
+      gen: ProductGeneric[?],
+      givenTableRepr: TypeclassExpr.TableRepr,
+      args: List[QueryExpr],
+  ) extends Other {
+
+    override def queryRefs: Growable[QueryParam] = Growable.many(args).flatMap(_.queryRefs)
+
+    def cleanedArgs: List[QueryExpr] =
+      args.flatMap {
+        case it: InstantiateTable => it.cleanedArgs
+        case a                    => a :: Nil
+      }
+
+  }
+
+  final case class RandomUUID(fullTerm: Term) extends Other {
+    override def queryRefs: Growable[QueryParam] = Growable.empty
+  }
+
+  final case class InstantNow(fullTerm: Term) extends Other {
+    override def queryRefs: Growable[QueryParam] = Growable.empty
+  }
+
+  final case class StringConcat(fullTerm: Term, args: List[QueryExpr]) extends Other {
+    override def queryRefs: Growable[QueryParam] = Growable.many(args).flatMap(_.queryRefs)
+  }
+
   override def parse(expr: RawQueryExpr)(using ParseContext, Quotes): ParseResult[QueryExpr] =
     expr match {
       case expr: RawQueryExpr.Unary =>
@@ -287,6 +324,11 @@ private[generic] object QueryExpr extends Parser[RawQueryExpr, QueryExpr] {
           lhs <- QueryExpr.parse(lhs)
           rhs <- QueryExpr.parse(rhs)
         } yield QueryExpr.BinaryAndOr(term, lhs, op, rhs)
+      case RawQueryExpr.InstantiateTable(fullTerm, gen, givenTableRepr, args) =>
+        args.traverse(parse).map(QueryExpr.InstantiateTable(fullTerm, gen, givenTableRepr, _))
+      case RawQueryExpr.RandomUUID(fullTerm)         => ParseResult.success(QueryExpr.RandomUUID(fullTerm))
+      case RawQueryExpr.InstantNow(fullTerm)         => ParseResult.success(QueryExpr.InstantNow(fullTerm))
+      case RawQueryExpr.StringConcat(fullTerm, args) => args.traverse(parse(_)).map(StringConcat(fullTerm, _))
     }
 
 }
