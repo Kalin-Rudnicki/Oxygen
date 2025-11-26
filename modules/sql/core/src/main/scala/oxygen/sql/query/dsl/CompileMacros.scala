@@ -11,7 +11,7 @@ private[sql] object CompileMacros {
     val debug: Boolean = debugExpr.evalRequired
 
     val rhs: Term = expr.toTerm.removeInline
-    val tmpTup: (ParsedQuery, Term) = ParsedQuery.compile(queryNameExpr, rhs)
+    val tmpTup: (ParsedQuery, Term) = ParsedQuery.compile(queryNameExpr, rhs, debug)
     val parsedQuery: ParsedQuery = tmpTup._1
     val newRHS: Term = tmpTup._2
 

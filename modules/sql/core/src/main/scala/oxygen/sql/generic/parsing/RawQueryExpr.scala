@@ -1,10 +1,16 @@
 package oxygen.sql.generic.parsing
 
+import java.time.Instant
+import java.util.UUID
 import oxygen.meta.*
+import oxygen.meta.K0.ProductGeneric
 import oxygen.predef.color.given
+import oxygen.predef.core.*
 import oxygen.quoted.*
 import oxygen.sql.generic.model.*
+import oxygen.sql.query.TableCompanion
 import oxygen.sql.query.dsl.Q
+import oxygen.sql.schema.TableRepr
 import scala.quoted.*
 
 private[generic] sealed trait RawQueryExpr {
@@ -18,6 +24,7 @@ private[generic] sealed trait RawQueryExpr {
   final def isBin: Boolean = this match
     case _: RawQueryExpr.Unary  => false
     case _: RawQueryExpr.Binary => true
+    case _: RawQueryExpr.Other  => false
 
   final def show: String = this match {
     case RawQueryExpr.QueryRefIdent(_, ref)                         => ref.show
@@ -30,6 +37,10 @@ private[generic] sealed trait RawQueryExpr {
     case RawQueryExpr.SelectNonPrimaryKey(_, inner, _)              => s"${inner.show}.${"tableNPK".hexFg("#35A7FF")}"
     case bin: RawQueryExpr.Binary if bin.lhs.isBin || bin.rhs.isBin => s"(${bin.lhs.show}) ${bin.op.show} (${bin.rhs.show})"
     case bin: RawQueryExpr.Binary                                   => s"${bin.lhs.show} ${bin.op.show} ${bin.rhs.show}"
+    case RawQueryExpr.InstantiateTable(_, gen, _, args)             => args.map(_.show).mkString(s"${gen.typeRepr.showCode}.apply(", ", ", ")")
+    case RawQueryExpr.RandomUUID(_)                                 => "UUID.randomUUID()"
+    case RawQueryExpr.InstantNow(_)                                 => "Instant.now()"
+    case RawQueryExpr.StringConcat(_, args)                         => args.map(_.show).mkString("CONCAT(", ", ", ")")
   }
 
 }
@@ -42,6 +53,7 @@ private[generic] object RawQueryExpr extends Parser[(Term, RefMap), RawQueryExpr
       RawQueryExpr.parse(input).flatMap {
         case unary: Unary => ParseResult.Success(unary)
         case _: Binary    => ParseResult.error(input._1, "expected unary")
+        case _: Other     => ParseResult.error(input._1, "expected unary")
       }
 
   }
@@ -218,6 +230,92 @@ private[generic] object RawQueryExpr extends Parser[(Term, RefMap), RawQueryExpr
 
   }
 
+  sealed trait Other extends RawQueryExpr
+
+  final case class InstantiateTable(
+      fullTerm: Term,
+      gen: ProductGeneric[?],
+      givenTableRepr: TypeclassExpr.TableRepr,
+      args: List[RawQueryExpr],
+  ) extends RawQueryExpr.Other
+  object InstantiateTable extends Parser[(Term, RefMap), InstantiateTable] {
+
+    override def parse(input: (Term, RefMap))(using ParseContext, Quotes): ParseResult[RawQueryExpr.InstantiateTable] = {
+      val (rootTerm, refs) = input
+      val tpe = rootTerm.tpe.widen
+      type T
+      given Type[T] = tpe.asTypeOf
+
+      rootTerm match {
+        case Apply(Select(lhs, "apply"), rhss) if lhs.tpe <:< TypeRepr.of[TableCompanion[?, ?]] =>
+          Implicits.searchOption[TableRepr[T]] match {
+            case Some(tableReprExpr) =>
+              val gen = ProductGeneric.of[T]
+              ParseContext.add("Table.apply") {
+                rhss
+                  .traverse(t => RawQueryExpr.parse((t, refs)).unknownAsError: ParseResult[RawQueryExpr])
+                  .map(InstantiateTable(rootTerm, gen, TypeclassExpr.TableRepr(tableReprExpr), _))
+              }
+            case None =>
+              ParseResult.error(rootTerm, s"no given ${TypeRepr.of[TableRepr[T]].showAnsiCode} found")
+          }
+        case _ =>
+          ParseResult.unknown(rootTerm, "unknown table instantiation")
+      }
+    }
+
+  }
+
+  final case class RandomUUID(fullTerm: Term) extends RawQueryExpr.Other
+  object RandomUUID extends Parser[(Term, RefMap), RandomUUID] {
+
+    override def parse(input: (Term, RefMap))(using ParseContext, Quotes): ParseResult[RandomUUID] = {
+      val (term, _) = input
+
+      term.asExpr match
+        case '{ UUID.randomUUID() } => ParseResult.Success(RandomUUID(term))
+        case '{ UUID.randomUUID }   => ParseResult.Success(RandomUUID(term))
+        case _                      => ParseResult.unknown(term, "not a UUID.randomUUID")
+    }
+
+  }
+
+  final case class InstantNow(fullTerm: Term) extends RawQueryExpr.Other
+  object InstantNow extends Parser[(Term, RefMap), InstantNow] {
+
+    override def parse(input: (Term, RefMap))(using ParseContext, Quotes): ParseResult[InstantNow] = {
+      val (term, _) = input
+
+      term.asExpr match
+        case '{ Instant.now() } => ParseResult.success(InstantNow(term))
+        case _                  => ParseResult.unknown(term, "not a Instant.now")
+    }
+
+  }
+
+  final case class StringConcat(fullTerm: Term, args: List[RawQueryExpr]) extends RawQueryExpr.Other
+  object StringConcat extends Parser[(Term, RefMap), StringConcat] {
+
+    override def parse(input: (Term, RefMap))(using ParseContext, Quotes): ParseResult[StringConcat] = {
+      val (term, refs) = input
+
+      for {
+        rawArgs: Seq[Expr[String]] <- term.asExpr match
+          case '{ Q.mkSqlString(${ Varargs(concatArgs) }*) } => ParseResult.success(concatArgs)
+          case _                                             => ParseResult.unknown(term, "not a string concat")
+        parsedArgs: Seq[RawQueryExpr] <-
+          ParseContext.add("Table.apply") {
+            rawArgs.traverse {
+              case t @ Expr(_: String) => ParseResult.success(RawQueryExpr.ConstValue(t.toTerm, t.toTerm))
+              case t                   => RawQueryExpr.parse((t.toTerm, refs)).unknownAsError: ParseResult[RawQueryExpr]
+            }
+          }
+
+      } yield StringConcat(term, parsedArgs.toList)
+    }
+
+  }
+
   override def parse(input: (Term, RefMap))(using ParseContext, Quotes): ParseResult[RawQueryExpr] = input match
     case QueryRefIdent.optional(res)       => res
     case ConstValue.optional(res)          => res
@@ -228,6 +326,10 @@ private[generic] object RawQueryExpr extends Parser[(Term, RefMap), RawQueryExpr
     case OptionGet.optional(res)           => res
     case ProductField.optional(res)        => res
     case Binary.optional(res)              => res
+    case InstantiateTable.optional(res)    => res
+    case RandomUUID.optional(res)          => res
+    case InstantNow.optional(res)          => res
+    case StringConcat.optional(res)        => res
     case (rootTerm, _)                     => ParseResult.unknown(rootTerm, "not a query expr?")
 
 }

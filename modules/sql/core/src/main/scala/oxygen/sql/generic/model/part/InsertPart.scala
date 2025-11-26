@@ -6,31 +6,61 @@ import oxygen.sql.generic.parsing.*
 import oxygen.sql.query.dsl.{Q, T}
 import scala.quoted.*
 
-final case class InsertPart(
-    mapQueryRef: Option[QueryParam.Query],
-    tableRepr: TypeclassExpr.TableRepr,
-    mapIntoParam: Function.NamedParam,
-) {
+sealed trait InsertPart {
+  val mapQueryRef: Option[QueryParam.Query]
+  val tableRepr: TypeclassExpr.TableRepr
+  val mapIntoParam: Function.NamedParam
 
-  def rowRepr: TypeclassExpr.RowRepr = tableRepr.tableRowRepr
+  final def rowRepr: TypeclassExpr.RowRepr = tableRepr.tableRowRepr
 
-  def show: String =
+  final def show: String =
     mapQueryRef.fold("insert(???)")(queryRef => s"${queryRef.param.tpe.showAnsiCode} ${queryRef.show}")
 
 }
-object InsertPart extends MapChainParser[InsertPart] {
+object InsertPart {
 
-  override def parse(term: Term, refs: RefMap, prevFunction: String)(using ParseContext, Quotes): MapChainParseResult[InsertPart] =
-    for {
-      (mapAAFC, tableRepr) <- AppliedAnonFunctCall.parseTyped[T.Insert[?]](term, "map function").parseLhs { //
-        case '{ Q.insert[a](using $tableRepr) } => ParseResult.Success(TypeclassExpr.TableRepr(tableRepr))
-      }
-      (mapParam, mapIntoParam) <- mapAAFC.funct.parseParam2Opt // (varRef, into) <- Q.insert[_]
-      f1Name <- functionNames.mapOrFlatMap.parse(mapAAFC.nameRef).unknownAsError
+  final case class Basic(
+      mapQueryRef: Option[QueryParam.Query],
+      tableRepr: TypeclassExpr.TableRepr,
+      mapIntoParam: Function.NamedParam,
+  ) extends InsertPart
+  object Basic extends MapChainParser[Basic] {
 
-      mapQueryRef = mapParam.map { p1 => QueryParam.Query(p1, tableRepr, true) }
-      newRefs = refs.add(mapQueryRef.toList*)
+    override def parse(term: Term, refs: RefMap, prevFunction: String)(using ParseContext, Quotes): MapChainParseResult[Basic] =
+      for {
+        (mapAAFC, tableRepr) <- AppliedAnonFunctCall.parseTyped[T.Insert[?]](term, "map function").parseLhs { //
+          case '{ Q.insert[a](using $tableRepr) } => ParseResult.Success(TypeclassExpr.TableRepr(tableRepr))
+        }
+        (mapParam, mapIntoParam) <- mapAAFC.funct.parseParam2Opt // (varRef, into) <- Q.insert[_]
+        f1Name <- functionNames.mapOrFlatMap.parse(mapAAFC.nameRef).unknownAsError
 
-    } yield MapChainResult(InsertPart(mapQueryRef, tableRepr, mapIntoParam), f1Name, newRefs, mapAAFC.appliedFunctionBody)
+        mapQueryRef = mapParam.map { p1 => QueryParam.Query(p1, tableRepr, true) }
+        newRefs = refs.add(mapQueryRef.toList*)
+
+      } yield MapChainResult(Basic(mapQueryRef, tableRepr, mapIntoParam), f1Name, newRefs, mapAAFC.appliedFunctionBody)
+
+  }
+
+  final case class FromSelect(
+      mapQueryRef: Option[QueryParam.Query],
+      tableRepr: TypeclassExpr.TableRepr,
+      mapIntoParam: Function.NamedParam,
+  ) extends InsertPart
+  object FromSelect extends MapChainParser[FromSelect] {
+
+    override def parse(term: Term, refs: RefMap, prevFunction: String)(using ParseContext, Quotes): MapChainParseResult[FromSelect] =
+      for {
+        (mapAAFC, tableRepr) <- AppliedAnonFunctCall.parseTyped[T.InsertFromSelect[?]](term, "map function").parseLhs { //
+          case '{ Q.insert.fromSelect[a](using $tableRepr) } => ParseResult.Success(TypeclassExpr.TableRepr(tableRepr))
+        }
+        (mapParam, mapIntoParam) <- mapAAFC.funct.parseParam2Opt // (varRef, into) <- Q.insert[_]
+        f1Name <- functionNames.mapOrFlatMap.parse(mapAAFC.nameRef).unknownAsError
+
+        mapQueryRef = mapParam.map { p1 => QueryParam.Query(p1, tableRepr, true) }
+        newRefs = refs.add(mapQueryRef.toList*)
+
+      } yield MapChainResult(FromSelect(mapQueryRef, tableRepr, mapIntoParam), f1Name, newRefs, mapAAFC.appliedFunctionBody)
+
+  }
 
 }

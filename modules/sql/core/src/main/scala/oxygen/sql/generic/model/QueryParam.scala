@@ -1,7 +1,6 @@
 package oxygen.sql.generic.model
 
 import oxygen.predef.color.given
-import oxygen.predef.core.*
 import oxygen.quoted.*
 import oxygen.sql.generic.parsing.*
 import scala.quoted.*
@@ -54,20 +53,14 @@ private[generic] object QueryParam {
 
   final case class Query(
       param: Function.NamedParam,
-      optTableRepr: Option[TypeclassExpr.TableRepr],
+      tableRepr: TypeclassExpr.TableRepr,
       rowRepr: TypeclassExpr.RowRepr,
       isRoot: Boolean,
   ) extends QueryParam
   object Query {
 
     def apply(param: Function.NamedParam, tableRepr: TypeclassExpr.TableRepr, isRoot: Boolean): Query =
-      Query(param, tableRepr.some, tableRepr.tableRowRepr, isRoot)
-
-    def apply(param: Function.NamedParam, tableRepr: TypeclassExpr.TableRepr, roweRepr: TypeclassExpr.RowRepr, isRoot: Boolean): Query =
-      Query(param, tableRepr.some, roweRepr, isRoot)
-
-    def apply(param: Function.NamedParam, roweRepr: TypeclassExpr.RowRepr, isRoot: Boolean): Query =
-      Query(param, None, roweRepr, isRoot)
+      Query(param, tableRepr, tableRepr.tableRowRepr, isRoot)
 
   }
 

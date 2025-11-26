@@ -5,7 +5,7 @@ import oxygen.predef.core.*
 import scala.quoted.*
 
 final class GeneratedFragment private (
-    private val generatedSql: GeneratedSql,
+    val generatedSql: GeneratedSql,
     private val generatedInputEncoder: GeneratedInputEncoder,
 ) {
 

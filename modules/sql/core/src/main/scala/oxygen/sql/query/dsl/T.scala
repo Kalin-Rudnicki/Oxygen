@@ -41,6 +41,11 @@ object T {
     def flatMap[B](f: (A, Partial.InsertValues[A]) => Ret[B])(using retTpe: RetTpe[B]): retTpe.QueryT = macroOnly
   }
 
+  final class InsertFromSelect[A] private {
+    def map[B](f: (A, Partial.InsertValues[A]) => B)(using retTpe: RetTpe[B]): retTpe.QueryT = macroOnly
+    def flatMap[B](f: (A, Partial.InsertValues[A]) => QueryO[B])(using retTpe: RetTpe[B]): retTpe.QueryT = macroOnly
+  }
+
   final class Select[A] private {
     def map[B](f: A => B): QueryO[B] = macroOnly
     def flatMap[B](f: A => Ret[B]): QueryO[B] = macroOnly

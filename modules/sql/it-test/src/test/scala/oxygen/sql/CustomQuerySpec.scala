@@ -203,6 +203,38 @@ object CustomQuerySpec extends OxygenSpec[Database] {
           res6 == 2,
         )
       },
+      test("insert from select") {
+        for {
+          groupId <- Random.nextUUID
+
+          randomName = RandomGen.lowerCaseString(25)
+          f1 <- randomName
+          f2 <- randomName
+
+          l1 <- randomName
+          l2 <- randomName
+
+          p1 <- Person.generate(groupId)(first = f1, last = l1)
+          p2 <- Person.generate(groupId)(first = f1, last = l2)
+          p3 <- Person.generate(groupId)(first = f2, last = l1)
+          p4 <- Person.generate(groupId)(first = f2, last = l2)
+
+          _ <- Person.insert.all(p1, p2, p3, p4).unit
+          _ <- queries.insertNoteForPeople.execute().unit
+          _ <- queries.insertNoteForPeople2.execute(f1, "specific").unit
+
+          res <- Note.selectAll.map(n => (n.personId, n.note)).execute().to[Set]
+        } yield assertTrue(
+          res == Set(
+            (p1.id, s"Adding note for person ${p1.first} ${p1.last} : everyone"),
+            (p2.id, s"Adding note for person ${p2.first} ${p2.last} : everyone"),
+            (p3.id, s"Adding note for person ${p3.first} ${p3.last} : everyone"),
+            (p4.id, s"Adding note for person ${p4.first} ${p4.last} : everyone"),
+            (p1.id, s"Adding note for person ${p1.first} ${p1.last} : specific"),
+            (p2.id, s"Adding note for person ${p2.first} ${p2.last} : specific"),
+          ),
+        )
+      },
     )
 
   override def testAspects: Chunk[CustomQuerySpec.TestSpecAspect] = Chunk(TestAspect.nondeterministic, TestAspect.withLiveClock, SqlAspects.isolateTestsInRollbackTransaction)

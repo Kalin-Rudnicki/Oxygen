@@ -67,42 +67,52 @@ final case class FragmentBuilder(inputs: List[InputPart])(using Quotes) {
       i.mapQueryRef.param.sym -> inputRepr
     }.toMap
 
-  def convert(queryExpr: QueryExpr)(using ParseContext, GenerationContext, Quotes): ParseResult[GeneratedFragment] =
-    queryExpr match {
-      case input: QueryExpr.UnaryInput            => ParseResult.error(input.fullTerm, "no query reference to compare input to")
-      case input: QueryExpr.ConstValue            => ParseResult.error(input.fullTerm, "no query reference to compare input to")
-      case query: QueryExpr.UnaryQuery            => convertQuery(query)
-      case QueryExpr.Static(_, out, _)            => ParseResult.Success(GeneratedFragment.sql(out))
-      case QueryExpr.BinaryAndOr(_, lhs, op, rhs) =>
+  def convert(queryExpr: QueryExpr, parentContext: Option[TypeclassExpr.RowRepr])(using ParseContext, GenerationContext, Quotes): ParseResult[GeneratedFragment] =
+    (queryExpr, parentContext) match {
+      case (input: QueryExpr.UnaryInput, Some(parentContext)) => convertConstOrInput(input, parentContext)
+      case (input: QueryExpr.ConstValue, Some(parentContext)) => convertConstOrInput(input, parentContext)
+      case (input: QueryExpr.UnaryInput, _)                   => ParseResult.error(input.fullTerm, "no query reference to compare query input to")
+      case (input: QueryExpr.ConstValue, _)                   => ParseResult.error(input.fullTerm, "no query reference to compare const input to")
+      case (query: QueryExpr.UnaryQuery, _)                   => convertQuery(query)
+      case (QueryExpr.Static(_, out, _), _)                   => ParseResult.Success(GeneratedFragment.sql(out))
+      case (QueryExpr.BinaryAndOr(_, lhs, op, rhs), _)        =>
         for {
-          lhsFrag <- convert(lhs)
-          rhsFrag <- convert(rhs)
+          lhsFrag <- convert(lhs, None)
+          rhsFrag <- convert(rhs, None)
         } yield GeneratedFragment.of(lhsFrag.wrapInParensIf(lhs.isAndOr), op.sqlPadded, rhsFrag.wrapInParensIf(rhs.isAndOr))
-      case QueryExpr.BinaryComp.QueryQuery(_, lhsQuery, op, rhsQuery) =>
+      case (QueryExpr.BinaryComp.QueryQuery(_, lhsQuery, op, rhsQuery), _) =>
         for {
           lhsFrag <- convertQuery(lhsQuery)
           rhsFrag <- convertQuery(rhsQuery)
         } yield GeneratedFragment.of(lhsFrag, op.sqlPadded, rhsFrag)
-      case QueryExpr.BinaryComp.QueryInput(_, lhsQuery, op, rhsInput: QueryExpr.UnaryInput) if rhsInput.isOptional =>
+      case (QueryExpr.BinaryComp.QueryInput(_, lhsQuery, op, rhsInput: QueryExpr.UnaryInput), _) if rhsInput.isOptional =>
         for {
           lhsFrag <- convertQuery(lhsQuery)
           rhsFrag <- GenerationContext.updated(allowOptionalInput = true) { convertConstOrInput(rhsInput, lhsQuery) }
         } yield GeneratedFragment.of("( ? OR ( ", lhsFrag, op.sqlPadded, rhsFrag, " ) )")
-      case QueryExpr.BinaryComp.InputQuery(_, lhsInput: QueryExpr.UnaryInput, op, rhsQuery) if lhsInput.isOptional =>
+      case (QueryExpr.BinaryComp.InputQuery(_, lhsInput: QueryExpr.UnaryInput, op, rhsQuery), _) if lhsInput.isOptional =>
         for {
           lhsFrag <- GenerationContext.updated(allowOptionalInput = true) { convertConstOrInput(lhsInput, rhsQuery) }
           rhsFrag <- convertQuery(rhsQuery)
         } yield GeneratedFragment.of("( ? OR ( ", lhsFrag, op.sqlPadded, rhsFrag, " ) )")
-      case QueryExpr.BinaryComp.QueryInput(_, lhsQuery, op, rhsInput) =>
+      case (QueryExpr.BinaryComp.QueryInput(_, lhsQuery, op, rhsInput), _) =>
         for {
           lhsFrag <- convertQuery(lhsQuery)
           rhsFrag <- convertConstOrInput(rhsInput, lhsQuery)
         } yield GeneratedFragment.of(lhsFrag, op.sqlPadded, rhsFrag)
-      case QueryExpr.BinaryComp.InputQuery(_, lhsInput, op, rhsQuery) =>
+      case (QueryExpr.BinaryComp.InputQuery(_, lhsInput, op, rhsQuery), _) =>
         for {
           lhsFrag <- convertConstOrInput(lhsInput, rhsQuery)
           rhsFrag <- convertQuery(rhsQuery)
         } yield GeneratedFragment.of(lhsFrag, op.sqlPadded, rhsFrag)
+      case (it: QueryExpr.InstantiateTable, _) =>
+        it.cleanedArgs.traverse(convert(_, None)).map { argFrags => GeneratedFragment.flatten(argFrags.intersperse(GeneratedFragment.sql(", "))) }
+      case (_: QueryExpr.RandomUUID, _)         => ParseResult.success(GeneratedFragment.sql("gen_random_uuid()"))
+      case (_: QueryExpr.InstantNow, _)         => ParseResult.success(GeneratedFragment.sql("now()"))
+      case (QueryExpr.StringConcat(_, args), _) =>
+        args.traverse(convert(_, TypeclassExpr.RowRepr.string.some)).map { argFrags =>
+          GeneratedFragment.flatten(argFrags.surround(GeneratedFragment.sql("CONCAT("), GeneratedFragment.sql(", "), GeneratedFragment.sql(")")))
+        }
     }
 
   private def convertQuery(query: QueryExpr.UnaryQuery)(using Quotes, GenerationContext): ParseResult[GeneratedFragment] =
@@ -228,7 +238,7 @@ final case class FragmentBuilder(inputs: List[InputPart])(using Quotes) {
     Option.when(r.returningExprs.nonEmpty)(r.returningExprs).traverse {
       _.traverse {
         case query: QueryExpr.UnaryQuery => GenerationContext.updated(query = GenerationContext.Parens.Never) { convertQuery(query) }
-        case queryExpr                   => convert(queryExpr)
+        case queryExpr                   => convert(queryExpr, None)
       }
         .map { res => GeneratedFragment.flatten(res.intersperse(GeneratedFragment.sql(s",\n$idt"))) }
     }
@@ -241,7 +251,7 @@ final case class FragmentBuilder(inputs: List[InputPart])(using Quotes) {
 
   def join(j: JoinPart)(using ParseContext, GenerationContext, Quotes): ParseResult[GeneratedFragment] =
     for {
-      onFrag <- convert(j.filterExpr)
+      onFrag <- convert(j.filterExpr, None)
     } yield GeneratedFragment.of(
       // join
       j.joinType match
@@ -256,7 +266,7 @@ final case class FragmentBuilder(inputs: List[InputPart])(using Quotes) {
 
   def where(w: WherePart)(using ParseContext, GenerationContext, Quotes): ParseResult[GeneratedFragment] =
     for {
-      whereFrag <- convert(w.filterExpr)
+      whereFrag <- convert(w.filterExpr, None)
     } yield GeneratedFragment.of(
       "\n    WHERE ",
       whereFrag,
@@ -298,7 +308,10 @@ final case class FragmentBuilder(inputs: List[InputPart])(using Quotes) {
 
   def values(ins: InsertPart, i: IntoPart)(using ParseContext, GenerationContext, Quotes): ParseResult[GeneratedFragment] =
     for {
-      valuesFrag <- GenerationContext.updated(input = GenerationContext.Parens.Always) { convertConstOrInput(i.queryExpr, ins.rowRepr) }
+      coui <- i.queryExpr match
+        case coui: QueryExpr.ConstOrUnaryInput => ParseResult.success(coui)
+        case _                                 => ParseResult.error(i.queryExpr.fullTerm, s"Expected ConstOrUnaryInput, but got ${i.queryExpr}")
+      valuesFrag <- GenerationContext.updated(input = GenerationContext.Parens.Always) { convertConstOrInput(coui, ins.rowRepr) }
     } yield GeneratedFragment.of(
       "\n    VALUES ",
       valuesFrag,
