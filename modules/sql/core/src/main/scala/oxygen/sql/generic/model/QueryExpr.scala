@@ -36,6 +36,7 @@ private[generic] sealed trait QueryExpr {
     case QueryExpr.RandomUUID(_)                                                     => "UUID.randomUUID()"
     case QueryExpr.InstantNow(_)                                                     => "Instant.now()"
     case QueryExpr.StringConcat(_, args)                                             => args.map(_.show).mkString("CONCAT(", ", ", ")")
+    case QueryExpr.OptionApply(_, inner)                                             => s"Option(${inner.show})"
 
   final def isAndOr: Boolean = this match
     case _: QueryExpr.BinaryAndOr => true
@@ -293,6 +294,10 @@ private[generic] object QueryExpr extends Parser[RawQueryExpr, QueryExpr] {
     override def queryRefs: Growable[QueryParam] = Growable.many(args).flatMap(_.queryRefs)
   }
 
+  final case class OptionApply(fullTerm: Term, inner: QueryExpr) extends Other {
+    override def queryRefs: Growable[QueryParam] = inner.queryRefs
+  }
+
   override def parse(expr: RawQueryExpr)(using ParseContext, Quotes): ParseResult[QueryExpr] =
     expr match {
       case expr: RawQueryExpr.Unary =>
@@ -329,6 +334,7 @@ private[generic] object QueryExpr extends Parser[RawQueryExpr, QueryExpr] {
       case RawQueryExpr.RandomUUID(fullTerm)         => ParseResult.success(QueryExpr.RandomUUID(fullTerm))
       case RawQueryExpr.InstantNow(fullTerm)         => ParseResult.success(QueryExpr.InstantNow(fullTerm))
       case RawQueryExpr.StringConcat(fullTerm, args) => args.traverse(parse(_)).map(StringConcat(fullTerm, _))
+      case RawQueryExpr.OptionApply(fullTerm, inner) => QueryExpr.parse(inner).map(QueryExpr.OptionApply(fullTerm, _))
     }
 
 }

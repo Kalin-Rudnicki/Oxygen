@@ -113,6 +113,8 @@ final case class FragmentBuilder(inputs: List[InputPart])(using Quotes) {
         args.traverse(convert(_, TypeclassExpr.RowRepr.string.some)).map { argFrags =>
           GeneratedFragment.flatten(argFrags.surround(GeneratedFragment.sql("CONCAT("), GeneratedFragment.sql(", "), GeneratedFragment.sql(")")))
         }
+      case (QueryExpr.OptionApply(_, inner), pc) => convert(inner, pc.map(_.optional))
+
     }
 
   private def convertQuery(query: QueryExpr.UnaryQuery)(using Quotes, GenerationContext): ParseResult[GeneratedFragment] =

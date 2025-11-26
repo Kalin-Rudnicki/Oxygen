@@ -95,6 +95,29 @@ object Note extends TableCompanion[Note, UUID](TableRepr.derived[Note]) {
 
 }
 
+final case class Note2(
+    @primaryKey id: UUID,
+    @references[Person] personId: UUID,
+    note: String,
+    note2: Option[String],
+)
+object Note2 extends TableCompanion[Note2, UUID](TableRepr.derived[Note2]) {
+
+  private val randomNote: UIO[String] = RandomGen.lowerCaseString(5).replicateZIO(5).map(_.mkString(" "))
+
+  def generate(personId: UUID)(
+      id: Specified[UUID] = Specified.WasNotSpecified,
+      note: Specified[String] = Specified.WasNotSpecified,
+      note2: Specified[Option[String]] = Specified.WasNotSpecified,
+  ): UIO[Note2] =
+    for {
+      id <- id.orGen { Random.nextUUID }
+      note <- note.orGen { randomNote }
+      note2 <- note2.orGen { randomNote.map(_.some) }
+    } yield Note2(id, personId, note, note2)
+
+}
+
 final case class MultiPK1(
     @primaryKey id1: String,
     @primaryKey id2: String,
@@ -158,6 +181,24 @@ object queries {
           UUID.randomUUID(),
           p.id,
           mkSqlString(Q.const("Adding note for person "), p.first, " ", p.last, " : ", suffix),
+        ),
+      )
+    } yield ()
+
+  @compile
+  val insertNote2ForNote1: QueryI[UUID] =
+    for {
+      id <- Q.input[UUID]
+      (_, into) <- Q.insert.fromSelect[Note2]
+      n <- Q.select[Note2]
+      p <- Q.join[Person] if p.id == n.personId
+      _ <- where if n.id == id
+      _ <- into(
+        Note2(
+          UUID.randomUUID(),
+          p.id,
+          mkSqlString(p.first, " ", p.last),
+          Option(n.note),
         ),
       )
     } yield ()
