@@ -93,7 +93,7 @@ abstract class TableCompanion[A, K](derivedRepr: TableRepr.AuxPK[A, K]) {
     Query.simple("truncate-cascade", QueryContext.QueryType.Truncate)(s"TRUNCATE ${tableRepr.ref} CASCADE")
 
   final val select_* : QueryO[Long] =
-    QueryO(QueryContext("COUNT(*)", s"SELECT COUNT(*) FROM ${tableRepr.ref}", QueryContext.QueryType.Select, tableRepr.some), None, RowRepr.long.decoder)
+    QueryO.Simple(QueryContext("COUNT(*)", s"SELECT COUNT(*) FROM ${tableRepr.ref}", QueryContext.QueryType.Select, tableRepr.some), None, RowRepr.long.decoder)
 
 }
 object TableCompanion {

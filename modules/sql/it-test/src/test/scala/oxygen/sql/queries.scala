@@ -333,7 +333,7 @@ object queries {
       _ <- where if p.first == first && p.last == last
     } yield count(p)
 
-  @compile(true)
+  @compile
   val selectSubQuery1: QueryO[(Person, Option[Note])] =
     for {
       p <- Q.select.subQuery("sub1") {

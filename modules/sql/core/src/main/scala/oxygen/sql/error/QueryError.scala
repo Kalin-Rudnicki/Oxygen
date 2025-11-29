@@ -94,6 +94,11 @@ object QueryError {
               rowValues.zipWithIndex.map { case (v, i) => IndentedString.keyValue(s"[$i]: ", String.valueOf(v)) },
             ),
           )
+        case UnableToDecodeRow.DelayedMapOrFail(valueToMap, message) =>
+          IndentedString.section("Error mapping query result:")(
+            IndentedString.keyValue("message: ", message),
+            IndentedString.keyValue("value-to-map: ", String.valueOf(valueToMap)),
+          )
         case UnableToDecodeRow.InvalidRowSize(rowValues, expected, columns) =>
           IndentedString.section("Invalid row size:")(
             s"expected: $expected",
@@ -156,13 +161,19 @@ object QueryError {
 
   final case class Connection(connectionError: ConnectionError) extends QueryError.Cause
 
-  sealed trait UnableToDecodeRow extends QueryError.Cause {
-    val rowValues: ArraySeq[Any]
-  }
+  sealed trait UnableToDecodeRow extends QueryError.Cause
   object UnableToDecodeRow {
-    final case class AtColumn(rowValues: ArraySeq[Any], column: Column, idx: Int, message: String) extends UnableToDecodeRow
-    final case class MapOrFail(rowValues: ArraySeq[Any], index: Int, size: Int, valueToMap: Any, message: String) extends UnableToDecodeRow
-    final case class InvalidRowSize(rowValues: ArraySeq[Any], expected: Int, columns: Option[Columns[?]]) extends UnableToDecodeRow
+
+    sealed trait WithRowValues extends UnableToDecodeRow {
+      val rowValues: ArraySeq[Any]
+    }
+
+    final case class AtColumn(rowValues: ArraySeq[Any], column: Column, idx: Int, message: String) extends UnableToDecodeRow.WithRowValues
+    final case class MapOrFail(rowValues: ArraySeq[Any], index: Int, size: Int, valueToMap: Any, message: String) extends UnableToDecodeRow.WithRowValues
+    final case class InvalidRowSize(rowValues: ArraySeq[Any], expected: Int, columns: Option[Columns[?]]) extends UnableToDecodeRow.WithRowValues
+
+    final case class DelayedMapOrFail(valueToMap: Any, message: String) extends UnableToDecodeRow
+
   }
 
   final case class InvalidResultSetSize(expected: InvalidResultSetSize.ExpectedSize, actual: String) extends QueryError.Cause
