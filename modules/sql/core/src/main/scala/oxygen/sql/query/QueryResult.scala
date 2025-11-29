@@ -24,6 +24,20 @@ object QueryResult {
     def orDieWith(f: E => Throwable)(using ev1: CanFail[E]): Returning[Nothing, A] =
       Returning(ctx, effect(_).orDieWith(f))
 
+    private[sql] def map[A2](f: A => A2): Returning[E, A2] =
+      Returning(ctx, effect(_).map(f))
+
+    private[sql] def mapOrFail[A2](f: A => Either[String, A2])(using ev: QueryError <:< E): Returning[E, A2] =
+      Returning(
+        ctx,
+        effect(_).flatMap { a =>
+          f(a) match {
+            case Right(value) => ZStream.succeed(value)
+            case Left(error)  => ZStream.fail(ev(QueryError(ctx, QueryError.UnableToDecodeRow.DelayedMapOrFail(a, error))))
+          }
+        },
+      )
+
     def mapError[E2](f: E => E2): Returning[E2, A] =
       Returning(ctx, effect(_).mapError(f))
 

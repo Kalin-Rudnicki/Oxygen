@@ -75,7 +75,8 @@ object Database {
     )
 
   val healthCheck: RIO[Database, Unit] =
-    QueryO[Int](QueryContext("HealthCheck", "SELECT 1", QueryContext.QueryType.Select), None, RowRepr.int.decoder)
+    QueryO
+      .simple[Int]("HealthCheck", QueryContext.QueryType.Select)(RowRepr.int.decoder)("SELECT 1")
       .execute()
       .single
       .flatMap {

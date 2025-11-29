@@ -442,7 +442,7 @@ private[sql] object ParsedQuery extends Parser[Term, ParsedQuery] {
     (encoder.hasNonConstParams, encoder.hasParams, decoder.nonEmpty) match {
       case (true, _, true) => // QueryIO - non const inputs
         '{
-          new QueryIO[I, O](
+          new QueryIO.Simple[I, O](
             ctx = $ctx,
             encoder = ${ encoder.expr.asExprOf[InputEncoder[I]] },
             decoder = ${ decoder.expr.asExprOf[ResultDecoder[O]] },
@@ -450,7 +450,7 @@ private[sql] object ParsedQuery extends Parser[Term, ParsedQuery] {
         }
       case (false, true, true) => // QueryO - with const inputs
         '{
-          new QueryO[O](
+          new QueryO.Simple[O](
             ctx = $ctx,
             encoder = ${ encoder.expr.asExprOf[InputEncoder[Any]] }.some,
             decoder = ${ decoder.expr.asExprOf[ResultDecoder[O]] },
@@ -458,7 +458,7 @@ private[sql] object ParsedQuery extends Parser[Term, ParsedQuery] {
         }
       case (false, false, true) => // QueryO - no inputs
         '{
-          new QueryO[O](
+          new QueryO.Simple[O](
             ctx = $ctx,
             encoder = None,
             decoder = ${ decoder.expr.asExprOf[ResultDecoder[O]] },
