@@ -12,7 +12,7 @@ final case class SetPart(
 ) {
 
   def show(using Quotes): String =
-    s"    SET ${setExprs.head.show}${setExprs.tail.map { p => s"\n        ${p.show}" }.mkString}"
+    s"\n    SET ${setExprs.head.show}${setExprs.tail.map { p => s"\n        ${p.show}" }.mkString}"
 
 }
 object SetPart extends MapChainParser[SetPart] {
@@ -26,7 +26,7 @@ object SetPart extends MapChainParser[SetPart] {
 
   }
 
-  private def parseSingleSet(term: Term, refs: RefMap, rootQueryRef: VariableReference.FromQuery)(using ParseContext, Quotes): ParseResult[SetExpr] =
+  private def parseSingleSet(term: Term, refs: RefMap, rootQueryRef: VariableReference.QueryLike)(using ParseContext, Quotes): ParseResult[SetExpr] =
     for {
       fun <- Function.parse(term).unknownAsError
       p1 <- fun.parseParam1

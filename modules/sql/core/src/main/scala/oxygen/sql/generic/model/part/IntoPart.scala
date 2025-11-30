@@ -1,5 +1,6 @@
 package oxygen.sql.generic.model.part
 
+import oxygen.predef.core.*
 import oxygen.quoted.*
 import oxygen.sql.generic.model.*
 import oxygen.sql.generic.parsing.*
@@ -12,7 +13,7 @@ final case class IntoPart(
 object IntoPart extends MapChainParser[IntoPart] {
 
   final case class FromSelect(into: IntoPart) {
-    def toReturning: ReturningPart = ReturningPart(into.queryExpr.fullTerm, ReturningPart.Elem(into.queryExpr, None) :: Nil)
+    def toReturning: ReturningPart.BasicNel = ReturningPart.BasicNel(into.queryExpr.fullTerm, NonEmptyList.one(ReturningPart.Elem.Basic(into.queryExpr)))
   }
   object FromSelect extends MapChainParser.Deferred[FromSelect] {
 

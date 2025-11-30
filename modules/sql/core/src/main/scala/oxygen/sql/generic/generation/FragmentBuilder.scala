@@ -17,9 +17,9 @@ final case class FragmentBuilder(inputs: List[InputPart])(using Quotes) {
 
   private val nonConstInputParams: List[VariableReference.NonConstInput] =
     inputs.map(_.mapQueryRef).flatMap {
-      case p: VariableReference.FromInput         => p.some
-      case p: VariableReference.OptionalFromInput => p.some
-      case _: VariableReference.FromConstInput    => None
+      case p: VariableReference.InputParam         => p.some
+      case p: VariableReference.OptionalInputParam => p.some
+      case _: VariableReference.ConstInputParam    => None
     }
 
   private val symIdxMap: Map[Symbol, Int] =
@@ -55,17 +55,17 @@ final case class FragmentBuilder(inputs: List[InputPart])(using Quotes) {
     inputs.map { i =>
       val inputRepr: InputRepr =
         (multiInputTupleGeneric, i.mapQueryRef) match {
-          case (None, VariableReference.FromInput(_)) =>
+          case (None, VariableReference.InputParam(_)) =>
             InputRepr.NonConst(TermTransformer.Id, false)
-          case (Some(inputTpeTupGen), VariableReference.FromInput(param)) =>
+          case (Some(inputTpeTupGen), VariableReference.InputParam(param)) =>
             val idx: Int = symIdxMap.getOrElse(param.sym, report.errorAndAbort("sym not found?", param.tree.pos))
             InputRepr.NonConst(TermTransformer.FromProductGenericField(inputTpeTupGen, inputTpeTupGen.fields(idx)), false)
-          case (None, VariableReference.OptionalFromInput(_)) =>
+          case (None, VariableReference.OptionalInputParam(_)) =>
             InputRepr.NonConst(TermTransformer.Id, true)
-          case (Some(inputTpeTupGen), VariableReference.OptionalFromInput(param)) =>
+          case (Some(inputTpeTupGen), VariableReference.OptionalInputParam(param)) =>
             val idx: Int = symIdxMap.getOrElse(param.sym, report.errorAndAbort("sym not found?", param.tree.pos))
             InputRepr.NonConst(TermTransformer.FromProductGenericField(inputTpeTupGen, inputTpeTupGen.fields(idx)), true)
-          case (_, VariableReference.FromConstInput(_, term, _)) =>
+          case (_, VariableReference.ConstInputParam(_, term, _)) =>
             InputRepr.Const(term)
         }
 
@@ -328,27 +328,48 @@ final case class FragmentBuilder(inputs: List[InputPart])(using Quotes) {
       ),
     )
 
-  def ret(r: ReturningPart, idt: String)(using ParseContext, GenerationContext, Quotes): ParseResult[Option[GeneratedFragment]] =
-    Option.when(r.returningExprs.nonEmpty)(r.returningExprs).traverse {
-      _.traverse { elem =>
-        elem.as match {
-          case Some(as) =>
-            elem.expr match {
-              case QueryExpr.QueryVariableReferenceLike.ReferencedVariable(_, queryRef) =>
-                ParseResult.success(GeneratedFragment.sql(s"${queryRef.sqlString} AS $as"))
-              case queryExpr =>
-                ParseResult.error(queryExpr.fullTerm, "unable to resolve reference for sub-query return")
-            }
-          case None =>
-            elem.expr match {
-              case query: QueryExpr.QueryVariableReferenceLike => GenerationContext.updated(query = GenerationContext.Parens.Never) { queryExprToFragment.query(query) }
-              case queryExpr                                   => queryExprToFragment(queryExpr, None)
-            }
-        }
-      }
-        .map { res => GeneratedFragment.flatten(res.intersperse(GeneratedFragment.sql(s",\n$idt"))) }
-    }
+  object ret {
 
+    def apply(r: ReturningPart, idt: String)(using ParseContext, GenerationContext, Quotes): ParseResult[Option[GeneratedFragment]] =
+      r match {
+        case _: ReturningPart.BasicUnit => ParseResult.success(None)
+        case r: ReturningPart.BasicNel  => ret.basicNel(r, idt).map(_.some)
+        case r: ReturningPart.SubQuery  => ret.subQuery(r, idt).map(_.some)
+        case r: ReturningPart.Aggregate => ret.aggregate(r, idt).map(_.some)
+      }
+
+    def basicNel(r: ReturningPart.BasicNel, idt: String)(using ParseContext, GenerationContext, Quotes): ParseResult[GeneratedFragment] =
+      r.returningExprs
+        .traverse { elem =>
+          elem.expr match {
+            case query: QueryExpr.QueryVariableReferenceLike => GenerationContext.updated(query = GenerationContext.Parens.Never) { queryExprToFragment.query(query) }
+            case queryExpr                                   => queryExprToFragment(queryExpr, None)
+          }
+        }
+        .map { res => GeneratedFragment.flatten(res.intersperse(GeneratedFragment.sql(s",\n$idt"))) }
+
+    def subQuery(r: ReturningPart.SubQuery, idt: String)(using Quotes): ParseResult[GeneratedFragment] =
+      r.returningExprs
+        .traverse { elem =>
+          elem.expr match {
+            case QueryExpr.QueryVariableReferenceLike.ReferencedVariable(_, queryRef) =>
+              val frag =
+                GeneratedFragment.of(
+                  s"( ${queryRef.sqlString} :: ",
+                  queryRef.tableRepr.tableType,
+                  s" ) AS ${elem.as}",
+                )
+              ParseResult.success(frag)
+          }
+        }
+        .map { res => GeneratedFragment.flatten(res.intersperse(GeneratedFragment.sql(s",\n$idt"))) }
+
+    def aggregate(r: ReturningPart.Aggregate, idt: String)(using ParseContext, GenerationContext, Quotes): ParseResult[GeneratedFragment] =
+      ??? // FIX-PRE-MERGE (KR) :
+
+  }
+
+  // FIX-PRE-MERGE (KR) : move into `ret`
   def requiredRet(r: ReturningPart, idt: String)(using ParseContext, GenerationContext, Quotes): ParseResult[GeneratedFragment] =
     ret(r, idt).flatMap {
       case Some(value) => ParseResult.success(value)

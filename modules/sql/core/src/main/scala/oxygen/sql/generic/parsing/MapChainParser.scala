@@ -26,18 +26,23 @@ private[generic] object MapChainParser {
     def ||[B >: A](that: MapChainParser[B]): MapChainParser[B] =
       Or(self, that)
 
-    def withReturning(using zip: Zip3[A, ReturningPart, RefMap]): Parser[Term, zip.Out] =
-      new Parser[Term, zip.Out] {
-        override def parse(input: Term)(using ParseContext, Quotes): ParseResult[zip.Out] =
+    def withReturningAcceptingRefs(using zip: Zip3[A, ReturningPart.NonSubQuery, RefMap]): Parser[(Term, RefMap), zip.Out] =
+      new Parser[(Term, RefMap), zip.Out] {
+        override def parse(input: (Term, RefMap))(using ParseContext, Quotes): ParseResult[zip.Out] = {
+          val (term, refs) = input
           for {
-            MapChainResult(aValue, aFunct, aRefs, aTerm) <- self.parse(input, RefMap.empty, "<init>")
+            MapChainResult(aValue, aFunct, aRefs, aTerm) <- self.parse(term, refs, "<init>")
             ret <- ParseContext.add("Returning") {
               ParseResult.validate(aFunct == "map")(aTerm, s"expected final `map`, not $aFunct\n\nparsed:\n$aValue").flatMap { _ =>
-                ReturningPart.parse((aTerm, aRefs))
+                ReturningPart.NonSubQuery.parse((aTerm, aRefs))
               }
             }
           } yield zip.zip(aValue, ret, aRefs)
+        }
       }
+
+    def withReturningEmptyRefs(using zip: Zip3[A, ReturningPart.NonSubQuery, RefMap]): Parser[Term, zip.Out] =
+      withReturningAcceptingRefs.contraMap((_, RefMap.empty))
 
     def map[B](f: A => B): MapChainParser[B] =
       Mapped(self, f)

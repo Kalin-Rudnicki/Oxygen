@@ -62,6 +62,11 @@ trait SparseStreamAggregator[_RawInput, _Output] {
 
   final def optional: SparseStreamAggregator[RawInput, Option[Output]] = SparseStreamAggregator.Optional(this)
   final def many[S[_]: SeqOps]: SparseStreamAggregator[RawInput, S[Output]] = SparseStreamAggregator.Many[RawInput, Output, S](this)
+  final def nel: SparseStreamAggregator[RawInput, NonEmptyList[Output]] = this.many[List].mapOption(NonEmptyList.fromList)
+
+  final def map[Output2](f: Output => Output2): SparseStreamAggregator[RawInput, Output2] = SparseStreamAggregator.MapUnderlying(this, f)
+  final def mapOption[Output2](f: Output => Option[Output2]): SparseStreamAggregator[RawInput, Output2] = SparseStreamAggregator.MapOptionUnderlying(this, f)
+  // TODO (KR) : final def mapOrFail[Output2](f: Output => Either[String, Output2])
 
   /**
     * Note: When combining multiple aggs, the LHS will be eagerly emitted.
@@ -97,13 +102,17 @@ object SparseStreamAggregator {
       case Some(value) => Attempt.Value(value)
       case None        => Attempt.NoValue
 
-    override def accept(input: Input): Attempt.Required[Ior.Distinct[State, Output]] = Attempt.Value(input.asIorRight)
+    override def accept(input: Input): Attempt.Required[Ior.Distinct[State, Output]] =
+      Attempt.Value(input.asIorRight)
 
-    override def accept(state: State, input: Input): Attempt.Required[Ior[State, Output]] = Attempt.Invalid // not possible, Input=Nothing
+    override def accept(state: State, input: Input): Attempt.Required[Ior[State, Output]] =
+      throw new RuntimeException("Leaf.complete(State) should not be possible, Input=Nothing") // not possible, Input=Nothing
 
-    override def complete(state: State): Attempt.Required[Output] = Attempt.Invalid // not possible, Input=Nothing
+    override def complete(state: State): Attempt.Required[Output] =
+      throw new RuntimeException("Leaf.complete(State) should not be possible, Input=Nothing") // not possible, Input=Nothing
 
-    override def complete(): Attempt.Required[Output] = Attempt.Invalid
+    override def complete(): Attempt.Required[Output] =
+      Attempt.Invalid("Missing required value".some)
 
   }
 
@@ -141,8 +150,8 @@ object SparseStreamAggregator {
         case Ior.Both(state2, output) => (state2.some, acc :+ output).asIorLeft
       }
 
-    override def accept(input: Input): Attempt.Required[Ior.Distinct[State, Output]] = acceptShared(None, Growable.empty, input)
-    override def accept(state: State, input: Input): Attempt.Required[Ior[State, Output]] = acceptShared(state._1, state._2, input)
+    override def accept(input: Input): Attempt.Required[Ior.Distinct[State, Nothing]] = acceptShared(None, Growable.empty, input)
+    override def accept(state: State, input: Input): Attempt.Required[Ior[State, Nothing]] = acceptShared(state._1, state._2, input)
 
     override def complete(state: State): Attempt.Required[Output] =
       state._1 match
@@ -151,6 +160,77 @@ object SparseStreamAggregator {
 
     override def complete(): Attempt.Required[Output] =
       Attempt.Value(seqOps.newBuilder[inner.Output].result())
+
+    override def parseInput(raw: RawInput): Attempt.Optional[Input] =
+      inner.parseInput(raw)
+
+  }
+
+  final case class MapUnderlying[_RawInput, _Output1, _Output2](
+      inner: SparseStreamAggregator[_RawInput, _Output1],
+      f: _Output1 => _Output2,
+  ) extends SparseStreamAggregator[_RawInput, _Output2] {
+
+    override protected type _Input = inner.Input
+    override protected type _State = inner.State
+
+    override def accept(input: Input): Attempt.Required[Ior.Distinct[State, Output]] = inner.accept(input).map(_.map(f))
+
+    override def accept(state: State, input: Input): Attempt.Required[Ior[State, Output]] = inner.accept(state, input).map(_.map(f))
+
+    override def complete(state: State): Attempt.Required[Output] = inner.complete(state).map(f)
+
+    override def complete(): Attempt.Required[Output] = inner.complete().map(f)
+
+    override def parseInput(raw: RawInput): Attempt.Optional[Input] = inner.parseInput(raw)
+
+  }
+
+  final case class MapOptionUnderlying[_RawInput, _Output1, _Output2](
+      inner: SparseStreamAggregator[_RawInput, _Output1],
+      f: _Output1 => Option[_Output2],
+  ) extends SparseStreamAggregator[_RawInput, _Output2] {
+
+    override protected type _Input = inner.Input
+    override protected type _State = inner.State
+
+    override def accept(input: Input): Attempt.Required[Ior.Distinct[State, Output]] =
+      inner.accept(input).flatMap {
+        case Ior.Right(right) =>
+          f(right) match {
+            case Some(value) => Attempt.Value(Ior.Right(value))
+            case None        => Attempt.Invalid(None)
+          }
+        case left: Ior.Left[State] =>
+          Attempt.Value(left)
+      }
+
+    override def accept(state: State, input: Input): Attempt.Required[Ior[State, Output]] =
+      inner.accept(input).flatMap {
+        case Ior.Right(right) =>
+          f(right) match {
+            case Some(value) => Attempt.Value(Ior.Right(value))
+            case None        => Attempt.Invalid(None)
+          }
+        case left: Ior.Left[State] =>
+          Attempt.Value(left)
+      }
+
+    override def complete(state: State): Attempt.Required[Output] =
+      inner.complete(state).flatMap {
+        f(_) match {
+          case Some(value) => Attempt.Value(value)
+          case None        => Attempt.Invalid(None)
+        }
+      }
+
+    override def complete(): Attempt.Required[Output] =
+      inner.complete().flatMap {
+        f(_) match {
+          case Some(value) => Attempt.Value(value)
+          case None        => Attempt.Invalid(None)
+        }
+      }
 
     override def parseInput(raw: RawInput): Attempt.Optional[Input] =
       inner.parseInput(raw)
@@ -242,7 +322,7 @@ object SparseStreamAggregator {
         case (Attempt.Value(v1), Attempt.NoValue) => Attempt.Value(v1.asLeft)
         case (Attempt.NoValue, Attempt.Value(v2)) => Attempt.Value(v2.asRight)
         case (Attempt.NoValue, Attempt.NoValue)   => Attempt.NoValue
-        case _                                    => Attempt.Invalid
+        case _                                    => Attempt.Invalid("Invalid permutation of sparse fields".some)
       }
     }
 
@@ -258,41 +338,98 @@ object SparseStreamAggregator {
 
       final def toRequired: Required[A] = this match
         case required: Required[A] => required
-        case NoValue               => Invalid
+        case NoValue               => Invalid("Missing required value".some)
 
     }
 
     sealed trait Required[+A] extends Optional[A] {
 
       final def map[B](f: A => B): Attempt.Required[B] = this match
-        case Value(value) => Attempt.Value(f(value))
-        case Invalid      => Invalid
+        case Value(value)     => Attempt.Value(f(value))
+        case invalid: Invalid => invalid
 
       final def flatMap[B](f: A => Attempt.Required[B]): Attempt.Required[B] = this match
-        case Value(value) => f(value)
-        case Invalid      => Invalid
+        case Value(value)     => f(value)
+        case invalid: Invalid => invalid
 
     }
 
     final case class Value[+A](value: A) extends Required[A]
     case object NoValue extends Optional[Nothing]
-    case object Invalid extends Required[Nothing]
+    final case class Invalid(message: Option[String]) extends Required[Nothing]
 
   }
 
-  private def aggregatorChannel[E, RawInput, Output](agg: SparseStreamAggregator[RawInput, Output]): ZChannel[Any, E, Chunk[RawInput], Any, E, Chunk[Output], Any] = {
+  sealed trait Failure extends Throwable {
+
+    def show: String
+
+    override final def getMessage: String = show
+    override final def toString: String = show
+
+  }
+  object Failure {
+
+    final class UnableToApplyInput(val agg: SparseStreamAggregator[?, ?])(
+        val rawInput: agg.RawInput,
+        val parsedInput: agg.Input,
+        val state: Option[agg.State],
+        val message: Option[String],
+    ) extends Failure {
+
+      override def show: String =
+        s"""Unable to apply input:
+           |  rawInput: $rawInput
+           |  parsedInput: $parsedInput
+           |  state: ${state.fold("<none>")(_.toString)}
+           |  message: ${message.getOrElse("<none>")}""".stripMargin
+
+    }
+
+    final class UnableToCompleteState(val agg: SparseStreamAggregator[?, ?])(
+        val state: agg.State,
+        val message: Option[String],
+    ) extends Failure {
+
+      override def show: String =
+        s"""Unable to complete state:
+           |  state: $state
+           |  message: ${message.getOrElse("<none>")}""".stripMargin
+
+    }
+
+    final class UnableToParseInput(val agg: SparseStreamAggregator[?, ?])(
+        val rawInput: agg.RawInput,
+        val state: Option[agg.State],
+        val message: Option[String],
+    ) extends Failure {
+
+      override def show: String =
+        s"""Unable to parse input:
+           |  rawInput: $rawInput
+           |  state: ${state.fold("<none>")(_.toString)}
+           |  message: ${message.getOrElse("<none>")}""".stripMargin
+
+    }
+
+  }
+
+  // TODO (KR) : support the ability to optionally map a `Failure => E`, allowing for `ZIO.fail` instead of `ZIO.die`
+  private def aggregatorChannel[E, RawInput, Output](
+      agg: SparseStreamAggregator[RawInput, Output],
+  ): ZChannel[Any, E, Chunk[RawInput], Any, E, Chunk[Output], Any] = {
     type State = Option[agg.State]
 
-    def handleChunk(state1: State, inChunk: Chunk[RawInput]): (Either[String, State], Chunk[Output]) = {
+    def handleChunk(state1: State, inChunk: Chunk[RawInput]): (Either[Failure, State], Chunk[Output]) = {
       val builder = Chunk.newBuilder[Output]
 
       val len = inChunk.length
       @tailrec
-      def loop(idx: Int, state1: State): (Either[String, State], Chunk[Output]) =
+      def loop(idx: Int, state1: State): (Either[Failure, State], Chunk[Output]) =
         if idx < len then {
           val rawIn = inChunk(idx)
 
-          agg.parseInput(rawIn) match {
+          agg.parseInput(rawIn).toRequired match {
             case Attempt.Value(parsedIn) =>
               agg.accept(state1, parsedIn) match {
                 case Attempt.Value(value) =>
@@ -301,27 +438,16 @@ object SparseStreamAggregator {
                     case Ior.Right(output)        => builder.addOne(output); loop(idx + 1, None)
                     case Ior.Both(state2, output) => builder.addOne(output); loop(idx + 1, state2.some)
                   }
-                case Attempt.Invalid =>
+                case Attempt.Invalid(message) =>
+
                   (
-                    s"""Unable to apply input:
-                       |  rawInput: $rawIn
-                       |  parsedInput: $parsedIn
-                       |  state: $state1""".stripMargin.asLeft,
+                    Failure.UnableToApplyInput(agg)(rawIn, parsedIn, state1, message).asLeft,
                     builder.result(),
                   )
               }
-            case Attempt.Invalid =>
+            case Attempt.Invalid(message) =>
               (
-                s"""Unable to parse input:
-                   |  rawInput: $rawIn
-                   |  state: $state1""".stripMargin.asLeft,
-                builder.result(),
-              )
-            case Attempt.NoValue =>
-              (
-                s"""Input has no value:
-                   |  rawInput: $rawIn
-                   |  state: $state1""".stripMargin.asLeft,
+                Failure.UnableToParseInput(agg)(rawIn, state1, message).asLeft,
                 builder.result(),
               )
           }
@@ -338,8 +464,8 @@ object SparseStreamAggregator {
           (state2, outChunk.nonEmpty) match {
             case (Right(state2), true)  => ZChannel.write(outChunk) *> rec(state2)
             case (Right(state2), false) => rec(state2)
-            case (Left(invalid), true)  => ZChannel.write(outChunk) *> ZChannel.fromZIO { ZIO.dieMessage(invalid) } // TODO (KR) : improve this
-            case (Left(invalid), false) => ZChannel.write(outChunk) *> ZChannel.fromZIO { ZIO.dieMessage(invalid) } // TODO (KR) : improve this
+            case (Left(invalid), true)  => ZChannel.write(outChunk) *> ZChannel.fromZIO { ZIO.die(invalid) } // TODO (KR) : improve this
+            case (Left(invalid), false) => ZChannel.write(outChunk) *> ZChannel.fromZIO { ZIO.die(invalid) } // TODO (KR) : improve this
           }
         },
         ZChannel.refailCause,
@@ -347,8 +473,8 @@ object SparseStreamAggregator {
           state1 match {
             case Some(state1) =>
               agg.complete(state1) match {
-                case Attempt.Value(output) => ZChannel.write(Chunk.single(output)) *> ZChannel.unit
-                case Attempt.Invalid       => ZChannel.fromZIO { ZIO.dieMessage(s"Invalid input: EOF, state=$state1") } // TODO (KR) : improve this
+                case Attempt.Value(output)    => ZChannel.write(Chunk.single(output)) *> ZChannel.unit
+                case Attempt.Invalid(message) => ZChannel.fromZIO { ZIO.die(Failure.UnableToCompleteState(agg)(state1, message)) } // TODO (KR) : improve this
               }
             case None =>
               ZChannel.unit

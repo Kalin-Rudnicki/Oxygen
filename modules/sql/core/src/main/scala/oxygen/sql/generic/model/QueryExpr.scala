@@ -68,7 +68,7 @@ private[generic] object QueryExpr extends Parser[RawQueryExpr, QueryExpr] {
 
     override def parse(expr: RawQueryExpr.VariableReferenceLike)(using ParseContext, Quotes): ParseResult[QueryExpr.VariableReferenceLike] =
       expr match {
-        case RawQueryExpr.ReferencedVariable(term, queryRef: VariableReference.FromQuery) =>
+        case RawQueryExpr.ReferencedVariable(term, queryRef: VariableReference.QueryLike) =>
           ParseResult.Success(QueryExpr.QueryVariableReferenceLike.ReferencedVariable(term, queryRef))
         case RawQueryExpr.ReferencedVariable(term, queryRef: VariableReference.InputLike) =>
           ParseResult.Success(QueryExpr.InputVariableReferenceLike.ReferencedVariable(term, queryRef))
@@ -112,8 +112,8 @@ private[generic] object QueryExpr extends Parser[RawQueryExpr, QueryExpr] {
     override val queryRef: VariableReference.InputLike
 
     final def isOptional: Boolean = queryRef match
-      case _: VariableReference.OptionalFromInput => true
-      case _                                      => false
+      case _: VariableReference.OptionalInputParam => true
+      case _                                       => false
 
     override final def show(using Quotes): String = this match
       case QueryExpr.InputVariableReferenceLike.ReferencedVariable(_, queryRef)   => queryRef.show
@@ -191,14 +191,13 @@ private[generic] object QueryExpr extends Parser[RawQueryExpr, QueryExpr] {
   sealed trait QueryVariableReferenceLike extends VariableReferenceLike {
 
     def rowRepr(using Quotes): TypeclassExpr.RowRepr
-    override val queryRef: VariableReference.FromQuery
+    override val queryRef: VariableReference.QueryLike
     final lazy val isRoot: Boolean = queryRef.isRoot
 
     override final def show(using Quotes): String = this match
-      case QueryExpr.QueryVariableReferenceLike.ReferencedVariable(_, VariableReference.FromQuery(_, _, _, true, sqlString))  => sqlString.hexFg("#A81ADB").toString
-      case QueryExpr.QueryVariableReferenceLike.ReferencedVariable(_, VariableReference.FromQuery(_, _, _, false, sqlString)) => sqlString.hexFg("#540D6E").toString
-      case QueryExpr.QueryVariableReferenceLike.ProductFieldSelect(select, inner)                                             => s"${inner.show}.${select.name.cyanFg}"
-      case QueryExpr.QueryVariableReferenceLike.OptionGet(_, inner)                                                           => s"${inner.show}.${"get".blueFg}"
+      case QueryExpr.QueryVariableReferenceLike.ReferencedVariable(_, varRef)          => varRef.show
+      case QueryExpr.QueryVariableReferenceLike.ProductFieldSelect(select, inner)      => s"${inner.show}.${select.name.cyanFg}"
+      case QueryExpr.QueryVariableReferenceLike.OptionGet(_, inner)                    => s"${inner.show}.${"get".blueFg}"
       case sel @ QueryExpr.QueryVariableReferenceLike.SelectPrimaryKey(_, inner, _)    => s"${inner.show}.${"tablePK".hexFg("#35A7FF")}(using ${sel.rowRepr.show})"
       case sel @ QueryExpr.QueryVariableReferenceLike.SelectNonPrimaryKey(_, inner, _) => s"${inner.show}.${"tableNPK".hexFg("#35A7FF")}(using ${sel.rowRepr.show})"
 
@@ -208,7 +207,7 @@ private[generic] object QueryExpr extends Parser[RawQueryExpr, QueryExpr] {
     sealed trait CanSelect extends QueryVariableReferenceLike
     sealed trait CanNotSelect extends QueryVariableReferenceLike
 
-    final case class ReferencedVariable(ident: Ident, queryRef: VariableReference.FromQuery) extends CanSelect {
+    final case class ReferencedVariable(ident: Ident, queryRef: VariableReference.QueryLike) extends CanSelect {
       override val fullTerm: Term = ident
       override val rootIdent: Ident = ident
       override def rowRepr(using Quotes): TypeclassExpr.RowRepr = queryRef.rowRepr
@@ -217,28 +216,28 @@ private[generic] object QueryExpr extends Parser[RawQueryExpr, QueryExpr] {
     final case class ProductFieldSelect(select: Select, inner: CanSelect) extends CanSelect {
       override val fullTerm: Term = select
       override val rootIdent: Ident = inner.rootIdent
-      override val queryRef: VariableReference.FromQuery = inner.queryRef
+      override val queryRef: VariableReference.QueryLike = inner.queryRef
       override def rowRepr(using Quotes): TypeclassExpr.RowRepr = inner.rowRepr.productSchemaField(select, select.symbol.name)
     }
 
     final case class OptionGet(select: Select, inner: CanSelect) extends CanSelect {
       override val fullTerm: Term = select
       override val rootIdent: Ident = inner.rootIdent
-      override val queryRef: VariableReference.FromQuery = inner.queryRef
+      override val queryRef: VariableReference.QueryLike = inner.queryRef
       override def rowRepr(using Quotes): TypeclassExpr.RowRepr = inner.rowRepr.optionSchemaGet(select)
     }
 
     final case class SelectPrimaryKey(apply: Apply, inner: CanSelect, givenTableRepr: TypeclassExpr.TableRepr) extends CanNotSelect {
       override val fullTerm: Term = apply
       override val rootIdent: Ident = inner.rootIdent
-      override val queryRef: VariableReference.FromQuery = inner.queryRef
+      override val queryRef: VariableReference.QueryLike = inner.queryRef
       override def rowRepr(using Quotes): TypeclassExpr.RowRepr = givenTableRepr.pkRowRepr(fullTerm)
     }
 
     final case class SelectNonPrimaryKey(apply: Apply, inner: CanSelect, givenTableRepr: TypeclassExpr.TableRepr) extends CanNotSelect {
       override val fullTerm: Term = apply
       override val rootIdent: Ident = inner.rootIdent
-      override val queryRef: VariableReference.FromQuery = inner.queryRef
+      override val queryRef: VariableReference.QueryLike = inner.queryRef
       override def rowRepr(using Quotes): TypeclassExpr.RowRepr = givenTableRepr.npkRowRepr(fullTerm)
     }
 

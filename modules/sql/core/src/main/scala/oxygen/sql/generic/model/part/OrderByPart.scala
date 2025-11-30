@@ -12,7 +12,7 @@ final case class OrderByPart(
 ) {
 
   def show(using Quotes): String =
-    s"    ORDER BY ${orderByExprs.head.show}${orderByExprs.tail.map { p => s"\n             ${p.show}" }.mkString}"
+    s"\n    ORDER BY ${orderByExprs.head.show}${orderByExprs.tail.map { p => s"\n             ${p.show}" }.mkString}"
 
 }
 object OrderByPart extends MapChainParser[OrderByPart] {
