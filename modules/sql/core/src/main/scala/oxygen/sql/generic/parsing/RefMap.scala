@@ -22,18 +22,18 @@ private[generic] final class RefMap private (map: Map[Symbol, VariableReference]
   def getInput(ident: Ident)(using ParseContext): ParseResult[VariableReference.InputLike] =
     find(ident) match {
       case Some(queryRef: VariableReference.InputLike) => ParseResult.Success(queryRef)
-      case Some(_: VariableReference.FromQuery)        => ParseResult.error(ident, "ident belongs to a query param, but an input param is expected")
+      case Some(_: VariableReference.QueryLike)        => ParseResult.error(ident, "ident belongs to a query param, but an input param is expected")
       case None                                        => ParseResult.error(ident, "ident does not belong to an input/query param")
     }
-  def getQuery(ident: Ident)(using ParseContext): ParseResult[VariableReference.FromQuery] =
+  def getQuery(ident: Ident)(using ParseContext): ParseResult[VariableReference.QueryLike] =
     find(ident) match {
-      case Some(queryRef: VariableReference.FromQuery) => ParseResult.Success(queryRef)
+      case Some(queryRef: VariableReference.QueryLike) => ParseResult.Success(queryRef)
       case Some(_: VariableReference.InputLike)        => ParseResult.error(ident, "ident belongs to an input param, but a query param is expected")
       case None                                        => ParseResult.error(ident, "ident does not belong to an input/query param")
     }
 
-  def getRootQueryRef(errorPos: Tree)(using ParseContext): ParseResult[VariableReference.FromQuery] =
-    map.valuesIterator.collect { case ref: VariableReference.FromQuery if ref.isRoot => ref }.toList match
+  def getRootQueryRef(errorPos: Tree)(using ParseContext): ParseResult[VariableReference.QueryLike] =
+    map.valuesIterator.collect { case ref: VariableReference.QueryLike if ref.isRoot => ref }.toList match
       case ref :: Nil => ParseResult.Success(ref)
       case Nil        => ParseResult.error(errorPos, "no root param found?")
       case _          => ParseResult.error(errorPos, "many root params found?")

@@ -9,3 +9,5 @@
 **/metals.sbt
 
 example/apps/web-server/src/main/resources/res/js
+
+**/GEMINI.md

@@ -337,6 +337,15 @@ private[generic] object RawQueryExpr extends Parser[(Term, RefMap), RawQueryExpr
   //      Parse
   //////////////////////////////////////////////////////////////////////////////////////////////////////
 
+  private val unknownString: String =
+    s"""--- Unrecognized query expression ---
+       |`oxygen-sql` implements queries by parsing specific Scala expressions, and converting them into SQL expressions.
+       |It is impossible to convert EVERY scala expression, so only a finite subset of known common expressions are supported.
+       |Please open an issue with the Oxygen library on github if you have a common use-case that is not currently supported.
+       |
+       |`@compile(true)` or `___.compile("query-name", true) { ??? }` will enable debug mode, and print a more verbose output of the unsupported expression.
+       |""".stripMargin
+
   override def parse(input: (Term, RefMap))(using ParseContext, Quotes): ParseResult[RawQueryExpr] = input match
     case ConstValue.optional(res)          => res
     case ReferencedVariable.optional(res)  => res
@@ -352,6 +361,6 @@ private[generic] object RawQueryExpr extends Parser[(Term, RefMap), RawQueryExpr
     case InstantNow.optional(res)          => res
     case StringConcat.optional(res)        => res
     case OptionApply.optional(res)         => res
-    case (rootTerm, _)                     => ParseResult.unknown(rootTerm, "not a query expr?")
+    case (rootTerm, _)                     => ParseResult.error(rootTerm, unknownString)
 
 }

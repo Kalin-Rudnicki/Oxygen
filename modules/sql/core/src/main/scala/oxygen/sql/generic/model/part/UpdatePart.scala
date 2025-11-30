@@ -7,18 +7,18 @@ import oxygen.sql.query.dsl.{Q, T}
 import scala.quoted.*
 
 final case class UpdatePart(
-    eitherMapQueryRef: Either[Function.RootParam.Ignored, VariableReference.FromQuery],
+    eitherMapQueryRef: Either[Function.RootParam.Ignored, VariableReference.QueryLike],
     tableRepr: TypeclassExpr.TableRepr,
     mapSetParam: Function.NamedParam,
 ) {
 
-  def queryRef: Option[VariableReference.FromQuery] =
+  def queryRef: Option[VariableReference.QueryLike] =
     eitherMapQueryRef.toOption
 
-  def queryRefOrPlaceholder: VariableReference.FromQuery =
+  def queryRefOrPlaceholder: VariableReference.QueryLike =
     eitherMapQueryRef match {
       case Right(queryRef) => queryRef
-      case Left(ignored)   => VariableReference.FromQuery(Function.RootParam.Named(ignored.valDef), tableRepr, true)
+      case Left(ignored)   => VariableReference.QueryTableReference(Function.RootParam.Named(ignored.valDef), tableRepr, true)
     }
 
   def show: String =
@@ -35,7 +35,7 @@ object UpdatePart extends MapChainParser[UpdatePart] {
       (mapParam, mapSetParam) <- mapAAFC.funct.parseParam2Either // (varRef, set) <- Q.update[_]
       mapFunctName <- functionNames.mapOrFlatMap.parse(mapAAFC.nameRef).unknownAsError
 
-      mapQueryRef = mapParam.map { p1 => VariableReference.FromQuery(p1, tableRepr, true) }
+      mapQueryRef = mapParam.map { p1 => VariableReference.QueryTableReference(p1, tableRepr, true) }
       update = UpdatePart(mapQueryRef, tableRepr, mapSetParam)
       newRefs = refs.add(update.queryRefOrPlaceholder)
 

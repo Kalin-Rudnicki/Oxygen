@@ -7,7 +7,7 @@ import oxygen.sql.query.dsl.{Q, T}
 import scala.quoted.*
 
 final case class DeletePart(
-    mapQueryRef: VariableReference.FromQuery,
+    mapQueryRef: VariableReference.QueryLike,
     tableRepr: TypeclassExpr.TableRepr,
 ) {
 
@@ -25,7 +25,7 @@ object DeletePart extends MapChainParser[DeletePart] {
       mapParam <- mapAAFC.funct.parseParam1
       mapFunctName <- functionNames.mapOrFlatMap.parse(mapAAFC.nameRef).unknownAsError
 
-      mapQueryRef = VariableReference.FromQuery(mapParam, tableRepr, true)
+      mapQueryRef = VariableReference.QueryTableReference(mapParam, tableRepr, true)
       newRefs = refs.add(mapQueryRef)
 
     } yield MapChainResult(DeletePart(mapQueryRef, tableRepr), mapFunctName, newRefs, mapAAFC.appliedFunctionBody)

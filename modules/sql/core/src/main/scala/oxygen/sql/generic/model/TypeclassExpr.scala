@@ -16,6 +16,8 @@ object TypeclassExpr {
     def tableRowRepr: TypeclassExpr.RowRepr =
       TypeclassExpr.RowRepr { '{ $expr.rowRepr } }
 
+    def tableType(using Quotes): Expr[String] = '{ $expr.ref }
+
     private def pkRowReprShared(fullTerm: Term, field: String): TypeclassExpr.RowRepr =
       TypeclassExpr.RowRepr {
         type T

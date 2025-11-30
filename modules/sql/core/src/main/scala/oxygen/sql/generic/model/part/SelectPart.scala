@@ -3,6 +3,7 @@ package oxygen.sql.generic.model.part
 import oxygen.predef.core.*
 import oxygen.quoted.*
 import oxygen.sql.generic.model.*
+import oxygen.sql.generic.model.full.FullSelectQuery
 import oxygen.sql.generic.parsing.*
 import oxygen.sql.query.dsl.{Q, T}
 import scala.quoted.*
@@ -19,7 +20,7 @@ sealed trait SelectPart {
 object SelectPart extends MapChainParser.Deferred[SelectPart] {
 
   final case class FromTable(
-      mapQueryRef: VariableReference.FromQuery,
+      mapQueryRef: VariableReference.QueryTableReference,
       tableRepr: TypeclassExpr.TableRepr,
   ) extends SelectPart {
 
@@ -37,7 +38,7 @@ object SelectPart extends MapChainParser.Deferred[SelectPart] {
         mapParam <- mapAAFC.funct.parseParam1
         mapFunctName <- functionNames.mapOrFlatMap.parse(mapAAFC.nameRef).unknownAsError
 
-        mapQueryRef = VariableReference.FromQuery(mapParam, tableRepr, true)
+        mapQueryRef = VariableReference.QueryTableReference(mapParam, tableRepr, true)
         newRefs = refs.add(mapQueryRef)
 
       } yield MapChainResult(FromTable(mapQueryRef, tableRepr), mapFunctName, newRefs, mapAAFC.appliedFunctionBody)
@@ -46,8 +47,8 @@ object SelectPart extends MapChainParser.Deferred[SelectPart] {
 
   final case class FromSubQuery(
       subQueryTableName: String,
-      mapQueryRefs: NonEmptyList[VariableReference.FromQuery],
-      subQuery: ParsedQuery.SelectQuery,
+      mapQueryRefs: NonEmptyList[VariableReference.SubQueryReference],
+      subQuery: FullSelectQuery.SubQuery,
   ) extends SelectPart {
 
     override def show(using Quotes): String =
@@ -63,22 +64,37 @@ object SelectPart extends MapChainParser.Deferred[SelectPart] {
         }
         mapParams <- mapAAFC.funct.parseNonEmptyParams
         mapFunctName <- functionNames.mapOrFlatMap.parse(mapAAFC.nameRef).unknownAsError
-        select <- ParseContext.add("SubQuery") { ParsedQuery.SelectQuery.parse(subQueryTerm).unknownAsError }
+        select <- ParseContext.add("SubQuery") { FullSelectQuery.Basic.parse((subQueryTerm, refs)).unknownAsError }
 
-        _ <- ParseResult.validate(mapParams.size == select.ret.returningExprs.size)(select.ret.fullTree, "Number of subQuery params and sub query returning do not match?")
-        zippedParamPairs <- mapParams.zip(NonEmptyList.unsafeFromList(select.ret.returningExprs)).traverse { case (param, ret) =>
-          ret.expr.getRowRepr.map { rowRepr =>
-            val retAs = param.name.camelToSnake
-            val subQueryRef = s"($subQueryTableName.$retAs)"
-            (
-              VariableReference.FromQuery.subquery(param, rowRepr, false, subQueryRef),
-              ReturningPart.Elem(ret.expr, retAs.some),
-            )
+        basicRet: ReturningPart.BasicNel = select.ret
+
+        _ <- ParseResult.validate(mapParams.size == basicRet.returningExprsNel.size)(select.ret.fullTree, "Number of subQuery params and sub query returning do not match?")
+        zippedParamPairs <- mapParams.zip(basicRet.returningExprsNel).traverse { case (param, retElem) =>
+          retElem.expr match {
+            case retExpr: QueryExpr.QueryVariableReferenceLike.ReferencedVariable =>
+              val retAs = param.name.camelToSnake
+              val res =
+                (
+                  VariableReference.SubQueryReference(param, retExpr.queryRef.tableRepr, retExpr.queryRef.rowRepr, false, subQueryTableName, retAs),
+                  ReturningPart.Elem.SubQuery(retExpr, retAs): ReturningPart.Elem.SubQuery,
+                )
+              ParseResult.success(res)
+            case invalid =>
+              ParseResult.error(invalid.fullTerm, "for now, sub-queries are only allowed to return entire rows")
           }
         }
+
         zippedParams = zippedParamPairs.map(_._1)
-        modifiedSelect = select.copy(
-          ret = select.ret.copy(returningExprs = zippedParamPairs.toList.map(_._2)),
+        modifiedSelect = FullSelectQuery.SubQuery(
+          inputs = select.inputs,
+          select = select.select,
+          joins = select.joins,
+          where = select.where,
+          orderBy = select.orderBy,
+          limit = select.limit,
+          offset = select.offset,
+          ret = ReturningPart.SubQuery(basicRet.fullTree, zippedParamPairs.map(_._2)),
+          refs = select.refs,
         )
 
         newRefs = refs.addList(zippedParams.toList)

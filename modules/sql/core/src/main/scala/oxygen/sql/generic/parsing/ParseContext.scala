@@ -10,8 +10,8 @@ private[sql] final case class ParseContext private (context: Growable[String]) {
 }
 private[sql] object ParseContext {
 
-  def root[A](attempting: String)(f: ParseContext ?=> ParseResult[A])(using NotGiven[ParseContext], Quotes): A =
-    f(using ParseContext(Growable.single(attempting))).getOrReport
+  def root[A](attempting: String, debug: Boolean)(f: ParseContext ?=> ParseResult[A])(using NotGiven[ParseContext], Quotes): A =
+    f(using ParseContext(Growable.single(attempting))).getOrReport(debug)
 
   def add[A](ctx: String)(f: ParseContext ?=> A)(using parent: ParseContext): A =
     f(using parent :+ ctx)

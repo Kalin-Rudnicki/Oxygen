@@ -14,14 +14,17 @@ private[generic] sealed trait VariableReference {
   final def tpe: TypeRepr = param.tpe
 
   final def show: String = this match
-    case VariableReference.FromInput(param)                     => param.name.greenFg.toString
-    case VariableReference.OptionalFromInput(param)             => s"optional(${param.name.greenFg})"
-    case VariableReference.FromConstInput(param, term, _)       => s"const(${param.name.greenFg} = ${term.showAnsiCode})"
-    case VariableReference.FromQuery(_, _, _, true, sqlString)  => sqlString.hexFg("#7EB77F").toString
-    case VariableReference.FromQuery(_, _, _, false, sqlString) => sqlString.hexFg("#FFADC6").toString
+    case VariableReference.InputParam(param)                            => param.name.greenFg.toString
+    case VariableReference.OptionalInputParam(param)                    => s"optional(${param.name.greenFg})"
+    case VariableReference.ConstInputParam(param, term, _)              => s"const(${param.name.greenFg} = ${term.showAnsiCode})"
+    case varRef @ VariableReference.QueryTableReference(_, _, _, true)  => varRef.sqlString.hexFg("#7EB77F").toString
+    case varRef @ VariableReference.QueryTableReference(_, _, _, false) => varRef.sqlString.hexFg("#FFADC6").toString
+    case varRef: VariableReference.SubQueryReference                    => varRef.sqlString.hexFg("#FF7DC6").toString
 
 }
 private[generic] object VariableReference {
+
+  /////// Input ///////////////////////////////////////////////////////////////
 
   sealed trait InputLike extends VariableReference, TermTransformer {
     val param: Function.NamedParam
@@ -31,13 +34,13 @@ private[generic] object VariableReference {
     val nonConstInputType: TypeRepr
   }
 
-  final case class FromInput(
+  final case class InputParam(
       param: Function.NamedParam,
   ) extends NonConstInput {
     override val nonConstInputType: TypeRepr = param.tpe
   }
 
-  final case class OptionalFromInput(
+  final case class OptionalInputParam(
       param: Function.NamedParam,
   ) extends NonConstInput {
     override val nonConstInputType: TypeRepr = {
@@ -48,39 +51,47 @@ private[generic] object VariableReference {
     }
   }
 
-  final case class FromConstInput(
+  final case class ConstInputParam(
       param: Function.NamedParam,
       term: Term,
       anyTpe: TypeRepr,
   ) extends InputLike,
         TermTransformer.Die
 
-  final case class FromQuery(
+  /////// Query ///////////////////////////////////////////////////////////////
+
+  sealed trait QueryLike extends VariableReference {
+    protected val param: Function.NamedParam
+    val tableRepr: TypeclassExpr.TableRepr
+    val rowRepr: TypeclassExpr.RowRepr
+    val isRoot: Boolean
+    val sqlString: String
+  }
+
+  final case class QueryTableReference(
       protected val param: Function.NamedParam,
-      optTableRepr: Option[TypeclassExpr.TableRepr],
+      tableRepr: TypeclassExpr.TableRepr,
       rowRepr: TypeclassExpr.RowRepr,
       isRoot: Boolean,
-      sqlString: String,
-  ) extends VariableReference
-  object FromQuery {
+  ) extends QueryLike {
+    override val sqlString: String = param.name.camelToSnake
+  }
+  object QueryTableReference {
 
-    def apply(param: Function.NamedParam, tableRepr: TypeclassExpr.TableRepr, isRoot: Boolean): FromQuery =
-      FromQuery(param, tableRepr.some, tableRepr.tableRowRepr, isRoot, param.name.camelToSnake)
+    def apply(param: Function.NamedParam, tableRepr: TypeclassExpr.TableRepr, isRoot: Boolean): QueryTableReference =
+      QueryTableReference(param, tableRepr, tableRepr.tableRowRepr, isRoot)
 
-    def apply(param: Function.NamedParam, tableRepr: TypeclassExpr.TableRepr, rowRepr: TypeclassExpr.RowRepr, isRoot: Boolean): FromQuery =
-      FromQuery(param, tableRepr.some, rowRepr, isRoot, param.name.camelToSnake)
+  }
 
-    def apply(param: Function.NamedParam, rowRepr: TypeclassExpr.RowRepr, isRoot: Boolean): FromQuery =
-      FromQuery(param, None, rowRepr, isRoot, param.name.camelToSnake)
-
-    def subquery(
-        param: Function.NamedParam,
-        rowRepr: TypeclassExpr.RowRepr,
-        isRoot: Boolean,
-        sqlString: String,
-    ): FromQuery =
-      FromQuery(param, None, rowRepr, isRoot, sqlString)
-
+  final case class SubQueryReference(
+      param: Function.NamedParam,
+      tableRepr: TypeclassExpr.TableRepr,
+      rowRepr: TypeclassExpr.RowRepr,
+      isRoot: Boolean,
+      subQueryTableName: String,
+      retAs: String,
+  ) extends QueryLike {
+    override val sqlString: String = s"($subQueryTableName.$retAs)"
   }
 
 }

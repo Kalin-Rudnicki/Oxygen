@@ -7,7 +7,7 @@ import oxygen.sql.query.dsl.{Q, T}
 import scala.quoted.*
 
 sealed trait InsertPart {
-  val mapQueryRef: Option[VariableReference.FromQuery]
+  val mapQueryRef: Option[VariableReference.QueryLike]
   val tableRepr: TypeclassExpr.TableRepr
   val mapIntoParam: Function.NamedParam
 
@@ -20,7 +20,7 @@ sealed trait InsertPart {
 object InsertPart {
 
   final case class Basic(
-      mapQueryRef: Option[VariableReference.FromQuery],
+      mapQueryRef: Option[VariableReference.QueryLike],
       tableRepr: TypeclassExpr.TableRepr,
       mapIntoParam: Function.NamedParam,
   ) extends InsertPart
@@ -34,7 +34,7 @@ object InsertPart {
         (mapParam, mapIntoParam) <- mapAAFC.funct.parseParam2Opt // (varRef, into) <- Q.insert[_]
         f1Name <- functionNames.mapOrFlatMap.parse(mapAAFC.nameRef).unknownAsError
 
-        mapQueryRef = mapParam.map { p1 => VariableReference.FromQuery(p1, tableRepr, true) }
+        mapQueryRef = mapParam.map { p1 => VariableReference.QueryTableReference(p1, tableRepr, true) }
         newRefs = refs.add(mapQueryRef.toList*)
 
       } yield MapChainResult(Basic(mapQueryRef, tableRepr, mapIntoParam), f1Name, newRefs, mapAAFC.appliedFunctionBody)
@@ -42,7 +42,7 @@ object InsertPart {
   }
 
   final case class FromSelect(
-      mapQueryRef: Option[VariableReference.FromQuery],
+      mapQueryRef: Option[VariableReference.QueryLike],
       tableRepr: TypeclassExpr.TableRepr,
       mapIntoParam: Function.NamedParam,
   ) extends InsertPart
@@ -56,7 +56,7 @@ object InsertPart {
         (mapParam, mapIntoParam) <- mapAAFC.funct.parseParam2Opt // (varRef, into) <- Q.insert[_]
         f1Name <- functionNames.mapOrFlatMap.parse(mapAAFC.nameRef).unknownAsError
 
-        mapQueryRef = mapParam.map { p1 => VariableReference.FromQuery(p1, tableRepr, true) }
+        mapQueryRef = mapParam.map { p1 => VariableReference.QueryTableReference(p1, tableRepr, true) }
         newRefs = refs.add(mapQueryRef.toList*)
 
       } yield MapChainResult(FromSelect(mapQueryRef, tableRepr, mapIntoParam), f1Name, newRefs, mapAAFC.appliedFunctionBody)

@@ -49,7 +49,7 @@ final class DecoderBuilder {
 
   }
 
-  def ret(r: ReturningPart, parentContext: Option[TypeclassExpr.RowRepr])(using ParseContext, Quotes): ParseResult[GeneratedResultDecoder] =
+  def ret(r: ReturningPart.Basic, parentContext: Option[TypeclassExpr.RowRepr])(using ParseContext, Quotes): ParseResult[GeneratedResultDecoder] =
     r.returningExprs.traverse(e => convert(e.expr, parentContext)).map(GeneratedResultDecoder.flatten(_))
 
 }
