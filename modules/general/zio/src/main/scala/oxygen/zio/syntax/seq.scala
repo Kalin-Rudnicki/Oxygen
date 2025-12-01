@@ -8,7 +8,7 @@ object seq {
   extension [F[_], A](self: F[A])(using seqOps: SeqOps[F]) {
 
     def mapZIO[R, E, B](f: A => ZIO[R, E, B]): ZIO[R, E, F[B]] =
-      if (seqOps.knownSize(self) == 0) ZIO.succeed(seqOps.newBuilder[B].result())
+      if seqOps.knownSize(self) == 0 then ZIO.succeed(seqOps.newBuilder[B].result())
       else
         ZIO.suspendSucceed {
           val iterator = seqOps.newIterator(self)
@@ -23,7 +23,7 @@ object seq {
 
     def foreachZIO[R, E](f: A => ZIO[R, E, Any]): ZIO[R, E, Unit] =
       ZIO.suspendSucceed {
-        if (seqOps.knownSize(self) == 0) Exit.unit
+        if seqOps.knownSize(self) == 0 then Exit.unit
         else {
           val iterator = seqOps.newIterator(self)
           ZIO.whileLoop(iterator.hasNext)(f(iterator.next()))(_ => ())

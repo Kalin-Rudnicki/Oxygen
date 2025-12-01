@@ -124,16 +124,14 @@ final class EndpointRepr[Api](val route: RouteRepr[Api])(using Quotes) {
         }
       case Nil =>
         '{
-          if ($remainingPathExpr.isEmpty)
-            Some(${ route.convertEnv(nonPathParseLoop(ctx, route.nonPathParams.toList, parsed)) })
-          else
-            None
+          if $remainingPathExpr.isEmpty then Some(${ route.convertEnv(nonPathParseLoop(ctx, route.nonPathParams.toList, parsed)) })
+          else None
         }
     }
 
   private def toEndpointImpl(ctx: Context): Expr[Option[URIO[route.EnvOut, Response]]] =
     '{
-      if (${ ctx.requestContext }.request.method == ${ Expr(route.method) })
+      if ${ ctx.requestContext }.request.method == ${ Expr(route.method) } then
         ${
           pathParseLoop(
             ctx,

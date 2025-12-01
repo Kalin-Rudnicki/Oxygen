@@ -14,7 +14,7 @@ object IsolationAspectSpec extends OxygenSpec[Database] {
   // override def defaultLogLevel: LogLevel = LogLevel.Trace
 
   def makeTest(n: Int, isolated: Boolean): TestSpec =
-    test(s"test - $n (${if (isolated) "" else "NOT "}isolated)") {
+    test(s"test - $n (${if isolated then "" else "NOT "}isolated)") {
       for {
         groupId <- Random.nextUUID
         people <- Person.generate(groupId)().replicateZIO(10).map(_.toSet)
@@ -26,23 +26,23 @@ object IsolationAspectSpec extends OxygenSpec[Database] {
         selectAll <- Person.selectAll().to[Set]
       } yield assertTrue(
         selectByGroupId == people,
-        if (isolated) selectAll == people
+        if isolated then selectAll == people
         else selectAll != people && selectAll.size > people.size,
       )
     }
 
   def tableIsEmptySpec(shouldBeEmpty: Boolean): TestSpec =
-    test(s"test whether person table IS${if (shouldBeEmpty) "" else " NOT"} empty") {
+    test(s"test whether person table IS${if shouldBeEmpty then "" else " NOT"} empty") {
       for {
         selectAll <- Person.selectAll().to[Set]
       } yield assertTrue(
-        if (shouldBeEmpty) selectAll.isEmpty
+        if shouldBeEmpty then selectAll.isEmpty
         else selectAll.nonEmpty,
       )
     }
 
   def makeSpec(isolated: Boolean): TestSpec =
-    suite(s"${if (isolated) "" else "NOT "}isolated")(
+    suite(s"${if isolated then "" else "NOT "}isolated")(
       makeTest(1, isolated),
       makeTest(2, isolated),
       makeTest(3, isolated),

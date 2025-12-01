@@ -749,7 +749,7 @@ final class Apply(val quotes: Quotes)(val unwrap: quotes.reflect.Apply) extends 
   override def unwrapWithin(using newQuotes: Quotes): newQuotes.reflect.Apply = unwrap.asInstanceOf[newQuotes.reflect.Apply]
 
   /**
-    * The `fun` part of an (implicit) application like `fun(args)`
+    * The `fun` part of an (using) application like `fun(args)`
     *
     *  It may be a partially applied method:
     *  ```scala

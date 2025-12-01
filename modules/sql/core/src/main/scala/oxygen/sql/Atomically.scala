@@ -39,7 +39,7 @@ object Atomically {
 
     val atomically: ZIOAspectAtLeastR[Database] =
       new ZIOAspectAtLeastR.Impl[Database] {
-        override def apply[R <: Database, E, A](effect: ZIO[R, E, A])(implicit trace: Trace): ZIO[R, E, A] =
+        override def apply[R <: Database, E, A](effect: ZIO[R, E, A])(using trace: Trace): ZIO[R, E, A] =
           (effect @@ Atomically.atomically).provideSomeLayer[R](LiveDB.layer)
       }
 
@@ -79,7 +79,7 @@ object Atomically {
 
     val atomically: ZIOAspectAtLeastR[Database] =
       new ZIOAspectAtLeastR.Impl[Database] {
-        override def apply[R <: Database, E, A](effect: ZIO[R, E, A])(implicit trace: Trace): ZIO[R, E, A] =
+        override def apply[R <: Database, E, A](effect: ZIO[R, E, A])(using trace: Trace): ZIO[R, E, A] =
           (effect @@ Atomically.atomically).provideSomeLayer[R](RollbackDB.layer)
       }
 

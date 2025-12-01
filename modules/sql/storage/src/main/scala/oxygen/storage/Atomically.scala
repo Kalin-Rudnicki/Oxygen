@@ -7,14 +7,14 @@ trait Atomically extends ZIOAspectPoly.Impl {
   def atomicallyScoped: URIO[Scope, Unit]
   def atomically[R, E, A](effect: ZIO[R, E, A]): ZIO[R, E, A]
 
-  override final def apply[R, E, A](effect: ZIO[R, E, A])(implicit trace: Trace): ZIO[R, E, A] = atomically(effect)
+  override final def apply[R, E, A](effect: ZIO[R, E, A])(using trace: Trace): ZIO[R, E, A] = atomically(effect)
 
 }
 object Atomically {
 
   val atomically: ZIOAspectAtLeastR[Atomically] =
     new ZIOAspectAtLeastR.Impl[Atomically] {
-      override def apply[R <: Atomically, E, A](effect: ZIO[R, E, A])(implicit trace: Trace): ZIO[R, E, A] =
+      override def apply[R <: Atomically, E, A](effect: ZIO[R, E, A])(using trace: Trace): ZIO[R, E, A] =
         ZIO.serviceWithZIO[Atomically](_.atomically(effect))
     }
 

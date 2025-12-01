@@ -20,7 +20,7 @@ trait SeqRead[F[_]] {
     var total: Int = 0
     val iterator = newIterator(self)
 
-    while (iterator.hasNext)
+    while iterator.hasNext do
       knownSize(iterator.next()) match {
         case -1 => return -1
         case sz => total += sz

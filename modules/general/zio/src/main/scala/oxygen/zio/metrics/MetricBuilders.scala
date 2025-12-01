@@ -66,9 +66,9 @@ object MetricBuilders {
     exit match {
       case Exit.Success(_)     => "success"
       case Exit.Failure(cause) =>
-        if (cause.isFailure) "failure"
-        else if (cause.isDie) "defect"
-        else if (cause.isInterrupted) "interrupt"
+        if cause.isFailure then "failure"
+        else if cause.isDie then "defect"
+        else if cause.isInterrupted then "interrupt"
         else "unknown"
     }
 

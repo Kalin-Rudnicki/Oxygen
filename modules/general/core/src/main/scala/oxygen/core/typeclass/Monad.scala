@@ -12,7 +12,7 @@ trait Monad[F[_]] extends Applicative[F] {
 }
 object Monad extends MonadLowPriority.LowPriority1 {
 
-  inline def apply[F[_]](implicit ev: Monad[F]): ev.type = ev
+  inline def apply[F[_]](using ev: Monad[F]): ev.type = ev
 
   given option: Monad[Option] =
     new Monad[Option] {
@@ -78,8 +78,7 @@ object MonadLowPriority {
           val builder = fOps.newBuilder[B]
 
           builder.sizeHint(fOps.knownSize(self))
-          while (iterator.hasNext)
-            builder.addOne(f(iterator.next()))
+          while iterator.hasNext do builder.addOne(f(iterator.next()))
 
           builder.result()
         }
@@ -97,8 +96,7 @@ object MonadLowPriority {
           val iterator = fOps.newIterator(self)
           val builder = fOps.newBuilder[B]
 
-          while (iterator.hasNext)
-            builder.addAll(fOps.newIterator(f(iterator.next())))
+          while iterator.hasNext do builder.addAll(fOps.newIterator(f(iterator.next())))
 
           builder.result()
         }

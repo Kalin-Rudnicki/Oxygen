@@ -33,19 +33,19 @@ object either {
   extension [A](self: A) {
 
     def rightWhen[B](f: A => Boolean)(ifNot: B): Either[B, A] =
-      if (f(self)) self.asRight
+      if f(self) then self.asRight
       else ifNot.asLeft
 
     def rightWhenF[B](f: A => Boolean)(ifNot: A => B): Either[B, A] =
-      if (f(self)) self.asRight
+      if f(self) then self.asRight
       else ifNot(self).asLeft
 
     def leftWhen[B](f: A => Boolean)(ifNot: B): Either[A, B] =
-      if (f(self)) self.asLeft
+      if f(self) then self.asLeft
       else ifNot.asRight
 
     def leftWhenF[B](f: A => Boolean)(ifNot: A => B): Either[A, B] =
-      if (f(self)) self.asLeft
+      if f(self) then self.asLeft
       else ifNot(self).asRight
 
   }

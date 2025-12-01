@@ -33,7 +33,7 @@ object CalculatedMigration {
   ) {
 
     def toIndentedString: IndentedString =
-      IndentedString.section(s"[$stepNo]${if (derived) " (derived)" else ""}:")(
+      IndentedString.section(s"[$stepNo]${if derived then " (derived)" else ""}:")(
         step.toIndentedString,
       )
 

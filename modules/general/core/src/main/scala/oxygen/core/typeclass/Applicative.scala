@@ -7,7 +7,7 @@ trait Applicative[F[_]] extends Functor[F] with Pure[F] {
 }
 object Applicative extends ApplicativeLowPriority.LowPriority1 {
 
-  inline def apply[F[_]](implicit ev: Applicative[F]): ev.type = ev
+  inline def apply[F[_]](using ev: Applicative[F]): ev.type = ev
 
 }
 

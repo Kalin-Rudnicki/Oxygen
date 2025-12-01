@@ -22,7 +22,7 @@ object AutoComplete {
   ): String = {
     val functionName: String = s"__oxygen_cli_complete__$baseName"
     val programArgsString: String =
-      if (programArgs.nonEmpty) s"\n         ${programArgs.map(_.unesc("\"")).mkString(" ")} \\"
+      if programArgs.nonEmpty then s"\n         ${programArgs.map(_.unesc("\"")).mkString(" ")} \\"
       else ""
 
     s"""#!/bin/bash
@@ -172,7 +172,7 @@ object AutoComplete {
         case _                      => false
 
       lazy val valuesIgnoringEquals: List[Arg.ValueLike] =
-        if (hasLeadingEquals) param.values.tail else param.values
+        if hasLeadingEquals then param.values.tail else param.values
 
       lazy val innerLeafCase: Option[SpecialLeafCase] = inner match
         case leaf: Leaf => leaf.leafCase
@@ -215,7 +215,7 @@ object AutoComplete {
         case ValueCompletion.Enum(values) =>
           val low = value.toLowerCase
           val matched: Seq[String] = values.filter(_.toLowerCase.startsWith(low))
-          (if (matched.nonEmpty) matched else values).toList
+          (if matched.nonEmpty then matched else values).toList
       }
 
   }
@@ -405,7 +405,7 @@ object AutoComplete {
           case (Arg.Value(_, value) :: _, 0) =>
             val subCommandNames: List[String] = many.options.toList.map(_._1)
             val matchingNames: List[String] = subCommandNames.filter(_.startsWith(value))
-            ZIO.succeed(if (matchingNames.isEmpty) subCommandNames else matchingNames)
+            ZIO.succeed(if matchingNames.isEmpty then subCommandNames else matchingNames)
           case (Arg.Value(_, value) :: vArgN, _) =>
             many.optionMap.get(value) match {
               case Some(newExe) => findParser(newExe, consumedIndices + 1, completeIdx - 1, placeholderCtx, vArgN, paramArgs)
@@ -429,16 +429,15 @@ object AutoComplete {
       case ParseScope.Leaf(p: Arg.ScopedParam) if p.values.isEmpty =>
         val allOpts: List[String] = paramMap.keySet.toList.sorted
         val matchingOpts: List[String] = allOpts.filter(_.startsWith(p.name.nameWithDashes))
-        ZIO.succeed(if (matchingOpts.nonEmpty) matchingOpts else allOpts)
+        ZIO.succeed(if matchingOpts.nonEmpty then matchingOpts else allOpts)
       case scope @ ParseScope.Leaf(Arg.Value(vIdx, value)) if scope.isSpecialNonEquals =>
         val removedValues: List[Arg.ValueLike] = valueArgs.filter(_.index < vIdx)
         val remaining: List[FlattenedParsers.SimpleValue] = valueParsers.toList.flatMap(_.drop(removedValues.size).headOption).collect { case v: FlattenedParsers.SimpleValue => v }
-        if (remaining.nonEmpty)
-          ZIO.succeed(remaining.flatMap(_.complete(value)))
+        if remaining.nonEmpty then ZIO.succeed(remaining.flatMap(_.complete(value)))
         else {
           val allOpts: List[String] = paramMap.keySet.toList.sorted
           val matchingOpts: List[String] = allOpts.filter(_.startsWith(value))
-          ZIO.succeed(if (matchingOpts.nonEmpty) matchingOpts else allOpts)
+          ZIO.succeed(if matchingOpts.nonEmpty then matchingOpts else allOpts)
         }
       case scope: ParseScope.Param if scope.hasLeadingEquals && scope.valuesIgnoringEquals.isEmpty =>
         // attempting to complete "--param=|"
@@ -454,12 +453,12 @@ object AutoComplete {
           case (Some(paramLike: FlattenedParsers.ParamLike), ParseScope.Leaf(Arg.Value(vIdx, value))) =>
             val removedValues: List[Arg.ValueLike] = scope.valuesIgnoringEquals.filter(_.index < vIdx)
             val remaining: List[FlattenedParsers.SimpleValue] = paramLike.values.toList.flatMap(_.drop(removedValues.size).headOption).collect { case v: FlattenedParsers.SimpleValue => v }
-            if (remaining.nonEmpty) // TODO (KR) : does this need to be smarter?
+            if remaining.nonEmpty then // TODO (KR) : does this need to be smarter?
               ZIO.succeed(remaining.flatMap(_.complete(value)))
             else {
               val allOpts: List[String] = paramMap.keySet.toList.sorted
               val matchingOpts: List[String] = allOpts.filter(_.startsWith(value))
-              ZIO.succeed(if (matchingOpts.nonEmpty) matchingOpts else allOpts)
+              ZIO.succeed(if matchingOpts.nonEmpty then matchingOpts else allOpts)
             }
           case _ =>
             ZIO.succeed(Nil)

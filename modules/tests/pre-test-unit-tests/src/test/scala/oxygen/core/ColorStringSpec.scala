@@ -5,19 +5,19 @@ import scala.util.matching.Regex
 
 object ColorStringSpec extends OxygenSpecDefault {
 
-  private def splitTest(input: ColorString, regex: Regex)(expStart: Boolean, expEnd: Boolean, expStrs: ColorString*)(implicit loc: SourceLocation): TestSpec =
+  private def splitTest(input: ColorString, regex: Regex)(expStart: Boolean, expEnd: Boolean, expStrs: ColorString*)(using loc: SourceLocation): TestSpec =
     test(s"${input.rawString.unesc} : ${regex.regex.unesc}") {
       val (actStart, actStrs, actEnd) = input.detailedSplit(regex)
       assertTrue(actStart == expStart, actEnd == expEnd) &&
       assert(actStrs)(equalTo_unfilteredDiff(expStrs))
     }
 
-  private def interpolationTest(input: ColorString, exp: ColorString)(implicit loc: SourceLocation): TestSpec =
+  private def interpolationTest(input: ColorString, exp: ColorString)(using loc: SourceLocation): TestSpec =
     test(ColorString.make("[", input, "]").whiteBg.toString) {
       assert(input)(equalTo_unfilteredDiff(exp))
     }
 
-  private def toStringTest(input: ColorString, colorMode: ColorMode, exp: String)(implicit loc: SourceLocation): TestSpec =
+  private def toStringTest(input: ColorString, colorMode: ColorMode, exp: String)(using loc: SourceLocation): TestSpec =
     test(s"${ColorString.make("[", input, "]").whiteBg} + $colorMode") {
       assertTrue(input.toString(colorMode) == exp)
     }

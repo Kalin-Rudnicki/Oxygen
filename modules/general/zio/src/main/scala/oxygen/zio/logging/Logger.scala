@@ -82,14 +82,13 @@ object Logger {
         var startOfLine: Boolean = true
 
         inline def startNewLine(): Unit = {
-          if (needsNewLine)
-            writeNewLine()
+          if needsNewLine then writeNewLine()
           needsNewLine = true
           startOfLine = true
         }
 
         inline def putPair(key: String, value: String)(keyColor: Color, valueColor: Color): Unit = {
-          if (startOfLine) startOfLine = false
+          if startOfLine then startOfLine = false
           else sb.append(' ')
 
           colorize(key, keyColor)
@@ -111,12 +110,12 @@ object Logger {
 
         // =====| Metadata |=====
 
-        if (logTimestamp) {
+        if logTimestamp then {
           needsNewLine = true
           putPair("timestamp", now.toString)(metadataKeyColor, metadataValueColor)
         }
 
-        if (logTrace)
+        if logTrace then
           Trace.unapply(trace).foreach { case (location, file, line) =>
             needsNewLine = true
 
@@ -125,14 +124,14 @@ object Logger {
             putPair("line", line.toString)(metadataKeyColor, metadataValueColor)
           }
 
-        if (logFiberId) {
+        if logFiberId then {
           needsNewLine = true
           putPair("fiber-id", fiberId.threadName)(metadataKeyColor, metadataValueColor)
         }
 
         // =====| Annotations |=====
 
-        if (logAnnotations && annotations.nonEmpty) {
+        if logAnnotations && annotations.nonEmpty then {
           startNewLine()
           annotations.foreach { case (key, value) =>
             putPair(key, value)(annotationKeyColor, annotationValueColor)
@@ -141,7 +140,7 @@ object Logger {
 
         // =====| Spans |=====
 
-        if (logSpans && spans0.nonEmpty) {
+        if logSpans && spans0.nonEmpty then {
           startNewLine()
           spans0.foreach { span =>
             putPair(span.label, Duration.fromMillis(nowMillis - span.startTime).render)(spanKeyColor, spanValueColor)
@@ -152,9 +151,8 @@ object Logger {
 
         val message = message0()
 
-        if (message.nonEmpty) {
-          if (needsNewLine)
-            writeNewLine()
+        if message.nonEmpty then {
+          if needsNewLine then writeNewLine()
           needsNewLine = true
 
           writeSafe(message)
@@ -165,7 +163,7 @@ object Logger {
         def printCauseChain(cause: Throwable): Unit = {
           var c: Throwable = cause
 
-          while (c != null) {
+          while c != null do {
             sb.append("\n[cause]: ")
             writeSafe(c.safeGetMessage)
             c = c.getCause
@@ -189,8 +187,7 @@ object Logger {
             case Cause.Fail(value, trace) =>
               sb.append("\n[CAUSE]: <Fail> : ")
               writeSafe(String.valueOf(value))
-              if (ignoreStackless || !stackless)
-                writeTrace(trace)
+              if ignoreStackless || !stackless then writeTrace(trace)
               value.asInstanceOf[Matchable] match {
                 case throwable: Throwable => printCauseChain(throwable.getCause)
                 case _                    => ()
@@ -198,14 +195,12 @@ object Logger {
             case Cause.Die(value, trace) =>
               sb.append("\n[CAUSE]: <Die> : ")
               writeSafe(value.safeGetMessage)
-              if (ignoreStackless || !stackless)
-                writeTrace(trace)
+              if ignoreStackless || !stackless then writeTrace(trace)
               printCauseChain(value.getCause)
             case Cause.Interrupt(fiberId, trace) if writeInterrupt =>
               sb.append("\n[CAUSE]: <Interrupt> : ")
               sb.append(fiberId.threadName)
-              if (ignoreStackless || !stackless)
-                writeTrace(trace)
+              if ignoreStackless || !stackless then writeTrace(trace)
             case Cause.Interrupt(_, _) =>
               ()
             case Cause.Stackless(cause, _stackless) =>

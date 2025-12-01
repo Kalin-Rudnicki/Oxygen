@@ -57,8 +57,7 @@ object Renderer {
   private def patch(currentEntity: RenderedEntity.WithTagAndChildren, newEntity: DOMElement.WithTagAndChildren): ArraySeq[RenderedEntity] = {
     Ior.zippedMapIterator(currentEntity.htmlAttrMap, newEntity.htmlAttrMap).foreach {
       case (k, Ior.Both(before, after)) =>
-        if (before != after)
-          currentEntity.rendered.setAttribute(k, after)
+        if before != after then currentEntity.rendered.setAttribute(k, after)
       case (k, Ior.Right(after)) =>
         currentEntity.rendered.setAttribute(k, after)
       case (k, Ior.Left(_)) =>
@@ -66,8 +65,7 @@ object Renderer {
     }
     Ior.zippedMapIterator(currentEntity.objectAttrMap, newEntity.objectAttrMap).foreach {
       case (k, Ior.Both(before, after)) =>
-        if (before != after)
-          currentEntity.renderedDynamic.updateDynamic(k)(after)
+        if before != after then currentEntity.renderedDynamic.updateDynamic(k)(after)
       case (k, Ior.Right(after)) =>
         currentEntity.renderedDynamic.updateDynamic(k)(after)
       case (k, Ior.Left(_)) =>
@@ -75,8 +73,7 @@ object Renderer {
     }
     (currentEntity.cssStr, newEntity.cssStr) match {
       case (Some(before), Some(after)) =>
-        if (before != after)
-          currentEntity.rendered.setAttribute("style", after)
+        if before != after then currentEntity.rendered.setAttribute("style", after)
       case (None, None) =>
         ()
       case (None, Some(after)) =>
@@ -84,7 +81,7 @@ object Renderer {
       case (Some(_), None) =>
         currentEntity.rendered.removeAttribute("style")
     }
-    if (currentEntity.classes != newEntity.classes) {
+    if currentEntity.classes != newEntity.classes then {
       (currentEntity.classes &~ newEntity.classes).foreach { currentEntity.rendered.classList.remove }
       (newEntity.classes &~ currentEntity.classes).foreach { currentEntity.rendered.classList.add }
     }
@@ -94,7 +91,7 @@ object Renderer {
 
     var idx: Int = 0
 
-    while (idx < minLen) {
+    while idx < minLen do {
       val before = currentEntity.children(idx)
       val after = newEntity.entityChildren(idx)
 
@@ -102,13 +99,13 @@ object Renderer {
 
       idx = idx + 1
     }
-    while (idx < newEntity.entityChildren.length) {
+    while idx < newEntity.entityChildren.length do {
       val after = render(newEntity.entityChildren(idx))
       currentEntity.rendered.appendChild(after.rendered)
       array(idx) = after
       idx = idx + 1
     }
-    while (idx < currentEntity.children.length) {
+    while idx < currentEntity.children.length do {
       currentEntity.rendered.removeChild(currentEntity.children(idx).rendered)
       idx = idx + 1
     }

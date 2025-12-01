@@ -39,7 +39,7 @@ final case class BatchOptimizedInsert[I] private (
   object insert {
 
     private def batchChunkInternal(vs: Chunk[I]): ZIO[Database, QueryError, Long] =
-      if (vs.length == maxAllowedValues) ZIO.logDebug(s"Inserting max batch size of $maxAllowedValues") *> builtQuery.maxPsqlQuery.execute(vs)
+      if vs.length == maxAllowedValues then ZIO.logDebug(s"Inserting max batch size of $maxAllowedValues") *> builtQuery.maxPsqlQuery.execute(vs)
       else ZIO.logDebug(s"Inserting non-max batch size of ${vs.length}") *> builtQuery.ofNumValues(vs.length).execute(vs)
 
     private def megaBatchInternal(vs: Chunk[Chunk[I]]): ZIO[Database, QueryError, Long] =
@@ -91,7 +91,7 @@ final case class BatchOptimizedInsert[I] private (
         vs: Chunk[I],
         cfg: BatchOptimizedInsert.StreamConfig => BatchOptimizedInsert.StreamConfig = identity,
     ): ZIO[Database, QueryError, Long] =
-      if (vs.length <= maxAllowedValues) batchChunkInternal(vs) else stream(ZStream.fromChunk(vs), cfg)
+      if vs.length <= maxAllowedValues then batchChunkInternal(vs) else stream(ZStream.fromChunk(vs), cfg)
 
     def seq[S[_]: SeqRead](
         vs: S[I],
@@ -125,8 +125,7 @@ object BatchOptimizedInsert {
     private val separator = ", "
 
     def toQueryOfSize(size: Int): String = {
-      if (size < 1)
-        throw new RuntimeException(s"WTF are you doing trying to create a query of (size = $size) < 1")
+      if size < 1 then throw new RuntimeException(s"WTF are you doing trying to create a query of (size = $size) < 1")
 
       val builder = mutable.StringBuilder(beforeValues.length + afterValues.length + values.length * size + separator.length * (size - 1))
 
@@ -135,7 +134,7 @@ object BatchOptimizedInsert {
       builder.append(values)
 
       var i: Int = 1
-      while (i < size) {
+      while i < size do {
         builder.append(separator)
         builder.append(values)
         i = i + 1

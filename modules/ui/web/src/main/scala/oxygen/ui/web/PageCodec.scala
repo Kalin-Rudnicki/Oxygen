@@ -156,7 +156,7 @@ object PageCodec {
 
     override def encodeInternal(value: A): (Growable[String], Growable[(String, Chunk[String])]) = {
       val tmp = c.encode(value)
-      if (tmp.nonEmpty) (Growable.empty, Growable.single((key, Chunk.from(tmp))))
+      if tmp.nonEmpty then (Growable.empty, Growable.single((key, Chunk.from(tmp))))
       else (Growable.empty, Growable.empty)
     }
 
@@ -165,10 +165,10 @@ object PageCodec {
   final case class Zipped[A, B, C](a: PageCodec[A], b: PageCodec[B], zip: Zip.Out[A, B, C]) extends PageCodec[C] {
 
     override def decodeInternal(paths: List[String], queryParams: QueryParams): ParseResult[(C, List[String])] =
-      for {
+      for
         (aValue, aRest) <- a.decodeInternal(paths, queryParams)
         (bValue, bRest) <- b.decodeInternal(aRest, queryParams)
-      } yield (zip.zip(aValue, bValue), bRest)
+      yield (zip.zip(aValue, bValue), bRest)
 
     override def encodeInternal(value: C): (Growable[String], Growable[(String, Chunk[String])]) = {
       val (aValue, bValue) = zip.unzip(value)

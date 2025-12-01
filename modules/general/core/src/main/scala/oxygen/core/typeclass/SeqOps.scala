@@ -23,11 +23,9 @@ trait SeqOps[F[_]] extends SeqRead[F], SeqWrite[F] {
     val iterator = newIterator(self)
     val builder = newBuilder[A]
 
-    if (sizeHint != -1)
-      builder.sizeHint(sizeHint)
+    if sizeHint != -1 then builder.sizeHint(sizeHint)
 
-    while (iterator.hasNext)
-      builder.addAll(newIterator(iterator.next()))
+    while iterator.hasNext do builder.addAll(newIterator(iterator.next()))
 
     builder.result()
   }
@@ -36,14 +34,12 @@ trait SeqOps[F[_]] extends SeqRead[F], SeqWrite[F] {
 object SeqOps extends SeqOpsLowPriority.LowPriority1 {
 
   def transform[F[_], G[_], A](self: F[A])(using f: SeqRead[F], g: SeqWrite[G]): G[A] =
-    if (f eq g)
-      self.asInstanceOf[G[A]]
+    if f eq g then self.asInstanceOf[G[A]]
     else {
       val iter = f.newIterator(self)
       val builder = g.newBuilder[A]
       builder.sizeHint(f.knownSize(self))
-      while (iter.hasNext)
-        builder.addOne(iter.next())
+      while iter.hasNext do builder.addOne(iter.next())
       builder.result()
     }
 

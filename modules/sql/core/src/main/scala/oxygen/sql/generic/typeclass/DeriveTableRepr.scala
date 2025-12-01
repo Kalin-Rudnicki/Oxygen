@@ -92,8 +92,7 @@ final class DeriveTableRepr[A: Type](
               case AppliedType(repr, arg :: Nil) if repr =:= opt => arg
               case t                                             => t
 
-        if (!(current.field.typeRepr.removeOption =:= references.field.typeRepr.removeOption))
-          report.errorAndAbort("foreign key field types do not align", pos)
+        if !(current.field.typeRepr.removeOption =:= references.field.typeRepr.removeOption) then report.errorAndAbort("foreign key field types do not align", pos)
 
         ForeignKeyPair(current.asInstanceOf[ForeignKeyField[A, FT]], references.asInstanceOf[ForeignKeyField[RT, FT]])
       }
@@ -125,10 +124,9 @@ final class DeriveTableRepr[A: Type](
           field.annotations.optionalOfValue[primaryKey].nonEmpty
         }
 
-      if (rtFkSubset.bGeneric.children.isEmpty)
-        report.errorAndAbort(s"${rtGeneric.typeRepr.showAnsiCode} does not have a primary key", expr)
+      if rtFkSubset.bGeneric.children.isEmpty then report.errorAndAbort(s"${rtGeneric.typeRepr.showAnsiCode} does not have a primary key", expr)
 
-      if (pairsList.size != rtFkSubset.bGeneric.children.size)
+      if pairsList.size != rtFkSubset.bGeneric.children.size then
         report.errorAndAbort(
           s"foreign key pairs do not have same size as the primary key of ${rtGeneric.typeRepr.showAnsiCode} (${pairsList.size} != ${rtFkSubset.bGeneric.children.size})",
           expr,
@@ -178,8 +176,7 @@ final class DeriveTableRepr[A: Type](
           field.annotations.optionalOfValue[primaryKey].nonEmpty
         }
 
-      if (rtFkSubset.bGeneric.children.size != 1)
-        report.errorAndAbort(s"${rtGeneric.typeRepr.showAnsiCode} does not have a single primary key", expr)
+      if rtFkSubset.bGeneric.children.size != 1 then report.errorAndAbort(s"${rtGeneric.typeRepr.showAnsiCode} does not have a single primary key", expr)
 
       val ftFkField: rtGeneric.Field[RT_FK] =
         rtFkSubset.toSingle.aField.asInstanceOf[rtGeneric.Field[RT_FK]]

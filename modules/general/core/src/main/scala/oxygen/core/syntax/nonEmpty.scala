@@ -6,9 +6,9 @@ object nonEmpty {
 
   extension [F[_], A](self: F[A]) {
 
-    def toNonEmpty(implicit nonEmpty: NonEmpty[F]): Option[nonEmpty.G[A]] = nonEmpty.nonEmpty(self)
+    def toNonEmpty(using nonEmpty: NonEmpty[F]): Option[nonEmpty.G[A]] = nonEmpty.nonEmpty(self)
 
-    def unsafeToNonEmpty(implicit nonEmpty: NonEmpty[F]): nonEmpty.G[A] = nonEmpty.unsafeNonEmpty(self)
+    def unsafeToNonEmpty(using nonEmpty: NonEmpty[F]): nonEmpty.G[A] = nonEmpty.unsafeNonEmpty(self)
 
   }
 

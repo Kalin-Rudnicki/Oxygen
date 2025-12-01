@@ -7,7 +7,7 @@ object Settings {
 
   // =====|  |=====
 
-  private val Scala_3 = "3.7.1"
+  private val Scala_3 = "3.7.4"
 
   private val GithubUsername = "Kalin-Rudnicki"
   private val GithubProject = "Oxygen"
@@ -21,6 +21,9 @@ object Settings {
     Seq(
       scalaVersion := Scala_3,
       organization := Dependencies.kalinRudnicki.organization,
+      dependencyOverrides ++= Seq(
+        "org.scala-lang" %% "scala3-library" % Scala_3,
+      ),
       scalacOptions ++= Seq("-source:future", "-Ycheck-all-patmat", "-Wunused:all", "-Werror", "-language:implicitConversions", "-deprecation", "-feature", "-Yretain-trees"),
       name := { throw new RuntimeException("You must define a project name!!!") },
       javacOptions ++= Seq("-source", "17", "-target", "17"),

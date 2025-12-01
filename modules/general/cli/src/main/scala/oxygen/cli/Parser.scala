@@ -51,7 +51,7 @@ sealed trait Parser[+A] {
       (a, b) => Parser.Or(a.map(_.asLeft), b.map(_.asRight)),
     )
 
-  final def ^>>[B](that: Parser[B])(implicit zip: Zip[A @uncheckedVariance, B]): Parser[zip.Out] =
+  final def ^>>[B](that: Parser[B])(using zip: Zip[A @uncheckedVariance, B]): Parser[zip.Out] =
     Parser.merge(this, that)(
       Values.Then(_, _, zip),
       Params.And(_, _, zip),
@@ -265,7 +265,7 @@ object Parser {
 
   private[cli] def validateNoDuplicates(usedParams: Set[SimpleName], myParams: Set[SimpleName]): Either[BuildError, Set[SimpleName]] = {
     val overlap = usedParams & myParams
-    if (overlap.isEmpty) (usedParams | myParams).asRight
+    if overlap.isEmpty then (usedParams | myParams).asRight
     else BuildError.DuplicateParams(overlap).asLeft
   }
 
@@ -320,7 +320,7 @@ sealed trait Values[+A] extends Parser[A] {
 
   override final def parse(values: List[Arg.ValueLike], params: List[Arg.ParamLike]): Parser.ParseResult[A] = parseValues(values).toParserParseResult(params)
 
-  final def ^>>[B](that: Values[B])(implicit zip: Zip[A @uncheckedVariance, B]): Values[zip.Out] = Values.Then(this, that, zip)
+  final def ^>>[B](that: Values[B])(using zip: Zip[A @uncheckedVariance, B]): Values[zip.Out] = Values.Then(this, that, zip)
   final def <||[A2 >: A](that: Values[A2]): Values[A2] = Values.Or(this, that)
   final def <||>[B](that: Values[B]): Values[Either[A, B]] = Values.Or(this.map(_.asLeft), that.map(_.asRight))
 
@@ -729,7 +729,7 @@ sealed trait Params[+A] extends Parser[A] {
   /**
     * @see [[Params.And]].
     */
-  final def &&[B](that: Params[B])(implicit zip: Zip[A @uncheckedVariance, B]): Params[zip.Out] = Params.And(this, that, zip)
+  final def &&[B](that: Params[B])(using zip: Zip[A @uncheckedVariance, B]): Params[zip.Out] = Params.And(this, that, zip)
 
   /**
     * @see [[Params.Or]].
@@ -1412,7 +1412,7 @@ object Params {
 
     def apply(params: List[Arg.ParamLike]): ParsedParams = new ParsedParams(params.sorted)
 
-    implicit val ordering: Ordering[ParsedParams] =
+    given ordering: Ordering[ParsedParams] =
       (x: ParsedParams, y: ParsedParams) => {
         @tailrec
         def loop(

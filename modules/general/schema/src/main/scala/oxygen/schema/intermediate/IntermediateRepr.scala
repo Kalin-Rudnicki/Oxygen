@@ -64,8 +64,7 @@ object IntermediateRepr {
       input: CompileInput,
   ): IntermediateCompiledRef.Plain = {
     val myRef: IntermediateTypeRef.Plain = IntermediateTypeRef.plain(schema)
-    if (input.reprs.plain.contains(myRef))
-      IntermediateCompiledRef.emptyPlain(schema, input.reprs)
+    if input.reprs.plain.contains(myRef) then IntermediateCompiledRef.emptyPlain(schema, input.reprs)
     else
       schema match {
         case schema: PlainTextSchema.StringSchema.type =>
@@ -99,8 +98,7 @@ object IntermediateRepr {
       input: CompileInput,
   ): IntermediateCompiledRef.Json = {
     val myRef: IntermediateTypeRef.Json = IntermediateTypeRef.json(schema)
-    if (input.reprs.json.contains(myRef) || input.recursive.contains(myRef))
-      IntermediateCompiledRef.emptyJson(schema, input.reprs)
+    if input.reprs.json.contains(myRef) || input.recursive.contains(myRef) then IntermediateCompiledRef.emptyJson(schema, input.reprs)
     else
       schema match {
         //

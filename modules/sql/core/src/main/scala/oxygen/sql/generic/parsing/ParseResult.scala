@@ -43,7 +43,7 @@ private[sql] sealed trait ParseResult[+A] {
     }
 
   final def getOrReport(using Quotes): A =
-    if (ParseResult.verbose) this.getOrReportVerbose
+    if ParseResult.verbose then this.getOrReportVerbose
     else this.getOrReportShort
 
   final def toEither: Either[ParseResult.NotSuccess, A] = this match
@@ -81,7 +81,7 @@ private[sql] object ParseResult {
     case Left(value)  => value
 
   def validate(cond: Boolean)(tree: Tree, message: String)(using ParseContext): ParseResult.Known[Unit] =
-    if (cond) ParseResult.Success(())
+    if cond then ParseResult.Success(())
     else ParseResult.error(tree, message)
 
   sealed trait Known[+A] extends ParseResult[A] {

@@ -29,7 +29,7 @@ private[json] final class JsonParser private (string: String) {
 
   private inline def expectChar(char: Char): Unit = {
     val actual = string(idx)
-    if (actual == char) idx += 1
+    if actual == char then idx += 1
     else fail(s"Expected char ${char.unesc}, but got: ${actual.unesc}")
   }
 
@@ -37,26 +37,22 @@ private[json] final class JsonParser private (string: String) {
     * Will skip white space, not caring to watch out for array bounds.
     */
   private inline def skipWhiteSpace(): Unit =
-    while (string(idx).isWhitespace)
-      idx += 1
+    while string(idx).isWhitespace do idx += 1
 
   /**
     * Will skip white space, caring to watch out for array bounds.
     */
   private inline def safeSkipWhiteSpace(): Unit =
-    while (idx < string.length && string(idx).isWhitespace)
-      idx += 1
+    while idx < string.length && string(idx).isWhitespace do idx += 1
 
   private inline def assertEOF(): Unit =
-    if (idx != string.length)
-      fail("Expected EOF, but is not")
+    if idx != string.length then fail("Expected EOF, but is not")
 
   private def parseRemainingString(): String = {
 
     @tailrec
     def continue(): Unit = {
-      if (idx >= string.length)
-        fail("JSON body terminated before end of string")
+      if idx >= string.length then fail("JSON body terminated before end of string")
 
       string(idx) match {
         case '"' =>

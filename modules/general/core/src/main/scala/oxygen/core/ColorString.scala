@@ -13,9 +13,9 @@ final case class ColorString(color: ColorState, elems: Seq[String | ColorString]
       case string: String           => ColorString.make(string)
       case colorString: ColorString => colorString
 
-    if (this.color == that.color) ColorString(this.color, this.elems ++ that.elems)
-    else if (this.isEmpty) that
-    else if (that.isEmpty) this
+    if this.color == that.color then ColorString(this.color, this.elems ++ that.elems)
+    else if this.isEmpty then that
+    else if that.isEmpty then this
     else ColorString(ColorState.empty, this :: that :: Nil)
   }
 
@@ -23,7 +23,7 @@ final case class ColorString(color: ColorState, elems: Seq[String | ColorString]
   def nonEmpty: Boolean = elems.nonEmpty
 
   def detailedSplit(regex: Regex): (Boolean, Seq[ColorString], Boolean) =
-    if (elems.isEmpty) (false, Seq.empty, false)
+    if elems.isEmpty then (false, Seq.empty, false)
     else {
       val childSplits: Seq[(Boolean, Seq[String | ColorString], Boolean)] =
         elems.map {
@@ -32,7 +32,7 @@ final case class ColorString(color: ColorState, elems: Seq[String | ColorString]
         }
       val (nestedChildElems: Seq[Seq[String | ColorString]], endedOnEmptySplit: Boolean) =
         childSplits.mapPassLeft(false) { case (prev, (a, strs, b)) =>
-          (b, if (prev && a) "" +: strs else strs)
+          (b, if prev && a then "" +: strs else strs)
         }
 
       (
@@ -44,8 +44,8 @@ final case class ColorString(color: ColorState, elems: Seq[String | ColorString]
 
   def split(regex: Regex, includeEmptyLeading: Boolean, includeEmptyTrailing: Boolean): Seq[ColorString] = {
     val (hasEmptyLeading, strs, hasEmptyTrailing) = detailedSplit(regex)
-    val tmp = if (hasEmptyLeading && includeEmptyLeading) ColorString.make("") +: strs else strs
-    if (hasEmptyTrailing && includeEmptyTrailing) tmp :+ ColorString.make("") else tmp
+    val tmp = if hasEmptyLeading && includeEmptyLeading then ColorString.make("") +: strs else strs
+    if hasEmptyTrailing && includeEmptyTrailing then tmp :+ ColorString.make("") else tmp
   }
   def split(regex: Regex): Seq[ColorString] =
     split(regex, true, true)
@@ -156,16 +156,15 @@ object ColorString {
 
 }
 
-implicit class ColorStringInterpolator(sc: StringContext) {
+extension (sc: StringContext) {
 
   def color(args: ColorString*): ColorString = {
     val builder = IndexedSeq.newBuilder[String | ColorString]
 
     sc.parts.zipAll(args, "", ColorString.empty).foreach { case (string, colorString) =>
-      if (string.length > 0) // some weird bug where `"".nonEmpty` was returning `true`...
+      if string.length > 0 then // some weird bug where `"".nonEmpty` was returning `true`...
         builder.addOne(string)
-      if (colorString.nonEmpty)
-        builder.addOne(colorString)
+      if colorString.nonEmpty then builder.addOne(colorString)
     }
 
     ColorString(ColorState.empty, builder.result())
@@ -178,11 +177,11 @@ extension (self: Seq[ColorString]) {
   def csMkString: ColorString = ColorString(ColorState.empty, self)
 
   def csMkString(sep: String | ColorString): ColorString =
-    if (self.isEmpty) ColorString.empty
+    if self.isEmpty then ColorString.empty
     else ColorString(ColorState.empty, self.head +: self.tail.flatMap(Seq(sep, _)))
 
   def csMkString(start: String | ColorString, sep: String | ColorString, end: String | ColorString): ColorString =
-    if (self.isEmpty) ColorString(ColorState.empty, Seq(start, end))
+    if self.isEmpty then ColorString(ColorState.empty, Seq(start, end))
     else ColorString(ColorState.empty, start +: self.head +: self.tail.flatMap(Seq(sep, _)) :+ end)
 
 }

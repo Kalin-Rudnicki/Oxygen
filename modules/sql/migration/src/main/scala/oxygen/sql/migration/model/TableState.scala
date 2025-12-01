@@ -30,8 +30,7 @@ object TableState {
     val ref = TableRef(repr.schemaName, repr.tableName)
     val cols: ArraySeq[Column] = repr.rowRepr.columns.columns
 
-    if (cols.length != cols.distinctBy(_.name).length)
-      DeriveError(ref, NonDistinctColumnNames).asLeft
+    if cols.length != cols.distinctBy(_.name).length then DeriveError(ref, NonDistinctColumnNames).asLeft
     else
       TableState(
         ref,

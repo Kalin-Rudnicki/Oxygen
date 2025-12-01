@@ -12,7 +12,7 @@ trait ResultDecoder[+A] {
   def __decodeInternal(offset: Int, values: ArraySeq[Matchable]): Either[QueryError.UnableToDecodeRow, A]
 
   final def decode(values: ArraySeq[Any]): Either[QueryError.UnableToDecodeRow, A] =
-    if (values.length != size)
+    if values.length != size then
       this match {
         case ResultDecoder.WithColumns(_, columns) => QueryError.UnableToDecodeRow.InvalidRowSize(values, size, columns.some).asLeft
         case _                                     => QueryError.UnableToDecodeRow.InvalidRowSize(values, size, None).asLeft
@@ -90,7 +90,7 @@ object ResultDecoder extends K0.Derivable[ResultDecoder] {
     override val size: Int = inner.size
 
     override def __decodeInternal(offset: Int, values: ArraySeq[Matchable]): Either[QueryError.UnableToDecodeRow, Option[A]] =
-      if (isAllNull(offset, offset + size, values)) None.asRight
+      if isAllNull(offset, offset + size, values) then None.asRight
       else inner.__decodeInternal(offset, values).map(_.some)
 
   }
@@ -163,9 +163,8 @@ object ResultDecoder extends K0.Derivable[ResultDecoder] {
 
   def isAllNull(fromIndexInclusive: Int, toIndexExclusive: Int, values: ArraySeq[Matchable]): Boolean = {
     var i: Int = fromIndexInclusive
-    while (i < toIndexExclusive) {
-      if (values(i) != null)
-        return false
+    while i < toIndexExclusive do {
+      if values(i) != null then return false
       i = i + 1
     }
     true

@@ -24,7 +24,7 @@ final class InputWriter(ps: java.sql.PreparedStatement) {
 
   def writeNulls(num: Int): Unit = {
     var c: Int = 0
-    while (c < num) {
+    while c < num do {
       unsafeWrite(null)
       c += 1
     }

@@ -10,11 +10,11 @@ object Zip extends ZipLowPriority.LowPriority1 {
 
   type Out[In1, In2, O] = Zip[In1, In2] { type Out = O }
 
-  inline def apply[In1, In2](implicit ev: Zip[In1, In2]): ev.type = ev
+  inline def apply[In1, In2](using ev: Zip[In1, In2]): ev.type = ev
 
   // =====|  |=====
 
-  implicit def zipUnitId[In2]: Zip.Out[Unit, In2, In2] = new Zip.ZipUnitId[In2]
+  given zipUnitId: [In2] => Zip.Out[Unit, In2, In2] = new Zip.ZipUnitId[In2]
 
   // =====|  |=====
 
@@ -59,29 +59,21 @@ object Zip extends ZipLowPriority.LowPriority1 {
 object ZipLowPriority {
 
   trait LowPriority1 extends LowPriority2 {
-
-    implicit def zipIdUnit[In1]: Zip.Out[In1, Unit, In1] = new Zip.ZipIdUnit[In1]
-
+    given zipIdUnit: [In1] => Zip.Out[In1, Unit, In1] = new Zip.ZipIdUnit[In1]
   }
 
   trait LowPriority2 extends LowPriority3 {
-
-    implicit def zipTuples[In1 <: Tuple, In2 <: Tuple](implicit in1Size: ValueOf[Tuple.Size[In1]]): Zip.Out[In1, In2, Tuple.Concat[In1, In2]] = new Zip.ZipTuples[In1, In2](in1Size.value)
-
+    given zipTuples: [In1 <: Tuple, In2 <: Tuple] => (in1Size: ValueOf[Tuple.Size[In1]]) => Zip.Out[In1, In2, Tuple.Concat[In1, In2]] =
+      new Zip.ZipTuples[In1, In2](in1Size.value)
   }
 
   trait LowPriority3 extends LowPriority4 {
-
-    implicit def zipIdTuple[In1, In2 <: Tuple]: Zip.Out[In1, In2, In1 *: In2] = new Zip.ZipIdTuple[In1, In2]
-
-    implicit def zipTupleId[In1 <: Tuple, In2]: Zip.Out[In1, In2, Tuple.Append[In1, In2]] = new Zip.ZipTupleId[In1, In2]
-
+    given zipIdTuple: [In1, In2 <: Tuple] => Zip.Out[In1, In2, In1 *: In2] = new Zip.ZipIdTuple[In1, In2]
+    given zipTupleId: [In1 <: Tuple, In2] => Zip.Out[In1, In2, Tuple.Append[In1, In2]] = new Zip.ZipTupleId[In1, In2]
   }
 
   trait LowPriority4 {
-
-    implicit def zipIdId[In1, In2]: Zip.Out[In1, In2, (In1, In2)] = new Zip.ZipIdId[In1, In2]
-
+    given zipIdId: [In1, In2] => Zip.Out[In1, In2, (In1, In2)] = new Zip.ZipIdId[In1, In2]
   }
 
 }

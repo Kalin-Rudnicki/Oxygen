@@ -148,8 +148,8 @@ object HelpMessage {
         val leftSize = newLeft.size
         val rightSize = right.size
 
-        if (leftSize < rightSize) (newLeft ::: List.fill(rightSize - leftSize)(prefix + defaultLeft), right)
-        else if (leftSize > rightSize) (newLeft, right ::: List.fill(leftSize - rightSize)(color""))
+        if leftSize < rightSize then (newLeft ::: List.fill(rightSize - leftSize)(prefix + defaultLeft), right)
+        else if leftSize > rightSize then (newLeft, right ::: List.fill(leftSize - rightSize)(color""))
         else (newLeft, right)
       case Repr.PrefixLeft(_prefix, child) => child.normalize(prefix + _prefix)
     }

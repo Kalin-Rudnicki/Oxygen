@@ -121,10 +121,10 @@ object LocalStorage {
       localStorage.remove(key)
 
     def cached: IO[UIError.ClientSide.InternalDefect, StorageCache[A]] =
-      for {
+      for
         current <- find
         cache <- Ref.make(current)
-      } yield StorageCache(this, cache)
+      yield StorageCache(this, cache)
 
   }
 

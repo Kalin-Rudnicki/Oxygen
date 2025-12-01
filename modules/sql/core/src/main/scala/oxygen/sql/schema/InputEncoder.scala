@@ -130,8 +130,7 @@ object InputEncoder extends K0.Derivable[InputEncoder] {
     override val size: Int = inner.size * expSize
 
     override def unsafeEncode(writer: InputWriter, value: Chunk[A]): Unit = {
-      if (value.length != expSize)
-        throw new RuntimeException(s"BatchChunkEncoder(_, $expSize) received chunk input of size = ${value.length}")
+      if value.length != expSize then throw new RuntimeException(s"BatchChunkEncoder(_, $expSize) received chunk input of size = ${value.length}")
 
       value.foreach(inner.unsafeEncode(writer, _))
     }

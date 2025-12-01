@@ -14,7 +14,7 @@ object Schedules {
     new Schedule[Any, Any, Unit] {
       override type State = Option[OffsetDateTime]
       override def initial: Option[OffsetDateTime] = None
-      override def step(now: OffsetDateTime, in: Any, state: Option[OffsetDateTime])(implicit trace: Trace): ZIO[Any, Nothing, (Option[OffsetDateTime], Unit, Schedule.Decision)] =
+      override def step(now: OffsetDateTime, in: Any, state: Option[OffsetDateTime])(using trace: Trace): ZIO[Any, Nothing, (Option[OffsetDateTime], Unit, Schedule.Decision)] =
         state match {
           case Some(target) if now < target =>
             ZIO.succeed((state, (), Schedule.Decision.Continue(Schedule.Interval.after(target))))

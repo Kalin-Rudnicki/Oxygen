@@ -351,7 +351,7 @@ enum PSQLCode(final val code: String) {
 }
 object PSQLCode {
 
-  val byName: StrictEnum[PSQLCode] = StrictEnum.derive[PSQLCode](_.toString)
-  val byCode: StrictEnum[PSQLCode] = StrictEnum.derive[PSQLCode](_.code)
+  val byName: StrictEnum[PSQLCode] = StrictEnum.deriveSingle(_.toString)
+  val byCode: StrictEnum[PSQLCode] = StrictEnum.deriveSingle[PSQLCode](_.code)
 
 }

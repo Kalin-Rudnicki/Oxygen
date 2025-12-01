@@ -14,7 +14,7 @@ trait Traverse[F[_], G[_]] {
 }
 object Traverse extends TraverseLowPriority.LowPriority1 {
 
-  inline def apply[F[_], G[_]](implicit ev: Traverse[F, G]): ev.type = ev
+  inline def apply[F[_], G[_]](using ev: Traverse[F, G]): ev.type = ev
 
   def traverseArraySeq[A, B](arraySeq: ArraySeq[A])(f: A => Option[B]): Option[ArraySeq[B]] =
     Traverse.EarlyReturn.save {

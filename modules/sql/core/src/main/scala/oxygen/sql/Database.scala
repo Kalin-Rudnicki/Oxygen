@@ -168,7 +168,7 @@ object Database {
 
   private final class ModifyLogConfig(f: DbConfig.Logging => DbConfig.Logging) extends ZIOAspectAtLeastR.Impl[Database] {
 
-    override def apply[R <: Database, E, A](effect: ZIO[R, E, A])(implicit trace: Trace): ZIO[R, E, A] =
+    override def apply[R <: Database, E, A](effect: ZIO[R, E, A])(using trace: Trace): ZIO[R, E, A] =
       ZIO.serviceWithZIO[Database](_.logConfigRef.locallyWith(f)(effect))
 
   }

@@ -53,8 +53,7 @@ final class compile(debug: Boolean = false) extends MacroAnnotation {
     }
 
   override def transform(using quotes: Quotes)(definition: quotes.reflect.Definition, companion: Option[quotes.reflect.Definition]): List[quotes.reflect.Definition] = {
-    if (companion.nonEmpty)
-      report.errorAndAbort("error, annotated term has a companion, not supported")
+    if companion.nonEmpty then report.errorAndAbort("error, annotated term has a companion, not supported")
     transform(Definition.wrap(using quotes)(definition)).unwrapWithin :: Nil
   }
 

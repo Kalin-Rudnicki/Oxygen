@@ -41,7 +41,7 @@ object Arg {
 
   }
   object ParamLike {
-    implicit val ordering: Ordering[ParamLike] = Ordering.by[ParamLike, Int](_.index).orElseBy(_.subIndex)
+    given ordering: Ordering[ParamLike] = Ordering.by[ParamLike, Int](_.index).orElseBy(_.subIndex)
   }
 
   final case class Value(index: Int, value: String) extends Arg.ValueLike

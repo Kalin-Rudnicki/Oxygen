@@ -67,7 +67,7 @@ final class TermParamClause(val quotes: Quotes)(val unwrap: quotes.reflect.TermP
   /** List of parameters of the clause */
   override def params: List[ValDef] = this.unwrap.params.map(ValDef.wrap(_))
 
-  /** Is this an implicit parameter clause `(implicit x1: X1, ..., xn: Xn)` */
+  /** Is this an implicit parameter clause `(using x1: X1, ..., xn: Xn)` */
   def isImplicit: Boolean = this.unwrap.isImplicit
 
   /** Is this a given parameter clause `(using X1, ..., Xn)` or `(using x1: X1, ..., xn: Xn)` */
@@ -84,8 +84,8 @@ final class TermParamClause(val quotes: Quotes)(val unwrap: quotes.reflect.TermP
   // =====| Added |=====
 
   def renderPrefix: String =
-    if (isGiven) "given "
-    else if (isImplicit) "implicit "
+    if isGiven then "given "
+    else if isImplicit then "implicit "
     else ""
 
   override def render: String =

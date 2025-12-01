@@ -10,11 +10,11 @@ object Window {
 
   def newTab(url: String): UIO[Unit] = ZIO.succeed { W.open(url, "_blank") }
   def newTab(url: PageURL): UIO[Unit] =
-    for {
+    for
       origin <- ZIO.succeed { window.location.origin }
       prefix <- Router.pagePrefixPath
       _ <- newTab(origin + url.addPrefix(prefix).formatted)
-    } yield ()
+    yield ()
 
   // ideally, this would open a new window, but it does not seem possible to do this in javascript
   def newWindow(url: String): UIO[Unit] = ZIO.succeed { W.open(url, "_blank") }

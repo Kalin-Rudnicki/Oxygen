@@ -289,7 +289,7 @@ object SparseStreamAggregator {
       val len = inChunk.length
       @tailrec
       def loop(idx: Int, state1: State): (Either[String, State], Chunk[Output]) =
-        if (idx < len) {
+        if idx < len then {
           val rawIn = inChunk(idx)
 
           agg.parseInput(rawIn) match {
@@ -325,8 +325,7 @@ object SparseStreamAggregator {
                 builder.result(),
               )
           }
-        } else
-          (state1.asRight, builder.result())
+        } else (state1.asRight, builder.result())
 
       loop(0, state1)
     }

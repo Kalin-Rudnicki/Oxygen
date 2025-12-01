@@ -114,7 +114,7 @@ object TypeTag {
       // =====| Show |=====
 
       private def genericsWith(f: TypeRef.Single => String): String =
-        if (typeArgs.isEmpty) ""
+        if typeArgs.isEmpty then ""
         else typeArgs.map(_.polyShow(f)).mkString("[", ", ", "]")
 
       override def prefixAll: String = prefixAll(_.prefixAll)
@@ -227,7 +227,7 @@ object TypeTag {
       case TypeTag.PackagePrefix.None   => prefixNoneNoGenerics
 
     final def prefix(generics: Boolean, p: TypeTag.PackagePrefix): String =
-      if (generics) prefixWithGenerics(p)
+      if generics then prefixWithGenerics(p)
       else prefixNoGenerics(p)
 
     def prefixAll: String
@@ -262,7 +262,7 @@ object TypeTag {
       TypeRef.Single.parse(klass.getName).withTypeArgs(klass.getTypeParameters.toList.map { a => TypeRef.Single(a.getName, Nil, Nil.asRight) }),
       klass,
     )
-  def usingClassTag[A](implicit ct: ClassTag[A]): TypeTag.Single[A] =
+  def usingClassTag[A](using ct: ClassTag[A]): TypeTag.Single[A] =
     fromClass(ct.runtimeClass)
 
   private def derive2impl[A <: AnyKind: Type](using quotes: Quotes): Expr[TypeTag[A]] =

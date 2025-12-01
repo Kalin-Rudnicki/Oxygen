@@ -9,7 +9,7 @@ final case class Columns[A](columns: ArraySeq[Column]) {
 
   val size: Int = columns.length
 
-  extension (str: String) private def surroundIfMulti: String = if (size == 1) str else s"($str)"
+  extension (str: String) private def surroundIfMulti: String = if size == 1 then str else s"($str)"
 
   // Are these functions named super weird? yes.
   // Are they very descriptive? yes.

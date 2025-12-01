@@ -184,7 +184,7 @@ sealed trait TypeRepr extends Model, HasTypeType {
   final def asTypeOf[A <: AnyKind]: Type[A] =
     this.asType.asInstanceOf[Type[A]]
 
-  final def typeOrTermSymbol: Symbol = if (this.isSingleton) this.termSymbol else this.typeSymbol
+  final def typeOrTermSymbol: Symbol = if this.isSingleton then this.termSymbol else this.typeSymbol
 
   override protected def showSelf: String = showAnsiCode
   override protected def typeTypeInternal: Option[TypeType] = typeOrTermSymbol.typeType.option
@@ -716,7 +716,7 @@ final class MethodType(val quotes: Quotes)(val unwrap: quotes.reflect.MethodType
   override type This <: MethodType
   override def unwrapWithin(using newQuotes: Quotes): newQuotes.reflect.MethodType = unwrap.asInstanceOf[newQuotes.reflect.MethodType]
 
-  /** Is this the type of parameter clause like `(implicit X1, ..., Xn)`, `(using X1, ..., Xn)` or `(using x1: X1, ..., xn: Xn)` */
+  /** Is this the type of parameter clause like `(using X1, ..., Xn)`, `(using X1, ..., Xn)` or `(using x1: X1, ..., xn: Xn)` */
   def isImplicit: Boolean = this.unwrap.isImplicit
 
   /** Is this the type of parameter clause like `(using X1, ..., Xn)` or `(using x1: X1, x2: X2, ... )` */

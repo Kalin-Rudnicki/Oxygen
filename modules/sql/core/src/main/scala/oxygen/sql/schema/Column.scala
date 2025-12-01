@@ -10,10 +10,10 @@ final case class Column(
 ) {
 
   def toSql: String =
-    s"$name ${columnType.show} ${if (nullable) "NULL" else "NOT NULL"}"
+    s"$name ${columnType.show} ${if nullable then "NULL" else "NOT NULL"}"
 
   def prefixed(prefix: String): Column =
-    if (name.isEmpty) copy(name = prefix)
+    if name.isEmpty then copy(name = prefix)
     else copy(name = s"${prefix}_$name")
 
 }

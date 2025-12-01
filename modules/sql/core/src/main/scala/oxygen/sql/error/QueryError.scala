@@ -30,7 +30,7 @@ final case class QueryError(
     val after = ctx.sql.substring(pos.pos)
 
     val atColor =
-      if (at.isWhitespace) at.unesc("").magentaBg
+      if at.isWhitespace then at.unesc("").magentaBg
       else at.toString.magentaFg
 
     s"$before$atColor$after"

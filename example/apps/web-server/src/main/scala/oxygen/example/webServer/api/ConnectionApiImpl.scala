@@ -29,7 +29,7 @@ final case class ConnectionApiImpl(
       for {
         user <- tokenService.validateToken(authorization)
         _ <-
-          if (accept) connectionService.acceptConnection(user, userId)
+          if accept then connectionService.acceptConnection(user, userId)
           else connectionService.rejectConnection(user, userId)
       } yield ()
     }

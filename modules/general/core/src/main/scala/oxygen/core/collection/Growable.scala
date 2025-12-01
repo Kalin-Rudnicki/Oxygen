@@ -114,7 +114,7 @@ object Growable {
   final case class Filter[A](a: Growable[A], filter: A => Boolean) extends Growable[A] {
     override val knownSize: Int = -1
     override def foreach(f: A => Unit): Unit =
-      a.foreach { a => if (filter(a)) f(a) }
+      a.foreach { a => if filter(a) then f(a) }
   }
 
   final case class Collect[A, B](a: Growable[A], ab: A => Option[B]) extends Growable[B] {
@@ -127,7 +127,7 @@ object Growable {
     override val knownSize: Int = size
     override def foreach(f: A => Unit): Unit = {
       var c: Int = 0
-      while (c < size) {
+      while c < size do {
         f(fill(c))
         c += 1
       }
@@ -139,8 +139,7 @@ object Growable {
     override def foreach(f: A => Unit): Unit = {
       val seen: mutable.Set[B] = mutable.Set()
       a.foreach { a =>
-        if (seen.add(ab(a)))
-          f(a)
+        if seen.add(ab(a)) then f(a)
       }
     }
   }

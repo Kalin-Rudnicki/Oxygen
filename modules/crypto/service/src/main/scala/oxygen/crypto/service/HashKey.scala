@@ -39,10 +39,8 @@ object HashKey {
     def cleanKey(keyText: String): Array[Byte] = {
       var texts: Seq[String] = keyText.split('\n').toSeq
 
-      while (texts.nonEmpty && (texts.head.isEmpty || texts.head.startsWith("-----")))
-        texts = texts.tail
-      while (texts.nonEmpty && (texts.last.isEmpty || texts.last.startsWith("-----")))
-        texts = texts.init
+      while texts.nonEmpty && (texts.head.isEmpty || texts.head.startsWith("-----")) do texts = texts.tail
+      while texts.nonEmpty && (texts.last.isEmpty || texts.last.startsWith("-----")) do texts = texts.init
 
       Base64.stdDecoder.decode(texts.mkString)
     }
@@ -124,8 +122,8 @@ object HashKey {
     protected def validateSignature(headerAndPayload: String, signatureToValidate: String): Boolean
 
     final def validate(token: BearerToken): Either[JWTError, Unit] =
-      if (token.header.alg != alg) JWTError.InvalidAlgorithm(alg, token.header.alg).asLeft
-      else if (!validateSignature(token.`headerBase64.payloadBase64`, token.signatureBase64)) JWTError.InvalidSignature.asLeft
+      if token.header.alg != alg then JWTError.InvalidAlgorithm(alg, token.header.alg).asLeft
+      else if !validateSignature(token.`headerBase64.payloadBase64`, token.signatureBase64) then JWTError.InvalidSignature.asLeft
       else ().asRight
 
   }

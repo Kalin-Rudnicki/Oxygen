@@ -166,7 +166,7 @@ object ComponentsPage extends RoutablePage.NoParams[Any] {
           htmlWidth := 24,
           htmlHeight := 24,
           svgViewBox := "0 0 24 24",
-          svgFill := (if (state.get.heart) "red" else "transparent"),
+          svgFill := (if state.get.heart then "red" else "transparent"),
           svgStroke.currentColor,
           svgStrokeWidth := 3,
           svgStrokeLineCap.round,
@@ -272,7 +272,7 @@ object ComponentsPage extends RoutablePage.NoParams[Any] {
 
   private lazy val buttonsSection: Widget = {
     val styles: Seq[Button.Decorator] =
-      (for {
+      (for
         a <- Seq(
           Button.Decorator.primary,
           Button.Decorator.positive,
@@ -290,7 +290,7 @@ object ComponentsPage extends RoutablePage.NoParams[Any] {
           Button.Decorator.subtle,
           Button.Decorator.minimal,
         )
-      } yield a << b) ++
+      yield a << b) ++
         Seq(
           Button.Decorator.disabled,
           Button.Decorator.disabledProgress,
@@ -363,7 +363,7 @@ object ComponentsPage extends RoutablePage.NoParams[Any] {
 
             td(padding(S.spacing._1, S.spacing._3))(
               textAlign.center,
-              if (state.renderTimeValue.useGlobalToggleThumbs)
+              if state.renderTimeValue.useGlobalToggleThumbs then
                 ToggleThumb
                   .boolean(fullStyle)
                   .attach(state.zoomIn(_.globalToggleThumbs))

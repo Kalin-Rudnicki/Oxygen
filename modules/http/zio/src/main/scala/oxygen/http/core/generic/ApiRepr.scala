@@ -11,8 +11,7 @@ final class ApiRepr[Api] private (_apiTpe: Type[Api])(using Quotes) {
   val sym: Symbol = typeRepr.typeSymbol
   val tree: Tree = sym.tree
 
-  if (!sym.flags.is(Flags.Trait))
-    report.errorAndAbort("Api must be a trait")
+  if !sym.flags.is(Flags.Trait) then report.errorAndAbort("Api must be a trait")
 
   val classDef: ClassDef = tree.narrow[ClassDef]("trait is not a classDef?")
 

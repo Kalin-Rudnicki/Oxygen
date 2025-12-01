@@ -15,7 +15,7 @@ private[sql] object CompileMacros {
     val parsedQuery: ParsedQuery = tmpTup._1
     val newRHS: Term = tmpTup._2
 
-    if (debug)
+    if debug then
       report.info(
         s"""
              |=====| Compiled Query |=====

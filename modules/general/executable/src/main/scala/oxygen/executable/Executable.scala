@@ -1,6 +1,7 @@
 package oxygen.executable
 
 import oxygen.cli.*
+import oxygen.cli.given
 import oxygen.executable.error.ExecuteError
 import oxygen.predef.color.*
 import oxygen.predef.core.*
@@ -304,7 +305,7 @@ object SingleBuilders {
           logSpansParser &&
           logLevelParser &&
           loggerParser(config.additionalLoggerParsers) {
-            if (config.executableConfig.keepZioLogger) Logger.zioDefault
+            if config.executableConfig.keepZioLogger then Logger.zioDefault
             else Logger.oxygenDefault
           }
       ).map { case (annotations, spans, logLevel, logger) => LogConfig(annotations, spans, ArraySeq(LogConfig.LoggerElem(logger, logLevel))) }

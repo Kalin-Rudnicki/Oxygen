@@ -106,26 +106,25 @@ final class EndpointRepr[Api](val route: RouteRepr[Api], classSym: Symbol) {
 
     // TODO (KR) : do better handling in error cases
     '{
-      if ($successBodyCodecExpr.canLikelyDecode($responseExpr.status))
+      if $successBodyCodecExpr.canLikelyDecode($responseExpr.status) then
         $successBodyCodecExpr
           .decode($responseExpr.status, $responseExpr.headers, $responseExpr.body)
           .catchAll { error => ZIO.dieMessage(s"Unable to decode success response: $error") } // TODO (KR) : better error handling
-      else if ($errorBodyCodecExpr.canLikelyDecode($responseExpr.status))
+      else if $errorBodyCodecExpr.canLikelyDecode($responseExpr.status) then
         $errorBodyCodecExpr
           .decode($responseExpr.status, $responseExpr.headers, $responseExpr.body)
           .catchAll { error => ZIO.dieMessage(s"Unable to decode error response: $error") } // TODO (KR) : better error handling
           .flip
-      else if ($responseExpr.status.isSuccess) // TODO (KR) : special handling?
+      else if $responseExpr.status.isSuccess then // TODO (KR) : special handling?
         $successBodyCodecExpr
           .decode($responseExpr.status, $responseExpr.headers, $responseExpr.body)
           .catchAll { error => ZIO.dieMessage(s"Unable to decode success response: $error") } // TODO (KR) : better error handling
-      else if ($responseExpr.status.isError) // TODO (KR) : special handling?
+      else if $responseExpr.status.isError then // TODO (KR) : special handling?
         $errorBodyCodecExpr
           .decode($responseExpr.status, $responseExpr.headers, $responseExpr.body)
           .catchAll { error => ZIO.dieMessage(s"Unable to decode error response: $error") } // TODO (KR) : better error handling
           .flip
-      else
-        ZIO.dieMessage(s"Unexpected http response code (${$responseExpr.status})") // TODO (KR) : better error handling
+      else ZIO.dieMessage(s"Unexpected http response code (${$responseExpr.status})") // TODO (KR) : better error handling
     }
   }
 

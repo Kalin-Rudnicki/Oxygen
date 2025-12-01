@@ -145,12 +145,11 @@ object ToggleThumb extends Decorable {
           top := props._sizing.thumbPadding.px,
           left := props._sizing.thumbPadding.px,
           borderWidth := props._sizing.thumbBorderSize.px,
-          if (enabled)
+          if enabled then
             fragment(
               transform := s"translateX(${props._sizing.translation.px})",
             )
-          else
-            Widget.empty,
+          else Widget.empty,
         )(props._thumbMod)
 
       div(
@@ -159,14 +158,15 @@ object ToggleThumb extends Decorable {
         height := props._sizing.trackHeight.px,
         borderWidth := props._sizing.trackBorderSize.px,
         borderRadius := props._sizing.trackHeight.px,
-        if (enabled)
+        if enabled then
           fragment(
             backgroundColor := props._enabledColor,
           )
         else
           fragment(
             backgroundColor := props._disabledColor,
-          ),
+          )
+        ,
         thumb,
         onClick := state.update(onClickToggle),
       )(props._trackMod)
@@ -187,7 +187,7 @@ object ToggleThumb extends Decorable {
       decorator,
       _.contains(value),
       set =>
-        if (set.contains(value)) set - value
+        if set.contains(value) then set - value
         else set + value,
     )
 

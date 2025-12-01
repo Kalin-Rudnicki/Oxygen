@@ -7,7 +7,7 @@ import zio.compat.logOps
 
 object log {
 
-  implicit class ZIOLogOps(self: ZIO.type) {
+  extension (self: ZIO.type) {
 
     // =====|  |=====
 

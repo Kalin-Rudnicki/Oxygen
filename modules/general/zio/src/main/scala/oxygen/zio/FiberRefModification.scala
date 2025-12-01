@@ -7,7 +7,7 @@ trait FiberRefModificationR[-_R] extends ZIOAspectAtLeastR[_R] {
   /**
     * Runs the specified effect using [[FiberRef.locally]]/[[FiberRef.locallyWith]]
     */
-  override def apply[R <: _R, E, A](effect: ZIO[R, E, A])(implicit trace: Trace): ZIO[R, E, A]
+  override def apply[R <: _R, E, A](effect: ZIO[R, E, A])(using trace: Trace): ZIO[R, E, A]
 
   /**
     * Updates the [[FiberRef]] using [[FiberRef.set]]/[[FiberRef.update]], with no expectation of it being set back.
@@ -30,7 +30,7 @@ object FiberRefModificationR {
 
   private final case class AndThen[_R](a: FiberRefModificationR[_R], b: FiberRefModificationR[_R]) extends FiberRefModificationR[_R] {
 
-    override def apply[R <: _R, E, A](effect: ZIO[R, E, A])(implicit trace: Trace): ZIO[R, E, A] =
+    override def apply[R <: _R, E, A](effect: ZIO[R, E, A])(using trace: Trace): ZIO[R, E, A] =
       b(a(effect))
 
     override def set: URIO[_R, Unit] =
@@ -43,7 +43,7 @@ object FiberRefModificationR {
 
   private final case class SetURIO[_R, RefT](fiberRef: FiberRef[RefT], f: URIO[_R, RefT]) extends FiberRefModificationR[_R] {
 
-    override def apply[R <: _R, E, A](effect: ZIO[R, E, A])(implicit trace: Trace): ZIO[R, E, A] =
+    override def apply[R <: _R, E, A](effect: ZIO[R, E, A])(using trace: Trace): ZIO[R, E, A] =
       f.flatMap(fiberRef.locally(_)(effect))
 
     override def set: URIO[_R, Unit] =
@@ -56,7 +56,7 @@ object FiberRefModificationR {
 
   private final case class UpdateURIO[_R, RefT](fiberRef: FiberRef[RefT], f: RefT => URIO[_R, RefT]) extends FiberRefModificationR[_R] {
 
-    override def apply[R <: _R, E, A](effect: ZIO[R, E, A])(implicit trace: Trace): ZIO[R, E, A] =
+    override def apply[R <: _R, E, A](effect: ZIO[R, E, A])(using trace: Trace): ZIO[R, E, A] =
       fiberRef.getWith(f).flatMap(fiberRef.locally(_)(effect))
 
     override def set: URIO[_R, Unit] =
@@ -77,7 +77,7 @@ trait FiberRefModification extends FiberRefModificationR[Any] {
   /**
     * Runs the specified effect using [[FiberRef.locally]]/[[FiberRef.locallyWith]]
     */
-  override def apply[R, E, A](effect: ZIO[R, E, A])(implicit trace: Trace): ZIO[R, E, A]
+  override def apply[R, E, A](effect: ZIO[R, E, A])(using trace: Trace): ZIO[R, E, A]
 
   /**
     * Updates the [[FiberRef]] using [[FiberRef.set]]/[[FiberRef.update]], with no expectation of it being set back.
@@ -97,7 +97,7 @@ object FiberRefModification {
 
   private final case class Set[RefT](fiberRef: FiberRef[RefT], f: RefT) extends FiberRefModification {
 
-    override def apply[R, E, A](effect: ZIO[R, E, A])(implicit trace: Trace): ZIO[R, E, A] =
+    override def apply[R, E, A](effect: ZIO[R, E, A])(using trace: Trace): ZIO[R, E, A] =
       fiberRef.locally(f)(effect)
 
     override def set: UIO[Unit] =
@@ -110,7 +110,7 @@ object FiberRefModification {
 
   private final case class SetUIO[RefT](fiberRef: FiberRef[RefT], f: UIO[RefT]) extends FiberRefModification {
 
-    override def apply[R, E, A](effect: ZIO[R, E, A])(implicit trace: Trace): ZIO[R, E, A] =
+    override def apply[R, E, A](effect: ZIO[R, E, A])(using trace: Trace): ZIO[R, E, A] =
       f.flatMap(fiberRef.locally(_)(effect))
 
     override def set: UIO[Unit] =
@@ -123,7 +123,7 @@ object FiberRefModification {
 
   private final case class Update[RefT](fiberRef: FiberRef[RefT], f: RefT => RefT) extends FiberRefModification {
 
-    override def apply[R, E, A](effect: ZIO[R, E, A])(implicit trace: Trace): ZIO[R, E, A] =
+    override def apply[R, E, A](effect: ZIO[R, E, A])(using trace: Trace): ZIO[R, E, A] =
       fiberRef.locallyWith(f)(effect)
 
     override def set: UIO[Unit] =
@@ -136,7 +136,7 @@ object FiberRefModification {
 
   private final case class UpdateUIO[RefT](fiberRef: FiberRef[RefT], f: RefT => UIO[RefT]) extends FiberRefModification {
 
-    override def apply[R, E, A](effect: ZIO[R, E, A])(implicit trace: Trace): ZIO[R, E, A] =
+    override def apply[R, E, A](effect: ZIO[R, E, A])(using trace: Trace): ZIO[R, E, A] =
       fiberRef.getWith(f).flatMap(fiberRef.locally(_)(effect))
 
     override def set: UIO[Unit] =
@@ -149,7 +149,7 @@ object FiberRefModification {
 
   private final case class AndThen(a: FiberRefModification, b: FiberRefModification) extends FiberRefModification {
 
-    override def apply[R, E, A](effect: ZIO[R, E, A])(implicit trace: Trace): ZIO[R, E, A] =
+    override def apply[R, E, A](effect: ZIO[R, E, A])(using trace: Trace): ZIO[R, E, A] =
       b(a(effect))
 
     override def set: UIO[Unit] =
@@ -167,18 +167,16 @@ object FiberRefModification {
 
 }
 
-implicit class FiberRefModificationOps[RefT](self: FiberRef[RefT]) {
+extension [RefT](self: FiberRef[RefT]) def modification: FiberRefModificationWrapper[RefT] = new FiberRefModificationWrapper(self)
 
-  object modification {
+final class FiberRefModificationWrapper[RefT](self: FiberRef[RefT]) {
 
-    def set(f: RefT): FiberRefModification = FiberRefModification.set(self)(f)
-    def setUIO(f: UIO[RefT]): FiberRefModification = FiberRefModification.setUIO(self)(f)
-    def update(f: RefT => RefT): FiberRefModification = FiberRefModification.update(self)(f)
-    def updateUIO(f: RefT => UIO[RefT]): FiberRefModification = FiberRefModification.updateUIO(self)(f)
+  def set(f: RefT): FiberRefModification = FiberRefModification.set(self)(f)
+  def setUIO(f: UIO[RefT]): FiberRefModification = FiberRefModification.setUIO(self)(f)
+  def update(f: RefT => RefT): FiberRefModification = FiberRefModification.update(self)(f)
+  def updateUIO(f: RefT => UIO[RefT]): FiberRefModification = FiberRefModification.updateUIO(self)(f)
 
-    def setURIO[R](f: URIO[R, RefT]): FiberRefModificationR[R] = FiberRefModificationR.setURIO(self)(f)
-    def updateURIO[R](f: RefT => URIO[R, RefT]): FiberRefModificationR[R] = FiberRefModificationR.updateURIO(self)(f)
-
-  }
+  def setURIO[R](f: URIO[R, RefT]): FiberRefModificationR[R] = FiberRefModificationR.setURIO(self)(f)
+  def updateURIO[R](f: RefT => URIO[R, RefT]): FiberRefModificationR[R] = FiberRefModificationR.updateURIO(self)(f)
 
 }

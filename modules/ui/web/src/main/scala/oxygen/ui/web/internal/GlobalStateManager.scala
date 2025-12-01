@@ -16,7 +16,7 @@ object GlobalStateManager {
     def modify(f: A => A): A = {
       var loop = true
       var updated: A = null.asInstanceOf[A]
-      while (loop) {
+      while loop do {
         val current = valueRef.get()
         updated = f(current)
         loop = !valueRef.compareAndSet(current, updated)
@@ -41,7 +41,7 @@ object GlobalStateManager {
           stateReference, {
             val value: Value[A] = Value(stateReference, new AtomicReference(initialIfDNE))
             var loop = true
-            while (loop) {
+            while loop do {
               val current = stateRef.get()
               val updated = current.updated(stateReference, value)
               loop = !stateRef.compareAndSet(current, updated)
@@ -69,7 +69,7 @@ object GlobalStateManager {
         pageReference, {
           val pageData: PageLocalState = PageLocalState(pageReference, new AtomicReference(Map.empty))
           var loop = true
-          while (loop) {
+          while loop do {
             val current = pageLocalRef.get()
             val updated = current.updated(pageReference, pageData)
             loop = !pageLocalRef.compareAndSet(current, updated)
@@ -85,7 +85,7 @@ object GlobalStateManager {
         stateReference, {
           val value: Value[A] = Value(stateReference, new AtomicReference(initialIfDNE))
           var loop = true
-          while (loop) {
+          while loop do {
             val current = globalRef.get()
             val updated = current.updated(stateReference, value)
             loop = !globalRef.compareAndSet(current, updated)
@@ -97,7 +97,7 @@ object GlobalStateManager {
 
   private[web] def releasePageLocal(pageReference: PageReference): Unit = {
     var loop = true
-    while (loop) {
+    while loop do {
       val current = pageLocalRef.get()
       val updated = current.removed(pageReference)
       loop = !pageLocalRef.compareAndSet(current, updated)

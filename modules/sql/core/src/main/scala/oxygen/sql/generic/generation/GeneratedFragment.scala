@@ -14,7 +14,7 @@ final class GeneratedFragment private (
     GeneratedFragment(this.generatedSql ++ that.generatedSql, this.generatedInputEncoder ++ that.generatedInputEncoder)
 
   def wrapInParensIf(cond: Boolean): GeneratedFragment =
-    if (cond) GeneratedFragment.of("(", this, ")")
+    if cond then GeneratedFragment.of("(", this, ")")
     else this
 
   def contramap(transform: TermTransformer.Transform): GeneratedFragment =

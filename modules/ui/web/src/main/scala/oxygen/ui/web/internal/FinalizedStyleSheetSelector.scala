@@ -82,10 +82,10 @@ object FinalizedStyleSheetSelector {
 
       override def &(that: Many.NonReferencable): Many.HasTag =
         HasTag {
-          for {
+          for
             a <- this.options
             b <- that.options
-          } yield a & b
+          yield a & b
         }
 
     }
@@ -94,10 +94,10 @@ object FinalizedStyleSheetSelector {
 
       override def &(that: Many.NonReferencable): Many.AllClasses =
         AllClasses {
-          for {
+          for
             a <- this.options
             b <- that.options
-          } yield a & b
+          yield a & b
         }
 
       def |(that: Many.AllClasses): Many.AllClasses =
@@ -109,10 +109,10 @@ object FinalizedStyleSheetSelector {
 
       override def &(that: Many.NonReferencable): Many.NonReferencable = {
         val res: NonEmptyList[Single.NonReferencable] =
-          for {
+          for
             a <- this.options
             b <- that.options
-          } yield a & b
+          yield a & b
 
         res.traverse {
           case single: Single.ClassRoot  => single.some
@@ -134,10 +134,10 @@ object FinalizedStyleSheetSelector {
         case ManyMany.Root(many) =>
           many.showAll
         case ManyMany.Join(a, join, b) =>
-          for {
+          for
             a <- a.showAll
             b <- b.showAll
-          } yield s"$a$join$b"
+          yield s"$a$join$b"
         case ManyMany.Or(a, b) =>
           a.showAll ++ b.showAll
       }

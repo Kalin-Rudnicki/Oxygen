@@ -116,14 +116,13 @@ object TextField extends Decorable {
         def targetValue: String = target.value.asInstanceOf[String]
         // weird weird out-of-order dom events
 
-        if (e.keyCode == KeyCode.Enter.keyCode) {
+        if e.keyCode == KeyCode.Enter.keyCode then {
           // cant be in a ZIO
           e.preventDefault()
 
           s.update(_ => targetValue) *>
             rh.raiseAction(Form.Submit)
-        } else
-          s.update(_ => targetValue)
+        } else s.update(_ => targetValue)
       },
       onChange.es[State].handle { (s, e) =>
         val target = e.target.asInstanceOf[scala.scalajs.js.Dynamic]
@@ -153,7 +152,7 @@ object TextField extends Decorable {
       decorator: Decorator,
   ): SubmitFormS[State, Option[A]] =
     Form.makeWithValidation(fieldName, TextField(decorator)) { rawValue =>
-      val value: String = if (decorator.computed.trimInput) rawValue.trim else rawValue
+      val value: String = if decorator.computed.trimInput then rawValue.trim else rawValue
       Option.when(value.nonEmpty)(value).traverse(dec.decodeSimple)
     }
 

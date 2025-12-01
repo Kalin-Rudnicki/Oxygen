@@ -82,15 +82,15 @@ object NavBar {
       base(content*)
 
     def simplePush(label: String, other: Widget*)(page: RoutablePage[?])(params: page.PageParams): Widget =
-      if (other.isEmpty) apply(label, onClick.push(page)(params))
+      if other.isEmpty then apply(label, onClick.push(page)(params))
       else apply(label, Widget.fragment(other), onClick.push(page)(params))
 
     def simpleReplace(label: String, other: Widget*)(page: RoutablePage[?])(params: page.PageParams): Widget =
-      if (other.isEmpty) apply(label, onClick.replace(page)(params))
+      if other.isEmpty then apply(label, onClick.replace(page)(params))
       else apply(label, Widget.fragment(other), onClick.replace(page)(params))
 
     def simpleRender[Env](label: String, other: Widget*)(page: NonRoutablePage[Env])(params: page.PageParams): WidgetE[Env] =
-      if (other.isEmpty) apply(label, onClick.render(page)(params))
+      if other.isEmpty then apply(label, onClick.render(page)(params))
       else apply(label, Widget.fragment(other), onClick.render(page)(params))
 
     // TODO (KR) : simple menu

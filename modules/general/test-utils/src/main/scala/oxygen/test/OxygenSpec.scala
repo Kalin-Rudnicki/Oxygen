@@ -45,7 +45,7 @@ abstract class OxygenSpec[_R] extends ZIOSpecDefault {
     val testAspects0: Chunk[TestSpecAspect] =
       testAspects
     val rootTestAspects0: Chunk[RootTestAspect] =
-      if (withDefaultAspects) OxygenSpec.defaultTestAspects(defaultLogLevel) ++ rootTestAspects
+      if withDefaultAspects then OxygenSpec.defaultTestAspects(defaultLogLevel) ++ rootTestAspects
       else rootTestAspects
 
     val withTestAspectsApplied: TestSpec =

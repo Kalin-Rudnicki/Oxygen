@@ -123,7 +123,7 @@ object ResponseCodecNoStatus {
 
     override private[ResponseCodecNoStatus] def encodeInternal(value: A, acc: Builder): Builder = {
       val encoded = partial.encode(value)
-      if (encoded.nonEmpty) acc.copy(headers = acc.headers ++ Growable.many(encoded).map(Header.Custom(name, _)))
+      if encoded.nonEmpty then acc.copy(headers = acc.headers ++ Growable.many(encoded).map(Header.Custom(name, _)))
       else acc
     }
 

@@ -53,9 +53,9 @@ object Generator extends GeneratorLowPriority.LowPriority1, Derivable[Generator.
   def apply[A: Generator as gen]: Generator[A] = gen
 
   def fillChunkTo[A](chunk: Chunk[A], size: Int): Chunk[A] =
-    if (chunk.isEmpty) throw new RuntimeException("empty chunk")
-    else if (chunk.length < size) fillChunkTo(chunk ++ chunk, size)
-    else if (chunk.length > size) chunk.take(size)
+    if chunk.isEmpty then throw new RuntimeException("empty chunk")
+    else if chunk.length < size then fillChunkTo(chunk ++ chunk, size)
+    else if chunk.length > size then chunk.take(size)
     else chunk
 
   //////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -236,8 +236,7 @@ object Generator extends GeneratorLowPriority.LowPriority1, Derivable[Generator.
         private def convert1(acc: Growable[(generic.Field[?], Expr[Chunk[?]])])(using Quotes): Expr[Chunk[A]] = {
           val perms: List[(generic.Field[?], Expr[Chunk[?]])] = acc.to[List]
 
-          if (perms.isEmpty)
-            '{ Chunk.single(${ generic.instantiate.fieldsToInstance(Nil) }) }
+          if perms.isEmpty then '{ Chunk.single(${ generic.instantiate.fieldsToInstance(Nil) }) }
           else {
             val tmp: List[Expr[Int]] = perms.map { case (_, c) => '{ $c.length } }
             val size: Expr[Int] = '{ ${ tmp.seqToExprOf[Chunk] }.max }

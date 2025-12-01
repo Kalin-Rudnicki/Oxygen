@@ -52,7 +52,7 @@ object LongName {
 
   private val regex = "^[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*$".r
   def wrap(name: String): Either[String, LongName] =
-    if (regex.matches(name)) new LongName(ShortName.wrap(name.head).fold(e => throw new RuntimeException(e), identity), name).asRight
+    if regex.matches(name) then new LongName(ShortName.wrap(name.head).fold(e => throw new RuntimeException(e), identity), name).asRight
     else s"Invalid LongName ${name.unesc}".asLeft
 
   inline def apply(inline name: String): LongName = ${ applyImpl('{ name }) }
@@ -126,9 +126,9 @@ object ShortName {
 
   def wrap(name: Char): Either[String, ShortName] = {
     val n = name.toInt
-    if (n >= 'a'.toInt && n <= 'z'.toInt) ShortName.LowerLetter.createInternal(name).asRight
-    else if (n >= 'A'.toInt && n <= 'Z'.toInt) ShortName.UpperLetter.createInternal(name).asRight
-    else if (n >= '0'.toInt && n <= '9'.toInt) ShortName.Digit.createInternal(name).asRight
+    if n >= 'a'.toInt && n <= 'z'.toInt then ShortName.LowerLetter.createInternal(name).asRight
+    else if n >= 'A'.toInt && n <= 'Z'.toInt then ShortName.UpperLetter.createInternal(name).asRight
+    else if n >= '0'.toInt && n <= '9'.toInt then ShortName.Digit.createInternal(name).asRight
     else s"Invalid ShortName ${name.unesc}".asLeft
   }
 
@@ -218,6 +218,6 @@ private[cli] object NameMacros {
 
 }
 
-inline implicit def stringToLongName(inline name: String): LongName = LongName(name)
-inline implicit def charToShortName(inline name: Char): ShortName = ShortName(name)
-inline implicit def charToDefaultableName(inline name: Char): Defaultable.Some[ShortName] = Defaultable.Some(ShortName(name))
+given stringToLongName: Conversion[String, LongName] = name => LongName.wrap(name).fold(e => throw new RuntimeException(e), identity)
+given charToShortName: Conversion[Char, ShortName] = name => ShortName.wrap(name).fold(e => throw new RuntimeException(e), identity)
+given charToDefaultableName: Conversion[Char, Defaultable.Some[ShortName]] = name => Defaultable.Some(ShortName.wrap(name).fold(e => throw new RuntimeException(e), identity))

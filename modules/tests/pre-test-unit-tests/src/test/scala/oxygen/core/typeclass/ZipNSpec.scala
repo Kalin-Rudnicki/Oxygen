@@ -11,7 +11,7 @@ object ZipNSpec extends OxygenSpecDefault {
       in2: In2,
       in3: In3,
       out: Out1,
-  )(implicit
+  )(using
       zip: Zip3.Out[In1, In2, In3, Out2],
       ev: Out1 =:= Out2,
       loc: SourceLocation,
@@ -31,7 +31,7 @@ object ZipNSpec extends OxygenSpecDefault {
       in3: In3,
       in4: In4,
       out: Out1,
-  )(implicit
+  )(using
       zip: Zip4.Out[In1, In2, In3, In4, Out2],
       ev: Out1 =:= Out2,
       loc: SourceLocation,
@@ -52,7 +52,7 @@ object ZipNSpec extends OxygenSpecDefault {
       in4: In4,
       in5: In5,
       out: Out1,
-  )(implicit
+  )(using
       zip: Zip5.Out[In1, In2, In3, In4, In5, Out2],
       ev: Out1 =:= Out2,
       loc: SourceLocation,

@@ -24,7 +24,7 @@ object CSSVar {
   def getValue(name: String): String = {
     val res = window.getComputedStyle(document.documentElement).getPropertyValue(name).trim
 
-    if (res.isEmpty)
+    if res.isEmpty then
       throw new RuntimeException(
         s"""Attempted to read css-var '$name', but the value was empty.
            |This is most likely because you directly or indirectly called `CSSVar.eval`/`CSSVar.getValue` from a `val`.
