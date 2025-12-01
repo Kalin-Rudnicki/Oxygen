@@ -314,7 +314,7 @@ object TypeRelationship { // TODO (KR) : figure out the best way for these thing
       '{ (c: C) => ${ ('c).asExprOf[D] } }
 
     def subTypeEv[C: scala.quoted.Type, D: scala.quoted.Type]: Option[Expr[C => D]] =
-      if (TypeRepr.of[C] <:< TypeRepr.of[D]) castFunction[C, D].some
+      if TypeRepr.of[C] <:< TypeRepr.of[D] then castFunction[C, D].some
       else None
 
     val raw: Expr[TypeRelationship[A, B]] =
@@ -326,7 +326,7 @@ object TypeRelationship { // TODO (KR) : figure out the best way for these thing
       }
 
     val typed: Expr[T] =
-      if (raw.isExprOf[T]) raw.asExprOf[T]
+      if raw.isExprOf[T] then raw.asExprOf[T]
       else
         report.errorAndAbort(
           s"""Attempted to assert: ${TypeRepr.of[T].showAnsiCode}

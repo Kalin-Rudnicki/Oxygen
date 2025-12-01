@@ -20,7 +20,7 @@ private[sql] sealed trait ParsedQuery extends Product {
   def show(using Quotes): String
 
   protected final def showInputs: String =
-    if (inputs.nonEmpty) inputs.map(_.show).mkString("inputs:", "", "\n")
+    if inputs.nonEmpty then inputs.map(_.show).mkString("inputs:", "", "\n")
     else "<no inputs>\n"
 
   protected final def showReturning(using Quotes): String =

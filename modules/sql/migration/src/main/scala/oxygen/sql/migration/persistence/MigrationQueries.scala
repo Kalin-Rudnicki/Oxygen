@@ -42,7 +42,7 @@ object MigrationQueries {
         )
       case AlterColumn.SetNullable(columnRef, nullable) =>
         Query.simple("Set Nullability", QueryContext.QueryType.Migrate)(
-          s"ALTER TABLE ${columnRef.table} ALTER COLUMN ${columnRef.columnName} ${if (nullable) "SET" else "DROP"} NOT NULL",
+          s"ALTER TABLE ${columnRef.table} ALTER COLUMN ${columnRef.columnName} ${if nullable then "SET" else "DROP"} NOT NULL",
         )
       case AlterForeignKey.CreateForeignKey(fk) =>
         Query.simple("Create Foreign Key", QueryContext.QueryType.Migrate)(
@@ -69,7 +69,7 @@ object MigrationQueries {
              |    DROP CONSTRAINT ${fkRef.fkName}""".stripMargin,
         )
       case AlterIndex.CreateIndex(idx) =>
-        val idxType = if (idx.unique) "UNIQUE INDEX" else "INDEX"
+        val idxType = if idx.unique then "UNIQUE INDEX" else "INDEX"
         Query.simple("Create Index", QueryContext.QueryType.Migrate)(
           s"CREATE $idxType ${idx.idxName} ON ${idx.self} (${idx.columns.mkString(", ")})",
         )
@@ -110,12 +110,11 @@ object MigrationQueries {
       ).flatten
 
     val internalString: String =
-      if (constraintLines.nonEmpty)
+      if constraintLines.nonEmpty then
         columnLines.map { str => s"\n    ${str.replaceAll("\n", "\n    ")}," }.mkString +
           "\n" +
           constraintLines.map { str => s"\n    ${str.replaceAll("\n", "\n    ")}" }.mkString(",")
-      else
-        columnLines.map { str => s"\n    ${str.replaceAll("\n", "\n    ")}" }.mkString(",")
+      else columnLines.map { str => s"\n    ${str.replaceAll("\n", "\n    ")}" }.mkString(",")
 
     Query.simple("Create Table", QueryContext.QueryType.Migrate)(
       s"CREATE TABLE${ifDNEStr(ifDNE)} ${table.tableName}($internalString\n)",
@@ -127,6 +126,6 @@ object MigrationQueries {
   //////////////////////////////////////////////////////////////////////////////////////////////////////
 
   private def ifDNEStr(ifDNE: Boolean): String =
-    if (ifDNE) " IF NOT EXISTS" else ""
+    if ifDNE then " IF NOT EXISTS" else ""
 
 }

@@ -9,7 +9,7 @@ trait Functor[F[_]] {
 }
 object Functor extends FunctorLowPriority.LowPriority1 {
 
-  inline def apply[F[_]](implicit ev: Functor[F]): ev.type = ev
+  inline def apply[F[_]](using ev: Functor[F]): ev.type = ev
 
   given arraySeq: Functor[ArraySeq] =
     new Functor[ArraySeq] {

@@ -61,14 +61,14 @@ object PageInstance {
     override private[web] final def close: UIO[Unit] =
       activeRef.get.flatMap {
         case ActiveState.Active(scope) =>
-          for {
+          for
             fiberId <- ZIO.fiberId
             _ <- scope.close(Exit.interrupt(fiberId))
             _ <- activeRef.set(ActiveState.Closed)
 
             // TODO (KR) : it might be possible in the future to have "go back a page" resume from an existing page state
             _ <- ZIO.succeed { GlobalStateManager.releasePageLocal(pageReference) }
-          } yield ()
+          yield ()
         case ActiveState.Closed =>
           ZIO.logWarning(s"[PageExecutor.close] pageId=$pageId is already closed")
       }.uninterruptible

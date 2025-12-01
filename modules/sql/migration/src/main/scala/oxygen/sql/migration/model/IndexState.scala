@@ -19,17 +19,17 @@ final case class IndexState(
   def ref: EntityRef.IndexRef = EntityRef.IndexRef(self, idxName)
 
   def renameSchema(schemaRef: SchemaRef, newName: String): IndexState = {
-    extension (tr: TableRef) def updated: TableRef = if (tr.schema == schemaRef) TableRef(newName, tr.tableName) else tr
+    extension (tr: TableRef) def updated: TableRef = if tr.schema == schemaRef then TableRef(newName, tr.tableName) else tr
     copy(self = self.updated)
   }
 
   def renameTable(tableRef: TableRef, newName: String): IndexState = {
-    extension (tr: TableRef) def updated: TableRef = if (tr == tableRef) TableRef(tr.schema, newName) else tr
+    extension (tr: TableRef) def updated: TableRef = if tr == tableRef then TableRef(tr.schema, newName) else tr
     copy(self = self.updated)
   }
 
   def renameColumn(columnRef: ColumnRef, newName: String): IndexState =
-    if (this.self == columnRef.table) this.renameSelfColumn(columnRef.columnName, newName)
+    if this.self == columnRef.table then this.renameSelfColumn(columnRef.columnName, newName)
     else this
 
   def renameSelfColumn(oldName: String, newName: String): IndexState =
@@ -51,11 +51,11 @@ object IndexState {
 
     extension (repr: EntityRef.TableRef)
       private def fkScope: String =
-        if (repr.schema.isPublic) repr.tableName
+        if repr.schema.isPublic then repr.tableName
         else s"${repr.schema.schemaName}__${repr.tableName}"
 
     private def prefix: String =
-      if (unique) "idx_u"
+      if unique then "idx_u"
       else "idx"
 
     def autoIdxName: String =

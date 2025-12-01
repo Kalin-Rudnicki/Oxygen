@@ -24,7 +24,7 @@ object ColorState {
 
       def joinMods(mods: Option[String]*): String = {
         val flat = mods.flatten
-        if (flat.isEmpty) ""
+        if flat.isEmpty then ""
         else s"${colorMode.prefix}${flat.mkString(";")}${colorMode.suffix}"
       }
 

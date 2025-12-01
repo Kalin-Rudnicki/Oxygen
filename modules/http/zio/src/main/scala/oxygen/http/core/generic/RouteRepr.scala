@@ -41,12 +41,12 @@ final class RouteRepr[Api] private (val defDef: DefDef, _apiType: Type[Api])(usi
     case _                                                      => fail(s"return type is not a ZIO: ${defDefRet.showAnsiCode}")
 
   private val isScoped: Boolean =
-    if (rTpe =:= TypeRepr.of[Any]) false
-    else if (rTpe =:= TypeRepr.of[Scope]) true
+    if rTpe =:= TypeRepr.of[Any] then false
+    else if rTpe =:= TypeRepr.of[Scope] then true
     else fail("R type is not `Any`/`Scope`")
 
   def convertEnv[E: Type, A: Type](effect: Expr[ZIO[Scope, E, A]])(using Quotes): Expr[ZIO[EnvOut, E, A]] =
-    if (isScoped) effect.asExprOf[ZIO[EnvOut, E, A]]
+    if isScoped then effect.asExprOf[ZIO[EnvOut, E, A]]
     else '{ ZIO.scoped { $effect } }
 
   given envOutType: Type[EnvOut] = rTpe.asTypeOf
@@ -66,8 +66,7 @@ final class RouteRepr[Api] private (val defDef: DefDef, _apiType: Type[Api])(usi
   private val pathList: List[String] = routeAnnotValue.url.split('/').toList.map(_.trim).filter(_.nonEmpty)
   val method: Method = routeAnnotValue.method
 
-  if (pathList.contains(".."))
-    report.errorAndAbort("path contains \"..\"")
+  if pathList.contains("..") then report.errorAndAbort("path contains \"..\"")
 
   private val paths: ArraySeq[(Int, Option[String])] =
     pathList.toArraySeq.zipWithIndex.map {
@@ -165,8 +164,7 @@ final class RouteRepr[Api] private (val defDef: DefDef, _apiType: Type[Api])(usi
   private val idxMap: Map[Int, Int] =
     paths.collect { case (i, None) => i }.zipWithIndex.toMap
 
-  if (idxMap.size != tmpPathReprs.length)
-    fail(s"number of % and @param.path do not match (${idxMap.size} != ${tmpPathReprs.length})")
+  if idxMap.size != tmpPathReprs.length then fail(s"number of % and @param.path do not match (${idxMap.size} != ${tmpPathReprs.length})")
 
   val pathParams: ArraySeq[ParamRepr.Path] =
     paths.map {

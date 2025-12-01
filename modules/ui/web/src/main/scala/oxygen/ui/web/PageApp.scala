@@ -30,7 +30,7 @@ abstract class PageApp[Env: HasNoScope] extends ZIOAppDefault {
     }
 
   private def effect: RIO[Env, Unit] =
-    for {
+    for
       pageUrl <- PageURL.fromWindow
       logLevel = pageUrl.queryParams.queryParams("oxygen-log-level").headOption.flatMap(RichLogLevel.strictEnum.decodeOption).getOrElse(RichLogLevel.Info)
       _ <- LogConfig.usingConfig(LogConfig.oxygenDefault(logLevel.level)).set
@@ -42,7 +42,7 @@ abstract class PageApp[Env: HasNoScope] extends ZIOAppDefault {
       _ <- router.route(NavigationEvent.renderPage(defaultPages.initial)(()), 0)
 
       _ <- router.route(NavigationEvent.browserLoad(pageUrl), 0)
-    } yield ()
+    yield ()
 
   override def run: ZIO[Any, Any, Unit] =
     effect.provide(layer)

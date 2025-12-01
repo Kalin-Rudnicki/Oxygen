@@ -75,7 +75,7 @@ object StyleSheet {
       classDefs.collect { case c if c.name.endsWith("$") => valDefMap.get(c.name.stripSuffix("$")).map((c, _)) }.flatten
 
     val self: Growable[Expr[Growable[StyleSheetElement.AppliedStyleSheet]]] =
-      if (termAcc.tpe <:< TypeRepr.of[StyleSheetBuilder.HasBuild]) Growable.single('{ ${ termAcc.asExprOf[StyleSheetBuilder.HasBuild] }.built })
+      if termAcc.tpe <:< TypeRepr.of[StyleSheetBuilder.HasBuild] then Growable.single('{ ${ termAcc.asExprOf[StyleSheetBuilder.HasBuild] }.built })
       else Growable.empty
     val children: Growable[Expr[Growable[StyleSheetElement.AppliedStyleSheet]]] =
       Growable.many(pairs).flatMap { case (cdef, vdef) => fetchAll(cdef, termAcc.select(vdef.symbol)) }
@@ -86,8 +86,7 @@ object StyleSheet {
   private def derivedImpl[A <: StyleSheetBuilder: Type](using Quotes): Expr[StyleSheet] = {
     val aTypeRepr = TypeRepr.of[A]
 
-    if (!aTypeRepr.isSingleton)
-      report.errorAndAbort("not an object")
+    if !aTypeRepr.isSingleton then report.errorAndAbort("not an object")
 
     val termTree = aTypeRepr.termSymbol.tree.narrow[ValDef]
 

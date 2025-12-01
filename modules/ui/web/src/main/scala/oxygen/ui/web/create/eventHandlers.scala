@@ -14,8 +14,8 @@ object onClick extends EventHandlerBuilder[MouseEvent]("onclick") {
 
     fragment(
       this.e.handle { e =>
-        if (e.ctrlKey || e.metaKey || e.button == 1) Window.newTab(url)
-        else if (e.shiftKey) Window.newWindow(url) // unfortunately seems no way to force this, so will behave the same as `newTab`
+        if e.ctrlKey || e.metaKey || e.button == 1 then Window.newTab(url)
+        else if e.shiftKey then Window.newWindow(url) // unfortunately seems no way to force this, so will behave the same as `newTab`
         else page.navigate.push(params)
       },
       onAuxClick.handle {
@@ -31,8 +31,8 @@ object onClick extends EventHandlerBuilder[MouseEvent]("onclick") {
 
     fragment(
       this.e.handle { e =>
-        if (e.ctrlKey || e.metaKey || e.button == 1) Window.newTab(url)
-        else if (e.shiftKey) Window.newWindow(url) // unfortunately seems no way to force this, so will behave the same as `newTab`
+        if e.ctrlKey || e.metaKey || e.button == 1 then Window.newTab(url)
+        else if e.shiftKey then Window.newWindow(url) // unfortunately seems no way to force this, so will behave the same as `newTab`
         else page.navigate.replace(params)
       },
       onAuxClick.handle {

@@ -28,7 +28,7 @@ object show {
       val strings = sc.parts.iterator
       val expressions = args.iterator
       val b = new mutable.StringBuilder(strings.next())
-      while (strings.hasNext) {
+      while strings.hasNext do {
         b.append(
           expressions.next() match
             case str: String       => str
@@ -49,7 +49,7 @@ object show {
       val strings = sc.parts.iterator
       val expressions = args.iterator
       val b = new mutable.StringBuilder(strings.next())
-      while (strings.hasNext) {
+      while strings.hasNext do {
         b.append(expressions.next().value)
         b.append(strings.next())
       }

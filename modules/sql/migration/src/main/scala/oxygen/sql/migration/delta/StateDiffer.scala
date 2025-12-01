@@ -61,8 +61,8 @@ object StateDiffer {
         colDiffs <- Growable.many(Ior.zippedMapIterator(currentColMap, targetColMap).map(_._2).toSeq).traverse {
           case Ior.Both(currentCol, targetCol) =>
             def colRef: ColumnRef = ColumnRef(current.tableName, currentCol.name)
-            if (currentCol.columnType != targetCol.columnType) DiffError(colRef, SameNameDifferentType).asLeft
-            else if (currentCol.nullable != targetCol.nullable) Growable.single(StateDiff.AlterColumn.SetNullable(colRef, targetCol.nullable)).asRight
+            if currentCol.columnType != targetCol.columnType then DiffError(colRef, SameNameDifferentType).asLeft
+            else if currentCol.nullable != targetCol.nullable then Growable.single(StateDiff.AlterColumn.SetNullable(colRef, targetCol.nullable)).asRight
             else Growable.empty.asRight
           case Ior.Left(currentCol) => Growable.single(StateDiff.AlterColumn.DropColumn(ColumnRef(current.tableName, currentCol.name))).asRight
           case Ior.Right(targetCol) => Growable.single(StateDiff.AlterColumn.CreateColumn(current.tableName, targetCol)).asRight
@@ -100,7 +100,7 @@ object StateDiffer {
         .many(Ior.zippedMapIterator(currentFKMap, targetFKMap).map(_._2).toSeq)
         .traverse {
           case Ior.Both(currentFK, targetFK) =>
-            if (currentFK == targetFK) Growable.empty.asRight
+            if currentFK == targetFK then Growable.empty.asRight
             else DiffError(currentFK.ref, InvalidForeignKeyAlteration).asLeft
           case Ior.Left(currentFK) =>
             Growable.single(StateDiff.AlterForeignKey.DropForeignKey(currentFK.ref)).asRight
@@ -121,7 +121,7 @@ object StateDiffer {
         .many(Ior.zippedMapIterator(currentIdxMap, targetIdxMap).map(_._2).toSeq)
         .traverse {
           case Ior.Both(currentIdx, targetIdx) =>
-            if (currentIdx == targetIdx) Growable.empty.asRight
+            if currentIdx == targetIdx then Growable.empty.asRight
             else DiffError(currentIdx.ref, InvalidIndexAlteration).asLeft
           case Ior.Left(currentIdx) =>
             Growable.single(StateDiff.AlterIndex.DropIndex(currentIdx.ref)).asRight
@@ -154,7 +154,7 @@ object StateDiffer {
         current: ForeignKeyState,
         specified: StateDiff.CanOnlyBeSpecified,
     ): Either[DiffError, Growable[StateDiff.CanBeDerived & StateDiff.DerivationPhase.Phase3 & StateDiff.AlterForeignKey]] =
-      if (current.explicitFKName.isEmpty) {
+      if current.explicitFKName.isEmpty then {
         val newAutoRef: ForeignKeyState.AutoRef =
           specified match {
             case StateDiff.AlterSchema.RenameSchema(schemaRef, newName)       => current.renameSchema(schemaRef, newName).autoRef
@@ -164,10 +164,9 @@ object StateDiffer {
             case _: StateDiff.AlterIndex.RenameExplicitlyNamedIndex           => current.autoRef
           }
 
-        if (newAutoRef == current.autoRef) Growable.empty.asRight
+        if newAutoRef == current.autoRef then Growable.empty.asRight
         else Growable.single(StateDiff.AlterForeignKey.RenameAutoNamedForeignKey(current.ref, newAutoRef.autoFKName)).asRight
-      } else
-        Growable.empty.asRight
+      } else Growable.empty.asRight
 
     private def indexDiffs(
         current: TableState,
@@ -179,7 +178,7 @@ object StateDiffer {
         current: IndexState,
         specified: StateDiff.CanOnlyBeSpecified,
     ): Either[DiffError, Growable[StateDiff.CanBeDerived & StateDiff.DerivationPhase.Phase3 & StateDiff.AlterIndex]] =
-      if (current.explicitIdxName.isEmpty) {
+      if current.explicitIdxName.isEmpty then {
         val newAutoRef: IndexState.AutoRef =
           specified match {
             case StateDiff.AlterSchema.RenameSchema(schemaRef, newName)       => current.renameSchema(schemaRef, newName).autoRef
@@ -189,10 +188,9 @@ object StateDiffer {
             case _: StateDiff.AlterIndex.RenameExplicitlyNamedIndex           => current.autoRef
           }
 
-        if (newAutoRef == current.autoRef) Growable.empty.asRight
+        if newAutoRef == current.autoRef then Growable.empty.asRight
         else Growable.single(StateDiff.AlterIndex.RenameAutoNamedIndex(current.ref, newAutoRef.autoIdxName)).asRight
-      } else
-        Growable.empty.asRight
+      } else Growable.empty.asRight
 
   }
 

@@ -292,13 +292,14 @@ object Dropdown extends Decorable {
             padding := props._optionPadding.show,
             fontSize := props._fontSize,
             borderTop(props._internalBorderSize, props._internalBorderColor),
-            if (isFirst) // is first
+            if isFirst then // is first
               fragment(
               )
             else // is not first
               fragment(
-              ),
-            if (isLast) // is last
+              )
+            ,
+            if isLast then // is last
               fragment(
                 // borderBottom(props._externalBorderSize, props._externalBorderColor),
                 // borderBottomLeftRadius := props._optionsBorderRadius,
@@ -306,8 +307,9 @@ object Dropdown extends Decorable {
               )
             else // is not last
               fragment(
-              ),
-            if (isSelected) // is selected
+              )
+            ,
+            if isSelected then // is selected
               fragment(
                 color := props._selectedFGColor,
                 backgroundColor.dynamic := props._selectedBGColor,
@@ -316,9 +318,10 @@ object Dropdown extends Decorable {
               fragment(
                 color := props._notSelectedFGColor,
                 backgroundColor.dynamic := props._notSelectedBGColor,
-              ),
+              )
+            ,
             text,
-          )(if (isSelected) props._selectedOptionMod else props._notSelectedOptionMod)
+          )(if isSelected then props._selectedOptionMod else props._notSelectedOptionMod)
         }
 
         val display: Widget =

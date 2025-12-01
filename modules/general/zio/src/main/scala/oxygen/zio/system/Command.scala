@@ -7,7 +7,7 @@ import zio.*
 final class Command private (isSudo: Boolean, command: String, args: Growable[String], env: Growable[(String, String)]) {
 
   lazy val fullCommand: Growable[String] =
-    if (isSudo) "sudo" +: command +: args
+    if isSudo then "sudo" +: command +: args
     else command +: args
 
   //////////////////////////////////////////////////////////////////////////////////////////////////////

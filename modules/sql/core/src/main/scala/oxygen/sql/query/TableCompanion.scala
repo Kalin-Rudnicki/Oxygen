@@ -24,18 +24,16 @@ abstract class TableCompanion[A, K](derivedRepr: TableRepr.AuxPK[A, K]) {
     val pkCols = tableRepr.pk.rowRepr.columns.columns
     val npkCols = tableRepr.npk.rowRepr.columns.columns
 
-    if (pkCols.isEmpty) throw new RuntimeException("Can not generate upsert query for table with no primary-key columns")
+    if pkCols.isEmpty then throw new RuntimeException("Can not generate upsert query for table with no primary-key columns")
 
     val onConflictClause: String = s"ON CONFLICT (${pkCols.map(_.name).mkString(", ")})"
 
     val onConflict: String =
-      if (npkCols.nonEmpty)
-        s"""
+      if npkCols.nonEmpty then s"""
            |    $onConflictClause
            |    DO UPDATE
            |    SET ${npkCols.map { c => s"${c.name} = EXCLUDED.${c.name}" }.mkString(",\n        ")}""".stripMargin
-      else
-        s"""
+      else s"""
            |    $onConflictClause
            |    DO NOTHING""".stripMargin
 

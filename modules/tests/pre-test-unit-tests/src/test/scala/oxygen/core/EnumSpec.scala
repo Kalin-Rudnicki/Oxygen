@@ -7,7 +7,7 @@ object EnumSpec extends OxygenSpecDefault {
 
   enum Enum1 { case A, B, C }
   object Enum1 {
-    given strictEnum: StrictEnum[Enum1] = StrictEnum.derive[Enum1](a => NonEmptyList.of(a.toString, a.toString * 2))
+    given strictEnum: StrictEnum[Enum1] = StrictEnum.deriveNel(a => NonEmptyList.of(a.toString, a.toString * 2))
   }
 
   sealed trait Enum2 derives StrictEnum

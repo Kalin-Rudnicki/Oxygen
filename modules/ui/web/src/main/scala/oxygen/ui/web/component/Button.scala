@@ -156,8 +156,8 @@ object Button extends Decorable {
         cursor = "progress",
       )
 
-    final def disabledWhen(condition: Boolean): Decorator = if (condition) this.disabled else Decorator(genericDecorator)
-    final def disabledProgressWhen(condition: Boolean): Decorator = if (condition) this.disabledProgress else Decorator(genericDecorator)
+    final def disabledWhen(condition: Boolean): Decorator = if condition then this.disabled else Decorator(genericDecorator)
+    final def disabledProgressWhen(condition: Boolean): Decorator = if condition then this.disabledProgress else Decorator(genericDecorator)
 
     /////// Misc ///////////////////////////////////////////////////////////////
 

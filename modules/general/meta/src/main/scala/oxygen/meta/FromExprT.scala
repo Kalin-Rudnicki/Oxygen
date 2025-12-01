@@ -26,7 +26,7 @@ trait FromExprT[A] { self =>
 
     def unapply(x: Term)(using Type[A], Quotes): Option[A] = {
       val expr: Expr[?] = x.asExpr
-      if (expr.isExprOf[A]) self.unapply(expr.asExprOf[A])
+      if expr.isExprOf[A] then self.unapply(expr.asExprOf[A])
       else None
     }
 
@@ -144,7 +144,7 @@ object FromExprT extends Derivable[FromExprT] {
             }
 
           '{
-            if ($stage2Args.length == ${ Expr(stage1Generic.fields.length) }) $tmp
+            if $stage2Args.length == ${ Expr(stage1Generic.fields.length) } then $tmp
             else None
           }
         }
@@ -184,7 +184,7 @@ object FromExprT extends Derivable[FromExprT] {
                   case _                                                  => report.errorAndAbort("stages dont align?")
                 val stage2Value: Stage2.Term = x.toTerm.removeInlineAndTyped
 
-                if (stage2Value.symbol == stage2Generic.sym) ${ stage1Generic.instantiate.instance }.some
+                if stage2Value.symbol == stage2Generic.sym then ${ stage1Generic.instantiate.instance }.some
                 else None
               }
 

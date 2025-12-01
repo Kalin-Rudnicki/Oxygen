@@ -28,15 +28,13 @@ object ConnectionPool {
 
     private def getConnectionLoop(attemptNo: Int): ZIO[Scope, ConnectionError, Connection] =
       pool.get.flatMap { con =>
-        if (con.connection.isClosed)
-          if (attemptNo < maxAttempts)
+        if con.connection.isClosed then
+          if attemptNo < maxAttempts then
             ZIO.logDebug(s"Attempt to acquire open connection #$attemptNo returned closed connection, invalidating connection and trying again") *>
               pool.invalidate(con) *>
               getConnectionLoop(attemptNo + 1)
-          else
-            ZIO.logWarning(s"Max attempts to acquire an open connection reached ($attemptNo), returning closed connection").as(con)
-        else
-          ZIO.succeed(con)
+          else ZIO.logWarning(s"Max attempts to acquire an open connection reached ($attemptNo), returning closed connection").as(con)
+        else ZIO.succeed(con)
       }
 
     override def get: ZIO[Scope, ConnectionError, Connection] =

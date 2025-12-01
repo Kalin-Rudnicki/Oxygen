@@ -18,7 +18,7 @@ final case class OxygenZLogger(
       spans: List[LogSpan],
       annotations: Map[String, String],
   ): Unit =
-    if (logLevel >= minLevel) printStream.println(logger(trace, fiberId, logLevel, message, cause, context, spans, annotations))
+    if logLevel >= minLevel then printStream.println(logger(trace, fiberId, logLevel, message, cause, context, spans, annotations))
     else ()
 
   def withMinLevel(minLevel: LogLevel): OxygenZLogger =

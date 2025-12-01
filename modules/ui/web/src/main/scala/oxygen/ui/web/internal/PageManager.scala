@@ -49,11 +49,11 @@ object PageManager {
     ): UIO[PageInstance.TypedEnv[Env, Params, State]] =
       page match {
         case page: RoutablePage.AuxE[Env @unchecked, Params, State] =>
-          for {
+          for
             pageId <- Random.nextUUID
             stateRef <- Ref.make(PageInstance.ActiveState.Active(scope))
             lastEvalRef <- Ref.make(Option.empty[PageInstance.Routable.LastEval[Params, State]])
-          } yield PageInstance.Routable[Env, page.PageParams, page.PageState](
+          yield PageInstance.Routable[Env, page.PageParams, page.PageState](
             pageId = pageId,
             errorHandler = errorHandler,
             activeRef = stateRef,
@@ -63,11 +63,11 @@ object PageManager {
             pagePrefixPath = pagePrefixPath,
           )
         case page: NonRoutablePage.AuxE[Env @unchecked, Params, State] =>
-          for {
+          for
             pageId <- Random.nextUUID
             stateRef <- Ref.make(PageInstance.ActiveState.Active(scope))
             lastEvalRef <- Ref.make(Option.empty[PageInstance.NonRoutable.LastEval[State]])
-          } yield PageInstance.NonRoutable[Env, page.PageParams, page.PageState](
+          yield PageInstance.NonRoutable[Env, page.PageParams, page.PageState](
             pageId = pageId,
             errorHandler = errorHandler,
             activeRef = stateRef,
@@ -83,7 +83,7 @@ object PageManager {
         navType: NavigationEvent.NavType,
         uiRuntime: UIRuntime[Env],
     ): ZIO[Env, RootErrorHandler.RootError, Unit] =
-      (for {
+      (for
         _ <- ZIO.logTrace(s"----- Loading Page - ${target.page} ---")
         currentPageInstance <- currentRef.get
         loc = currentPageInstance match
@@ -100,7 +100,7 @@ object PageManager {
             .tapErrorCause { cause => newScope.close(Exit.Failure(cause)) }
         }
 
-        _ <- (for {
+        _ <- (for
           // TODO (KR) : probably need a way to mark that a page is attempting to schedule itself.
           // TODO (KR) : what happens if one page takes 5s to load, and in that time, you try to load another page
 
@@ -130,8 +130,8 @@ object PageManager {
                 case UIError.Redirect(navEvent)                     => Router.route(navEvent)
               }
           _ <- ZIO.logTrace("PageManager.postLoad.end")
-        } yield ()).forkIn(newScope)
-      } yield ()) @@ ZIOAspect.annotated("page", target.page.toString)
+        yield ()).forkIn(newScope)
+      yield ()) @@ ZIOAspect.annotated("page", target.page.toString)
 
     override def reRenderCurrentPage: UIO[Unit] =
       currentRef.get.flatMap {
@@ -157,10 +157,10 @@ object PageManager {
     currentPage.flatMap(_.reRenderCurrentPage)
 
   def make(errorHandler: RootErrorHandler, pagePrefixPath: Path): UIO[PageManager] =
-    for {
+    for
       runningRef <- Ref.make(Option.empty[PageInstance.Untyped])
       pageManager = Impl(pagePrefixPath, runningRef, errorHandler)
       _ <- currentPageManagerRef.set(pageManager.some)
-    } yield pageManager
+    yield pageManager
 
 }

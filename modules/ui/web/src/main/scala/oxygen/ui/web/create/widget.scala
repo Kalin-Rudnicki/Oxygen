@@ -94,10 +94,10 @@ object Widget {
   def canvas(draw: CanvasRenderingContext2D => Unit): Canvas = Canvas(draw)
 
   def when[Env, Action, StateGet, StateSet <: StateGet](cond: Boolean)(widget: Widget.Polymorphic[Env, Action, StateGet, StateSet]): Widget.Polymorphic[Env, Action, StateGet, StateSet] =
-    if (cond) widget
+    if cond then widget
     else Widget.empty
   def unless[Env, Action, StateGet, StateSet <: StateGet](cond: Boolean)(widget: Widget.Polymorphic[Env, Action, StateGet, StateSet]): Widget.Polymorphic[Env, Action, StateGet, StateSet] =
-    if (cond) Widget.empty
+    if cond then Widget.empty
     else widget
 
   def fragment[S[_]: SeqRead, Env, Action, StateGet, StateSet <: StateGet](widgets: S[Widget.Polymorphic[Env, Action, StateGet, StateSet]]): Fragment.Polymorphic[Env, Action, StateGet, StateSet] =

@@ -17,7 +17,7 @@ object OxygenAspects {
       */
     def toTestAspectPerTest: TestAspect.PerTest.AtLeastR[_R] =
       new TestAspect.PerTest.AtLeastR[_R] {
-        override def perTest[R <: _R, E](test: ZIO[R, TestFailure[E], TestSuccess])(implicit trace: Trace): ZIO[R, TestFailure[E], TestSuccess] =
+        override def perTest[R <: _R, E](test: ZIO[R, TestFailure[E], TestSuccess])(using trace: Trace): ZIO[R, TestFailure[E], TestSuccess] =
           test @@ self
       }
 
@@ -26,7 +26,7 @@ object OxygenAspects {
       */
     def toTestAspectGlobal: TestAspectAtLeastR[_R] =
       new TestAspectAtLeastR[_R] {
-        override def some[R <: _R, E](spec: Spec[R, E])(implicit trace: Trace): Spec[R, E] =
+        override def some[R <: _R, E](spec: Spec[R, E])(using trace: Trace): Spec[R, E] =
           Spec { Spec.ScopedCase { self.setScoped.as(spec) } }
       }
 
@@ -76,7 +76,7 @@ object OxygenAspects {
         Spec(res)
       }
 
-      override def some[R, E](spec: Spec[R, E])(implicit trace: Trace): Spec[R, E] = loop(Growable.empty, spec)
+      override def some[R, E](spec: Spec[R, E])(using trace: Trace): Spec[R, E] = loop(Growable.empty, spec)
     }
 
 }

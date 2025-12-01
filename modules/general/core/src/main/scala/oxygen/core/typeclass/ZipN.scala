@@ -10,7 +10,7 @@ object Zip3 {
 
   type Out[In1, In2, In3, O] = Zip3[In1, In2, In3] { type Out = O }
 
-  inline def apply[In1, In2, In3](implicit zip: Zip3[In1, In2, In3]): zip.type = zip
+  inline def apply[In1, In2, In3](using zip: Zip3[In1, In2, In3]): zip.type = zip
 
   final class Instance[In1, In2, Out1, In3, Out2](
       zip1: Zip.Out[In1, In2, Out1],
@@ -30,10 +30,10 @@ object Zip3 {
 
   }
 
-  implicit def make[In1, In2, Out1, In3, Out2](implicit
+  given makeZip3: [In1, In2, Out1, In3, Out2] => (
       zip1: Zip.Out[In1, In2, Out1],
       zip2: Zip.Out[Out1, In3, Out2],
-  ): Zip3.Out[In1, In2, In3, Out2] =
+  ) => Zip3.Out[In1, In2, In3, Out2] =
     new Zip3.Instance[In1, In2, Out1, In3, Out2](zip1, zip2)
 
 }
@@ -48,7 +48,7 @@ object Zip4 {
 
   type Out[In1, In2, In3, In4, O] = Zip4[In1, In2, In3, In4] { type Out = O }
 
-  inline def apply[In1, In2, In3, In4](implicit zip: Zip4[In1, In2, In3, In4]): zip.type = zip
+  inline def apply[In1, In2, In3, In4](using zip: Zip4[In1, In2, In3, In4]): zip.type = zip
 
   final class Instance[In1, In2, In3, Out1, In4, Out2](
       zip1: Zip3.Out[In1, In2, In3, Out1],
@@ -68,10 +68,10 @@ object Zip4 {
 
   }
 
-  implicit def make[In1, In2, In3, Out1, In4, Out2](implicit
+  given makeZip4: [In1, In2, In3, Out1, In4, Out2] => (
       zip1: Zip3.Out[In1, In2, In3, Out1],
       zip2: Zip.Out[Out1, In4, Out2],
-  ): Zip4.Out[In1, In2, In3, In4, Out2] =
+  ) => Zip4.Out[In1, In2, In3, In4, Out2] =
     new Zip4.Instance[In1, In2, In3, Out1, In4, Out2](zip1, zip2)
 
 }
@@ -86,7 +86,7 @@ object Zip5 {
 
   type Out[In1, In2, In3, In4, In5, O] = Zip5[In1, In2, In3, In4, In5] { type Out = O }
 
-  inline def apply[In1, In2, In3, In4, In5](implicit zip: Zip5[In1, In2, In3, In4, In5]): zip.type = zip
+  inline def apply[In1, In2, In3, In4, In5](using zip: Zip5[In1, In2, In3, In4, In5]): zip.type = zip
 
   final class Instance[In1, In2, In3, In4, Out1, In5, Out2](
       zip1: Zip4.Out[In1, In2, In3, In4, Out1],
@@ -106,10 +106,10 @@ object Zip5 {
 
   }
 
-  implicit def make[In1, In2, In3, In4, Out1, In5, Out2](implicit
+  given makeZip5: [In1, In2, In3, In4, Out1, In5, Out2] => (
       zip1: Zip4.Out[In1, In2, In3, In4, Out1],
       zip2: Zip.Out[Out1, In5, Out2],
-  ): Zip5.Out[In1, In2, In3, In4, In5, Out2] =
+  ) => Zip5.Out[In1, In2, In3, In4, In5, Out2] =
     new Zip5.Instance[In1, In2, In3, In4, Out1, In5, Out2](zip1, zip2)
 
 }
@@ -124,7 +124,7 @@ object Zip6 {
 
   type Out[In1, In2, In3, In4, In5, In6, O] = Zip6[In1, In2, In3, In4, In5, In6] { type Out = O }
 
-  inline def apply[In1, In2, In3, In4, In5, In6](implicit zip: Zip6[In1, In2, In3, In4, In5, In6]): zip.type = zip
+  inline def apply[In1, In2, In3, In4, In5, In6](using zip: Zip6[In1, In2, In3, In4, In5, In6]): zip.type = zip
 
   final class Instance[In1, In2, In3, In4, In5, Out1, In6, Out2](
       zip1: Zip5.Out[In1, In2, In3, In4, In5, Out1],
@@ -144,10 +144,10 @@ object Zip6 {
 
   }
 
-  implicit def make[In1, In2, In3, In4, In5, Out1, In6, Out2](implicit
+  given makeZip6: [In1, In2, In3, In4, In5, Out1, In6, Out2] => (
       zip1: Zip5.Out[In1, In2, In3, In4, In5, Out1],
       zip2: Zip.Out[Out1, In6, Out2],
-  ): Zip6.Out[In1, In2, In3, In4, In5, In6, Out2] =
+  ) => Zip6.Out[In1, In2, In3, In4, In5, In6, Out2] =
     new Zip6.Instance[In1, In2, In3, In4, In5, Out1, In6, Out2](zip1, zip2)
 
 }
@@ -162,7 +162,7 @@ object Zip7 {
 
   type Out[In1, In2, In3, In4, In5, In6, In7, O] = Zip7[In1, In2, In3, In4, In5, In6, In7] { type Out = O }
 
-  inline def apply[In1, In2, In3, In4, In5, In6, In7](implicit zip: Zip7[In1, In2, In3, In4, In5, In6, In7]): zip.type = zip
+  inline def apply[In1, In2, In3, In4, In5, In6, In7](using zip: Zip7[In1, In2, In3, In4, In5, In6, In7]): zip.type = zip
 
   final class Instance[In1, In2, In3, In4, In5, In6, Out1, In7, Out2](
       zip1: Zip6.Out[In1, In2, In3, In4, In5, In6, Out1],
@@ -182,10 +182,10 @@ object Zip7 {
 
   }
 
-  implicit def make[In1, In2, In3, In4, In5, In6, Out1, In7, Out2](implicit
+  given makeZip7: [In1, In2, In3, In4, In5, In6, Out1, In7, Out2] => (
       zip1: Zip6.Out[In1, In2, In3, In4, In5, In6, Out1],
       zip2: Zip.Out[Out1, In7, Out2],
-  ): Zip7.Out[In1, In2, In3, In4, In5, In6, In7, Out2] =
+  ) => Zip7.Out[In1, In2, In3, In4, In5, In6, In7, Out2] =
     new Zip7.Instance[In1, In2, In3, In4, In5, In6, Out1, In7, Out2](zip1, zip2)
 
 }
@@ -200,7 +200,7 @@ object Zip8 {
 
   type Out[In1, In2, In3, In4, In5, In6, In7, In8, O] = Zip8[In1, In2, In3, In4, In5, In6, In7, In8] { type Out = O }
 
-  inline def apply[In1, In2, In3, In4, In5, In6, In7, In8](implicit zip: Zip8[In1, In2, In3, In4, In5, In6, In7, In8]): zip.type = zip
+  inline def apply[In1, In2, In3, In4, In5, In6, In7, In8](using zip: Zip8[In1, In2, In3, In4, In5, In6, In7, In8]): zip.type = zip
 
   final class Instance[In1, In2, In3, In4, In5, In6, In7, Out1, In8, Out2](
       zip1: Zip7.Out[In1, In2, In3, In4, In5, In6, In7, Out1],
@@ -220,10 +220,10 @@ object Zip8 {
 
   }
 
-  implicit def make[In1, In2, In3, In4, In5, In6, In7, Out1, In8, Out2](implicit
+  given makeZip8: [In1, In2, In3, In4, In5, In6, In7, Out1, In8, Out2] => (
       zip1: Zip7.Out[In1, In2, In3, In4, In5, In6, In7, Out1],
       zip2: Zip.Out[Out1, In8, Out2],
-  ): Zip8.Out[In1, In2, In3, In4, In5, In6, In7, In8, Out2] =
+  ) => Zip8.Out[In1, In2, In3, In4, In5, In6, In7, In8, Out2] =
     new Zip8.Instance[In1, In2, In3, In4, In5, In6, In7, Out1, In8, Out2](zip1, zip2)
 
 }
@@ -238,7 +238,7 @@ object Zip9 {
 
   type Out[In1, In2, In3, In4, In5, In6, In7, In8, In9, O] = Zip9[In1, In2, In3, In4, In5, In6, In7, In8, In9] { type Out = O }
 
-  inline def apply[In1, In2, In3, In4, In5, In6, In7, In8, In9](implicit zip: Zip9[In1, In2, In3, In4, In5, In6, In7, In8, In9]): zip.type = zip
+  inline def apply[In1, In2, In3, In4, In5, In6, In7, In8, In9](using zip: Zip9[In1, In2, In3, In4, In5, In6, In7, In8, In9]): zip.type = zip
 
   final class Instance[In1, In2, In3, In4, In5, In6, In7, In8, Out1, In9, Out2](
       zip1: Zip8.Out[In1, In2, In3, In4, In5, In6, In7, In8, Out1],
@@ -258,10 +258,10 @@ object Zip9 {
 
   }
 
-  implicit def make[In1, In2, In3, In4, In5, In6, In7, In8, Out1, In9, Out2](implicit
+  given makeZip9: [In1, In2, In3, In4, In5, In6, In7, In8, Out1, In9, Out2] => (
       zip1: Zip8.Out[In1, In2, In3, In4, In5, In6, In7, In8, Out1],
       zip2: Zip.Out[Out1, In9, Out2],
-  ): Zip9.Out[In1, In2, In3, In4, In5, In6, In7, In8, In9, Out2] =
+  ) => Zip9.Out[In1, In2, In3, In4, In5, In6, In7, In8, In9, Out2] =
     new Zip9.Instance[In1, In2, In3, In4, In5, In6, In7, In8, Out1, In9, Out2](zip1, zip2)
 
 }
@@ -276,7 +276,7 @@ object Zip10 {
 
   type Out[In1, In2, In3, In4, In5, In6, In7, In8, In9, In10, O] = Zip10[In1, In2, In3, In4, In5, In6, In7, In8, In9, In10] { type Out = O }
 
-  inline def apply[In1, In2, In3, In4, In5, In6, In7, In8, In9, In10](implicit zip: Zip10[In1, In2, In3, In4, In5, In6, In7, In8, In9, In10]): zip.type = zip
+  inline def apply[In1, In2, In3, In4, In5, In6, In7, In8, In9, In10](using zip: Zip10[In1, In2, In3, In4, In5, In6, In7, In8, In9, In10]): zip.type = zip
 
   final class Instance[In1, In2, In3, In4, In5, In6, In7, In8, In9, Out1, In10, Out2](
       zip1: Zip9.Out[In1, In2, In3, In4, In5, In6, In7, In8, In9, Out1],
@@ -296,10 +296,10 @@ object Zip10 {
 
   }
 
-  implicit def make[In1, In2, In3, In4, In5, In6, In7, In8, In9, Out1, In10, Out2](implicit
+  given makeZip10: [In1, In2, In3, In4, In5, In6, In7, In8, In9, Out1, In10, Out2] => (
       zip1: Zip9.Out[In1, In2, In3, In4, In5, In6, In7, In8, In9, Out1],
       zip2: Zip.Out[Out1, In10, Out2],
-  ): Zip10.Out[In1, In2, In3, In4, In5, In6, In7, In8, In9, In10, Out2] =
+  ) => Zip10.Out[In1, In2, In3, In4, In5, In6, In7, In8, In9, In10, Out2] =
     new Zip10.Instance[In1, In2, In3, In4, In5, In6, In7, In8, In9, Out1, In10, Out2](zip1, zip2)
 
 }

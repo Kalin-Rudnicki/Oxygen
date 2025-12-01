@@ -34,7 +34,7 @@ final case class UserApiImpl(ref: Ref[Map[UUID, User]]) extends UserApi {
           firstName.map { firstName => { (u: User) => u.first == firstName } },
           lastName.map { lastName => { (u: User) => u.last == lastName } },
         ).flatten
-      filtered = if (filters.isEmpty) all else all.filter { u => filters.forall(_(u)) }
+      filtered = if filters.isEmpty then all else all.filter { u => filters.forall(_(u)) }
     } yield filtered.toSet
 
 }

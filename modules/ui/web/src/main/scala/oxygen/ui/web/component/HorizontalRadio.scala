@@ -220,7 +220,7 @@ object HorizontalRadio extends Decorable {
               borderBottom := "none",
               padding := props._padding.show,
               fontSize := props._fontSize,
-              if (isSelected) // is selected
+              if isSelected then // is selected
                 fragment(
                   color := props._selectedFGColor,
                   backgroundColor.dynamic := props._selectedBGColor,
@@ -231,16 +231,18 @@ object HorizontalRadio extends Decorable {
                   color := props._notSelectedFGColor,
                   backgroundColor.dynamic := props._notSelectedBGColor,
                   backgroundColor.dynamic.hover := props.notSelectedHoverColor,
-                ),
-              if (isFirst) // is first
+                )
+              ,
+              if isFirst then // is first
                 fragment(
                   borderTopLeftRadius := props._borderRadius,
                   borderBottomLeftRadius := props._borderRadius,
                 )
               else // is not first
                 fragment(
-                ),
-              if (isLast) // is last
+                )
+              ,
+              if isLast then // is last
                 fragment(
                   borderTopRightRadius := props._borderRadius,
                   borderBottomRightRadius := props._borderRadius,
@@ -248,11 +250,12 @@ object HorizontalRadio extends Decorable {
               else // is not last
                 fragment(
                   borderRight.csss(props._internalBorderSize, "solid", props._borderColor),
-                ),
+                )
+              ,
               //
               showF(opt),
               onClick.a[A].handle { rh => onSelectF(rh, opt) *> state.update(_.copy(selected = opt)) },
-            )(if (isSelected) props._selectedButtonMod else props._notSelectedButtonMod)
+            )(if isSelected then props._selectedButtonMod else props._notSelectedButtonMod)
           },
         )(props._mod)
       }

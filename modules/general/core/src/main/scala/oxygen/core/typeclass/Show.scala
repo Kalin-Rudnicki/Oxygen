@@ -129,7 +129,7 @@ object Show extends ShowLowPriority.LowPriority1 {
             showA.writeTo(builder, value)
           case None =>
         }
-        while (iter.hasNext) {
+        while iter.hasNext do {
           builder.append(join)
           showA.writeTo(builder, iter.next())
         }

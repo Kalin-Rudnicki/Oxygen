@@ -142,7 +142,7 @@ trait StringDecoder[A] { self =>
 }
 object StringDecoder extends StringDecoderLowPriority.LowPriority1 {
 
-  inline def apply[A](implicit ev: StringDecoder[A]): ev.type = ev
+  inline def apply[A](using ev: StringDecoder[A]): ev.type = ev
 
   //////////////////////////////////////////////////////////////////////////////////////////////////////
   //      Extensions
@@ -187,11 +187,11 @@ object StringDecoder extends StringDecoderLowPriority.LowPriority1 {
       val currentYearInCentury = currentYear % 100
       val futureYearInCentury = currentYearInCentury + futureTolerance
       val centuryGuess =
-        if (futureYearInCentury >= 100)
-          if (y >= currentYearInCentury) currentCentury
-          else if (y <= futureYearInCentury % 100) currentCentury + 1
+        if futureYearInCentury >= 100 then
+          if y >= currentYearInCentury then currentCentury
+          else if y <= futureYearInCentury % 100 then currentCentury + 1
           else currentCentury
-        else if (y <= futureYearInCentury) currentCentury
+        else if y <= futureYearInCentury then currentCentury
         else currentCentury - 1
 
       centuryGuess * 100 + y
@@ -215,15 +215,15 @@ object StringDecoder extends StringDecoderLowPriority.LowPriority1 {
       Try(time).toOption
 
     def amTime(hour: Int): Int =
-      if (hour < 0) throw new IllegalArgumentException("am-time < 0")
-      else if (hour > 12) throw new IllegalArgumentException("am-time > 12")
-      else if (hour == 12) 0
+      if hour < 0 then throw new IllegalArgumentException("am-time < 0")
+      else if hour > 12 then throw new IllegalArgumentException("am-time > 12")
+      else if hour == 12 then 0
       else hour
 
     def pmTime(hour: Int): Int =
-      if (hour < 0) throw new IllegalArgumentException("pm-time < 0")
-      else if (hour > 12) throw new IllegalArgumentException("pm-time > 12")
-      else if (hour == 12) 12
+      if hour < 0 then throw new IllegalArgumentException("pm-time < 0")
+      else if hour > 12 then throw new IllegalArgumentException("pm-time > 12")
+      else if hour == 12 then 12
       else hour + 12
 
     StringDecoder.string.mapOption {
@@ -273,7 +273,7 @@ object StringDecoder extends StringDecoderLowPriority.LowPriority1 {
     private lazy val cameFromString: Boolean = prevTypeInfo == TypeTag[String]
 
     private def transformHintStr: String =
-      if (cameFromString) s"Malformed {${typeInfo.prefixObject}}"
+      if cameFromString then s"Malformed {${typeInfo.prefixObject}}"
       else s"Failed to transform {${prevTypeInfo.prefixObject}}->{${typeInfo.prefixObject}}"
 
     def showSimple(includeHintWithMessage: Boolean): String =

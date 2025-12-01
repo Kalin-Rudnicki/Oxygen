@@ -30,7 +30,7 @@ object SqlAspects {
     */
   val isolateTestsInRollbackTransaction: TestAspect.PerTest.AtLeastR[Database] =
     new TestAspect.PerTest.AtLeastR[Database] {
-      override def perTest[R <: Database, E](test: ZIO[R, TestFailure[E], TestSuccess])(implicit trace: Trace): ZIO[R, TestFailure[E], TestSuccess] =
+      override def perTest[R <: Database, E](test: ZIO[R, TestFailure[E], TestSuccess])(using trace: Trace): ZIO[R, TestFailure[E], TestSuccess] =
         test @@ Atomically.RollbackDB.atomically
     }
 

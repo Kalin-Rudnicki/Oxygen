@@ -69,13 +69,13 @@ final case class NonEmptyList[+A](head: A, tail: List[A]) extends PartialFunctio
   def distinct: NonEmptyList[A] = unsafeTransformList(_.distinct)
   def distinctBy[B](f: A => B): NonEmptyList[A] = unsafeTransformList(_.distinctBy(f))
 
-  def sorted[B >: A](implicit ord: Ordering[B]): NonEmptyList[A] = unsafeTransformList(_.sorted[B])
-  def sortBy[B](f: A => B)(implicit ord: Ordering[B]): NonEmptyList[A] = unsafeTransformList(_.sortBy(f))
+  def sorted[B >: A](using ord: Ordering[B]): NonEmptyList[A] = unsafeTransformList(_.sorted[B])
+  def sortBy[B](f: A => B)(using ord: Ordering[B]): NonEmptyList[A] = unsafeTransformList(_.sortBy(f))
   def sortWith(lt: (A, A) => Boolean): NonEmptyList[A] = unsafeTransformList(_.sortWith(lt))
 
   def map[B](f: A => B): NonEmptyList[B] = NonEmptyList(f(head), tail.map(f))
   def flatMap[B](f: A => NonEmptyList[B]): NonEmptyList[B] = unsafeTransformList(_.flatMap(f(_).toList))
-  def flatten[B](implicit ev: A <:< NonEmptyList[B]): NonEmptyList[B] = flatMap(ev(_))
+  def flatten[B](using ev: A <:< NonEmptyList[B]): NonEmptyList[B] = flatMap(ev(_))
 
   def reverse: NonEmptyList[A] = unsafeTransformList(_.reverse)
 
@@ -90,17 +90,17 @@ final case class NonEmptyList[+A](head: A, tail: List[A]) extends PartialFunctio
   def reduceLeft[B >: A](op: (B, A) => B): B = toList.reduceLeft(op)
   def reduceRight[B >: A](op: (A, B) => B): B = toList.reduceRight(op)
 
-  def sum[B >: A](implicit num: Numeric[B]): B = toList.sum
-  def product[B >: A](implicit num: Numeric[B]): B = toList.product
+  def sum[B >: A](using num: Numeric[B]): B = toList.sum
+  def product[B >: A](using num: Numeric[B]): B = toList.product
 
-  def min[B >: A](implicit ord: Ordering[B]): A = toList.min
-  def max[B >: A](implicit ord: Ordering[B]): A = toList.max
-  def maxBy[B](f: A => B)(implicit cmp: Ordering[B]): A = toList.maxBy(f)
-  def minBy[B](f: A => B)(implicit cmp: Ordering[B]): A = toList.minBy(f)
+  def min[B >: A](using ord: Ordering[B]): A = toList.min
+  def max[B >: A](using ord: Ordering[B]): A = toList.max
+  def maxBy[B](f: A => B)(using cmp: Ordering[B]): A = toList.maxBy(f)
+  def minBy[B](f: A => B)(using cmp: Ordering[B]): A = toList.minBy(f)
 
   def toIndexedSeq: IndexedSeq[A] = toList.toIndexedSeq
   def toVector: Vector[A] = toList.toVector
-  def toMap[K, V](implicit ev: A <:< (K, V)): Map[K, V] = toList.toMap
+  def toMap[K, V](using ev: A <:< (K, V)): Map[K, V] = toList.toMap
   def toSet[B >: A]: Set[B] = toList.toSet
   def toArray[B >: A: ClassTag]: Array[B] = toList.toArray
 
@@ -144,8 +144,8 @@ object NonEmptyList {
   private def fillImpl[A: Type](sizeExpr: Expr[Int], elemExpr: Expr[A])(using quotes: Quotes): Expr[NonEmptyList[A]] = {
     import quotes.reflect.*
     val size = sizeExpr.valueOrAbort
-    if (size < 1) report.errorAndAbort("NonEmptyList.fill requires size >= 1")
-    else if (size == 1) '{ NonEmptyList(${ elemExpr }, Nil) }
+    if size < 1 then report.errorAndAbort("NonEmptyList.fill requires size >= 1")
+    else if size == 1 then '{ NonEmptyList(${ elemExpr }, Nil) }
     else '{ NonEmptyList(${ elemExpr }, List.fill(${ Expr(size - 1) })(${ elemExpr })) }
   }
 

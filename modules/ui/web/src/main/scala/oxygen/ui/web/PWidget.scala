@@ -614,7 +614,7 @@ object PWidget {
     def apply[Env2 <: Env, Action2 >: Action, StateGet2 <: StateGet, StateSet2 >: StateSet <: StateGet2](
         addChildren: PWidget[Env2, Action2, StateGet2, StateSet2]*,
     ): Node[Env2, Action2, StateGet2, StateSet2] =
-      if (addChildren.isEmpty) this
+      if addChildren.isEmpty then this
       else Node(xmlns, tag, children ++ Growable.many(addChildren))
 
     def apply(mod: NodeModifier): PWidget.Node[Env, Action, StateGet, StateSet] =
@@ -652,7 +652,7 @@ object PWidget {
     def apply[Env2 <: Env, Action2 >: Action, StateGet2 <: StateGet, StateSet2 >: StateSet <: StateGet2](
         addChildren: PWidget[Env2, Action2, StateGet2, StateSet2]*,
     ): Canvas[Env2, Action2, StateGet2, StateSet2] =
-      if (addChildren.isEmpty) this
+      if addChildren.isEmpty then this
       else Canvas(draw, children ++ Growable.many(addChildren))
 
   }
@@ -679,7 +679,7 @@ object PWidget {
     def apply[Env2 <: Env, Action2 >: Action, StateGet2 <: StateGet, StateSet2 >: StateSet <: StateGet2](
         addElements: PWidget[Env2, Action2, StateGet2, StateSet2]*,
     ): Fragment[Env2, Action2, StateGet2, StateSet2] =
-      if (addElements.isEmpty) this
+      if addElements.isEmpty then this
       else Fragment(elements ++ Growable.many(addElements))
 
     def apply(mod: NodeModifier): PWidget.Fragment[Env, Action, StateGet, StateSet] =

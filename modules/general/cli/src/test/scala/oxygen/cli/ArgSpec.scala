@@ -62,7 +62,7 @@ object ArgSpec extends OxygenSpecDefault {
         splitOnTest("empty")()(Nil, Nil),
         splitOnTest("left only (explicit)")("a", "b", "c", "--")(List("a", "b", "c"), Nil),
         splitOnTest("right only (explicit)")("--", "a", "b", "c")(Nil, List("a", "b", "c")),
-        splitOnTest("right only (implicit)")("a", "b", "c")(Nil, List("a", "b", "c")),
+        splitOnTest("right only (using)")("a", "b", "c")(Nil, List("a", "b", "c")),
         splitOnTest("left and right")("a", "b", "c", "--", "d", "e", "f")(List("a", "b", "c"), List("d", "e", "f")),
       ),
     )

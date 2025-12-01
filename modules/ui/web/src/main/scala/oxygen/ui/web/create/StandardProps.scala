@@ -82,7 +82,7 @@ object StandardProps {
           _hoverFocus,
         ).exists(_.isSpecified)
 
-      def specifiedIfNonEmpty: Specified[Group] = if (this.nonEmpty) this else ___
+      def specifiedIfNonEmpty: Specified[Group] = if this.nonEmpty then this else ___
 
       extension (self: Specified[ColorTransform])
         private def eval(builder: CssBuilder#InlinePseudoAttr, color: CSSColor): Widget = self match

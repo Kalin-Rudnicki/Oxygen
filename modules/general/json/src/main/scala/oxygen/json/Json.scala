@@ -27,8 +27,8 @@ sealed trait Json {
         val zipped = self.value.zip(that.value).map(_.merge(_))
         val len1 = self.value.length
         val len2 = that.value.length
-        if (len1 > len2) Json.Arr(zipped ++ self.value.drop(len2))
-        else if (len1 < len2) Json.Arr(zipped ++ that.value.drop(len1))
+        if len1 > len2 then Json.Arr(zipped ++ self.value.drop(len2))
+        else if len1 < len2 then Json.Arr(zipped ++ that.value.drop(len1))
         else Json.Arr(zipped)
       case _ =>
         that
@@ -126,7 +126,7 @@ object Json {
       sb.append('[')
       var already: Boolean = false
       value.foreach { v =>
-        if (already) sb.append(',')
+        if already then sb.append(',')
         else already = true
         v.writeCompact(sb)
       }
@@ -138,7 +138,7 @@ object Json {
       sb.append('[')
       var already: Boolean = false
       value.foreach { v =>
-        if (already) sb.append(',')
+        if already then sb.append(',')
         else already = true
         sb.append(newIndent)
         v.writePretty(sb, newIndent)
@@ -157,7 +157,7 @@ object Json {
       sb.append('{')
       var already: Boolean = false
       value.foreach { case (k, v) =>
-        if (already) sb.append(',')
+        if already then sb.append(',')
         else already = true
         Json.Str(k).writeCompact(sb)
         sb.append(':')
@@ -171,7 +171,7 @@ object Json {
       sb.append('{')
       var already: Boolean = false
       value.foreach { case (k, v) =>
-        if (already) sb.append(',')
+        if already then sb.append(',')
         else already = true
         sb.append(newIndent)
         Json.Str(k).writePretty(sb, newIndent)

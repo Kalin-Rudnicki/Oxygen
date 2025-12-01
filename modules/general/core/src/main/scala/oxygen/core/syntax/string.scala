@@ -21,15 +21,15 @@ object string {
       Option.when(self.nonEmpty)(self)
 
     def pluralize(amount: Long, pluralSuffix: String = "s", singularSuffix: String = ""): String =
-      s"$self${if (amount.abs == 1) singularSuffix else pluralSuffix}"
+      s"$self${if amount.abs == 1 then singularSuffix else pluralSuffix}"
 
     def decapitalize: String =
-      if (self == null || self.length == 0 || !self.charAt(0).isUpper) self
+      if self == null || self.length == 0 || !self.charAt(0).isUpper then self
       else self.updated(0, self.charAt(0).toLower)
 
     def detailedSplit(regex: Regex): (Boolean, Seq[String], Boolean) = {
       val raw = regex.split(s"$splitStartTag$self$splitEndTag").toSeq
-      if (raw.length < 2) (false, Seq(self), false)
+      if raw.length < 2 then (false, Seq(self), false)
       else {
         val a = raw.head
         val b = raw.last
@@ -48,8 +48,8 @@ object string {
     }
     def detailedSplit(regex: Regex, includeEmptyLeading: Boolean, includeEmptyTrailing: Boolean): Seq[String] = {
       val (hasEmptyLeading, strs, hasEmptyTrailing) = detailedSplit(regex)
-      val tmp = if (hasEmptyLeading && includeEmptyLeading) "" +: strs else strs
-      if (hasEmptyTrailing && includeEmptyTrailing) tmp :+ "" else tmp
+      val tmp = if hasEmptyLeading && includeEmptyLeading then "" +: strs else strs
+      if hasEmptyTrailing && includeEmptyTrailing then tmp :+ "" else tmp
     }
 
     inline def unesc: String = self.unesc("\"")
@@ -61,7 +61,7 @@ object string {
     private def alignFunction(length: Int, char: Char)(padF: Int => (Option[Int], Option[Int])): String = {
       val toAdd = length - self.length
       val charStr = char.toString
-      if (toAdd > 0) {
+      if toAdd > 0 then {
         val (left, right) = padF(toAdd)
         List(left.map(charStr * _), self.some, right.map(charStr * _)).flatten.mkString
       } else self
@@ -105,7 +105,7 @@ object string {
     // --- Camel -> ___ ---
 
     def camelToSnake: String =
-      camelRegex.replaceAllIn(self, m => if (m.start == 0) m.matched else s"_${m.matched}").toLowerCase
+      camelRegex.replaceAllIn(self, m => if m.start == 0 then m.matched else s"_${m.matched}").toLowerCase
 
     def camelToDash: String =
       camelToSnake.snakeToDash

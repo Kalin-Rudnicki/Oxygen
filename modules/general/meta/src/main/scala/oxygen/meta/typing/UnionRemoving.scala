@@ -61,7 +61,7 @@ object UnionRemoving {
 
     val removingOrRemaining: TypeRepr = OrType.companion.apply(removingTypeRepr, remainingTypeRepr)
 
-    if (totalTypeRepr !<:< removingOrRemaining)
+    if totalTypeRepr !<:< removingOrRemaining then
       report.errorAndAbort(s"This should always be true, but for some reason is not: ${totalTypeRepr.showAnsiCode} <:< ${removingOrRemaining.showAnsiCode}")
 
     def summonTypeTest[T: Type](tName: String) = {
@@ -77,7 +77,7 @@ object UnionRemoving {
          |      value: """.stripMargin
 
     val res: (Expr[UnionRemoving.Instance[_Total, _Removing, ?]], TypeRepr) =
-      if (remainingParts.isEmpty)
+      if remainingParts.isEmpty then
         (
           '{
             new UnionRemoving.NothingRemainingInstance[_Total, _Removing] {

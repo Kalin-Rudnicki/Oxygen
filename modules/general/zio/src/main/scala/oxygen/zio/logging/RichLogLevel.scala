@@ -12,8 +12,8 @@ final case class RichLogLevel(
 ) {
 
   val formattedShortName: String =
-    if (shortName.length == 5) shortName
-    else if (shortName.length < 5) shortName.alignCenter(5)
+    if shortName.length == 5 then shortName
+    else if shortName.length < 5 then shortName.alignCenter(5)
     else shortName.substring(0, 5)
 
 }

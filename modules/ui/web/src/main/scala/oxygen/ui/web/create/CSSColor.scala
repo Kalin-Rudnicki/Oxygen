@@ -87,9 +87,9 @@ object CSSColor {
 
       // Hue calculation
       val hue =
-        if (delta == 0) 0.0
-        else if (max == rNorm) (60 * ((gNorm - bNorm) / delta) + 360) % 360
-        else if (max == gNorm) (60 * ((bNorm - rNorm) / delta) + 120) % 360
+        if delta == 0 then 0.0
+        else if max == rNorm then (60 * ((gNorm - bNorm) / delta) + 360) % 360
+        else if max == gNorm then (60 * ((bNorm - rNorm) / delta) + 120) % 360
         else (60 * ((rNorm - gNorm) / delta) + 240) % 360
 
       // Lightness calculation
@@ -97,7 +97,7 @@ object CSSColor {
 
       // Saturation calculation
       val saturation =
-        if (delta == 0) 0.0
+        if delta == 0 then 0.0
         else delta / (1 - Math.abs(2 * lightness - 1))
 
       HSL(hue, saturation, lightness)
@@ -119,11 +119,11 @@ object CSSColor {
       val m = lightness - c / 2
 
       val (r1, g1, b1) =
-        if (hue < 60) (c, x, 0.0)
-        else if (hue < 120) (x, c, 0.0)
-        else if (hue < 180) (0.0, c, x)
-        else if (hue < 240) (0.0, x, c)
-        else if (hue < 300) (x, 0.0, c)
+        if hue < 60 then (c, x, 0.0)
+        else if hue < 120 then (x, c, 0.0)
+        else if hue < 180 then (0.0, c, x)
+        else if hue < 240 then (0.0, x, c)
+        else if hue < 300 then (x, 0.0, c)
         else (c, 0.0, x)
 
       val r = ((r1 + m) * 255).toInt
@@ -146,9 +146,9 @@ object CSSColor {
     * - -10.0   -> 0%
     */
   private def normalizePercent(percent: Double): Double =
-    if (percent > 100.0) 1.0
-    else if (percent < 0) 0.0
-    else if (percent <= 1.0) percent
+    if percent > 100.0 then 1.0
+    else if percent < 0 then 0.0
+    else if percent <= 1.0 then percent
     else percent / 100
 
   def mixRGB(c1: CSSColor.RGB, w1: Int)(c2: CSSColor.RGB, w2: Int): CSSColor.RGB =
@@ -225,8 +225,8 @@ object CSSColor {
 
     def fromIntBound(int: Int): HexPair =
       HexPair(
-        if (int > 255) 255
-        else if (int < 0) 0
+        if int > 255 then 255
+        else if int < 0 then 0
         else int,
       )
 

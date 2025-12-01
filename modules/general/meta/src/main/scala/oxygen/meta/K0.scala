@@ -288,12 +288,11 @@ object K0 {
 
     }
 
-    @scala.annotation.nowarn("msg=unused import")
     final def showTypeClassInstances[F[_]: Type](using Quotes): Unit =
       children.foreach { child0 =>
         type B <: ChildBound
         val child: Child[B] = child0.typedAs[B]
-        import child.tpe
+        given Type[B] = child.tpe
 
         def msg(label: String, str: String): String =
           s"""${child.childType}: ${child.label}
@@ -768,8 +767,7 @@ object K0 {
         val constructorVals: List[ValDef] = constructorTerms.params
         val fieldSyms: List[Symbol] = _typeSym.caseFields
 
-        if (constructorVals.size != fieldSyms.size)
-          report.errorAndAbort("Primary constructor size differs from case fields size?")
+        if constructorVals.size != fieldSyms.size then report.errorAndAbort("Primary constructor size differs from case fields size?")
 
         val typeArgs: List[TypeRepr] = _typeRepr.dealias match
           case appTpe: AppliedType => appTpe.args
@@ -781,8 +779,7 @@ object K0 {
             case Some(constructorTypes) =>
               val typeArgsSymbols: List[Symbol] = constructorTypes.params.map { s => _typeSym.typeMember(s.name) }
 
-              if (typeArgsSymbols.size != typeArgs.size)
-                report.errorAndAbort("Type param symbols and reprs have different size?")
+              if typeArgsSymbols.size != typeArgs.size then report.errorAndAbort("Type param symbols and reprs have different size?")
 
               _.substituteTypes(typeArgsSymbols, typeArgs)
             case None =>
@@ -793,8 +790,7 @@ object K0 {
 
         val fieldTuple: ArraySeq[(Int, TypeRepr, ValDef, Symbol)] =
           ArraySeq.from(constructorVals.zip(fieldSyms)).zipWithIndex.map { case ((constructorVal, fieldSym), idx) =>
-            if (constructorVal.name != fieldSym.name)
-              report.errorAndAbort("vals are not in same order?")
+            if constructorVal.name != fieldSym.name then report.errorAndAbort("vals are not in same order?")
 
             val optFieldDef: Option[ValOrDefDef] =
               allDecls.filter(_.name == constructorVal.name).map(_.tree).collect { case d: ValOrDefDef => d } match {
@@ -840,8 +836,7 @@ object K0 {
 
           override def fieldsToInstance[S[_]: SeqRead](exprs: S[Expr[?]])(using quotes: Quotes): Expr[A] = {
             val exprSize = exprs.size
-            if (exprSize != fields.length)
-              report.errorAndAbort(s"Provided exprs ($exprSize) != num fields (${fields.length})")
+            if exprSize != fields.length then report.errorAndAbort(s"Provided exprs ($exprSize) != num fields (${fields.length})")
 
             constructorAwaitingArgs
               .appliedToArgs(exprs.into[List].map(_.toTerm))
@@ -1116,7 +1111,7 @@ object K0 {
         case _                    => report.errorAndAbort(s"Not a product type: ${TypeRepr.of[A].show}", TypeRepr.of[A].typeOrTermSymbol.pos)
 
     def ofTuple[A](tupleTypes: List[TypeRepr], config: Derivable.Config = Derivable.Config())(using Quotes): ProductGeneric[A] = {
-      if (tupleTypes.length < 2) report.errorAndAbort("`ProductGeneric.ofTuple` only works with tuple size >= 2")
+      if tupleTypes.length < 2 then report.errorAndAbort("`ProductGeneric.ofTuple` only works with tuple size >= 2")
 
       val typeRepr: TypeRepr = TypeRepr.tuplePreferTupleN(tupleTypes)
       val typeSym = typeRepr.typeSymbol
@@ -1152,8 +1147,7 @@ object K0 {
       productGeneric.fields.toList match {
         case Nil =>
           val unitRepr: TypeRepr = TypeRepr.of[Unit]
-          if (!(sourceTypeRepr =:= unitRepr))
-            fail("Target type has 0 fields, therefore source type needs to be Unit", unitRepr)
+          if !(sourceTypeRepr =:= unitRepr) then fail("Target type has 0 fields, therefore source type needs to be Unit", unitRepr)
 
           val typedUnitExpr: Expr[SourceT] = '{ () }.asExprOf[SourceT]
 
@@ -1162,7 +1156,7 @@ object K0 {
 
           (abExpr, baExpr)
         case field :: Nil =>
-          if (!(field.typeRepr =:= sourceTypeRepr))
+          if !(field.typeRepr =:= sourceTypeRepr) then
             fail(s"Target type has 1 field (${field.name}: ${field.typeRepr.showAnsiCode}), therefore source type must match that single field", field.typeRepr)
 
           val abExpr: Expr[SourceT => TargetT] = '{ { (source: SourceT) => ${ productGeneric.instantiate.fieldsToInstance('source :: Nil) } } }
@@ -1172,8 +1166,7 @@ object K0 {
         case fields =>
           type TupleT
           val tupleGeneric: ProductGeneric[TupleT] = ProductGeneric.ofTuple[TupleT](fields.map(_.typeRepr))
-          if (!(tupleGeneric.typeRepr =:= sourceTypeRepr))
-            fail(s"Target type has 2+ fields, therefore source type must be a tuple of those fields", tupleGeneric.typeRepr)
+          if !(tupleGeneric.typeRepr =:= sourceTypeRepr) then fail(s"Target type has 2+ fields, therefore source type must be a tuple of those fields", tupleGeneric.typeRepr)
 
           val reTypedTupleGeneric: ProductGeneric[SourceT] = tupleGeneric.typedAs[SourceT]
 
@@ -1452,8 +1445,7 @@ object K0 {
           case caseClass: ProductGeneric.CaseClassGeneric[? <: A]   => caseClass.asRight
         }
 
-        if (caseObjects.isEmpty)
-          report.errorAndAbort(s"No case objects returned for parent ${typeRepr.showAnsiCode}")
+        if caseObjects.isEmpty then report.errorAndAbort(s"No case objects returned for parent ${typeRepr.showAnsiCode}")
 
         val values: ArraySeq[Expr[A]] = caseObjects.map { _.instantiate.instance }
 
@@ -1463,7 +1455,7 @@ object K0 {
       private def extract[A: Type](validateNumCaseClasses: Int => Boolean, expectedSize: String)(using Quotes): Expr[ArraySeq[A]] = {
         val (typeRepr, caseClasses, valuesExpr) = extractReturnCaseClasses[A]
 
-        if (!validateNumCaseClasses(caseClasses.length)) {
+        if !validateNumCaseClasses(caseClasses.length) then {
           val showCaseClasses = caseClasses.map { ccg => s"\n  - ${ccg.typeRepr.showAnsiCode}" }.mkString
           report.errorAndAbort(s"Invalid number of case classes detected for parent ${typeRepr.showAnsiCode}, expected $expectedSize, but found ${caseClasses.length}:$showCaseClasses")
         }
@@ -1507,7 +1499,7 @@ object K0 {
               case field :: Nil => field
               case _            => report.errorAndAbort(s"Found single case-class child for ${typeRepr.showAnsiCode}, but it doesn't have a single field:\n$caseClass")
 
-            if (!(caseClassField.typeRepr =:= bTypeRepr))
+            if !(caseClassField.typeRepr =:= bTypeRepr) then
               report.errorAndAbort(s"Expected single case-class field to have type ${bTypeRepr.showAnsiCode}, but got ${caseClassField.typeRepr.showAnsiCode}", caseClassField.pos)
 
             def wrap(value: Expr[B]): Expr[A] = caseClass.instantiate.fieldsToInstance(value :: Nil)
@@ -1577,8 +1569,7 @@ object K0 {
         sym.typeType.option match {
           case Some(_: TypeType.Case.Class) =>
             val classDef: ClassDef = sym.tree.narrow[ClassDef]
-            if (classDef.constructor.paramss.exists { case _: TypeParamClause => true; case _ => false })
-              report.errorAndAbort("Type params on sum types is not yet supported")
+            if classDef.constructor.paramss.exists { case _: TypeParamClause => true; case _ => false } then report.errorAndAbort("Type params on sum types is not yet supported")
 
             type B <: A
             Growable.single(ProductGeneric.unsafeOf[B](sym.typeRef, sym, config))
@@ -1597,13 +1588,11 @@ object K0 {
 
           case Some(_: TypeType.Sealed) =>
             val classDef: ClassDef = sym.tree.narrow[ClassDef]
-            if (classDef.constructor.paramss.exists { case _: TypeParamClause => true; case _ => false })
-              report.errorAndAbort("Type params on sum types is not yet supported")
+            if classDef.constructor.paramss.exists { case _: TypeParamClause => true; case _ => false } then report.errorAndAbort("Type params on sum types is not yet supported")
 
-            if (unroll(isRoot)) {
+            if unroll(isRoot) then {
               val children = sym.children
-              if (children.isEmpty)
-                report.errorAndAbort(s"Sum type ${sym.name} has no children", sym.pos)
+              if children.isEmpty then report.errorAndAbort(s"Sum type ${sym.name} has no children", sym.pos)
 
               Growable.many(children).flatMap(childGenericsRec(false, _))
             } else {

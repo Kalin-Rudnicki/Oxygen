@@ -19,9 +19,9 @@ final case class PageURL(
 object PageURL {
 
   val fromWindow: UIO[PageURL] =
-    (for {
+    (for
       path <- ZIO.attempt { window.location.href.stripPrefix("file://") }
       parsed <- ZIO.fromEither { URL.decode(path) }
-    } yield PageURL(parsed.path, parsed.queryParams)).tapErrorCause { ZIO.logErrorCause("Error parsing window URL", _) }.orDie
+    yield PageURL(parsed.path, parsed.queryParams)).tapErrorCause { ZIO.logErrorCause("Error parsing window URL", _) }.orDie
 
 }

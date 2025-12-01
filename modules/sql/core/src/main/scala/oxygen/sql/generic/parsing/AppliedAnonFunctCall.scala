@@ -36,7 +36,7 @@ private[generic] object AppliedAnonFunctCall extends Parser[Term, AppliedAnonFun
           lhsTpe = fun.lhs.tpe
           expLhsTpeRepr = TypeRepr.of[LhsTpe]
           lhsExpr <-
-            if (lhsTpe <:< expLhsTpeRepr) ParseResult.Success(fun.lhs.asExprOf[LhsTpe])
+            if lhsTpe <:< expLhsTpeRepr then ParseResult.Success(fun.lhs.asExprOf[LhsTpe])
             else ParseResult.unknown(fun.lhs, s"function LHS `${lhsTpe.showAnsiCode}` is not a subtype of `${expLhsTpeRepr.showAnsiCode}`")
           a <- f.applyOrElse((lhsExpr, fun), _ => ParseResult.error(fun.lhs, "invalid function LHS"))
         } yield (fun, a)

@@ -24,7 +24,7 @@ final class TypeReprCompanion(using quotes: Quotes) {
 
   def tuplePreferTupleN(typeParams: List[TypeRepr]): TypeRepr = {
     val size = typeParams.size
-    if (size > 0 && size <= 22) Symbol.tupleClass(size).typeRef.appliedTo(typeParams)
+    if size > 0 && size <= 22 then Symbol.tupleClass(size).typeRef.appliedTo(typeParams)
     else tupleUsingAppend(typeParams)
   }
 
@@ -59,8 +59,8 @@ final class TypeReprCompanion(using quotes: Quotes) {
     * ```
     */
   def covariantJoin(a: TypeRepr, b: TypeRepr): TypeRepr =
-    if (a <:< b) b
-    else if (b <:< a) a
+    if a <:< b then b
+    else if b <:< a then a
     else OrType.companion.apply(a, b)
   def covariantJoin(all: Seq[TypeRepr]): TypeRepr =
     all.reduceLeft(covariantJoin(_, _))
@@ -85,8 +85,8 @@ final class TypeReprCompanion(using quotes: Quotes) {
     * ```
     */
   def contravariantJoin(a: TypeRepr, b: TypeRepr): TypeRepr =
-    if (a <:< b) a
-    else if (b <:< a) b
+    if a <:< b then a
+    else if b <:< a then b
     else AndType.companion.apply(a, b)
   def contravariantJoin(all: Seq[TypeRepr]): TypeRepr =
     all.reduceLeft(contravariantJoin(_, _))

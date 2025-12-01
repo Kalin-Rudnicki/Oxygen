@@ -182,7 +182,7 @@ private[generic] object Function extends Parser[Term, Function] {
     } yield (param, caseDef.rhs)
 
   private def convertNormalParam(valDef: ValDef): Function.RootParam =
-    if (valDef.name == "_") Function.RootParam.Ignored(valDef)
+    if valDef.name == "_" then Function.RootParam.Ignored(valDef)
     else Function.RootParam.Named(valDef)
 
   private def mergeParamsAndRHS(tree: Tree, params: List[ValDef], rhs: Term)(using ParseContext): ParseResult[(List[Function.RootParam], Term)] =

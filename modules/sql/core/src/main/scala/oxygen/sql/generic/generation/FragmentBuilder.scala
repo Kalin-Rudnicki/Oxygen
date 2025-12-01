@@ -290,9 +290,8 @@ final case class FragmentBuilder(inputs: List[InputPart])(using Quotes) {
     )
 
   def select(s: SelectPart.FromSubQuery)(using ParseContext, GenerationContext, Quotes): ParseResult[GeneratedFragment] =
-    for {
-      sq <- s.subQuery.makeFragment
-    } yield GeneratedFragment.of(
+    for sq <- s.subQuery.makeFragment
+    yield GeneratedFragment.of(
       "\n    FROM (\n",
       GeneratedFragment.indented(sq, "        "),
       s"\n    ) AS ${s.subQueryTableName}",
@@ -447,8 +446,7 @@ final case class FragmentBuilder(inputs: List[InputPart])(using Quotes) {
         '{
           val lhs: ArraySeq[String] = $setTargetColumnNames
           val rhs: ArraySeq[String] = $rhsParts
-          if (lhs.length != rhs.length)
-            throw new RuntimeException("defect: non-equal set lengths")
+          if lhs.length != rhs.length then throw new RuntimeException("defect: non-equal set lengths")
           lhs.zip(rhs).map { case (a, b) => s"$a = $b" }
         }
       val joined: Expr[String] = '{ $zipped.mkString(",\n        ") }

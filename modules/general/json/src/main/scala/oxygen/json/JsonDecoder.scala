@@ -174,7 +174,7 @@ object JsonDecoder extends K0.Derivable[JsonDecoder.ObjectDecoder], JsonDecoderL
       mapOrFail { bigDecimal =>
         try {
           val converted = to(bigDecimal)
-          if (from(converted) == bigDecimal) converted.asRight
+          if from(converted) == bigDecimal then converted.asRight
           else "Numeric overflow".asLeft
         } catch {
           case e: ArithmeticException => e.safeGetMessage.asLeft
@@ -183,16 +183,15 @@ object JsonDecoder extends K0.Derivable[JsonDecoder.ObjectDecoder], JsonDecoderL
 
     def narrowWhole[A](to: BigDecimal => A, from: A => BigDecimal): JsonDecoder[A] =
       mapOrFail { bigDecimal =>
-        if (bigDecimal.isWhole)
+        if bigDecimal.isWhole then
           try {
             val converted = to(bigDecimal)
-            if (from(converted) == bigDecimal) converted.asRight
+            if from(converted) == bigDecimal then converted.asRight
             else "Numeric overflow".asLeft
           } catch {
             case e: ArithmeticException => e.safeGetMessage.asLeft
           }
-        else
-          "Non decimal expected".asLeft
+        else "Non decimal expected".asLeft
       }
 
   }

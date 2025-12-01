@@ -19,12 +19,12 @@ final case class ForeignKeyState(
   def ref: EntityRef.ForeignKeyRef = EntityRef.ForeignKeyRef(self, fkName)
 
   def renameSchema(schemaRef: SchemaRef, newName: String): ForeignKeyState = {
-    extension (tr: TableRef) def updated: TableRef = if (tr.schema == schemaRef) TableRef(newName, tr.tableName) else tr
+    extension (tr: TableRef) def updated: TableRef = if tr.schema == schemaRef then TableRef(newName, tr.tableName) else tr
     copy(self = self.updated, references = references.updated)
   }
 
   def renameTable(tableRef: TableRef, newName: String): ForeignKeyState = {
-    extension (tr: TableRef) def updated: TableRef = if (tr == tableRef) TableRef(tr.schema, newName) else tr
+    extension (tr: TableRef) def updated: TableRef = if tr == tableRef then TableRef(tr.schema, newName) else tr
     copy(self = self.updated, references = references.updated)
   }
 
@@ -62,7 +62,7 @@ object ForeignKeyState {
 
     extension (repr: EntityRef.TableRef)
       private def fkScope: String =
-        if (repr.schema.isPublic) repr.tableName
+        if repr.schema.isPublic then repr.tableName
         else s"${repr.schema.schemaName}__${repr.tableName}"
 
     def autoFKName: String =

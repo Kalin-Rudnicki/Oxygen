@@ -63,7 +63,7 @@ private[sql] final class PreparedStatement private (
     val size: Int = rawRS.getMetaData.getColumnCount
     var idx: Int = 0
     val array: Array[Any] = new Array[Any](size)
-    while (idx < size) {
+    while idx < size do {
       val idx2 = idx + 1
       array(idx) = rawRS.getObject(idx2)
       idx = idx2
@@ -80,39 +80,34 @@ private[sql] final class PreparedStatement private (
 
     @tailrec
     def loop2(idx: Int, bufferSize: Int, hasNext: => Boolean): (ZChannel[Any, Any, Any, Any, QueryError, ArraySeq[ArraySeq[Any]], Unit], Boolean) =
-      if (idx < bufferSize)
-        if (hasNext) {
+      if idx < bufferSize then
+        if hasNext then {
           builder.addOne(unsafeReadResultSet(rawRS))
           loop2(idx + 1, bufferSize, rawRS.next())
-        } else
-          (ZChannel.write(builder.result()) *> ZChannel.unit, false)
-      else
-        (ZChannel.write(builder.result()), true)
+        } else (ZChannel.write(builder.result()) *> ZChannel.unit, false)
+      else (ZChannel.write(builder.result()), true)
 
     def loop1(bufferChunkSize: NonEmptyList[Int]): ZChannel[Any, Any, Any, Any, QueryError, ArraySeq[ArraySeq[Any]], Unit] =
-      if (bufferChunkSize.head > 0)
+      if bufferChunkSize.head > 0 then
         ZChannel.suspend {
           builder.clear()
           val (current, doLoop) =
-            if (rawRS.next()) {
+            if rawRS.next() then {
               try {
                 loop2(0, bufferChunkSize.head, true)
               } catch {
                 case e: Throwable => (ZChannel.write(builder.result()) *> ZChannel.fail(QueryError(ctx, QueryError.Cause.fromThrowable(e))), false)
               }
-            } else
-              (ZChannel.unit, false)
+            } else (ZChannel.unit, false)
 
-          if (doLoop) {
+          if doLoop then {
             val newBufferSize: NonEmptyList[Int] = bufferChunkSize.tail match
               case Nil          => bufferChunkSize
               case head :: tail => builder.sizeHint(head); NonEmptyList(head, tail)
             current *> loop1(newBufferSize)
-          } else
-            current
+          } else current
         }
-      else
-        ZChannel.fromZIO { ZIO.dieMessage(s"bufferSize (${bufferChunkSize.head}) <= 0 ") }
+      else ZChannel.fromZIO { ZIO.dieMessage(s"bufferSize (${bufferChunkSize.head}) <= 0 ") }
 
     loop1(bufferChunkSize)
   }
@@ -132,13 +127,12 @@ private[sql] final class PreparedStatement private (
 
         @tailrec
         def loop(idx: Int): ZChannel[Any, Any, Any, Any, QueryError, Chunk[O], Unit] =
-          if (idx < len)
+          if idx < len then
             resultDecoder.decode(rawResults(idx)) match {
               case Right(value) => builder.addOne(value); loop(idx + 1)
               case Left(error)  => ZChannel.write(builder.result()) *> ZChannel.fail(QueryError(ctx, error))
             }
-          else
-            ZChannel.write(builder.result())
+          else ZChannel.write(builder.result())
 
         loop(0)
     }
@@ -155,21 +149,18 @@ private[sql] final class PreparedStatement private (
     // TODO (KR) : make the read single head behavior configurable?
     val (current, doLoop) =
       try {
-        if (rawRS.next())
+        if rawRS.next() then
           resultDecoder.decode(unsafeReadResultSet(rawRS)) match {
             case Right(value) => (ZChannel.write(Chunk.single(value)), true)
             case Left(error)  => (ZChannel.fail(QueryError(ctx, error)), false)
           }
-        else
-          (ZChannel.unit, false)
+        else (ZChannel.unit, false)
       } catch {
         case e: Throwable => (ZChannel.fail(QueryError(ctx, QueryError.Cause.fromThrowable(e))), false)
       }
 
-    if (doLoop)
-      current *> readRawResults(rawRS, bufferChunkSize).flatMapOut(convertRawResultChunk(_, resultDecoder))
-    else
-      current
+    if doLoop then current *> readRawResults(rawRS, bufferChunkSize).flatMapOut(convertRawResultChunk(_, resultDecoder))
+    else current
   }
 
   extension [Env1, InErr, InElem, InDone, OutErr1, OutElem1, OutDone](self: ZChannel[Env1, InErr, InElem, InDone, OutErr1, OutElem1, OutDone])

@@ -25,7 +25,7 @@ object Color {
 
   }
 
-  implicit val stringCodec: StringCodec[Color] =
+  given stringCodec: StringCodec[Color] =
     StringCodec.string.transformOption(Color.parse(_), _.toString)
 
   sealed trait Concrete extends Color {
@@ -77,7 +77,7 @@ object Color {
   }
   object RGB {
 
-    implicit val stringCodec: StringCodec[Color.RGB] =
+    given stringCodec: StringCodec[Color.RGB] =
       StringCodec.string.transformOption(Color.RGB.parse(_), _.toString)
 
     private val hexReg3 = "^(?:#|0X|)([0-9A-Z])([0-9A-Z])([0-9A-Z])$".r
@@ -87,7 +87,7 @@ object Color {
     private val rgbInt: Unapply[String, Int] = _.toIntOption.filter(i => i >= 0 && i <= 255)
     private val rgbReg = "^RGB\\([ ]*(\\d+)[ ]*,[ ]*(\\d+)[ ]*,[ ]*(\\d+)[ ]*\\)$".r
 
-    private implicit val rgbToExpr: ToExpr[Color.RGB] =
+    private given rgbToExpr: ToExpr[Color.RGB] =
       new ToExpr[RGB] {
         override def apply(x: Color.RGB)(using quotes: Quotes): Expr[RGB] =
           '{ Color.RGB(${ Expr(x.r) }, ${ Expr(x.g) }, ${ Expr(x.b) }) }

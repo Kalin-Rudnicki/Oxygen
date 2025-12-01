@@ -68,7 +68,7 @@ object CompiledEndpoints {
     override def handle(input: EndpointInput): ZIO[Scope, Response, Response] = {
       var idx: Int = 0
       var endpoint: Endpoint = null
-      while (idx < endpointArrayLength) {
+      while idx < endpointArrayLength do {
         endpoint = endpointArray(idx)
         endpoint.handle(input) match
           case Some(effect) => return effect

@@ -17,7 +17,7 @@ trait StringEncoder[A] { self =>
 }
 object StringEncoder extends StringEncoderLowPriority.LowPriority1 {
 
-  inline def apply[A](implicit ev: StringEncoder[A]): ev.type = ev
+  inline def apply[A](using ev: StringEncoder[A]): ev.type = ev
 
   //////////////////////////////////////////////////////////////////////////////////////////////////////
   //      Extensions

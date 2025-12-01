@@ -10,8 +10,7 @@ object seq {
   extension [A](self: ArraySeq[A]) {
 
     def zipExact[B](that: ArraySeq[B]): ArraySeq[(A, B)] = {
-      if (self.length != that.length)
-        throw new RuntimeException(s"seqs do not have same length (${self.length} != ${that.length})")
+      if self.length != that.length then throw new RuntimeException(s"seqs do not have same length (${self.length} != ${that.length})")
       self.zip(that)
     }
 
@@ -30,15 +29,15 @@ object seq {
       val minLength = self.length min that.length
       val newArray: Array[C] = new Array[C](self.length max that.length)
 
-      while (idx < minLength) {
+      while idx < minLength do {
         newArray(idx) = both(self(idx), that(idx))
         idx = idx + 1
       }
-      while (idx < self.length) {
+      while idx < self.length do {
         newArray(idx) = leftOnly(self(idx))
         idx = idx + 1
       }
-      while (idx < that.length) {
+      while idx < that.length do {
         newArray(idx) = rightOnly(that(idx))
         idx = idx + 1
       }
@@ -65,7 +64,7 @@ object seq {
     def eitherFoldLeft[L, B](zero: B)(f: (B, A) => Either[L, B]): Either[L, B] = {
       var acc: B = zero
       val iter = fOps.newIterator(self)
-      while (iter.hasNext) {
+      while iter.hasNext do {
         f(acc, iter.next()) match {
           case Right(newAcc) => acc = newAcc
           case Left(value)   => return Left(value)
@@ -100,12 +99,11 @@ object seq {
       val iterator = fOps.newIterator(self)
 
       val size = fOps.knownSize(self)
-      if (size > 0)
-        builder.sizeHint(size * 2 - 1)
+      if size > 0 then builder.sizeHint(size * 2 - 1)
 
-      if (iterator.hasNext) {
+      if iterator.hasNext then {
         builder.addOne(iterator.next())
-        while (iterator.hasNext) {
+        while iterator.hasNext do {
           builder.addOne(join)
           builder.addOne(iterator.next())
         }
@@ -119,15 +117,13 @@ object seq {
       val iterator = fOps.newIterator(self)
 
       val size = fOps.knownSize(self)
-      if (size > 0)
-        builder.sizeHint(size * 2 + 1)
-      else
-        builder.sizeHint(2)
+      if size > 0 then builder.sizeHint(size * 2 + 1)
+      else builder.sizeHint(2)
 
       builder.addOne(start)
-      if (iterator.hasNext) {
+      if iterator.hasNext then {
         builder.addOne(iterator.next())
-        while (iterator.hasNext) {
+        while iterator.hasNext do {
           builder.addOne(join)
           builder.addOne(iterator.next())
         }

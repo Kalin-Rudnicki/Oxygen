@@ -4,7 +4,7 @@ import oxygen.predef.test.*
 
 object ParserSpec extends OxygenSpecDefault {
 
-  private def makePassingTest[A](name: String)(parser: Parser[A], exp: A)(args: String*)(implicit loc: SourceLocation): TestSpec =
+  private def makePassingTest[A](name: String)(parser: Parser[A], exp: A)(args: String*)(using loc: SourceLocation): TestSpec =
     test(name) {
       Arg.parse(args.toList) match {
         case Right((values, params)) =>

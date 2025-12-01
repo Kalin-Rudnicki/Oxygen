@@ -26,7 +26,7 @@ final class ConnectionService(
     )
 
   def ensureAccess(current: SimpleUser, other: UserId): IO[DomainError.UserIdDoesNotExist | DomainError.UserIsNotAConnection, UserConnection] =
-    if (current.id == other) ZIO.succeed(UserConnection(current, current, current.createdAt))
+    if current.id == other then ZIO.succeed(UserConnection(current, current, current.createdAt))
     else getConnection(current, other)
 
   def getConnectedUsers(userId: UserId): UIO[Seq[SimpleUser]] =
@@ -42,7 +42,7 @@ final class ConnectionService(
       _ <- ZIO.fail(ConnectionError.UserIsAlreadyAConnection(current.id, other.id)).whenDiscard(existingOutgoingRequest.nonEmpty)
       existingIncomingRequest <- connectionRepo.findConnectionRequest(other.id, current.id)
       _ <-
-        if (existingIncomingRequest.nonEmpty)
+        if existingIncomingRequest.nonEmpty then
           connectionRepo.connect(current.id, other.id, now) *>
             ZIO.logInfo(s"$other already requested connection with $current, connecting instead of requesting")
         else

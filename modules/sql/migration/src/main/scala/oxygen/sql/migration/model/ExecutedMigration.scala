@@ -40,7 +40,7 @@ object ExecutedMigration {
         this.step.comesFrom(that.step)
 
     def toIndentedString: IndentedString =
-      IndentedString.section(s"[$stepNo]${if (derived) " (derived)" else ""}:")(
+      IndentedString.section(s"[$stepNo]${if derived then " (derived)" else ""}:")(
         step.toIndentedString,
         sql.map { sql => IndentedString.section("sql:")(sql) },
       )

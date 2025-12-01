@@ -104,7 +104,7 @@ final case class StringCodec[A](
 }
 object StringCodec {
 
-  inline def apply[A](implicit ev: StringCodec[A]): ev.type = ev
+  inline def apply[A](using ev: StringCodec[A]): ev.type = ev
 
   //////////////////////////////////////////////////////////////////////////////////////////////////////
   //      Extensions
@@ -212,14 +212,11 @@ object StringCodec {
   def wrappedString(prefix: String, suffix: String): StringCodec[String] =
     StringCodec.string.transformOrFail(
       { string =>
-        if (string.startsWith(prefix)) {
+        if string.startsWith(prefix) then {
           val tmp: String = string.stripPrefix(prefix)
-          if (tmp.endsWith(suffix))
-            tmp.stripSuffix(suffix).asRight
-          else
-            s"Missing suffix ${suffix.unesc}".asLeft
-        } else
-          s"Missing prefix ${prefix.unesc}".asLeft
+          if tmp.endsWith(suffix) then tmp.stripSuffix(suffix).asRight
+          else s"Missing suffix ${suffix.unesc}".asLeft
+        } else s"Missing prefix ${prefix.unesc}".asLeft
       },
       string => s"$prefix$string$suffix",
     )

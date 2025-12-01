@@ -22,7 +22,7 @@ final case class QueryContext(
     case None            => ""
 
   private val constParamsStr: String =
-    if (constParams.isEmpty) ""
+    if constParams.isEmpty then ""
     else constParams.map { case (k, v) => s"$k: $v" }.mkString(" (", ", ", ")")
   val queryContextHeader: String = s"[$queryType] $queryNamePrefix$queryName$constParamsStr"
 

@@ -4,7 +4,7 @@ import oxygen.predef.test.*
 
 object ZipSpec extends OxygenSpecDefault {
 
-  private def roundTripTest[In1, In2, Out1, Out2](in1: In1, in2: In2, out: Out1)(implicit
+  private def roundTripTest[In1, In2, Out1, Out2](in1: In1, in2: In2, out: Out1)(using
       zip: Zip.Out[In1, In2, Out2],
       ev: Out1 =:= Out2,
       loc: SourceLocation,

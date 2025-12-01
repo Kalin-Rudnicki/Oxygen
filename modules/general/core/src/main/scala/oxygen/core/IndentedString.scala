@@ -32,8 +32,7 @@ sealed trait IndentedString {
     var first: Boolean = true
 
     inline def makeIndent(indent: String): Unit =
-      if (first)
-        first = false
+      if first then first = false
       else {
         builder.append('\n')
         builder.append(indent)
@@ -67,12 +66,11 @@ sealed trait IndentedString {
     var first: Boolean = true
 
     inline def makeIndent(indent: Int): Unit =
-      if (first)
-        first = false
+      if first then first = false
       else {
         builder.append('\n')
         var idt: Int = indent
-        while (idt > 0) {
+        while idt > 0 do {
           builder.append(idtStr)
           idt -= 1
         }
@@ -174,7 +172,7 @@ object IndentedString {
 
     given string: ToIndentedString[String] =
       str =>
-        if (str.contains('\n')) Inline(str.split('\n').map(Str(_)).toSeq)
+        if str.contains('\n') then Inline(str.split('\n').map(Str(_)).toSeq)
         else Str(str)
 
     given stringOrIndentedString: ToIndentedString[String | IndentedString] = {

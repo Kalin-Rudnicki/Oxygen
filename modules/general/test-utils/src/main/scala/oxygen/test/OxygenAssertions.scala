@@ -134,7 +134,7 @@ object OxygenAssertions {
   }
 
   private def diffAnyFiltered(expected: Any, actual: Any, show: Any => Option[String]): Option[String] =
-    if (expected == actual) None
+    if expected == actual then None
     else
       (expected.asInstanceOf[Matchable], actual.asInstanceOf[Matchable]) match {
         case (seqNotOption(expected), seqNotOption(actual)) =>
@@ -211,7 +211,7 @@ object OxygenAssertions {
           }
 
         val maxIdxStrLen = diffs.map(_._1.toString.length).maxOption.getOrElse(0)
-        val color = if (expected == actual) GREEN else RED
+        val color = if expected == actual then GREEN else RED
         s"${color}Seq[_]$RESET:" +
           diffs.map { case (i, diff) => "\n" + diff.prefixAndIndent(s"$MAGENTA${i.toString.alignRight(maxIdxStrLen)}$RESET: ") }.mkString.replaceAll("\n", s"\n$color|$RESET   ")
       case (expected: Product, actual: Product) if expected.getClass == actual.getClass =>
@@ -223,7 +223,7 @@ object OxygenAssertions {
             .toSeq
 
         val maxFieldStrLen = diffs.map(_._1.length).maxOption.getOrElse(0)
-        val color = if (expected == actual) GREEN else RED
+        val color = if expected == actual then GREEN else RED
         color + expected.productPrefix + RESET + ":" +
           diffs
             .map { case (field, diff) => "\n" + diff.prefixAndIndent(s"$MAGENTA${field.alignRight(maxFieldStrLen)}$RESET: ") }

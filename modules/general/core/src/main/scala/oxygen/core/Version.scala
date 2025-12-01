@@ -23,7 +23,7 @@ final case class Version(
     case _             => false
 
   override def toString: String =
-    coreVersions.mkString(if (hasVPrefix) "v" else "", ".", suffix.fold("")(_.toString))
+    coreVersions.mkString(if hasVPrefix then "v" else "", ".", suffix.fold("")(_.toString))
 
 }
 object Version {
@@ -66,8 +66,8 @@ object Version {
     def loop(a: List[Int], b: List[Int]): Int =
       (a, b) match {
         case (aHead :: aTail, bHead :: bTail) =>
-          if (aHead < bHead) -1
-          else if (aHead > bHead) 1
+          if aHead < bHead then -1
+          else if aHead > bHead then 1
           else loop(aTail, bTail)
         case (rest @ _ :: _, Nil) if rest.exists(_ != 0) => 1
         case (Nil, rest @ _ :: _) if rest.exists(_ != 0) => -1

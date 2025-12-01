@@ -37,8 +37,7 @@ final class DeriveProductRowRepr[A](
       .seqToArraySeqExpr
 
   override def derive: Expr[RowRepr.ProductRepr[A]] = {
-    if (generic.fields.isEmpty)
-      report.errorAndAbort("Not allowed: product schema with no fields")
+    if generic.fields.isEmpty then report.errorAndAbort("Not allowed: product schema with no fields")
 
     '{
       new RowRepr.ProductRepr[A] {

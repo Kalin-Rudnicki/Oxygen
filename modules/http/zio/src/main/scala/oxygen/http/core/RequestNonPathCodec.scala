@@ -135,7 +135,7 @@ object RequestNonPathCodec {
 
     override private[http] def encodeInternal(value: A, acc: Builder): Builder = {
       val encoded = partial.encode(value)
-      if (encoded.nonEmpty) acc.copy(queryParams = acc.queryParams :+ (name, Chunk.from(encoded)))
+      if encoded.nonEmpty then acc.copy(queryParams = acc.queryParams :+ (name, Chunk.from(encoded)))
       else acc
     }
 
@@ -151,7 +151,7 @@ object RequestNonPathCodec {
 
     override private[http] def encodeInternal(value: A, acc: Builder): Builder = {
       val encoded = partial.encode(value)
-      if (encoded.nonEmpty) acc.copy(headers = acc.headers ++ Growable.many(encoded).map(Header.Custom(name, _)))
+      if encoded.nonEmpty then acc.copy(headers = acc.headers ++ Growable.many(encoded).map(Header.Custom(name, _)))
       else acc
     }
 

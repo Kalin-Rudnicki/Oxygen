@@ -25,7 +25,7 @@ sealed trait FullCompiledSchema {
     makeIndentedString(typeDescr)(elems.collect { case (key, Some(value)) => (key, value) }*)
 
   final def toIndentedString(seen: Set[CompiledSchemaRef]): IndentedString =
-    if (seen.contains(ref)) s"< recursive reference > ~ $ref"
+    if seen.contains(ref) then s"< recursive reference > ~ $ref"
     else IndentedString.section(s"$ref:")(__toIndentedStringInternal(seen + ref))
 
   final def toIndentedString: IndentedString =

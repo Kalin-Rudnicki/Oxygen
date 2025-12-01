@@ -172,7 +172,7 @@ object PerformanceQuerySpec extends OxygenSpec[Database] {
       ZChannel.fromZIO { PersonCache.generate().replicateZIO(batchSize).map(Chunk.from) }.flatMap { ZChannel.write(_) }
 
     private def genChunks(n: Int): ZChannel[Any, Any, Any, Any, Nothing, Chunk[PersonCache], Unit] =
-      if (n < numBatches) genChunk *> genChunks(n + 1)
+      if n < numBatches then genChunk *> genChunks(n + 1)
       else ZChannel.unit
 
     val stream: UStream[PersonCache] = ZStream.fromChannel(genChunks(0))

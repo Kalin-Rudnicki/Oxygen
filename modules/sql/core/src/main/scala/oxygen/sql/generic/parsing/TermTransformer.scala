@@ -72,7 +72,7 @@ private[generic] object TermTransformer {
     override final def convertTerm(fInTerm: Term)(using Quotes): Term = {
       val fInTpe: TypeRepr = fInTerm.tpe.widen
 
-      if (!(fInTpe <:< inTpe))
+      if !(fInTpe <:< inTpe) then
         report.errorAndAbort(
           s"""AccessibleParam.getExpr received bad input.
              |Expected input type: ${inTpe.showAnsiCode}
@@ -84,7 +84,7 @@ private[generic] object TermTransformer {
       val fOutTerm: Term = convertTermInternal(fInTerm)
       val fOutTpe: TypeRepr = fOutTerm.tpe.widen
 
-      if (!(outTpe <:< fOutTpe))
+      if !(outTpe <:< fOutTpe) then
         report.errorAndAbort(
           s"""AccessibleParam.getExpr generated bad output.
              |Expected output type: ${outTpe.showAnsiCode}
