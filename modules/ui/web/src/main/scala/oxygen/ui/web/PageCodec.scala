@@ -31,6 +31,10 @@ trait PageCodec[A] {
 
   final def transform[B](ab: A => B, ba: B => A): PageCodec[B] = PageCodec.Transform(this, ab, ba)
 
+  final def transformResult[B](ab: A => Either[RequestDecodingFailure, Option[B]], ba: B => A): PageCodec[B] = PageCodec.TransformResult(this, ab, ba)
+
+  final def transformOption[B](ab: A => Option[B], ba: B => A): PageCodec[B] = this.transformResult(ab(_).asRight, ba)
+
   inline final def autoTransform[B]: PageCodec[B] = {
     val (ab, ba) = K0.ProductGeneric.deriveTransform[A, B]
     transform(ab, ba)
@@ -245,6 +249,22 @@ object PageCodec {
 
     override def decodeInternal(paths: List[String], queryParams: QueryParams): ParseResult[(B, List[String])] =
       a.decodeInternal(paths, queryParams).map { case (aValue, rest) => (ab(aValue), rest) }
+
+    override def encodeInternal(value: B): (Growable[String], Growable[(String, Chunk[String])]) =
+      a.encodeInternal(ba(value))
+
+  }
+
+  final case class TransformResult[A, B](a: PageCodec[A], ab: A => Either[RequestDecodingFailure, Option[B]], ba: B => A) extends PageCodec[B] {
+
+    override def decodeInternal(paths: List[String], queryParams: QueryParams): ParseResult[(B, List[String])] =
+      a.decodeInternal(paths, queryParams).flatMap { case (aValue, rest) =>
+        ab(aValue) match {
+          case Right(Some(value)) => ParseResult.Success((value, rest))
+          case Right(None)        => ParseResult.InvalidPath
+          case Left(error)        => ParseResult.Error(error)
+        }
+      }
 
     override def encodeInternal(value: B): (Growable[String], Growable[(String, Chunk[String])]) =
       a.encodeInternal(ba(value))
