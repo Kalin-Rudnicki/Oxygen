@@ -218,7 +218,7 @@ object ReturningPart {
 
   }
 
-  sealed trait Aggregate0 extends NonSubQuery, NonEmpty {
+  sealed trait Aggregate extends NonSubQuery, NonEmpty {
 
     val fullTree: Tree
     val returningExprsNel: NonEmptyList[ReturningPart.Elem.Aggregate]

@@ -8,6 +8,7 @@ import oxygen.sql.generic.model.full.Util.*
 import oxygen.sql.generic.model.part.*
 import oxygen.sql.generic.parsing.*
 import oxygen.sql.query.*
+import oxygen.zio.SparseStreamAggregator
 import scala.quoted.*
 
 sealed trait FullSelectQuery {
@@ -171,10 +172,10 @@ object FullSelectQuery {
       ).flatten
 
     override def makeFragment(using ParseContext, GenerationContext, Quotes): ParseResult[GeneratedFragment] = {
-      /*
       val fragmentBuilder = FragmentBuilder(inputs)
       for {
-        returningFrag <- fragmentBuilder.requiredRet(ret, "       ")
+        // 1. Build Base Query Fragment
+        // We select "*" from the base tables/subquery to ensure all columns (including correlation keys) are available
         selectFrag <- select match
           case select: SelectPart.FromTable    => fragmentBuilder.select(select)
           case select: SelectPart.FromSubQuery => fragmentBuilder.select(select)
@@ -183,120 +184,223 @@ object FullSelectQuery {
         orderByFrag <- orderBy.traverse(fragmentBuilder.orderBy).map(GeneratedFragment.option)
         limitFrag <- limit.traverse(fragmentBuilder.limit).map(GeneratedFragment.option)
         offsetFrag <- offset.traverse(fragmentBuilder.offset).map(GeneratedFragment.option)
+
+        baseQueryFrag = GeneratedFragment.of(
+          "SELECT ",
+          selectFrag,
+          joinFrag,
+          whereFrag,
+          orderByFrag,
+          limitFrag,
+          offsetFrag,
+        )
+
+        // 2. Build Lateral Part (UNION ALL of Self + Children)
+        lateralFrag <- AggregateGen.makeLateralFragment(ret)
+
       } yield GeneratedFragment.of(
-        "SELECT ",
-        returningFrag,
-        selectFrag,
-        joinFrag,
-        whereFrag,
-        orderByFrag,
-        limitFrag,
-        offsetFrag,
+        "SELECT lat.* FROM (",
+        GeneratedFragment.indented(baseQueryFrag, "  "),
+        ") base CROSS JOIN LATERAL (",
+        GeneratedFragment.indented(lateralFrag, "  "),
+        ") lat",
       )
-       */
-
-      ??? // FIX-PRE-MERGE (KR) :
     }
 
-    // FIX-PRE-MERGE (KR) : relocate
-    sealed trait RetAgg {
-
-      def toGroupedString(using Quotes): String
-
-      def toIndentedString(using Quotes): IndentedString
-
-    }
-    object RetAgg {
-
-      final case class BasicAgg(children: NonEmptyList[ReturningPart.Elem.Basic]) extends RetAgg {
-
-        override def toGroupedString(using Quotes): String = children.map(_.show).mkString("{ ", " , ", " }")
-
-        override def toIndentedString(using Quotes): IndentedString =
-          IndentedString.inline(
-            "return-agg-leaf:",
-            toGroupedString,
-          )
-
-      }
-
-      final case class AggregateAgg(children: NonEmptyList[ReturningPart.Elem.Aggregate.ReturnFromSelf | RetAgg]) extends RetAgg {
-
-        override def toGroupedString(using Quotes): String =
-          children
-            .map {
-              case elem: ReturningPart.Elem.Aggregate.ReturnFromSelf => s"< ${elem.expr.show} >"
-              case ret: RetAgg                                       => ret.toGroupedString
-            }
-            .mkString("[ ", " , ", " ]")
-
-        override def toIndentedString(using Quotes): IndentedString =
-          IndentedString.inline(
-            "return-agg-nested:",
-            IndentedString.section(">> " + toGroupedString)(
-              children.toList.map[IndentedString] {
-                case elem: ReturningPart.Elem.Aggregate.ReturnFromSelf => IndentedString.inline("", "return-self:", s"< ${elem.expr.show} >")
-                case ret: RetAgg                                       => IndentedString.inline("", ret.toIndentedString)
-              },
-              "",
-            ),
-          )
-
-      }
-
-      def from(value: FullSelectQuery.NonSubQuery): RetAgg =
-        value match {
-          case value: FullSelectQuery.Basic =>
-            BasicAgg(value.ret.returningExprsNel)
-          case value: FullSelectQuery.Aggregate =>
-            AggregateAgg(
-              value.ret.returningExprsNel.map {
-                case elem: ReturningPart.Elem.Aggregate.ReturnFromSelf => elem
-                case elem: ReturningPart.Elem.Aggregate.NonBasic       => from(elem.select)
-              },
-            )
-        }
-    }
-
-    // FIX-PRE-MERGE (KR) : remove
-    /*
+    override def toTerm(queryName: Expr[String], debug: Boolean)(using ParseContext, GenerationContext, Quotes): ParseResult[Term] = {
       for {
         frag <- makeFragment
         (builtSql, builtEncoder) = frag.buildExpr
 
-        // Output
+        // Output Decoder
         decoderBuilder = new DecoderBuilder
         retA <- decoderBuilder.ret(ret, None)
         builtDecoder = retA.buildExpr
         _ <- ParseResult.validate(builtDecoder.nonEmpty)(ret.fullTree, "expected non-empty return")
 
-        // Combine
-        expr = makeQuery(queryName, QueryContext.QueryType.Select, select.optTableRepr, debug)(builtSql, builtEncoder, builtDecoder)
-      } yield expr.toTerm
-     */
-    override def toTerm(queryName: Expr[String], debug: Boolean)(using ParseContext, GenerationContext, Quotes): ParseResult[Term] = {
+        // Aggregator
+        aggExpr = AggregateGen.makeAggregator(ret)
 
-      val retAgg = RetAgg.from(this)
+        // Make Simple Query (which returns sparse rows)
+        simpleQuery = makeQuery(queryName, QueryContext.QueryType.Select, select.optTableRepr, debug)(builtSql, builtEncoder, builtDecoder)
 
-      // types:
-      //   - FullSelectQuery.Basic
-      //   - FullSelectQuery.Aggregate
-      //     - ReturningPart.Elem.Aggregate.Basic
-      //     - ReturningPart.Elem.Aggregate.Basic
-      //     - ReturningPart.Elem.Aggregate.Nested
+      } yield {
+        val rowType = builtDecoder.tpe.asType
+        val inputType = builtEncoder.tpe.asType
 
-      report.errorAndAbort(
-        s"""
-           |=====| TypeHunt |=====
-           |
-           |${retAgg.toGroupedString}
-           |
-           |${retAgg.toIndentedString.toStringColorized}
-           |""".stripMargin,
-      )
+        (rowType, inputType) match {
+          case ('[row], '[input]) =>
+            val typedAgg = aggExpr.asExprOf[SparseStreamAggregator[row, ?]]
 
-      report.errorAndAbort(this.show)
-      ??? // FIX-PRE-MERGE (KR) :
+            if (builtEncoder.hasNonConstParams) {
+              val typedQuery = simpleQuery.asExprOf[QueryIO[input, row]]
+              '{ $typedQuery >>> $typedAgg }.toTerm
+            } else {
+              val typedQuery = simpleQuery.asExprOf[QueryO[row]]
+              '{ $typedQuery >>> $typedAgg }.toTerm
+            }
+        }
+      }
+    }
+
+  }
+
+  object AggregateGen {
+    import ReturningPart.Elem
+
+    case class Slot(
+        isSelf: Boolean,
+        width: Int,
+        // For Self: the expressions
+        selfExprs: List[QueryExpr] = Nil,
+        // For Child: the query
+        childQuery: Option[FullSelectQuery] = None,
+    )
+
+    def getSlots(ret: ReturningPart.Aggregate)(using Quotes): List[Slot] = {
+      ret.returningExprsNel.toList.map {
+        case Elem.Aggregate.ReturnFromSelf(expr) =>
+          Slot(isSelf = true, width = 1, selfExprs = List(expr))
+
+        case Elem.Aggregate.ReturnLeafAgg(select, _, _, _) =>
+          // For a Leaf Agg (Basic), the width is the number of returning expressions
+          val w = select.ret.returningExprs.length
+          Slot(isSelf = false, width = w, childQuery = Some(select))
+
+        case Elem.Aggregate.ReturnNestedAgg(select, _, _, _) =>
+          // For a Nested Agg, the width is the sum of widths of its slots
+          val w = getWidth(select.ret)
+          Slot(isSelf = false, width = w, childQuery = Some(select))
+      }
+    }
+
+    def getWidth(ret: ReturningPart.Aggregate)(using Quotes): Int =
+      getSlots(ret).map(_.width).sum
+
+    def makeLateralFragment(ret: ReturningPart.Aggregate)(using ParseContext, GenerationContext, Quotes): ParseResult[GeneratedFragment] = {
+      val slots = getSlots(ret)
+      val totalWidth = slots.map(_.width).sum
+
+      // 1. Self Branch
+      val selfSlots = slots.filter(_.isSelf)
+      val hasSelf = selfSlots.nonEmpty
+
+      val selfBranch: Option[GeneratedFragment] =
+        if hasSelf then
+          // Construct: SELECT [exprs | NULLs]
+          val exprs = slots.flatMap { slot =>
+            if slot.isSelf then
+              slot.selfExprs.map(e => GeneratedFragment.sql(e.show))
+            else
+              List.fill(slot.width)(GeneratedFragment.sql("NULL"))
+          }
+          // Join with comma
+          val exprsList = exprs.flatMap(e => List(GeneratedFragment.sql(", "), e)).drop(1)
+          val joined = GeneratedFragment.flatten(exprsList)
+          Some(GeneratedFragment.of("SELECT ", joined))
+        else None
+
+      // 2. Child Branches
+      // For each child slot, we generate a branch
+      // SELECT [NULLs], child.*, [NULLs] FROM LATERAL (childQuery) child
+      val childBranches: List[ParseResult[GeneratedFragment]] = slots.zipWithIndex.collect {
+        case (slot, idx) if !slot.isSelf =>
+          val child = slot.childQuery.get
+          for {
+            childFrag <- child.makeFragment
+          } yield {
+            // Prefix NULLs
+            val prefixWidth = slots.take(idx).map(_.width).sum
+            val suffixWidth = slots.drop(idx + 1).map(_.width).sum
+
+            val prefix = List.fill(prefixWidth)(GeneratedFragment.sql("NULL"))
+            val suffix = List.fill(suffixWidth)(GeneratedFragment.sql("NULL"))
+
+            val center = List(GeneratedFragment.sql("q.*"))
+
+            val all = prefix ++ center ++ suffix
+            // Join with comma
+            val allList = all.flatMap(e => List(GeneratedFragment.sql(", "), e)).drop(1)
+            val joined = GeneratedFragment.flatten(allList)
+
+            GeneratedFragment.of(
+              "SELECT ",
+              joined,
+              " FROM LATERAL (",
+              GeneratedFragment.indented(childFrag, "  "),
+              ") q",
+            )
+          }
+      }
+
+      for {
+        children <- childBranches.sequence
+      } yield {
+        val allBranches = selfBranch.toList ++ children
+        val unionAll = GeneratedFragment.sql("\nUNION ALL\n")
+        // Join branches with UNION ALL
+        val branchesList = allBranches.flatMap(b => List(unionAll, b.wrapInParensIf(true))).drop(1)
+        val joined = GeneratedFragment.flatten(branchesList)
+        joined
+      }
+    }
+
+    def makeAggregator(ret: ReturningPart.Aggregate)(using Quotes): Expr[SparseStreamAggregator[?, ?]] = {
+      import oxygen.zio.SparseStreamAggregator
+
+      def helper(elems: List[Elem]): Expr[SparseStreamAggregator[?, ?]] = {
+        elems match {
+          case Nil => report.errorAndAbort("Empty ReturningPart")
+
+          case head :: Nil =>
+            makeOne(head)
+
+          case head :: tail =>
+            val aggHead = makeOne(head)
+            val aggTail = helper(tail)
+            '{ $aggHead *: $aggTail }
+        }
+      }
+
+      def makeOne(elem: Elem): Expr[SparseStreamAggregator[?, ?]] = elem match {
+        case Elem.Basic(expr) =>
+          expr.fullTerm.tpe.asType match {
+            case '[t] => '{ SparseStreamAggregator.of[t] }
+          }
+        
+        case Elem.Aggregate.ReturnFromSelf(expr) =>
+          expr.fullTerm.tpe.asType match {
+            case '[t] => '{ SparseStreamAggregator.of[t] }
+          }
+
+        case elem: Elem.Aggregate.NonBasic =>
+          val innerAgg = elem.select.ret match {
+            case ret: ReturningPart.Basic     => 
+               helper(ret.returningExprs)
+               
+            case ret: ReturningPart.Aggregate => 
+               helper(ret.returningExprsNel.toList)
+          }
+          
+          elem.aggType match {
+            case ReturningPart.Aggregate.AggType.Required =>
+              innerAgg 
+
+            case ReturningPart.Aggregate.AggType.Optional =>
+              '{ $innerAgg.optional }
+
+            case ReturningPart.Aggregate.AggType.Many(sType, sTypeRepr, seqOpsExpr) =>
+              '{ $innerAgg.many(using $seqOpsExpr) }
+
+            case ReturningPart.Aggregate.AggType.ManyNonEmpty =>
+               '{ $innerAgg.nel }
+          }
+          
+        case _: Elem.SubQuery =>
+           report.errorAndAbort("SubQuery in Aggregate not supported yet")
+      }
+
+      helper(ret.returningExprsNel.toList)
     }
 
   }
