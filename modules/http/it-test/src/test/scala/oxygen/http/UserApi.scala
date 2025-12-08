@@ -1,7 +1,7 @@
 package oxygen.http
 
 import java.util.UUID
-import oxygen.http.client.DeriveClient
+import oxygen.http.client.{ClientErrorHandler, DeriveClient}
 import oxygen.http.core.*
 import oxygen.http.server.{DeriveEndpoints, ServerErrorHandler}
 import oxygen.json.*
@@ -28,7 +28,8 @@ enum ApiError derives JsonSchema, StatusCodes {
 
   @statusCode.`404` case NoSuchUser(id: UUID)
 
-  @statusCode.`400` case DecodingFailure(error: RequestDecodingFailure)
+  @statusCode.`400` case RequestDecodingFailure(error: oxygen.http.core.RequestDecodingFailure)
+  @statusCode.`400` case ResponseDecodingFailure(error: oxygen.http.core.ResponseDecodingFailure)
 
   @statusCode.`500` case InternalError(message: Option[String])
 
@@ -39,10 +40,17 @@ object ApiError {
     new ServerErrorHandler[ApiError] {
       override def wrapDeath(error: Throwable, trace: StackTrace, exposeInternalErrors: Boolean): Option[ApiError] =
         InternalError(Option.when(exposeInternalErrors)(error.safeGetMessage)).some
-      override def wrapDecodingFailure(error: RequestDecodingFailure): Option[ApiError] =
-        DecodingFailure(error).some
+      override def wrapDecodingFailure(error: oxygen.http.core.RequestDecodingFailure): Option[ApiError] =
+        RequestDecodingFailure(error).some
     }
 
+  given ClientErrorHandler[ApiError] =
+    new ClientErrorHandler[ApiError] {
+      override def wrapDeath(error: Throwable, trace: StackTrace): Option[ApiError] =
+        None
+      override def wrapDecodingFailure(error: oxygen.http.core.ResponseDecodingFailure): Option[ApiError] =
+        ResponseDecodingFailure(error).some
+    }
 }
 
 @experimental

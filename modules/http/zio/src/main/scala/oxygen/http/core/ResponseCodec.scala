@@ -1,5 +1,6 @@
 package oxygen.http.core
 
+import oxygen.http.client.ClientErrorHandler
 import oxygen.http.core.partial.*
 import oxygen.http.schema.*
 import oxygen.predef.core.*
@@ -12,6 +13,22 @@ trait ResponseCodec[A] {
 
   def canLikelyDecode(status: Status): Boolean
   def decode(status: Status, headers: Headers, body: Body): ZIO[Scope, ResponseDecodingFailure, A]
+
+  def decodeSuccess[E](status: Status, headers: Headers, body: Body)(errorHandler: ClientErrorHandler[E]): ZIO[Scope, E, A] =
+    decode(status, headers, body).catchAll { error =>
+      errorHandler.wrapDecodingFailure(error) match {
+        case Some(typedError) => ZIO.fail(typedError)
+        case None             => ZIO.die(error)
+      }
+    }
+
+  def decodeError(status: Status, headers: Headers, body: Body)(errorHandler: ClientErrorHandler[A]): ZIO[Scope, A, Nothing] =
+    decode(status, headers, body).catchAll { error =>
+      errorHandler.wrapDecodingFailure(error) match {
+        case Some(typedError) => ZIO.succeed(typedError)
+        case None             => ZIO.die(error)
+      }
+    }.flip
 
   def encode(value: A): (Status, Headers, Body)
 
