@@ -1,10 +1,12 @@
 package oxygen.http
 
 import java.util.UUID
+import oxygen.http.core.ServerSentEvents
 import oxygen.predef.core.*
 import oxygen.zio.instances.chunkSeqOps
 import scala.annotation.experimental
 import zio.*
+import zio.stream.*
 
 @experimental
 final case class UserApiImpl(ref: Ref[Map[UUID, User]]) extends UserApi {
@@ -36,6 +38,30 @@ final case class UserApiImpl(ref: Ref[Map[UUID, User]]) extends UserApi {
         ).flatten
       filtered = if filters.isEmpty then all else all.filter { u => filters.forall(_(u)) }
     } yield filtered.toSet
+
+  // =====| Main Stream |=====
+
+  override def userEvents(
+      userId: UUID,
+      numEvents: Option[Int],
+  ): ServerSentEvents[String, UserEvent] =
+    ServerSentEvents.makeBasic {
+      ref.get.flatMap {
+        _.get(userId) match
+          case Some(user) => ZIO.succeed(user)
+          case None       => ZIO.fail(s"No such user: $userId")
+      }
+    } { user =>
+      val randomEvent: UIO[UserEvent] =
+        for {
+          bool <- Random.nextBoolean
+          eventUserId <- if bool then ZIO.succeed(user.id) else Random.nextUUID
+          eventId <- Random.nextUUID
+        } yield UserEvent(eventUserId, s"Random event ($eventId)")
+
+      ZStream.succeed(UserEvent(user.id, "Welcome to the stream!")) ++
+        ZStream.fromIterableZIO { (Random.RandomLive.nextIntBetween(100, 500).flatMap { t => Clock.ClockLive.sleep(t.millis) } *> randomEvent).replicateZIO(numEvents.get) }
+    }
 
 }
 object UserApiImpl {

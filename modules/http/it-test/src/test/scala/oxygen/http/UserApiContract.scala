@@ -40,24 +40,23 @@ object UserApiContract extends Contract[UserApi] {
           create3 <- generateCreateRequest()
 
           _ <- ZIO.logDebug("step 1")
-
           garbageGet <- api.userById(garbageId).exit
-          _ <- api.userById(garbageId).exit
-
           _ <- ZIO.logDebug("step 2")
+          _ <- api.userById(garbageId).exit
+          _ <- ZIO.logDebug("step 3")
 
           user1 <- api.createUser(create1)
           get1 <- api.userById(user1.id)
           all1 <- api.allUsers().map(_.into[Set])
 
-          _ <- ZIO.logDebug("step 3")
+          _ <- ZIO.logDebug("step 4")
 
           user2 <- api.createUser(create2)
           user3 <- api.createUser(create3)
           get2 <- api.userById(user1.id)
           all2 <- api.allUsers().map(_.into[Set])
 
-          _ <- ZIO.logDebug("step 4")
+          _ <- ZIO.logDebug("step 5")
 
         } yield assert(garbageGet)(fails(equalTo(ApiError.NoSuchUser(garbageId)))) &&
           assertTrue(
@@ -99,6 +98,20 @@ object UserApiContract extends Contract[UserApi] {
           search_a_l2 == Set(u_f1_l2, u_f2_l2, u_fr_l2),
           search_f1_l1 == Set(u_f1_l1),
           search_f2_l2 == Set(u_f2_l2),
+        )
+      },
+      test("test 3") {
+        for {
+          api <- ZIO.service[UserApi]
+
+          create1 <- generateCreateRequest()
+          user1 <- api.createUser(create1)
+
+          events <- api.userEvents(user1.id, 5.some).toEventStream.runCollect
+
+        } yield assertTrue(
+          events.length == 6,
+          events.head.data.message == "Welcome to the stream!",
         )
       },
     )

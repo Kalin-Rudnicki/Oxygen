@@ -11,7 +11,7 @@ object apiToUI {
       self match {
         case RegistrationError.EmailAlreadyExists(_)      => UIError.ServerSide.UserActionable("A user with that email already exists.\nTry logging in?")
         case RegistrationError.DecodingFailure(message)   => UIError.ServerSide.InternalDefect.somethingWentWrong(s"decoding failure: $message")
-        case RegistrationError.InternalServerError(error) => UIError.ServerSide.InternalDefect.somethingWentWrong(error.map(_.show))
+        case RegistrationError.InternalServerError(error) => UIError.ServerSide.InternalDefect.somethingWentWrong(error.map(_.errors.map(_.simpleMessage).mkString("\n\n")))
       }
 
   extension (self: LoginError)
@@ -19,7 +19,7 @@ object apiToUI {
       self match {
         case LoginError.InvalidCredentials         => UIError.ServerSide.UserActionable("Unable to login with those credentials")
         case LoginError.DecodingFailure(message)   => UIError.ServerSide.InternalDefect.somethingWentWrong(s"decoding failure: $message")
-        case LoginError.InternalServerError(error) => UIError.ServerSide.InternalDefect.somethingWentWrong(error.map(_.show))
+        case LoginError.InternalServerError(error) => UIError.ServerSide.InternalDefect.somethingWentWrong(error.map(_.errors.map(_.simpleMessage).mkString("\n\n")))
       }
 
   extension (self: ApiError)
@@ -36,7 +36,7 @@ object apiToUI {
         case ApiError.Conflict(message, None)            => UIError.ServerSide.InternalDefect.somethingWentWrong(message)
         case ApiError.NotFound(message, None)            => UIError.ServerSide.InternalDefect.somethingWentWrong(message)
         case ApiError.DecodingFailure(message)           => UIError.ServerSide.InternalDefect.somethingWentWrong(s"decoding failure: $message")
-        case ApiError.InternalServerError(error)         => UIError.ServerSide.InternalDefect.somethingWentWrong(error.map(_.show))
+        case ApiError.InternalServerError(error)         => UIError.ServerSide.InternalDefect.somethingWentWrong(error.map(_.errors.map(_.simpleMessage).mkString("\n\n")))
       }
 
   extension [R, E, A](self: ZIO[R, E, A])

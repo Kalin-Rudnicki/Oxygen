@@ -15,14 +15,14 @@ trait Server {
 object Server {
 
   final case class Config(
-      exposeInternalErrors: Boolean,
+      errorConfig: ServerErrorConfig,
   )
   object Config {
 
     val default: Config =
       Config(
         // exposing internal errors in production is bad, but anyone running this in production hopefully isn't using defaults for everything...
-        exposeInternalErrors = true,
+        errorConfig = ServerErrorConfig(exposeInternalErrors = true),
       )
 
     val defaultLayer: ULayer[Server.Config] = ZLayer.succeed(default)

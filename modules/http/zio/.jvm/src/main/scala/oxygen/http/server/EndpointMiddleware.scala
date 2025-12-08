@@ -19,4 +19,6 @@ object EndpointMiddleware {
     override def apply(endpoints: Endpoints): UIO[Endpoints] = ZIO.succeed(endpoints)
   }
 
+  // TODO (KR) : docs
+
 }

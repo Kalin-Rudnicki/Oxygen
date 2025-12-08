@@ -1,13 +1,13 @@
 package oxygen.http.server
 
+import oxygen.http.model.internal.*
 import oxygen.predef.core.*
 import oxygen.zio.syntax.log.*
 import scala.reflect.TypeTest
 import zio.*
-import zio.http.Request
 
 final case class CurrentRequest private[server] (
-    request: Request,
+    request: ReceivedRequest,
     scope: Scope,
 )
 object CurrentRequest {
@@ -22,6 +22,7 @@ object CurrentRequest {
 
   final class HandleBuilder[DomainError, ApiError] {
 
+    // TODO (KR) : attach domain error in header?
     def apply[Out](
         req: ZIO[Scope, ApiError | DomainError, Out],
     )(using
@@ -34,6 +35,7 @@ object CurrentRequest {
       CurrentRequest.get.flatMap { current =>
         val extendedScope: IO[ApiError | DomainError, Out] = current.scope.extend[Any](req)
 
+        // TODO (KR) : use ExtractedCauses
         extendedScope.foldCauseZIO(
           _.failureTraceOrCause match {
             case Left((getApiError(apiError), trace))       => ZIO.refailCause(Cause.fail(apiError, trace))

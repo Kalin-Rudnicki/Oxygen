@@ -39,6 +39,16 @@ final class TypeReprCompanion(using quotes: Quotes) {
   def tupleUsingAppend(typeParam0: TypeRepr, typeParamN: TypeRepr*): TypeRepr =
     tupleUsingAppend(typeParam0 :: typeParamN.toList)
 
+  def extractTuple(typeRepr: TypeRepr): Option[List[TypeRepr]] = {
+    val tmp: TypeRepr = typeRepr.dealias
+    if tmp.isTupleN then Some(tmp.typeArgs)
+    else
+      typeRepr.asType match
+        case '[h *: t]     => extractTuple(TypeRepr.of[t]).map { TypeRepr.of[h] :: _ }
+        case '[EmptyTuple] => Some(Nil)
+        case _             => None
+  }
+
   /**
     * Useful for covariant types.
     *

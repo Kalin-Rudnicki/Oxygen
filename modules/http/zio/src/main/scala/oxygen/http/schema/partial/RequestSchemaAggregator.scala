@@ -1,14 +1,12 @@
 package oxygen.http.schema.partial
 
-import oxygen.http.core.{RequestNonPathCodec, RequestPathCodec}
 import oxygen.http.schema.{ParamType, RequestBodySchema, RequestHeaderSchema, RequestPathsSchema, RequestQueryParamSchema, RequestSchema}
 import oxygen.predef.core.*
 import scala.annotation.tailrec
 import zio.http.Method
 
-// TODO (KR) : in the event that non-paths need to support an "or", the representation of those will need to be beefed up
-//           : right now, its implicitly an AND only
 final case class RequestSchemaAggregator private (
+    method: Method,
     paths: NonEmptyList[Growable[PartiallyAppliedPathSchema]],
     queryParams: Growable[RequestQueryParamSchema],
     headers: Growable[RequestHeaderSchema],
@@ -17,6 +15,7 @@ final case class RequestSchemaAggregator private (
 
   def >>>(that: RequestSchemaAggregator): RequestSchemaAggregator =
     RequestSchemaAggregator(
+      method = this.method ++ that.method,
       paths = (this.paths, that.paths) match {
         case (NonEmptyList(thisPaths, Nil), NonEmptyList(thatPaths, Nil)) => NonEmptyList.one(thisPaths ++ thatPaths)
         case _                                                            =>
@@ -30,10 +29,20 @@ final case class RequestSchemaAggregator private (
       bodies = this.bodies ++ that.bodies,
     )
 
+  // TODO (KR) : Support a more robust version of what `nonPath || nonPath` means.
+  //           : Right now, `nonPath || nonPath` and `nonPath >>> nonPath` look the same.
+  def ||(that: RequestSchemaAggregator): RequestSchemaAggregator =
+    RequestSchemaAggregator(
+      method = this.method ++ that.method, // what to do here...
+      paths = this.paths ++ that.paths,
+      queryParams = this.queryParams ++ that.queryParams,
+      headers = this.headers ++ that.headers,
+      bodies = this.bodies ++ that.bodies,
+    )
+
   def unsafeBuild(
       apiName: String,
-      routeName: String,
-      method: Method,
+      endpointName: String,
   ): RequestSchema = {
     @tailrec
     def compilePath(queue: List[PartiallyAppliedPathSchema], acc: Growable[RequestPathsSchema.Single]): RequestPathsSchema =
@@ -46,11 +55,11 @@ final case class RequestSchemaAggregator private (
 
         // TODO (KR) : consider doing something better than throwing
         case (_: PartiallyAppliedPathSchema.Param) :: _ =>
-          throw RequestSchemaAggregator.InvalidSchemaError(apiName, routeName, RequestSchemaAggregator.InvalidSchemaError.Cause.RestPathIsNotInTailPosition)
+          throw RequestSchemaAggregator.InvalidSchemaError(apiName, endpointName, RequestSchemaAggregator.InvalidSchemaError.Cause.RestPathIsNotInTailPosition)
       }
 
     RequestSchema(
-      method = method,
+      method = method.someWhen(_ != Method.ANY),
       paths = paths.map { p => compilePath(p.to[List], Growable.empty) },
       queryParams = queryParams.toArraySeq,
       headers = headers.toArraySeq,
@@ -60,7 +69,7 @@ final case class RequestSchemaAggregator private (
 
         // TODO (KR) : consider doing something better than throwing
         case _ =>
-          throw RequestSchemaAggregator.InvalidSchemaError(apiName, routeName, RequestSchemaAggregator.InvalidSchemaError.Cause.MultipleBodies)
+          throw RequestSchemaAggregator.InvalidSchemaError(apiName, endpointName, RequestSchemaAggregator.InvalidSchemaError.Cause.MultipleBodies)
       },
     )
   }
@@ -69,46 +78,36 @@ final case class RequestSchemaAggregator private (
 object RequestSchemaAggregator {
 
   private def make(
+      method: Method = Method.ANY,
       paths: NonEmptyList[Growable[PartiallyAppliedPathSchema]] = NonEmptyList.one(Growable.empty),
       queryParams: Growable[RequestQueryParamSchema] = Growable.empty,
       headers: Growable[RequestHeaderSchema] = Growable.empty,
       bodies: Growable[RequestBodySchema] = Growable.empty,
   ): RequestSchemaAggregator =
     RequestSchemaAggregator(
+      method = method,
       paths = paths,
       queryParams = queryParams,
       headers = headers,
       bodies = bodies,
     )
 
-  private val empty: RequestSchemaAggregator = make()
+  val empty: RequestSchemaAggregator = make()
+  private[http] def method(method: Method): RequestSchemaAggregator = make(method = method)
   private[http] def paths(paths: NonEmptyList[Growable[PartiallyAppliedPathSchema]]): RequestSchemaAggregator = make(paths = paths)
+  private[http] def simplePath(path: PartiallyAppliedPathSchema): RequestSchemaAggregator = paths(NonEmptyList.one(Growable.single(path)))
   private[http] def query(query: RequestQueryParamSchema): RequestSchemaAggregator = make(queryParams = Growable.single(query))
   private[http] def header(header: RequestHeaderSchema): RequestSchemaAggregator = make(headers = Growable.single(header))
   private[http] def body(body: RequestBodySchema): RequestSchemaAggregator = make(bodies = Growable.single(body))
 
-  def unsafeBuild(
-      apiName: String,
-      routeName: String,
-      method: Method,
-  )(
-      codecs: (RequestPathCodec[?] | RequestNonPathCodec[?])*,
-  ): RequestSchema = {
-    val aggs: Seq[RequestSchemaAggregator] = codecs.map {
-      case codec: RequestPathCodec[?]    => codec.schemaAggregator
-      case codec: RequestNonPathCodec[?] => codec.schemaAggregator
-    }
-    aggs.foldLeft(RequestSchemaAggregator.empty) { _ >>> _ }.unsafeBuild(apiName, routeName, method)
-  }
-
   final case class InvalidSchemaError(
       apiName: String,
-      routeName: String,
+      endpointName: String,
       cause: InvalidSchemaError.Cause,
   ) extends Throwable {
 
     override def getMessage: String =
-      s"Invalid request schema for `$apiName`.`$routeName`: $cause"
+      s"Invalid request schema for `$apiName`.`$endpointName`: $cause"
 
   }
   object InvalidSchemaError {

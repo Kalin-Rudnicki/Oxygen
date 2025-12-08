@@ -7,39 +7,47 @@ import oxygen.example.core.model.post.{*, given}
 import oxygen.example.core.model.user.{*, given}
 import oxygen.example.domain.model as DM
 import oxygen.http.core.RequestDecodingFailure
-import oxygen.http.server.{DeriveEndpoints, ErrorConverter, ServerErrorHandler}
+import oxygen.http.server.{DeriveEndpoints, ErrorConverter, ServerErrorConfig, ServerErrorHandler}
 import oxygen.predef.core.*
-import zio.StackTrace
+import oxygen.zio.ExtractedCauses
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////
 //      Errors
 //////////////////////////////////////////////////////////////////////////////////////////////////////
 
-private def internalError(exposeInternalErrors: Boolean)(error: Throwable, trace: StackTrace): Option[InternalError] =
-  Option.when(exposeInternalErrors)(InternalError(error.safeGetMessage, trace.stackTrace.map(_.toString)))
-
 given ServerErrorHandler[ApiError] =
   new ServerErrorHandler[ApiError] {
-    override def wrapDeath(error: Throwable, trace: StackTrace, exposeInternalErrors: Boolean): Option[ApiError] =
-      ApiError.InternalServerError(internalError(exposeInternalErrors)(error, trace)).some
-    override def wrapDecodingFailure(error: RequestDecodingFailure): Option[ApiError] =
-      ApiError.DecodingFailure(error.getMessage).some
+    override def convertCause(cause: ExtractedCauses[RequestDecodingFailure], errorConfig: ServerErrorConfig): Option[ApiError] =
+      cause match {
+        case ExtractedCauses.Failures(failures, _, _) =>
+          failures.find(_.value.isMissingAuth) match
+            case Some(value) => ApiError.Unauthorized(value.value.show, None).some
+            case None        => ApiError.DecodingFailure(failures.head.value.show).some
+        case noFailures: ExtractedCauses.NoFailures =>
+          ApiError.InternalServerError(errorConfig.serverErrors(noFailures)).some
+      }
   }
 
 given ServerErrorHandler[RegistrationError] =
   new ServerErrorHandler[RegistrationError] {
-    override def wrapDeath(error: Throwable, trace: StackTrace, exposeInternalErrors: Boolean): Option[RegistrationError] =
-      RegistrationError.InternalServerError(internalError(exposeInternalErrors)(error, trace)).some
-    override def wrapDecodingFailure(error: RequestDecodingFailure): Option[RegistrationError] =
-      RegistrationError.DecodingFailure(error.getMessage).some
+    override def convertCause(cause: ExtractedCauses[RequestDecodingFailure], errorConfig: ServerErrorConfig): Option[RegistrationError] =
+      cause match {
+        case ExtractedCauses.Failures(failures, _, _) =>
+          RegistrationError.DecodingFailure(failures.head.value.show).some
+        case noFailures: ExtractedCauses.NoFailures =>
+          RegistrationError.InternalServerError(errorConfig.serverErrors(noFailures)).some
+      }
   }
 
 given ServerErrorHandler[LoginError] =
   new ServerErrorHandler[LoginError] {
-    override def wrapDeath(error: Throwable, trace: StackTrace, exposeInternalErrors: Boolean): Option[LoginError] =
-      LoginError.InternalServerError(internalError(exposeInternalErrors)(error, trace)).some
-    override def wrapDecodingFailure(error: RequestDecodingFailure): Option[LoginError] =
-      LoginError.DecodingFailure(error.getMessage).some
+    override def convertCause(cause: ExtractedCauses[RequestDecodingFailure], errorConfig: ServerErrorConfig): Option[LoginError] =
+      cause match {
+        case ExtractedCauses.Failures(failures, _, _) =>
+          LoginError.DecodingFailure(failures.head.value.show).some
+        case noFailures: ExtractedCauses.NoFailures =>
+          LoginError.InternalServerError(errorConfig.serverErrors(noFailures)).some
+      }
   }
 
 given ServerErrorHandler[UIApiError] = ServerErrorHandler.notHandled

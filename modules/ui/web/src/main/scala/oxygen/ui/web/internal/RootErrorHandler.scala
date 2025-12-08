@@ -29,13 +29,13 @@ object RootErrorHandler {
 
     private def handleCauses(pageInstance: PageInstance.Untyped, causes: ExtractedCauses[UIError.NonRedirect]): UIO[Unit] =
       causes match {
-        case ExtractedCauses.Failures(failures, _) =>
+        case ExtractedCauses.Failures(failures, _, _) =>
           failures.collectFirst { case Cause.Fail(UIError.Internal.UrlNotFound(url), _) => url } match {
             case Some(url) => Router.route(NavigationEvent.renderPage(defaultPages.notFound)(url))
             case None      => showErrors(pageInstance, failures.flatMap(_.value.toPageMessages))
           }
-        case ExtractedCauses.Defects(defects) => showErrors(pageInstance, defects.flatMap(e => UIError.ClientSide.InternalDefect.somethingWentWrong(e.value).toPageMessages))
-        case ExtractedCauses.Other(_)         => showErrors(pageInstance, UIError.ClientSide.InternalDefect.somethingWentWrong("ExtractedCauses.Other").toPageMessages)
+        case ExtractedCauses.Defects(defects, _) => showErrors(pageInstance, defects.flatMap(e => UIError.ClientSide.InternalDefect.somethingWentWrong(e.value).toPageMessages))
+        case _                                   => showErrors(pageInstance, UIError.ClientSide.InternalDefect.somethingWentWrong("ExtractedCauses.Other").toPageMessages)
       }
 
     override protected def handleErrorCauseInternal(errorLocation: RootErrorHandler.ErrorLocation, error: Cause[UIError.NonRedirect]): UIO[Unit] =

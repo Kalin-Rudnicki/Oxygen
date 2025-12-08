@@ -2,204 +2,309 @@ package oxygen.http.core.generic
 
 import oxygen.http.core.*
 import oxygen.http.core.partial.*
-import oxygen.meta.given
+import oxygen.http.model.internal.*
+import oxygen.http.schema.partial.*
+import oxygen.meta.{*, given}
 import oxygen.predef.core.*
 import oxygen.quoted.*
+import oxygen.schema.*
+import scala.annotation.tailrec
 import scala.quoted.*
 import zio.*
 import zio.http.{Method, Status}
 
-final class RouteRepr[Api] private (val defDef: DefDef, _apiType: Type[Api])(using Quotes) {
+sealed abstract class RouteRepr[Api](
+    final val defDef: DefDef,
+    _apiType: Type[Api],
+    _errorOutTypeRepr: TypeRepr,
+    _successOutTypeRepr: TypeRepr,
+    _quotes: Quotes,
+) {
 
-  given apiType: Type[Api] = _apiType
-  private val apiTypeRepr: TypeRepr = TypeRepr.of[Api]
+  protected final val apiTypeRepr: TypeRepr = _apiType.toTypeRepr
 
-  type EnvOut >: Scope
+  type In
   type ErrorOut
   type SuccessOut
 
+  final given apiType: Type[Api] = _apiType
+  final given quotes: Quotes = _quotes
+
+  final given errorOutType: Type[ErrorOut] = _errorOutTypeRepr.asTypeOf
+  final given successOutType: Type[SuccessOut] = _successOutTypeRepr.asTypeOf
+
   // TODO (KR) : Try to emit errors at DefDef/ValDef pos. Seems to emit in a garbage location when `retainTrees` is off.
   //           : Maybe its possible to detect this with some sort of `_.idx == 0`, and add `use retainTrees flag` helper message.
-  def fail(msg: String): Nothing =
-    report.errorAndAbort(s"${apiTypeRepr.showAnsiCode}.${defDef.name} : $msg")
-  def failParam(valDef: ValDef, msg: String): Nothing =
-    report.errorAndAbort(s"${apiTypeRepr.showAnsiCode}.${defDef.name}.${valDef.name} : $msg")
+  final def fail(msg: String): Nothing =
+    report.errorAndAbort(
+      s"""
+         |Error deriving generic HTTP RouteRepr.
+         |     API: ${apiTypeRepr.showAnsiCode}
+         |Function: ${defDef.name}
+         |
+         |""".stripMargin + msg,
+      defDef.pos,
+    )
+  final def failParam(valDef: ValDef, msg: String): Nothing =
+    report.errorAndAbort(
+      s"""
+         |Error deriving generic HTTP RouteRepr.
+         |     API: ${apiTypeRepr.showAnsiCode}
+         |Function: ${defDef.name}
+         |   Param: ${valDef.name}
+         |
+         |""".stripMargin + msg,
+      valDef.pos,
+    )
 
-  val derivedApiName: String = apiTypeRepr.typeSymbol.annotations.optionalOfValue[apiName].fold(apiTypeRepr.typeSymbol.name)(_.name)
-  val derivedEndpointName: String = defDef.symbol.annotations.optionalOfValue[endpointName].fold(defDef.name)(_.name)
-  val defDefDoc: Option[String] = defDef.symbol.annotations.optionalOfValue[httpDoc].map(_.doc)
-
-  private val termParamClause: TermParamClause = defDef.paramss match
-    case (tpc: TermParamClause) :: Nil => tpc
-    case _                             => fail("expected single parameter clause with no type params")
-
-  private val zioTycon: TypeRepr = TypeRepr.of[ZIO[?, ?, ?]].narrow[AppliedType].tycon
-  private val defDefRet: AppliedType = defDef.returnTpt.tpe.dealias.narrow[AppliedType]
-
-  private val (rTpe, eTpe, aTpe) = defDefRet.args match
-    case List(rTpe, eTpe, aTpe) if defDefRet.tycon =:= zioTycon => (rTpe, eTpe, aTpe)
-    case _                                                      => fail(s"return type is not a ZIO: ${defDefRet.showAnsiCode}")
-
-  private val isScoped: Boolean =
-    if rTpe =:= TypeRepr.of[Any] then false
-    else if rTpe =:= TypeRepr.of[Scope] then true
-    else fail("R type is not `Any`/`Scope`")
-
-  def convertEnv[E: Type, A: Type](effect: Expr[ZIO[Scope, E, A]])(using Quotes): Expr[ZIO[EnvOut, E, A]] =
-    if isScoped then effect.asExprOf[ZIO[EnvOut, E, A]]
-    else '{ ZIO.scoped { $effect } }
-
-  given envOutType: Type[EnvOut] = rTpe.asTypeOf
-  given errorOutType: Type[ErrorOut] = eTpe.asTypeOf
-  given successOutType: Type[SuccessOut] = aTpe.asTypeOf
-
-  private val valDefs: List[ValDef] = termParamClause.params
-
-  def methodType: MethodType =
-    MethodType.companion.apply(valDefs.map(_.name))(_ => valDefs.map(_.tpt.tpe), _ => defDef.returnTpt.tpe)
+  final val derivedApiName: String = apiTypeRepr.typeSymbol.annotations.optionalOfValue[apiName].fold(apiTypeRepr.typeSymbol.name)(_.name)
+  final val derivedEndpointName: String = defDef.symbol.annotations.optionalOfValue[endpointName].fold(defDef.name)(_.name)
+  final val defDefDoc: Option[String] = defDef.symbol.annotations.optionalOfValue[httpDoc].map(_.doc)
 
   private val routeAnnotValue: route =
     defDef.symbol.annotations.optionalOf[route] match
       case Some(Expr(value)) => value
       case Some(expr)        => fail(s"invalid @route.___ annotation\n\n${expr.showAnsiCode}")
       case None              => fail("missing @route.___ annotation")
+
+  final val httpMethod: Option[Method] = routeAnnotValue.method.someWhen(_ != Method.ANY)
+
+  private val termParamClause: TermParamClause = defDef.paramss match
+    case (tpc: TermParamClause) :: Nil => tpc
+    case _                             => fail("Function must have single parameter group with no type params")
+
+  private val valDefs: List[ValDef] = termParamClause.params
   private val pathList: List[String] = routeAnnotValue.url.split('/').toList.map(_.trim).filter(_.nonEmpty)
-  val method: Method = routeAnnotValue.method
 
   if pathList.contains("..") then report.errorAndAbort("path contains \"..\"")
 
-  private val paths: ArraySeq[(Int, Option[String])] =
-    pathList.toArraySeq.zipWithIndex.map {
-      case ("%", i) => (i, None)
-      case (s, i)   => (i, s.some)
-    }
+  private val unsortedParamReprs: List[ParamRepr[?]] = {
+    @tailrec
+    def loop(
+        parseIdx: Int,
+        paramIdx: Int,
+        pathQueue: List[String],
+        paramQueue: List[ParamRepr[?]],
+        rConstStack: List[String],
+        rOutStack: List[ParamRepr[?]],
+    ): List[ParamRepr[?]] =
+      (pathQueue, paramQueue, rConstStack) match {
+        case (("%" :: _) | Nil, _, _ :: _) =>
+          val const = ParamRepr.ConstPath(parseIdx, NonEmptyList.unsafeFromList(rConstStack.reverse), Type.of[Unit])
+          loop(parseIdx + 1, paramIdx, pathQueue, paramQueue, Nil, const :: rOutStack)
+        case ("%" :: pathTail, (paramHead: ParamRepr.PathLike[?]) :: paramTail, Nil) => loop(parseIdx + 1, paramIdx + 1, pathTail, paramTail, Nil, paramHead.withParseIndex(parseIdx) :: rOutStack)
+        case ("%" :: _, (paramHead: ParamRepr.NonPathLike[?]) :: paramTail, Nil)     => loop(parseIdx + 1, paramIdx + 1, pathQueue, paramTail, Nil, paramHead.withParseIndex(parseIdx) :: rOutStack)
+        case ("%" :: _, Nil, Nil)                                                    => fail("path has more % than @param.path")
+        case (pathHead :: pathTail, _, _)                                            => loop(parseIdx, paramIdx, pathTail, paramQueue, pathHead :: rConstStack, rOutStack)
+        case (Nil, (_: ParamRepr.PathLike[?]) :: _, Nil)                             => fail("path has more @param.path than %")
+        case (Nil, (paramHead: ParamRepr.NonPathLike[?]) :: paramTail, Nil)          => loop(parseIdx + 1, paramIdx + 1, pathQueue, paramTail, Nil, paramHead.withParseIndex(parseIdx) :: rOutStack)
+        case (Nil, Nil, Nil)                                                         => rOutStack.reverse
+      }
 
-  private def parseTmpParamRepr(valDef: ValDef, i: Int): TmpParamRepr = {
-    val paramAnnotValue: param =
-      valDef.symbol.annotations.optionalOf[param] match
-        case Some(Expr(value)) => value
-        case Some(expr)        => fail(s"invalid @param.___ annotation\n\n${expr.showAnsiCode}")
-        case None              => fail("missing @param.___ annotation")
+    loop(0, 0, pathList, valDefs.zipWithIndex.map(parseParamRepr), Nil, Nil)
+  }
 
-    type A
-    given Type[A] = valDef.tpt.tpe.widen.asTypeOf
-
-    // TODO (KR) : allow for custom name
-
-    def summonInstance[T[_]: Type]: Expr[T[A]] =
-      Implicits.searchOption[T[A]].getOrElse(failParam(valDef, s"No given instance found for ${TypeRepr.of[T[A]].showAnsiCode}"))
-
-    def valDefDocExpr: Expr[Option[String]] = Expr(valDef.symbol.annotations.optionalOfValue[httpDoc].map(_.doc))
-
-    paramAnnotValue match {
-      case paramAnnotValue: param.PathLike =>
-        // TODO (KR) : support custom name
-        val name = valDef.name
-        val inst: Expr[RequestPathCodec[A]] =
-          paramAnnotValue match {
-            case param.path() =>
-              '{ RequestPathCodec.ApplyPartial(${ summonInstance[PartialPathCodec] }, ${ Expr(name) }, $valDefDocExpr) }
-            case param.path.plain() =>
-              '{ RequestPathCodec.ApplyPartial(${ summonInstance[PartialPathCodec.Plain] }, ${ Expr(name) }, $valDefDocExpr) }
-            case param.path.json() =>
-              '{ RequestPathCodec.ApplyPartial(${ summonInstance[PartialPathCodec.Json] }, ${ Expr(name) }, $valDefDocExpr) }
-            case param.path.custom() =>
-              summonInstance[RequestPathCodec]
+  final val allParamsInParseOrder: ArraySeq[ParamRepr[?]] =
+    ArraySeq
+      .from(unsortedParamReprs)
+      .sorted(using
+        Ordering
+          .by[ParamRepr[?], Int] {
+            case _: ParamRepr.AppliedMethod        => 1
+            case _: ParamRepr.PathLike[?]          => 2
+            case _: ParamRepr.AppliedHeader[?]     => 3
+            case _: ParamRepr.AppliedQueryParam[?] => 4
+            case _: ParamRepr.CustomNonPath[?]     => 5
+            case _: ParamRepr.AppliedBody[?]       => 6
           }
-        TmpParamRepr.Path(valDef, name, i, inst)
-      case paramAnnotValue: param.NonPathLike =>
-        paramAnnotValue match {
-          case paramAnnotValue: param.QueryLike =>
-            // TODO (KR) : support custom name
-            val name = valDef.name
-            val inst: Expr[PartialParamCodec[A]] =
-              paramAnnotValue match {
-                case param.query()       => summonInstance[PartialParamCodec]
-                case param.query.plain() => summonInstance[PartialParamCodec.Plain]
-                case param.query.json()  => summonInstance[PartialParamCodec.Json]
-              }
-            TmpParamRepr.QueryParam(valDef, name, i, '{ RequestNonPathCodec.ApplyPartialQueryParam($inst, ${ Expr(name) }, $valDefDocExpr) })
-          case paramAnnotValue: param.HeaderLike =>
-            // TODO (KR) : support custom name
-            val name = valDef.name.camelToSnake.split('_').map(_.capitalize).mkString("-")
-            val inst: Expr[PartialParamCodec[A]] =
-              paramAnnotValue match {
-                case param.header()       => summonInstance[PartialParamCodec]
-                case param.header.plain() => summonInstance[PartialParamCodec.Plain]
-                case param.header.json()  => summonInstance[PartialParamCodec.Json]
-              }
-            TmpParamRepr.Header(valDef, name, i, '{ RequestNonPathCodec.ApplyPartialHeader($inst, ${ Expr(name) }, $valDefDocExpr) })
-          case paramAnnotValue: param.BodyLike =>
-            // TODO (KR) : support custom name
-            val name = valDef.name
-            val inst: Expr[PartialBodyCodec[A]] =
-              paramAnnotValue match {
-                case param.body()       => summonInstance[PartialBodyCodec]
-                case param.body.plain() => summonInstance[PartialBodyCodec.Plain]
-                case param.body.json()  => summonInstance[PartialBodyCodec.Json]
-              }
-            TmpParamRepr.Body(valDef, name, i, '{ RequestNonPathCodec.ApplyPartialBody($inst, ${ Expr(name) }, $valDefDocExpr) })
-          case param.nonPath.custom() =>
-            val inst: Expr[RequestNonPathCodec[A]] = summonInstance[RequestNonPathCodec]
-            TmpParamRepr.CustomNonPath(valDef, i, inst)
+          .orElseBy(_.parseIdx),
+      )
+      .zipWithIndex
+      .map { case (repr, idx) => repr.withParseIndex(idx) }
+
+  final val functionParamsInParseOrder: ArraySeq[ParamRepr.FunctionArg[?]] =
+    allParamsInParseOrder.collect { case fa: ParamRepr.FunctionArg[?] => fa }
+
+  final val functionParamsInParamOrder: ArraySeq[ParamRepr.FunctionArg[?]] =
+    functionParamsInParseOrder.sortBy(_.paramIdx)
+
+  (httpMethod.nonEmpty, allParamsInParseOrder.exists { case _: ParamRepr.AppliedMethod => true; case _ => false }) match
+    case (true, false)  => ()
+    case (false, true)  => ()
+    case (false, false) => fail("function must have a fixed method, or include a `@param.method _: Method` param")
+    case (true, true)   => fail("function can not have a fixed method and a `@param.method _: Method` param")
+
+  /**
+    * Imagine a function that looks like
+    * (@param.path p1: P1T, @param.body body: BodyT, @param.query query: QueryT, @param.header header: HeaderT, @param.path: p2: P2T)
+    *
+    * the `param order` tuple for this type is: (P1T, BodyT, QueryT, HeaderT, P2T)
+    * while the `parse order` tuple is:         (P1T, P2T, HeaderT, QueryT, BodyT)
+    *
+    * This reasoning here is that:
+    * 1. I definitely want to make sure I have parsed the path before trying to parse non-path params (especially the body)
+    * 2. I still would rather parse non-body params before parsing a body
+    * 3. Arbitrarily, if I had a missing query param or missing header, I would rather know about the missing header first.
+    *
+    * The [[In]] type represents the `parse order` type mentioned above (we needed to pick one).
+    * The below functions assist in re-ordering params. For example, if you had an `Expr[In]`, getting the param order tuple out of that would return:
+    * `List(in._1, in._5, in._4, in._3, in._2)`
+    * And passing a sequence of terms to create an `Expr[In]` looks like:
+    * `(p1, p2, header, query, body)`
+    *
+    * Because we are working with [[Term]]/[[Expr]] here, the generated code is extremely efficient, there is no repeated tupling/un-tupling.
+    */
+  private val inUnderlying: K0.ProductGeneric.UnderlyingConverter[In] =
+    K0.ProductGeneric.UnderlyingConverter.of[In](allParamsInParseOrder.collect { case p: ParamRepr.FunctionArg[?] => p.typeRepr }.toList)
+
+  private val paramOrderToParseOrderIndices: ArraySeq[Int] =
+    functionParamsInParamOrder.zipWithIndex.sortBy(_._1.parseIdx).map(_._2)
+
+  private val parseOrderToParamOrderIndices: ArraySeq[Int] =
+    functionParamsInParamOrder.zipWithIndex.sortBy(_._1.parseIdx).map(_._2)
+
+  final def inExprToParseOrderTerms(in: Expr[In])(using Quotes): List[Term] =
+    inUnderlying.splitExpr(in)
+
+  final def parseOrderTermsToInExpr(terms: List[Term])(using Quotes): Expr[In] =
+    inUnderlying.joinExpr(terms)
+
+  final def inExprToParamOrderTerms(in: Expr[In])(using Quotes): List[Term] =
+    inUnderlying.splitExpr(in).zip(parseOrderToParamOrderIndices).sortBy(_._2).map(_._1)
+
+  final def paramOrderTermsToInExpr(terms: List[Term])(using Quotes): Expr[In] =
+    inUnderlying.joinExpr(terms.zip(paramOrderToParseOrderIndices).sortBy(_._2).map(_._1))
+
+  final given inType: Type[In] = inUnderlying.aType
+
+  final val methodType: MethodType = MethodType.companion.apply(valDefs.map(_.name))(_ => valDefs.map(_.tpt.tpe), _ => defDef.returnTpt.tpe)
+
+  final def requestCodec(using Quotes): Expr[RequestCodec[In]] =
+    httpMethod match
+      case Some(httpMethod) =>
+        '{
+          RequestCodec.CustomWithConstMethod[In](
+            ${ Expr(httpMethod) },
+            ${ baseRequestCodec },
+          )
+        }
+      case None => baseRequestCodec
+
+  private def baseRequestCodec(using Quotes): Expr[RequestCodec[In]] =
+    requestCodecRec(allParamsInParseOrder.toList, Nil)
+
+  /////// Abstract ///////////////////////////////////////////////////////////////
+
+  def toIndentedString: IndentedString
+
+  /////// Util ///////////////////////////////////////////////////////////////
+
+  private def requestCodecRec(
+      queue: List[ParamRepr[?]],
+      rParamStack: List[ParamRepr.WithCodec[?]],
+  )(using Quotes): Expr[RequestCodec[In]] =
+    queue match {
+      case head :: tail =>
+        head.usingCodec[RequestCodec[In]] { wc => requestCodecRec(tail, wc :: rParamStack) }
+      case Nil =>
+        val params: List[ParamRepr.WithCodec[?]] = rParamStack.reverse
+        '{
+          new RequestCodec.Custom[In] {
+
+            private val codecParts: List[RequestCodec[?]] =
+              ${ params.map(_.codecExpr).seqToExpr }
+
+            override lazy val sources: List[RequestDecodingFailure.Source] = codecParts.flatMap(_.sources)
+            override lazy val schemaAggregator: RequestSchemaAggregator = codecParts.foldLeft(RequestSchemaAggregator.empty) { (acc, c) => acc >>> c.schemaAggregator }
+
+            override def decodeInternal(remainingPaths: List[String], request: ReceivedRequest): IntermediateRequestParseResult[In] =
+              ${ decodeRec('remainingPaths, 'request, params, Nil) }
+
+            override def encodeInternal(value: In, acc: RequestBuilder): RequestBuilder =
+              ${ encodeRec(inExprToParseOrderTerms('value), 'acc, params) }
+
+          }
         }
     }
-  }
 
-  private val tmpParamReprs: ArraySeq[TmpParamRepr] =
-    valDefs.toArraySeq.zipWithIndex.map(parseTmpParamRepr)
+  private def decodeRec(
+      remainingPathExpr: Expr[List[String]],
+      requestExpr: Expr[ReceivedRequest],
+      queue: List[ParamRepr.WithCodec[?]],
+      rParamStack: List[Term],
+  )(using Quotes): Expr[IntermediateRequestParseResult[In]] =
+    queue match {
+      case _head :: tail =>
+        type T
+        val head: ParamRepr.WithCodec[T] = _head.asInstanceOf[ParamRepr.WithCodec[T]]
+        given Type[T] = head.paramRepr.tpe
 
-  private val tmpPathReprs: ArraySeq[TmpParamRepr.Path] =
-    tmpParamReprs.collect { case p: TmpParamRepr.Path => p }
-
-  private val tmpNonPathReprs: ArraySeq[TmpParamRepr.NonPath] =
-    tmpParamReprs.collect { case p: TmpParamRepr.NonPath => p }
-
-  tmpNonPathReprs.collect { case TmpParamRepr.Body(_, name, _, _) => name } match {
-    case ArraySeq()  => ()
-    case ArraySeq(_) => ()
-    case bodies      => fail(s"more than 1 body (${bodies.mkString(", ")})")
-  }
-
-  private val idxMap: Map[Int, Int] =
-    paths.collect { case (i, None) => i }.zipWithIndex.toMap
-
-  if idxMap.size != tmpPathReprs.length then fail(s"number of % and @param.path do not match (${idxMap.size} != ${tmpPathReprs.length})")
-
-  val pathParams: ArraySeq[ParamRepr.Path] =
-    paths.map {
-      case (i, Some(const)) =>
-        ParamRepr.ConstPath(i, const, '{ RequestPathCodec.ConstSingle(${ Expr(const) }) })
-      case (i, None) =>
-        val tmpPath: TmpParamRepr.Path = tmpPathReprs(idxMap(i))
-        ParamRepr.NonConstPath(tmpPath.valDef, tmpPath.name, i, tmpPath.paramIdx, tmpPath.codec)
+        head.paramRepr match {
+          case _: ParamRepr.ConstPath =>
+            '{
+              ${ head.codecExpr }.decodeInternal($remainingPathExpr, $requestExpr).flatMap { (_, remainingPath) =>
+                ${ decodeRec('remainingPath, requestExpr, tail, rParamStack) }
+              }
+            }
+          case _: ParamRepr.FunctionArg[T] =>
+            '{
+              ${ head.codecExpr }.decodeInternal($remainingPathExpr, $requestExpr).flatMap { (value, remainingPath) =>
+                ${ decodeRec('remainingPath, requestExpr, tail, 'value.toTerm :: rParamStack) }
+              }
+            }
+        }
+      case Nil =>
+        '{
+          IntermediateRequestParseResult.Success(
+            value = ${ parseOrderTermsToInExpr(rParamStack.reverse) },
+            remainingPath = $remainingPathExpr,
+          )
+        }
     }
 
-  val nonPathParams: ArraySeq[ParamRepr.NonPath] =
-    tmpNonPathReprs.sorted.zipWithIndexFrom(pathParams.length).map { case (np, i) =>
-      np match {
-        case TmpParamRepr.QueryParam(valDef, name, paramIdx, decoder) =>
-          ParamRepr.QueryParam(valDef, name, i, paramIdx, decoder)
-        case TmpParamRepr.Header(valDef, name, paramIdx, decoder) =>
-          ParamRepr.Header(valDef, name, i, paramIdx, decoder)
-        case TmpParamRepr.Body(valDef, name, paramIdx, decoder) =>
-          ParamRepr.Body(valDef, name, i, paramIdx, decoder)
-        case TmpParamRepr.CustomNonPath(valDef, paramIdx, decoder) =>
-          ParamRepr.Custom(valDef, i, paramIdx, decoder)
-      }
+  @tailrec
+  private def encodeRec(
+      termQueue: List[Term],
+      requestBuilderExpr: Expr[RequestBuilder],
+      queue: List[ParamRepr.WithCodec[?]],
+  )(using Quotes): Expr[RequestBuilder] =
+    queue match {
+      case _head :: tail =>
+        _head.paramRepr match {
+          case _: ParamRepr.ConstPath =>
+            val head: ParamRepr.WithCodec[Unit] = _head.asInstanceOf[ParamRepr.WithCodec[Unit]]
+            encodeRec(
+              termQueue,
+              '{ ${ head.codecExpr }.encodeInternal((), $requestBuilderExpr) },
+              tail,
+            )
+          case _: ParamRepr.FunctionArg[?] =>
+            type T
+            val head: ParamRepr.WithCodec[T] = _head.asInstanceOf[ParamRepr.WithCodec[T]]
+            given Type[T] = head.paramRepr.tpe
+
+            termQueue match {
+              case tHead :: tTail =>
+                encodeRec(
+                  tTail,
+                  '{ ${ head.codecExpr }.encodeInternal(${ tHead.asExprOf[T] }, $requestBuilderExpr) },
+                  tail,
+                )
+              case Nil =>
+                report.errorAndAbort("Internal defect: Exhausted terms but not ParamRepr?")
+            }
+        }
+      case Nil if termQueue.nonEmpty =>
+        report.errorAndAbort("Internal defect: Exhausted ParamRepr but not terms?")
+      case Nil =>
+        requestBuilderExpr
     }
 
-  val allParamsInParseOrder: ArraySeq[ParamRepr] =
-    (pathParams ++ nonPathParams).sortBy(_.parseIdx)
-
-  val functionParamsInParamOrder: ArraySeq[ParamRepr.FunctionArg] =
-    allParamsInParseOrder.collect { case fa: ParamRepr.FunctionArg => fa }.sortBy(_.paramIdx)
-
-  private def deriveResponseCodec[T: Type](typeType: String, defaultCode: Status): Expr[ResponseCodec[T]] =
+  protected final def deriveResponseCodec[T: Type](typeType: String, defaultCode: Status)(using Quotes): Expr[ResponseCodec[T]] =
     Implicits.searchOption[ResponseCodec[T]].getOrElse {
       val responseCodecNoStatus: Expr[ResponseCodecNoStatus[T]] =
         Implicits.searchOption[ResponseCodecNoStatus[T]].getOrElse {
-          report.errorAndAbort(
+          fail(
             s"""Unable to derive ${TypeRepr.of[ResponseCodec[T]].showAnsiCode} for $typeType response.
                |
                |Adding a given instance for one of the following typeclasses should fix the problem:
@@ -217,22 +322,182 @@ final class RouteRepr[Api] private (val defDef: DefDef, _apiType: Type[Api])(usi
       '{ ResponseCodec.Standard($statusCodes, $responseCodecNoStatus) }
     }
 
-  val errorResponseCodec: Expr[ResponseCodec[ErrorOut]] =
-    deriveResponseCodec[ErrorOut]("error", Status.BadRequest)
-  val successResponseCodec: Expr[ResponseCodec[SuccessOut]] =
-    deriveResponseCodec[SuccessOut]("error", Status.Ok)
+  private def parseParamRepr(valDef: ValDef, paramIdx: Int): ParamRepr[?] = {
+    val annots = valDef.symbol.annotations
 
-  def toIndentedString: IndentedString =
-    IndentedString.section(s"${defDef.name}:")(
-      IndentedString.section("paths params:")(pathParams.map(_.toIndentedString).toSeq*),
-      IndentedString.section("non-paths params:")(nonPathParams.map(_.toIndentedString).toSeq*),
-      IndentedString.section("function params:")(functionParamsInParamOrder.map(_.toIndentedString).toSeq*),
-    )
+    val paramAnnotExpr: Expr[param] =
+      annots.optionalOf[param].getOrElse { failParam(valDef, "missing @param.___ annotation") }
+
+    type A
+    given aType: Type[A] = valDef.tpt.tpe.widen.asTypeOf
+
+    def valDefDoc: Option[String] = annots.optionalOfValue[httpDoc].map(_.doc)
+    def valDefName: String = valDef.name
+    def valDefHeaderName: String = valDef.name.camelToSnake.split('_').map(_.capitalize).mkString("-")
+
+    def summonInstance[T[_]: Type]: Expr[T[A]] =
+      Implicits.searchOption[T[A]].getOrElse(failParam(valDef, s"No given instance found for ${TypeRepr.of[T[A]].showAnsiCode}"))
+
+    paramAnnotExpr match {
+
+      // =====| custom |=====
+      case '{ new `param`.`path`.`custom`() }    => ParamRepr.CustomPath[A](valDef, paramIdx, paramIdx, summonInstance[RequestCodec.PathLike], aType)
+      case '{ new `param`.`nonPath`.`custom`() } => ParamRepr.CustomNonPath[A](valDef, paramIdx, paramIdx, summonInstance[RequestCodec.NonPathLike], aType)
+
+      // =====| applied method |=====
+      case '{ new `param`.`method`() }                => ParamRepr.AppliedMethod(valDef, valDefName, valDefDoc, paramIdx, paramIdx, Type.of[zio.http.Method])
+      case '{ new `param`.`method`(${ Expr(name) }) } => ParamRepr.AppliedMethod(valDef, name, valDefDoc, paramIdx, paramIdx, Type.of[zio.http.Method])
+
+      // =====| applied path |=====
+      case '{ new `param`.`path`() }                        => ParamRepr.AppliedPath[A](valDef, valDefName, valDefDoc, paramIdx, paramIdx, summonInstance[PartialPathCodec], aType)
+      case '{ new `param`.`path`(${ Expr(name) }) }         => ParamRepr.AppliedPath[A](valDef, name, valDefDoc, paramIdx, paramIdx, summonInstance[PartialPathCodec], aType)
+      case '{ new `param`.`path`.`plain`() }                => ParamRepr.AppliedPath[A](valDef, valDefName, valDefDoc, paramIdx, paramIdx, summonInstance[PartialPathCodec.Plain], aType)
+      case '{ new `param`.`path`.`plain`(${ Expr(name) }) } => ParamRepr.AppliedPath[A](valDef, name, valDefDoc, paramIdx, paramIdx, summonInstance[PartialPathCodec.Plain], aType)
+      case '{ new `param`.`path`.`json`() }                 => ParamRepr.AppliedPath[A](valDef, valDefName, valDefDoc, paramIdx, paramIdx, summonInstance[PartialPathCodec.Json], aType)
+      case '{ new `param`.`path`.`json`(${ Expr(name) }) }  => ParamRepr.AppliedPath[A](valDef, name, valDefDoc, paramIdx, paramIdx, summonInstance[PartialPathCodec.Json], aType)
+
+      // =====| applied query |=====
+      case '{ new `param`.`query`() }                        => ParamRepr.AppliedQueryParam[A](valDef, valDefName, valDefDoc, paramIdx, paramIdx, summonInstance[PartialParamCodec], aType)
+      case '{ new `param`.`query`(${ Expr(name) }) }         => ParamRepr.AppliedQueryParam[A](valDef, name, valDefDoc, paramIdx, paramIdx, summonInstance[PartialParamCodec], aType)
+      case '{ new `param`.`query`.`plain`() }                => ParamRepr.AppliedQueryParam[A](valDef, valDefName, valDefDoc, paramIdx, paramIdx, summonInstance[PartialParamCodec.Plain], aType)
+      case '{ new `param`.`query`.`plain`(${ Expr(name) }) } => ParamRepr.AppliedQueryParam[A](valDef, name, valDefDoc, paramIdx, paramIdx, summonInstance[PartialParamCodec.Plain], aType)
+      case '{ new `param`.`query`.`json`() }                 => ParamRepr.AppliedQueryParam[A](valDef, valDefName, valDefDoc, paramIdx, paramIdx, summonInstance[PartialParamCodec.Json], aType)
+      case '{ new `param`.`query`.`json`(${ Expr(name) }) }  => ParamRepr.AppliedQueryParam[A](valDef, name, valDefDoc, paramIdx, paramIdx, summonInstance[PartialParamCodec.Json], aType)
+
+      // =====| applied header |=====
+      case '{ new `param`.`header`() }                        => ParamRepr.AppliedHeader[A](valDef, valDefHeaderName, valDefDoc, paramIdx, paramIdx, summonInstance[PartialParamCodec], aType)
+      case '{ new `param`.`header`(${ Expr(name) }) }         => ParamRepr.AppliedHeader[A](valDef, name, valDefDoc, paramIdx, paramIdx, summonInstance[PartialParamCodec], aType)
+      case '{ new `param`.`header`.`plain`() }                => ParamRepr.AppliedHeader[A](valDef, valDefHeaderName, valDefDoc, paramIdx, paramIdx, summonInstance[PartialParamCodec.Plain], aType)
+      case '{ new `param`.`header`.`plain`(${ Expr(name) }) } => ParamRepr.AppliedHeader[A](valDef, name, valDefDoc, paramIdx, paramIdx, summonInstance[PartialParamCodec.Plain], aType)
+      case '{ new `param`.`header`.`json`() }                 => ParamRepr.AppliedHeader[A](valDef, valDefHeaderName, valDefDoc, paramIdx, paramIdx, summonInstance[PartialParamCodec.Json], aType)
+      case '{ new `param`.`header`.`json`(${ Expr(name) }) }  => ParamRepr.AppliedHeader[A](valDef, name, valDefDoc, paramIdx, paramIdx, summonInstance[PartialParamCodec.Json], aType)
+
+      // =====| applied body |=====
+      case '{ new `param`.`body`() }                        => ParamRepr.AppliedBody[A](valDef, valDefName, valDefDoc, paramIdx, paramIdx, summonInstance[PartialBodyCodec], aType)
+      case '{ new `param`.`body`(${ Expr(name) }) }         => ParamRepr.AppliedBody[A](valDef, name, valDefDoc, paramIdx, paramIdx, summonInstance[PartialBodyCodec], aType)
+      case '{ new `param`.`body`.`plain`() }                => ParamRepr.AppliedBody[A](valDef, valDefName, valDefDoc, paramIdx, paramIdx, summonInstance[PartialBodyCodec.Plain], aType)
+      case '{ new `param`.`body`.`plain`(${ Expr(name) }) } => ParamRepr.AppliedBody[A](valDef, name, valDefDoc, paramIdx, paramIdx, summonInstance[PartialBodyCodec.Plain], aType)
+      case '{ new `param`.`body`.`json`() }                 => ParamRepr.AppliedBody[A](valDef, valDefName, valDefDoc, paramIdx, paramIdx, summonInstance[PartialBodyCodec.Json], aType)
+      case '{ new `param`.`body`.`json`(${ Expr(name) }) }  => ParamRepr.AppliedBody[A](valDef, name, valDefDoc, paramIdx, paramIdx, summonInstance[PartialBodyCodec.Json], aType)
+
+      // =====| unknown |=====
+      case _ => report.errorAndAbort(s"Unable to extract param annotation expr: ${paramAnnotExpr.showAnsiCode}")
+
+    }
+  }
 
 }
 object RouteRepr {
 
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
+  //      ReturningZIO
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
+
+  final class ReturningZIO[Api](
+      defDef: DefDef,
+      _apiType: Type[Api],
+      _errorOutTypeRepr: TypeRepr,
+      _successOutTypeRepr: TypeRepr,
+      _quotes: Quotes,
+  )(
+      val envIsScoped: Boolean,
+      _envTypeRepr: TypeRepr,
+  ) extends RouteRepr[Api](defDef, _apiType, _errorOutTypeRepr, _successOutTypeRepr, _quotes) {
+
+    type EnvOut >: Scope
+
+    given envOutType: Type[EnvOut] = _envTypeRepr.asTypeOf
+
+    def convertZioRType[E: Type, A: Type](effect: Expr[ZIO[Scope, E, A]])(using Quotes): Expr[ZIO[EnvOut, E, A]] =
+      if envIsScoped then effect.asExprOf[ZIO[EnvOut, E, A]]
+      else '{ ZIO.scoped { $effect } }
+
+    def errorResponseCodec(using Quotes): Expr[ResponseCodec[ErrorOut]] =
+      deriveResponseCodec[ErrorOut]("error", Status.BadRequest)
+    def successResponseCodec(using Quotes): Expr[ResponseCodec[SuccessOut]] =
+      deriveResponseCodec[SuccessOut]("error", Status.Ok)
+
+    override def toIndentedString: IndentedString =
+      IndentedString.section(
+        s"[ZIO Endpoint] < env = ${envOutType.toTypeRepr.showAnsiCode}, error = ${errorOutType.toTypeRepr.showAnsiCode}, success = ${successOutType.toTypeRepr.showAnsiCode}> ${defDef.name}:",
+      )(
+        IndentedString.section("params:")(allParamsInParseOrder.map(_.toIndentedString)*),
+        IndentedString.section("function params:")(functionParamsInParamOrder.map(_.toIndentedString)*),
+      )
+
+  }
+
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
+  //      ReturningSSE
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
+
+  final class ReturningSSE[Api](
+      defDef: DefDef,
+      _apiType: Type[Api],
+      _errorOutTypeRepr: TypeRepr,
+      _successOutTypeRepr: TypeRepr,
+      _quotes: Quotes,
+  ) extends RouteRepr[Api](defDef, _apiType, _errorOutTypeRepr, _successOutTypeRepr, _quotes) {
+
+    def errorResponseCodec(using Quotes): Expr[ResponseCodec[ErrorOut]] =
+      deriveResponseCodec[ErrorOut]("error", Status.BadRequest)
+    def successSchema(using Quotes): Expr[AnySchemaT[SuccessOut]] = // TODO (KR) : have the ability to prefer json schema over plain-text schema
+      Implicits.searchOption[PlainTextSchema[SuccessOut]].getOrElse {
+        Implicits.searchOption[JsonSchema[SuccessOut]].getOrElse {
+          this.fail(
+            s"""Unable to derive ResponseCodec for SEE success type: ${TypeRepr.of[SuccessOut].showAnsiCode}.
+              |
+               |Oxygen looks for typeclass instances in the following order:
+               |1. ${TypeRepr.of[oxygen.schema.PlainTextSchema[SuccessOut]].showAnsiCode}
+               |2. ${TypeRepr.of[oxygen.schema.JsonSchema[SuccessOut]].showAnsiCode}
+              |""".stripMargin,
+          )
+        }
+      }
+
+    override def toIndentedString: IndentedString =
+      IndentedString.section(
+        s"[SSE Endpoint] < error = ${errorOutType.toTypeRepr.showAnsiCode}, success = ${successOutType.toTypeRepr.showAnsiCode}> ${defDef.name}:",
+      )(
+        IndentedString.section("params:")(allParamsInParseOrder.map(_.toIndentedString)*),
+        IndentedString.section("function params:")(functionParamsInParamOrder.map(_.toIndentedString)*),
+      )
+
+  }
+
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
+  //      derive
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
+
+  private def fail[Api: Type](defDef: DefDef)(msg: String)(using Quotes): Nothing =
+    report.errorAndAbort(
+      s"""
+         |Error deriving generic HTTP RouteRepr.
+         |     API: ${TypeRepr.of[Api].showAnsiCode}
+         |Function: ${defDef.name}
+         |
+         |""".stripMargin + msg,
+      defDef.pos,
+    )
+
+  private def deriveShouldIgnore(defDef: DefDef): Boolean =
+    defDef.name.contains("$default$")
+
+  private val supportedTypeString: Seq[String] =
+    Seq(
+      "ZIO[Scope | Any, _, _]",
+      "ServerSentEvents[_, _]",
+    )
+
+  private def deriveRequired[Api: Type as apiTpe](defDef: DefDef)(using quotes: Quotes): RouteRepr[Api] =
+    defDef.returnTpt.tpe.widen.asType match
+      case '[ZIO[Any, e, a]]         => ReturningZIO(defDef, apiTpe, TypeRepr.of[e], TypeRepr.of[a], quotes)(false, TypeRepr.of[Any])
+      case '[ZIO[Scope, e, a]]       => ReturningZIO(defDef, apiTpe, TypeRepr.of[e], TypeRepr.of[a], quotes)(true, TypeRepr.of[Scope])
+      case '[ServerSentEvents[e, a]] => ReturningSSE(defDef, apiTpe, TypeRepr.of[e], TypeRepr.of[a], quotes)
+      case '[ZIO[r, _, _]]           => fail[Api](defDef)(s"Function returns a ZIO, but R type is not `Scope` or `Any`: ${TypeRepr.of[r].showAnsiCode}")
+      case _ => fail[Api](defDef)(s"Function returns unknown type.\nExpected one of:${supportedTypeString.map { s => s"\n  - $s" }.mkString}\nGot: ${apiTpe.toTypeRepr.showAnsiCode}")
+
   def derive[Api: Type as apiTpe](defDef: DefDef)(using Quotes): Option[RouteRepr[Api]] =
-    Option.when(!defDef.name.contains("$default$")) { new RouteRepr[Api](defDef, apiTpe) }
+    Option.when(!deriveShouldIgnore(defDef)) { deriveRequired[Api](defDef) }
 
 }

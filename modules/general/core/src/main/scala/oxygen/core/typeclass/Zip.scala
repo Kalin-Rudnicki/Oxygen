@@ -1,10 +1,22 @@
 package oxygen.core.typeclass
 
-trait Zip[In1, In2] {
+trait Zip[In1, In2] { self =>
   type Out
 
   def zip(in1: In1, in2: In2): Out
   def unzip(out: Out): (In1, In2)
+
+  final def flip: Zip.Out[In2, In1, Out] =
+    new Zip[In2, In1] {
+      override type Out = self.Out
+      override def zip(in1: In2, in2: In1): self.Out =
+        self.zip(in2, in1)
+      override def unzip(out: self.Out): (In2, In1) = {
+        val (in1, in2) = self.unzip(out)
+        (in2, in1)
+      }
+    }
+
 }
 object Zip extends ZipLowPriority.LowPriority1 {
 
