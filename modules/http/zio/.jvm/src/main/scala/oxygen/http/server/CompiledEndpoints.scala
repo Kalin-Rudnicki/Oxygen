@@ -1,6 +1,7 @@
 package oxygen.http.server
 
 import oxygen.http.core.BodyUtil
+import oxygen.http.model.internal.*
 import oxygen.predef.core.*
 import oxygen.zio.syntax.log.*
 import zio.*
@@ -32,10 +33,12 @@ trait CompiledEndpoints {
         Handler.fromFunctionHandler[Request] { request =>
           Handler.fromZIO[Scope, Response, Response] {
             ZIO.scope.flatMap { scope =>
-              CurrentRequest.ref.locallyScoped(CurrentRequest(request, scope).some) *>
-                ZIO.logInfoAnnotated("Handling http request", "method" -> request.method.name, "path" -> request.path.encode) *>
-                handle(EndpointInput(request, config.exposeInternalErrors))
-                  .tapDefect { ZIO.logErrorCause("Unhandled defect", _) }
+              ReceivedRequest.fromRequest(request).flatMap { request =>
+                CurrentRequest.ref.locallyScoped(CurrentRequest(request, scope).some) *>
+                  ZIO.logInfoAnnotated("Handling http request", "method" -> request.method.name, "path" -> request.url.path.encode) *>
+                  handle(EndpointInput(request, config.errorConfig))
+                    .tapDefect { ZIO.logErrorCause("Unhandled defect", _) }
+              }
             }
           }
         }
@@ -65,18 +68,22 @@ object CompiledEndpoints {
     private val endpointArray: ArraySeq[Endpoint] = endpoints.arraySeq
     private val endpointArrayLength: Int = endpointArray.length
 
-    override def handle(input: EndpointInput): ZIO[Scope, Response, Response] = {
-      var idx: Int = 0
-      var endpoint: Endpoint = null
-      while idx < endpointArrayLength do {
-        endpoint = endpointArray(idx)
-        endpoint.handle(input) match
-          case Some(effect) => return effect
-          case None         => idx = idx + 1
-      }
+    private def loop(idx: Int, input: EndpointInput): ZIO[Scope, Response, Response] =
+      if idx < endpointArrayLength then {
+        val endpoint: Endpoint = endpointArray(idx)
+        endpoint.handle(input) match {
+          case Some(maybeResponse) =>
+            maybeResponse.flatMap {
+              case Some(response) => ZIO.succeed(response)
+              case None           => loop(idx + 1, input)
+            }
+          case None => loop(idx + 1, input)
+        }
+      } else //
+        ZIO.fail(Response(status = Status.NotFound, body = BodyUtil.fromString(Status.NotFound.text)))
 
-      ZIO.fail(Response(status = Status.NotFound, body = BodyUtil.fromString(Status.NotFound.text)))
-    }
+    override def handle(input: EndpointInput): ZIO[Scope, Response, Response] =
+      loop(0, input)
 
   }
 

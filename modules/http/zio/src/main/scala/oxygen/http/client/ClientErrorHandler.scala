@@ -1,41 +1,66 @@
 package oxygen.http.client
 
-import oxygen.http.core.ResponseDecodingFailure
+import oxygen.http.core.{HttpDecodingFailure, RequestDecodingFailure, ResponseDecodingFailure}
+import oxygen.predef.core.*
+import scala.reflect.TypeTest
 import zio.*
 
-trait ClientErrorHandler[A] extends Cause.Folder[Any, Nothing, Cause[A]] {
+trait ClientErrorHandler[E] extends Cause.Folder[Any, Throwable, Cause[E]] {
 
-  def wrapDeath(error: Throwable, trace: StackTrace): Option[A]
-  def wrapDecodingFailure(error: ResponseDecodingFailure): Option[A]
+  def wrapDeath(error: Throwable, trace: StackTrace): Option[E]
+  def wrapDecodingFailure(error: ResponseDecodingFailure): Option[E]
 
-  override def empty(context: Any): Cause[A] = Cause.Empty
+  override final def empty(context: Any): Cause[E] = Cause.Empty
 
-  override def failCase(context: Any, error: Nothing, stackTrace: StackTrace): Cause[A] = Cause.Empty
+  private def throwableCase(t: Throwable, stackTrace: StackTrace): Cause[E] = {
+    def fromDecodingFailure: Option[Cause.Fail[E]] = t match
+      case t: ResponseDecodingFailure => wrapDecodingFailure(t).map(Cause.Fail(_, stackTrace))
+      case _                          => None
+    def fromDeath: Option[Cause.Fail[E]] =
+      wrapDeath(t, stackTrace).map(Cause.Fail(_, stackTrace))
 
-  override def dieCase(context: Any, t: Throwable, stackTrace: StackTrace): Cause[A] = wrapDeath(t, stackTrace) match
-    case Some(typedError) => Cause.Fail(typedError, stackTrace)
-    case None             => Cause.Die(t, stackTrace)
+    fromDecodingFailure.orElse(fromDeath).getOrElse(Cause.Die(t, stackTrace))
+  }
 
-  override def interruptCase(context: Any, fiberId: FiberId, stackTrace: StackTrace): Cause[A] = Cause.Interrupt(fiberId, stackTrace)
+  override final def failCase(context: Any, error: Throwable, stackTrace: StackTrace): Cause[E] = throwableCase(error, stackTrace)
 
-  override def bothCase(context: Any, left: Cause[A], right: Cause[A]): Cause[A] = Cause.Both(left, right)
+  override final def dieCase(context: Any, t: Throwable, stackTrace: StackTrace): Cause[E] = throwableCase(t, stackTrace)
 
-  override def thenCase(context: Any, left: Cause[A], right: Cause[A]): Cause[A] = Cause.Then(left, right)
+  override final def interruptCase(context: Any, fiberId: FiberId, stackTrace: StackTrace): Cause[E] = Cause.Interrupt(fiberId, stackTrace)
 
-  override def stacklessCase(context: Any, value: Cause[A], stackless: Boolean): Cause[A] = Cause.Stackless(value, stackless)
+  override final def bothCase(context: Any, left: Cause[E], right: Cause[E]): Cause[E] = Cause.Both(left, right)
+
+  override final def thenCase(context: Any, left: Cause[E], right: Cause[E]): Cause[E] = Cause.Then(left, right)
+
+  override final def stacklessCase(context: Any, value: Cause[E], stackless: Boolean): Cause[E] = Cause.Stackless(value, stackless)
 
 }
 object ClientErrorHandler {
 
-  final class NotHandled[A] extends ClientErrorHandler[A] {
+  final class NotHandled[E] extends ClientErrorHandler[E] {
     override def wrapDeath(error: Throwable, trace: StackTrace): Option[Nothing] = None
     override def wrapDecodingFailure(error: ResponseDecodingFailure): Option[Nothing] = None
   }
 
-  def notHandled[A]: ClientErrorHandler[A] = new NotHandled[A]
+  final class ThrowableSubtype[E](using tt: TypeTest[Throwable, E]) extends ClientErrorHandler[E] {
+    override def wrapDeath(error: Throwable, trace: StackTrace): Option[E] = tt.unapply(error)
+    override def wrapDecodingFailure(error: ResponseDecodingFailure): Option[E] = tt.unapply(error)
+  }
+
+  def notHandled[E]: ClientErrorHandler[E] = new NotHandled[E]
+  def throwableSubtype[E <: Throwable](using TypeTest[Throwable, E]): ClientErrorHandler[E] = new ThrowableSubtype[E]
+
+  given throwable: ClientErrorHandler[Throwable] = throwableSubtype
+  given httpDecodingFailure: ClientErrorHandler[HttpDecodingFailure] = throwableSubtype
+  given requestDecodingFailure: ClientErrorHandler[RequestDecodingFailure] = throwableSubtype
+  given responseDecodingFailure: ClientErrorHandler[ResponseDecodingFailure] = throwableSubtype
+
+  given string: ClientErrorHandler[String] =
+    new ClientErrorHandler[String] {
+      override def wrapDeath(error: Throwable, trace: StackTrace): Option[String] = None
+      override def wrapDecodingFailure(error: ResponseDecodingFailure): Option[String] = error.safeGetMessage.some
+    }
 
   given nothing: ClientErrorHandler[Nothing] = notHandled
-  given throwable: ClientErrorHandler[Throwable] = notHandled
-  given string: ClientErrorHandler[String] = notHandled
 
 }

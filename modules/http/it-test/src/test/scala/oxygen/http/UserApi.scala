@@ -3,10 +3,11 @@ package oxygen.http
 import java.util.UUID
 import oxygen.http.client.{ClientErrorHandler, DeriveClient}
 import oxygen.http.core.*
-import oxygen.http.server.{DeriveEndpoints, ServerErrorHandler}
+import oxygen.http.server.{DeriveEndpoints, ServerErrorConfig, ServerErrorHandler}
 import oxygen.json.*
 import oxygen.predef.core.*
 import oxygen.schema.JsonSchema
+import oxygen.zio.ExtractedCauses
 import oxygen.zio.instances.chunkSeqOps
 import scala.annotation.experimental
 import zio.*
@@ -24,6 +25,11 @@ final case class CreateUser(
     age: Int,
 ) derives JsonSchema
 
+final case class UserEvent(
+    userId: UUID,
+    message: String,
+) derives JsonSchema
+
 enum ApiError derives JsonSchema, StatusCodes {
 
   @statusCode.`404` case NoSuchUser(id: UUID)
@@ -38,10 +44,12 @@ object ApiError {
 
   given ServerErrorHandler[ApiError] =
     new ServerErrorHandler[ApiError] {
-      override def wrapDeath(error: Throwable, trace: StackTrace, exposeInternalErrors: Boolean): Option[ApiError] =
-        InternalError(Option.when(exposeInternalErrors)(error.safeGetMessage)).some
-      override def wrapDecodingFailure(error: oxygen.http.core.RequestDecodingFailure): Option[ApiError] =
-        RequestDecodingFailure(error).some
+      override def convertCause(cause: ExtractedCauses[oxygen.http.core.RequestDecodingFailure], errorConfig: ServerErrorConfig): Option[ApiError] =
+        cause match
+          case ExtractedCauses.Failures(failures, _, _)                                   => ApiError.RequestDecodingFailure(failures.head.value).some
+          case ExtractedCauses.Defects(defects, _) if errorConfig.exposeInternalErrors    => ApiError.InternalError(defects.head.value.safeGetMessage.some).some
+          case ExtractedCauses.Interrupts(interrupts) if errorConfig.exposeInternalErrors => ApiError.InternalError(s"Interrupted by fiberId=${interrupts.head.fiberId}".some).some
+          case _                                                                          => ApiError.InternalError(None).some
     }
 
   given ClientErrorHandler[ApiError] =
@@ -74,5 +82,11 @@ trait UserApi derives DeriveEndpoints, DeriveClient {
       @param.query firstName: Option[String] = None,
       @param.query lastName: Option[String] = None,
   ): UIO[Set[User]]
+
+  @route.get("/user/%/events")
+  def userEvents(
+      @param.path userId: UUID,
+      @param.query numEvents: Option[Int],
+  ): ServerSentEvents[String, UserEvent]
 
 }

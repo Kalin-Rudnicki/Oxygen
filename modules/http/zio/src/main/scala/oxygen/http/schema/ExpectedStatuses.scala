@@ -6,15 +6,18 @@ sealed trait ExpectedStatuses {
 
   final def contains(s: Status): Boolean = this match
     case ExpectedStatuses.None               => false
+    case ExpectedStatuses.All                => true
     case ExpectedStatuses.Exact(status)      => status == s
     case ExpectedStatuses.OneOf(statuses)    => statuses.contains(s)
     case range: ExpectedStatuses.StatusRange => s.code >= range.min && s.code <= range.max
     case ExpectedStatuses.Or(a, b)           => a.contains(s) || b.contains(s)
 
   final def ||(that: ExpectedStatuses): ExpectedStatuses = (this, that) match
-    case (ExpectedStatuses.None, that) => that
-    case (_, ExpectedStatuses.None)    => this
-    case _                             => ExpectedStatuses.Or(this, that)
+    case (ExpectedStatuses.None, _) => that
+    case (_, ExpectedStatuses.None) => this
+    case (ExpectedStatuses.All, _)  => ExpectedStatuses.All
+    case (_, ExpectedStatuses.All)  => ExpectedStatuses.All
+    case _                          => ExpectedStatuses.Or(this, that)
 
 }
 object ExpectedStatuses {
@@ -23,6 +26,7 @@ object ExpectedStatuses {
     statuses.foldLeft(ExpectedStatuses.None: ExpectedStatuses)(_ || _)
 
   case object None extends ExpectedStatuses
+  case object All extends ExpectedStatuses
   final case class Exact(status: Status) extends ExpectedStatuses
   final case class OneOf(statuses: Set[Status]) extends ExpectedStatuses
   final case class Or(a: ExpectedStatuses, b: ExpectedStatuses) extends ExpectedStatuses

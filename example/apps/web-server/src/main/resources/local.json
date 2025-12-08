@@ -1,6 +1,8 @@
 {
   "http": {
-    "exposeInternalErrors": true,
+    "errors": {
+      "exposeInternalErrors": true
+    },
     "port": 3010
   },
   "token": {

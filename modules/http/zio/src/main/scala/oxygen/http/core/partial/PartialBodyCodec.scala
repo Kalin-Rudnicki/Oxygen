@@ -1,11 +1,12 @@
 package oxygen.http.core.partial
 
-import oxygen.http.core.{BodyUtil, DecodingFailureCause}
+import oxygen.http.core.{BodyUtil, DecodingFailureCause, ZioHttpCompat}
 import oxygen.http.schema.partial.PartialBodySchema
 import oxygen.predef.core.*
 import oxygen.schema.*
 import zio.*
-import zio.http.{Body, MediaType}
+import zio.http.{Body, MediaType, ServerSentEvent}
+import zio.stream.*
 
 sealed trait PartialBodyCodec[A] {
 
@@ -75,6 +76,38 @@ object PartialBodyCodec extends PartialBodyCodecLowPriority.LowPriority1 {
   }
   object Json {
     given fromSchema: [A: JsonSchema as schema] => PartialBodyCodec.Json[A] = PartialBodyCodec.Json(schema)
+  }
+
+  final case class ServerSentEvents[A](schema: AnySchemaT[A]) extends PartialBodyCodec[Stream[DecodingFailureCause, ServerSentEvent[A]]] {
+
+    override val partialBodySchema: PartialBodySchema.ServerSentEvents = PartialBodySchema.ServerSentEvents(schema)
+
+    override def decode(body: Body): ZIO[Scope, DecodingFailureCause, Stream[DecodingFailureCause, ServerSentEvent[A]]] =
+      ZIO.succeed {
+        val rawSSE: Stream[Throwable, ServerSentEvent[String]] =
+          body.asStream >>> ZioHttpCompat.rawEventBinaryCodec.streamDecoder
+        val decodedSSE: Stream[DecodingFailureCause, ServerSentEvent[A]] =
+          rawSSE.mapError { e => DecodingFailureCause.ExecutionFailure(e) }.mapZIO { event =>
+            schema.decode(event.data) match {
+              case Right(value) => ZIO.succeed(event.copy(data = value))
+              case Left(error)  => ZIO.fail(DecodingFailureCause.DecodeError(error))
+            }
+          }
+
+        decodedSSE
+      }
+
+    override def encode(value: Stream[DecodingFailureCause, ServerSentEvent[A]]): Body = {
+      val encodedSSE: Stream[Throwable, ServerSentEvent[String]] =
+        value
+          .orDieWith { c => new RuntimeException(c.toString) } // really its only the responses that can fail
+          .map { event => event.copy(data = schema.encode(event.data)) }
+      val rawBytes: Stream[Throwable, Byte] =
+        encodedSSE >>> ZioHttpCompat.rawEventBinaryCodec.streamEncoder
+
+      Body.fromStreamChunked(rawBytes)
+    }
+
   }
 
 }

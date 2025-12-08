@@ -8,7 +8,8 @@ import oxygen.meta.K0
 import oxygen.predef.core.*
 import oxygen.schema.*
 import zio.*
-import zio.http.{Body, Header, Headers, MediaType}
+import zio.http.{Body, Header, Headers, MediaType, ServerSentEvent}
+import zio.stream.*
 
 sealed trait ResponseCodecNoStatus[A] {
 
@@ -53,6 +54,13 @@ object ResponseCodecNoStatus {
 
   given unit: ResponseCodecNoStatus[Unit] = ResponseCodecNoStatus.Empty
   given fromBody: [A: PartialBodyCodec as codec] => ResponseCodecNoStatus[A] = ResponseCodecNoStatus.ApplyPartialBody(codec)
+
+  def ssePlainBody[A: PlainTextSchema as codec]: ResponseCodecNoStatus[Stream[ResponseDecodingFailure, ServerSentEvent[A]]] =
+    ResponseCodecNoStatus.ApplyPartialBodySSE(PartialBodyCodec.ServerSentEvents(codec))
+  def sseJsonBody[A: JsonSchema as codec]: ResponseCodecNoStatus[Stream[ResponseDecodingFailure, ServerSentEvent[A]]] =
+    ResponseCodecNoStatus.ApplyPartialBodySSE(PartialBodyCodec.ServerSentEvents(codec))
+  def sseBody[A](codec: AnySchemaT[A]): ResponseCodecNoStatus[Stream[ResponseDecodingFailure, ServerSentEvent[A]]] =
+    ResponseCodecNoStatus.ApplyPartialBodySSE(PartialBodyCodec.ServerSentEvents(codec))
 
   object header {
 
@@ -147,10 +155,10 @@ object ResponseCodecNoStatus {
   object ApplyPartialBody {
 
     def apply[A](partial: PartialBodyCodec[A]): ApplyPartialBody[A] =
-      partial match {
-        case PartialBodyCodec.Empty              => ApplyPartialBodyEmpty(PartialBodyCodec.Empty)
-        case partial: PartialBodyCodec.Single[A] => ApplyPartialBodySingle(partial)
-      }
+      partial match
+        case PartialBodyCodec.Empty                  => ApplyPartialBodyEmpty(PartialBodyCodec.Empty)
+        case partial: PartialBodyCodec.Single[A]     => ApplyPartialBodySingle(partial)
+        case _: PartialBodyCodec.ServerSentEvents[?] => throw new RuntimeException("Not allowed: ApplyPartialBody.apply(PartialBodyCodec.ServerSentEvents)")
 
   }
 
@@ -177,6 +185,19 @@ object ResponseCodecNoStatus {
 
     override private[ResponseCodecNoStatus] def encodeInternal(value: A, acc: Builder): Builder =
       acc.copy(body = partial.encode(value))
+
+  }
+
+  final case class ApplyPartialBodySSE[A](partial: PartialBodyCodec.ServerSentEvents[A]) extends ApplyPartialBody[Stream[ResponseDecodingFailure, ServerSentEvent[A]]] {
+
+    override val sources: List[ResponseDecodingFailure.Source] = ResponseDecodingFailure.Source.Body :: Nil
+    override val schemaAggregator: ResponseSchemaAggregator = ResponseSchemaAggregator.body(ResponseBodySchema.ServerSentEvents(partial.partialBodySchema.schema))
+
+    override def decode(headers: Headers, body: Body): ZIO[Scope, ResponseDecodingFailure, Stream[ResponseDecodingFailure, ServerSentEvent[A]]] =
+      partial.decode(body).mapBoth(ResponseDecodingFailure(sources, _), _.mapError(ResponseDecodingFailure(sources, _)))
+
+    override private[ResponseCodecNoStatus] def encodeInternal(value: Stream[ResponseDecodingFailure, ServerSentEvent[A]], acc: Builder): Builder =
+      acc.copy(body = partial.encode(value.orDie))
 
   }
 

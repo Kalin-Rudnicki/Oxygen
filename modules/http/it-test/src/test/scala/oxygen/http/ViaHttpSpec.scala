@@ -8,7 +8,9 @@ import scala.annotation.experimental
 @experimental
 object ViaHttpSpec extends OxygenContractSpec[UserApi]("ViaHttpSpec", UserApiContract) {
 
-  // override def defaultLogLevel: LogLevel = LogLevel.Info
+  // override def defaultLogLevel: LogLevel = LogLevel.Trace
+
+  override def testAspects: Chunk[TestSpecAspect] = Chunk(TestAspect.withLiveClock)
 
   override def layerProvider: LayerProvider[R] =
     LayerProvider.providePerTest[Env](

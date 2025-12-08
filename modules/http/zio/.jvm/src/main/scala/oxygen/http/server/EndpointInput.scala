@@ -1,8 +1,8 @@
 package oxygen.http.server
 
-import zio.http.Request
+import oxygen.http.model.internal.ReceivedRequest
 
 final case class EndpointInput(
-    request: Request,
-    exposeInternalErrors: Boolean,
+    request: ReceivedRequest,
+    errorConfig: ServerErrorConfig,
 )

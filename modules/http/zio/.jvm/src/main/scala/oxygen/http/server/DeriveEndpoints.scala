@@ -24,14 +24,35 @@ object DeriveEndpoints {
     val endpoints: ArraySeq[EndpointRepr[Api]] =
       api.routes.map(EndpointRepr[Api](_))
 
-    def endpointsImpl(apiExpr: Expr[Api]): Expr[Growable[Endpoint]] =
-      Growable.many(endpoints.map(_.toEndpoint(apiExpr))).seqToExpr
-
-    '{
-      new DeriveEndpoints[Api] {
-        override def endpoints(api: Api): Endpoints = Endpoints(${ endpointsImpl('api) })
+    def endpointsImpl(
+        queue: List[EndpointRepr[Api]],
+        rStack: List[EndpointRepr.WithImpl[Api]],
+    )(using Quotes): Expr[DeriveEndpoints[Api]] =
+      queue match {
+        case head :: tail =>
+          head.withImpl[DeriveEndpoints[Api]] { impl => endpointsImpl(tail, impl :: rStack) }
+        case Nil =>
+          '{
+            new DeriveEndpoints[Api] {
+              override def endpoints(api: Api): Endpoints = {
+                val growableEndpoints: Growable[Endpoint] =
+                  ${ Growable.many(rStack.reverse).map(_.toEndpoint('api)).seqToExpr }
+                Endpoints(growableEndpoints)
+              }
+            }
+          }
       }
-    }
+
+    // TODO (KR) : Use a different `Symbol.newClass` builder which allows creating a primary constructor.
+    //           : Then, be able to do `Block(List(newClassDef), '{ new DeriveClient[Api} { ... } })`,
+    //           : instead of needing to define the class in the `def client`.
+    val deriveEndpointsExpr: Expr[DeriveEndpoints[Api]] =
+      endpointsImpl(endpoints.toList, Nil)
+
+    // import oxygen.quoted.*
+    // report.errorAndAbort(deriveEndpointsExpr.showAnsiCode)
+
+    deriveEndpointsExpr
   }
 
   inline def derived[A]: DeriveEndpoints[A] = ${ derivedImpl[A] }

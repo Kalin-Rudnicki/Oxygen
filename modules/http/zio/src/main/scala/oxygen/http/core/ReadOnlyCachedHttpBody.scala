@@ -7,7 +7,7 @@ import zio.http.multipart.mixed.MultipartMixed
 import zio.json.JsonDecoder
 import zio.schema.Schema
 import zio.schema.codec.BinaryCodec
-import zio.stream.ZStream
+import zio.stream.*
 
 /**
   * This class asserts that there are two things you want to do with a http body:
@@ -16,11 +16,11 @@ import zio.stream.ZStream
   *
   * It supports:
   * 1. If you do (A), you can do (A) as many times as you want after that.
-  * 2. If you do (A), (B) should be allowed by succeeding with the cached stream bytes
+  * 2. If you do (A), you can do (B) by succeeding with the cached stream bytes
   * 3. If you do (B) before (A), you can never again do (A)
   * 4. If you do (B) before (A), you can never again do (B)
   */
-final class ReadOnlyCachedHttpBody(
+final class ReadOnlyCachedHttpBody private (
     rawBody: Body,
     cached: Ref[ReadOnlyCachedHttpBody.CacheStatus],
 ) extends Body {
@@ -34,12 +34,21 @@ final class ReadOnlyCachedHttpBody(
       case CacheStatus.Invalid       => ZIO.none
     }
 
+  def cacheBodyWithLimit(maxContentLengthToCache: Long): Task[Unit] =
+    cached.get.flatMap {
+      case CacheStatus.Unused if rawBody.knownContentLength.exists(_ <= maxContentLengthToCache) => readAndCacheBytes.unit
+      case _                                                                                     => ZIO.unit
+    }
+
   ///////  ///////////////////////////////////////////////////////////////
 
-  private def constByteArray[A](f: Array[Byte] => Task[A]): Task[A] =
+  private def readAndCacheBytes: Task[Array[Byte]] =
+    rawBody.asArray.tap { bytes => cached.set(CacheStatus.Cached(bytes)) }
+
+  private def constByteArray: Task[Array[Byte]] =
     cached.get.flatMap {
-      case CacheStatus.Unused        => asArray.tap { bytes => cached.set(CacheStatus.Cached(bytes)) }.flatMap(f)
-      case CacheStatus.Cached(bytes) => f(bytes)
+      case CacheStatus.Unused        => readAndCacheBytes
+      case CacheStatus.Cached(bytes) => ZIO.succeed(bytes)
       case CacheStatus.Invalid       => ZIO.fail(new RuntimeException("Attempted to read http bytes after non-recoverable operation (like streaming)"))
     }
 
@@ -57,10 +66,10 @@ final class ReadOnlyCachedHttpBody(
   ///////  ///////////////////////////////////////////////////////////////
 
   override def asArray(using trace: Trace): Task[Array[Byte]] =
-    constByteArray(ZIO.succeed(_))
+    constByteArray
 
   override def asChunk(using trace: Trace): Task[Chunk[Byte]] =
-    constByteArray { bytes => ZIO.succeed(Chunk.fromArray(bytes)) }
+    constByteArray.map(Chunk.fromArray)
 
   override def asJson[A](using schema: Schema[A], trace: Trace): Task[A] = {
     import zio.schema.codec.JsonCodec
@@ -108,7 +117,7 @@ final class ReadOnlyCachedHttpBody(
     ZIO.succeed(this)
 
   override def to[A](using codec: BinaryCodec[A], trace: Trace): Task[A] =
-    asChunk.flatMap(bytes => ZIO.fromEither(codec.decode(bytes)))
+    asChunk.flatMap { bytes => ZIO.fromEither(codec.decode(bytes)) }
 
   override def asStream(using trace: Trace): ZStream[Any, Throwable, Byte] =
     ZStream.fromZIO(cached.get).flatMap {
@@ -134,6 +143,10 @@ final class ReadOnlyCachedHttpBody(
 
 }
 object ReadOnlyCachedHttpBody {
+
+  def wrap(body: Body): UIO[ReadOnlyCachedHttpBody] = body match
+    case body: ReadOnlyCachedHttpBody => ZIO.succeed(body)
+    case _                            => Ref.make(CacheStatus.Unused).map(ReadOnlyCachedHttpBody(body, _))
 
   enum CacheStatus {
     case Unused

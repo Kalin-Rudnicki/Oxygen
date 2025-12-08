@@ -26,7 +26,7 @@ object WebServerMain extends ExecutableApp {
   object Config {
 
     final case class Http(
-        exposeInternalErrors: Boolean,
+        errors: ServerErrorConfig,
         port: Int,
     ) derives JsonCodec
 
@@ -43,7 +43,7 @@ object WebServerMain extends ExecutableApp {
     def layer(config: Config): TaskLayer[Env] =
       ZLayer.make[Env](
         // server
-        ZLayer.succeed(Server.Config(config.http.exposeInternalErrors)),
+        ZLayer.succeed(Server.Config(config.http.errors)),
         Server.layer.simple(config.http.port),
         Endpoints.layer {
           _ ++

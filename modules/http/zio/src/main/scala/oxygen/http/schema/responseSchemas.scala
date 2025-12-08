@@ -19,4 +19,8 @@ object ResponseBodySchema {
       schema: AnySchema,
   ) extends NonEmpty
 
+  final case class ServerSentEvents(
+      schema: AnySchema,
+  ) extends NonEmpty
+
 }

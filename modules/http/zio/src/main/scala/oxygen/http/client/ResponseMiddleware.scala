@@ -1,11 +1,11 @@
 package oxygen.http.client
 
+import oxygen.http.model.internal.ReceivedResponse
 import zio.*
-import zio.http.*
 
 trait ResponseMiddleware {
 
-  def apply(response: Response): URIO[Scope, Response]
+  def apply(response: ReceivedResponse): URIO[Scope, ReceivedResponse]
 
   final def >>>(that: ResponseMiddleware): ResponseMiddleware =
     (this, that) match
@@ -17,7 +17,7 @@ trait ResponseMiddleware {
 object ResponseMiddleware {
 
   case object Empty extends ResponseMiddleware {
-    override def apply(response: Response): UIO[Response] = ZIO.succeed(response)
+    override def apply(response: ReceivedResponse): UIO[ReceivedResponse] = ZIO.succeed(response)
   }
 
 }

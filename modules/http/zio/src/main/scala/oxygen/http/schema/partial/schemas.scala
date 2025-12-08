@@ -16,4 +16,5 @@ final case class PartialParamSchema(
 enum PartialBodySchema {
   case Empty
   case Single(schema: AnySchema)
+  case ServerSentEvents(schema: AnySchema)
 }
