@@ -1,8 +1,10 @@
 package oxygen.example.api.model.error
 
+import oxygen.http.client.ClientErrorHandler
 import oxygen.http.core.*
 import oxygen.predef.core.*
 import oxygen.schema.JsonSchema
+import zio.StackTrace
 
 enum ApiError extends Throwable derives StatusCodes, JsonSchema {
 
@@ -33,5 +35,11 @@ object ApiError {
   object Forbidden extends ErrorBuilder[Forbidden](new Forbidden(_, _))
   object Conflict extends ErrorBuilder[Conflict](new Conflict(_, _))
   object NotFound extends ErrorBuilder[NotFound](new NotFound(_, _))
+
+  given ClientErrorHandler[ApiError] =
+    new ClientErrorHandler[ApiError] {
+      override def wrapDeath(error: Throwable, trace: StackTrace): Option[ApiError] = None
+      override def wrapDecodingFailure(error: ResponseDecodingFailure): Option[ApiError] = DecodingFailure(error.getMessage).some
+    }
 
 }

@@ -13,9 +13,16 @@ import zio.http.Response
 final class EndpointRepr[Api](val route: RouteRepr[Api], classSym: Symbol) {
   import route.given
 
-  private val defDefSym: Symbol = classSym.declaredMethod(route.defDef.name).head // TODO (KR) : make this better
+  private val defDefSym: Symbol = classSym.declaredMethod(route.defDef.name) match
+    case sym :: Nil => sym
+    case Nil        => report.errorAndAbort(s"No symbol found for route?", route.defDef.pos)
+    case syms       => report.errorAndAbort(s"Route returned multiple symbols: ${syms.mkString(", ")}", route.defDef.pos) // TODO (KR) : be able to figure out which is the correct one
 
   private given Quotes = defDefSym.asQuotes
+
+  // TODO (KR) : cache in generated class
+  private val clientErrorHandlerExpr: Expr[ClientErrorHandler[route.ErrorOut]] =
+    Implicits.searchRequiredIgnoreExplanation[ClientErrorHandler[route.ErrorOut]]
 
   // TODO (KR) : should cache path/param/body codecs in lazy vals as well
   def toDefinition(clientExpr: Expr[Client]): DefDef =
@@ -101,30 +108,34 @@ final class EndpointRepr[Api](val route: RouteRepr[Api], classSym: Symbol) {
   }
 
   private def parseResponse(responseExpr: Expr[Response]): Expr[ZIO[Scope, route.ErrorOut, route.SuccessOut]] = {
-    val successBodyCodecExpr: Expr[ResponseCodec[route.SuccessOut]] = route.successResponseCodec // TODO (KR) : cache
-    val errorBodyCodecExpr: Expr[ResponseCodec[route.ErrorOut]] = route.errorResponseCodec // TODO (KR) : cache
+    val successBodyCodecExpr: Expr[ResponseCodec[route.SuccessOut]] = route.successResponseCodec // TODO (KR) : cache in generated class
+    val errorBodyCodecExpr: Expr[ResponseCodec[route.ErrorOut]] = route.errorResponseCodec // TODO (KR) : cache in generated class
 
-    // TODO (KR) : do better handling in error cases
     '{
-      if $successBodyCodecExpr.canLikelyDecode($responseExpr.status) then
-        $successBodyCodecExpr
-          .decode($responseExpr.status, $responseExpr.headers, $responseExpr.body)
-          .catchAll { error => ZIO.dieMessage(s"Unable to decode success response: $error") } // TODO (KR) : better error handling
-      else if $errorBodyCodecExpr.canLikelyDecode($responseExpr.status) then
-        $errorBodyCodecExpr
-          .decode($responseExpr.status, $responseExpr.headers, $responseExpr.body)
-          .catchAll { error => ZIO.dieMessage(s"Unable to decode error response: $error") } // TODO (KR) : better error handling
-          .flip
-      else if $responseExpr.status.isSuccess then // TODO (KR) : special handling?
-        $successBodyCodecExpr
-          .decode($responseExpr.status, $responseExpr.headers, $responseExpr.body)
-          .catchAll { error => ZIO.dieMessage(s"Unable to decode success response: $error") } // TODO (KR) : better error handling
-      else if $responseExpr.status.isError then // TODO (KR) : special handling?
-        $errorBodyCodecExpr
-          .decode($responseExpr.status, $responseExpr.headers, $responseExpr.body)
-          .catchAll { error => ZIO.dieMessage(s"Unable to decode error response: $error") } // TODO (KR) : better error handling
-          .flip
-      else ZIO.dieMessage(s"Unexpected http response code (${$responseExpr.status})") // TODO (KR) : better error handling
+      lazy val successBodyCodec: ResponseCodec[route.SuccessOut] = $successBodyCodecExpr
+      lazy val errorBodyCodec: ResponseCodec[route.ErrorOut] = $errorBodyCodecExpr
+      lazy val clientErrorHandler: ClientErrorHandler[route.ErrorOut] = $clientErrorHandlerExpr
+
+      val unhandled: ZIO[Scope, route.ErrorOut, route.SuccessOut] =
+        if successBodyCodec.canLikelyDecode($responseExpr.status) then //
+          successBodyCodec.decodeSuccess($responseExpr.status, $responseExpr.headers, $responseExpr.body)(clientErrorHandler)
+        else if errorBodyCodec.canLikelyDecode($responseExpr.status) then //
+          errorBodyCodec.decodeError($responseExpr.status, $responseExpr.headers, $responseExpr.body)(clientErrorHandler)
+        else if $responseExpr.status.isSuccess then // TODO (KR) : special handling?
+          ZIO.logInfo(s"Received unexpected (success) status code (${$responseExpr.status}), attempting to decode as success...") *>
+            successBodyCodec.decodeSuccess($responseExpr.status, $responseExpr.headers, $responseExpr.body)(clientErrorHandler)
+        else if $responseExpr.status.isError then // TODO (KR) : special handling?
+          ZIO.logInfo(s"Received unexpected (error) status code (${$responseExpr.status}), attempting to decode as error...") *>
+            errorBodyCodec.decodeError($responseExpr.status, $responseExpr.headers, $responseExpr.body)(clientErrorHandler)
+        else //
+          ZIO.dieMessage(s"Unexpected http response code (${$responseExpr.status})")
+
+      unhandled.mapErrorCause { cause =>
+        cause.failureOrCause match {
+          case Left(_)      => cause
+          case Right(cause) => cause.foldContext(())(clientErrorHandler)
+        }
+      }
     }
   }
 

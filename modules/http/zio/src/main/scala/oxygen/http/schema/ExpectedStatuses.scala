@@ -9,13 +9,23 @@ sealed trait ExpectedStatuses {
     case ExpectedStatuses.Exact(status)      => status == s
     case ExpectedStatuses.OneOf(statuses)    => statuses.contains(s)
     case range: ExpectedStatuses.StatusRange => s.code >= range.min && s.code <= range.max
+    case ExpectedStatuses.Or(a, b)           => a.contains(s) || b.contains(s)
+
+  final def ||(that: ExpectedStatuses): ExpectedStatuses = (this, that) match
+    case (ExpectedStatuses.None, that) => that
+    case (_, ExpectedStatuses.None)    => this
+    case _                             => ExpectedStatuses.Or(this, that)
 
 }
 object ExpectedStatuses {
 
+  def oneOf(statuses: ExpectedStatuses*): ExpectedStatuses =
+    statuses.foldLeft(ExpectedStatuses.None: ExpectedStatuses)(_ || _)
+
   case object None extends ExpectedStatuses
   final case class Exact(status: Status) extends ExpectedStatuses
   final case class OneOf(statuses: Set[Status]) extends ExpectedStatuses
+  final case class Or(a: ExpectedStatuses, b: ExpectedStatuses) extends ExpectedStatuses
 
   sealed abstract class StatusRange(
       final val name: String,
