@@ -101,4 +101,17 @@ object Macros {
 
   inline def sumRoundTrip(inline a: SumToExprExample): SumToExprExample = ${ sumRoundTripImpl('a) }
 
+  // FIX-PRE-MERGE (KR) : remove
+  private def inspectAnnotationsImpl[T: Type](using Quotes): Expr[Unit] = {
+    val typeRepr: TypeRepr = TypeRepr.of[T]
+    report.info(
+      s"\n=====| Inspecting annotations for: ${typeRepr.showAnsiCode} |=====" +
+        typeRepr.annotations.all.sortBy(_.pos.start).zipWithIndex.map { case (a, i) => s"\n\n--- $i : ${a.tpe.widen.showAnsiCode} ---\n\n${a.showAnsiCode}\n\n${a.toIndentedString}" }.mkString +
+        "\n",
+    )
+    '{ () }
+  }
+
+  inline def inspectAnnotations[T]: Unit = ${ inspectAnnotationsImpl[T] }
+
 }

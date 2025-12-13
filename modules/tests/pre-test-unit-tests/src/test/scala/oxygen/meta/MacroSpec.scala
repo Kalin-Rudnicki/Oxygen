@@ -120,4 +120,54 @@ object MacroSpec extends OxygenSpecDefault {
       ),
     )
 
+  // FIX-PRE-MERGE (KR) : remove
+
+  // =====| Class |=====
+
+  final class ClassAnnotMissing extends scala.annotation.Annotation
+
+  final class ClassAnnotEmpty() extends scala.annotation.Annotation
+
+  final class ClassAnnotRequired(val x: String) extends scala.annotation.Annotation {
+    def this() = this("")
+  }
+
+  final class ClassAnnotDefault(val x: String = "") extends scala.annotation.Annotation
+
+  // =====| Case Class |=====
+
+  final case class CaseClassAnnotEmpty() extends scala.annotation.Annotation
+
+  final case class CaseClassAnnotRequired(x: String) extends scala.annotation.Annotation {
+    def this() = this("")
+  }
+
+  final case class CaseClassAnnotDefault(x: String = "") extends scala.annotation.Annotation
+
+  // =====| Usage |=====
+
+  @ClassAnnotMissing
+  @ClassAnnotEmpty
+  @ClassAnnotEmpty()
+  @ClassAnnotRequired
+  @ClassAnnotRequired()
+  @ClassAnnotRequired("value")
+  @ClassAnnotDefault
+  @ClassAnnotDefault()
+  @ClassAnnotDefault("value")
+  final class ClassAnnotations
+
+  @CaseClassAnnotEmpty
+  @CaseClassAnnotEmpty()
+  @CaseClassAnnotRequired
+  @CaseClassAnnotRequired()
+  @CaseClassAnnotRequired("value")
+  @CaseClassAnnotDefault
+  @CaseClassAnnotDefault()
+  @CaseClassAnnotDefault("value")
+  final class CaseClassAnnotations
+
+  Macros.inspectAnnotations[ClassAnnotations]
+  Macros.inspectAnnotations[CaseClassAnnotations]
+
 }

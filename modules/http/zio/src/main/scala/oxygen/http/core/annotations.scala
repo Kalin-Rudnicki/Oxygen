@@ -42,33 +42,57 @@ object param {
 
   // =====|  |=====
 
-  final case class path() extends PathLike // TODO (KR) : optional name
+  final case class path(name: String) extends PathLike {
+    def this() = this("<default>")
+  }
   object path {
     final case class custom() extends PathLike
-    final case class plain() extends PathLike // TODO (KR) : optional name
-    final case class json() extends PathLike // TODO (KR) : optional name
+    final case class plain(name: String) extends PathLike {
+      def this() = this("<default>")
+    }
+    final case class json(name: String) extends PathLike {
+      def this() = this("<default>")
+    }
   }
 
   object nonPath {
     final case class custom() extends NonPathLike
   }
 
-  final case class query() extends QueryLike // TODO (KR) : optional name
+  final case class query(name: String) extends QueryLike {
+    def this() = this("<default>")
+  }
   object query {
-    final case class plain() extends QueryLike // TODO (KR) : optional name
-    final case class json() extends QueryLike // TODO (KR) : optional name
+    final case class plain(name: String) extends QueryLike {
+      def this() = this("<default>")
+    }
+    final case class json(name: String) extends QueryLike {
+      def this() = this("<default>")
+    }
   }
 
-  final case class header() extends HeaderLike // TODO (KR) : optional name
+  final case class header(name: String) extends HeaderLike {
+    def this() = this("<default>")
+  }
   object header {
-    final case class plain() extends HeaderLike // TODO (KR) : optional name
-    final case class json() extends HeaderLike // TODO (KR) : optional name
+    final case class plain(name: String) extends HeaderLike {
+      def this() = this("<default>")
+    }
+    final case class json(name: String) extends HeaderLike {
+      def this() = this("<default>")
+    }
   }
 
-  final case class body() extends BodyLike // TODO (KR) : optional name
+  final case class body(name: String) extends BodyLike {
+    def this() = this("<default>")
+  }
   object body {
-    final case class plain() extends BodyLike // TODO (KR) : optional name
-    final case class json() extends BodyLike // TODO (KR) : optional name
+    final case class plain(name: String) extends BodyLike {
+      def this() = this("<default>")
+    }
+    final case class json(name: String) extends BodyLike {
+      def this() = this("<default>")
+    }
   }
 
 }
