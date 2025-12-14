@@ -1,7 +1,9 @@
 package oxygen.meta
 
 import oxygen.predef.test.*
+import scala.annotation.experimental
 
+@experimental
 object MacroSpec extends OxygenSpecDefault {
 
   private inline def seqTest[S[_], A](inline values: A*)(exp: S[A]): TestSpec =
@@ -118,6 +120,16 @@ object MacroSpec extends OxygenSpecDefault {
         transformTest(5, ProductTransforms.CaseClass1(5)),
         transformTest((5, "s", true), ProductTransforms.CaseClass2(5, "s", true)),
       ),
+      test("ClassDef.newClass") {
+        val impl: ExampleTrait = ExampleTrait.impl("ABCdef")
+        assertTrue(
+          impl.upper == "ABCDEF",
+          impl.lower == "abcdef",
+          impl.defDef("ABCDEF"),
+          impl.defDef("abcdef"),
+          !impl.defDef("other"),
+        )
+      },
     )
 
 }

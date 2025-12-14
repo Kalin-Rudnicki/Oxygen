@@ -51,6 +51,47 @@ final class ClassDefCompanion(using quotes: Quotes) {
   def apply(cls: Symbol, parents: List[Term | TypeTree], body: List[Statement]): ClassDef =
     ClassDef.wrap(quotes.reflect.ClassDef.apply(cls.unwrapWithin, parents.map(_.unwrapWithin), body.map(_.unwrapWithin)))
 
+  @experimental
+  def newClass(owner: Symbol, name: String, parents: List[TypeRepr], selfType: Option[TypeRepr])(defns: Symbol => List[(Symbol, Definition)]): ClassDef = {
+    var builtDefns: List[Definition] = null
+    val clsSym: Symbol =
+      Symbol.newClass(
+        owner,
+        name,
+        parents,
+        { sym =>
+          val tmp = defns(sym)
+          builtDefns = tmp.map(_._2)
+          tmp.map(_._1)
+        },
+        selfType,
+      )
+    apply(clsSym, parents.map(t => TypeTree.ref(t.typeSymbol)), builtDefns)
+  }
+
+  @experimental
+  def newClassInstantiated(owner: Symbol, name: String, parents: List[TypeRepr], selfType: Option[TypeRepr])(defns: Symbol => List[(Symbol, Definition)]): Term = {
+    var builtDefns: List[Definition] = null
+    val clsSym: Symbol =
+      Symbol.newClass(
+        owner,
+        name,
+        parents,
+        { sym =>
+          val tmp = defns(sym)
+          builtDefns = tmp.map(_._2)
+          tmp.map(_._1)
+        },
+        selfType,
+      )
+    val classDef: ClassDef =
+      apply(clsSym, parents.map(t => TypeTree.ref(t.typeSymbol)), builtDefns)
+    Block.companion.apply(
+      classDef :: Nil,
+      New.companion.apply(TypeTree.ref(clsSym)).select(clsSym.primaryConstructor).appliedToNone,
+    )
+  }
+
   def copy(original: Tree)(name: String, constr: DefDef, parents: List[Term | TypeTree], selfOpt: Option[ValDef], body: List[Statement]): ClassDef =
     ClassDef.wrap(
       quotes.reflect.ClassDef.copy(original.unwrapWithin)(

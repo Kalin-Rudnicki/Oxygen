@@ -304,8 +304,8 @@ object ValOrDefDef {
 
   def wrap(using quotes: Quotes)(unwrap: quotes.reflect.ValOrDefDef): ValOrDefDef =
     unwrap match
-      case unwrap: quotes.reflect.DefDef => DefDef.wrap(unwrap)
       case unwrap: quotes.reflect.ValDef => ValDef.wrap(unwrap)
+      case unwrap: quotes.reflect.DefDef => DefDef.wrap(unwrap)
       case _                             => throw UnknownCase("ValOrDefDef", unwrap)
 
   def companion(using quotes: Quotes): ValOrDefDefCompanion = ValOrDefDefCompanion(using quotes)
@@ -354,6 +354,14 @@ final class DefDef(val quotes: Quotes)(val unwrap: quotes.reflect.DefDef) extend
 
   /** The tree of the return type of this `def` definition */
   def returnTpt: TypeTree = TypeTree.wrap(this.unwrap.returnTpt)
+
+  // =====| Added |=====
+
+  def methodType: TypeRepr =
+    paramss.foldRight(returnTpt.tpe) {
+      case (params: TermParamClause, accTpe) => MethodType.companion.apply(params.params.map(_.name))(_ => params.params.map(_.tpt.tpe.widen), _ => accTpe)
+      case (_: TypeParamClause, _)           => report.errorAndAbort("not yet supported: DefDef.methodType with type params")
+    }
 
 }
 object DefDef {
