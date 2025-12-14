@@ -101,4 +101,24 @@ object Macros {
 
   inline def sumRoundTrip(inline a: SumToExprExample): SumToExprExample = ${ sumRoundTripImpl('a) }
 
+  private def myCachedFunction[A: Type, B: Type](f: Expr[A => B])(using Quotes): Expr[A => B] =
+    '{
+      val cache: scala.collection.mutable.Map[A, B] = scala.collection.mutable.Map.empty
+      { (a: A) =>
+        println(s"Searching for: $a")
+        cache.get(a) match {
+          case Some(value) =>
+            println(s"hit: $a = $value")
+            value
+          case None =>
+            println(s"miss: $a")
+            val value: B = $f(a)
+            cache.update(a, value)
+            value
+        }
+      }
+    }
+
+  inline def cachedFunction[A, B](inline f: A => B): A => B = ${ myCachedFunction[A, B]('f) }
+
 }
