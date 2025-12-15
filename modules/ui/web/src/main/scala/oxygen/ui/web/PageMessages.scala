@@ -31,9 +31,14 @@ object PageMessages {
   object PageLocal extends PageLocalState[PageMessages]("PageMessages")(PageMessages(Chunk.empty))
 
   def schedule(message: PageMessage, duration: Duration): UIO[Unit] =
-    PageLocal.update(_ :+ message) *>
-      Clock.sleep(duration) *>
-      PageLocal.update(_ - message)
+    ZIO
+      .uninterruptibleMask { restore =>
+        restore(PageLocal.update(_ :+ message)) *>
+          Clock.sleep(duration) *>
+          PageLocal.update(_ - message)
+      }
+      .forkDaemon
+      .unit
 
   def add(message: PageMessage): UIO[Unit] = PageLocal.update(_ :+ message)
   def addAll(messages: IterableOnce[PageMessage]): UIO[Unit] = PageLocal.update(_ :++ messages)

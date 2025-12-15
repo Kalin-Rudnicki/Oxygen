@@ -19,6 +19,8 @@ object IndexPage extends RoutablePage.NoParams[LocalService & StreamApi] {
   final case class PageState(
       userToken: Option[UserToken],
       uuid: Option[ReceivedEvent],
+      counter: Int,
+      returnCount: Int,
   ) {
 
     def user: Option[User] = userToken.map(_.user)
@@ -39,18 +41,21 @@ object IndexPage extends RoutablePage.NoParams[LocalService & StreamApi] {
   override def initialLoad(params: PageParams): ZIO[LocalService & Scope, UIError, PageState] =
     for {
       userToken <- ZIO.serviceWithZIO[LocalService](_.userToken.getOption)
-    } yield PageState(userToken, None)
+    } yield PageState(userToken, None, 0, 0)
 
   override def postLoad(state: WidgetState[PageState], initialState: PageState): ZIO[Scope & StreamApi, UIError, Unit] =
-    for {
-      _ <- Clock.sleep(5.seconds)
-      _ <-
-        (ZStream.scoped { ZIO.addFinalizer(ZIO.logWarning("I have been killed!")) } *> StreamApi.randomUUIDs).foreach { id =>
-          Clock.instant.flatMap { now =>
-            state.update(_.copy(uuid = ReceivedEvent(id.id, id.timestamp, now).some))
-          }
-        }.forkScoped
-    } yield ()
+    ZIO.unit
+
+  override protected val jobs: Seq[PageJob[LocalService & StreamApi, PageState]] =
+    Seq(
+      job.simplePoll("simple-poll", 5.seconds)(1.second) { _.update { s => s.copy(counter = s.counter + 1) } },
+      job.nowAndOnReturn("now-and-on-return", 5.seconds) { _.update { s => s.copy(returnCount = s.returnCount + 1) } }.delay(2.seconds),
+      job.fromStream("uuid-stream", 30.seconds)(ZStream.scoped { ZIO.addFinalizer(ZIO.logWarning("I have been killed!")) } *> StreamApi.randomUUIDs) { (state, id) =>
+        Clock.instant.flatMap { now =>
+          state.update(_.copy(uuid = ReceivedEvent(id.id, id.timestamp, now).some))
+        }
+      },
+    )
 
   override def title(state: PageState): String = "Index"
 
@@ -61,7 +66,9 @@ object IndexPage extends RoutablePage.NoParams[LocalService & StreamApi] {
       PageMessagesBottomCorner.default,
       h1("Oxygen Example"),
       Section.section1()(
-        s"Id: ${renderState.uuid.fold("N/A")(_.toString)}",
+        InfoSection()(s"Id: ${renderState.uuid.fold("N/A")(_.toString)}"),
+        InfoSection()(s"Counter: ${renderState.counter}"),
+        InfoSection()(s"Return Count: ${renderState.returnCount}"),
       ),
     )
 

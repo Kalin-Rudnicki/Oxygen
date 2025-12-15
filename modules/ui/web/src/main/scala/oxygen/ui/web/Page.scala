@@ -22,6 +22,12 @@ sealed trait Page[-Env] { page =>
   def initialLoad(params: PageParams): ZIO[Env & Scope, UIError, PageState]
   def postLoad(state: WidgetState[PageState], initialState: PageState): ZIO[Env & Scope, UIError, Unit]
 
+  protected final val job: PageJob.WithState[PageState] = PageJob.withState[PageState]
+
+  // TODO (KR) : read this and schedule jobs once the page is loaded
+  protected val jobs: Seq[PageJob[Env, PageState]] = Nil
+  private[ui] final def internalJobs: Seq[PageJob[Env, PageState]] = jobs
+
   ///////  ///////////////////////////////////////////////////////////////
 
   private[web] object InternalPageState extends PageLocalState[PageState](s"InternalPageState[$pageName]")(null.asInstanceOf[PageState])
@@ -82,6 +88,7 @@ trait RoutablePage[-Env] extends Page[Env] { page =>
   def paramsFromState(state: PageState): PageParams
 
   object navigate { // Env is enforced by checking that the page exists in the typed page router
+    def apply(params: PageParams): RoutablePage.Navigate = new RoutablePage.Navigate(page)(params)
     def push(params: PageParams): IO[UIError.Redirect, Nothing] = ZIO.fail(UIError.Redirect(NavigationEvent.pushPage(page)(params)))
     def replace(params: PageParams): IO[UIError.Redirect, Nothing] = ZIO.fail(UIError.Redirect(NavigationEvent.replacePage(page)(params)))
     def openInNewTab(params: PageParams): UIO[Unit] = Window.newTab(paramCodec.encode(params))
@@ -89,6 +96,12 @@ trait RoutablePage[-Env] extends Page[Env] { page =>
 
 }
 object RoutablePage {
+
+  final class Navigate(private val page: RoutablePage[?])(private val params: page.PageParams) {
+    def push: IO[UIError.Redirect, Nothing] = page.navigate.push(params)
+    def replace: IO[UIError.Redirect, Nothing] = page.navigate.replace(params)
+    def openInNewTab: UIO[Unit] = page.navigate.openInNewTab(params)
+  }
 
   type AuxE[E, P, S] = RoutablePage[E] { type PageParams = P; type PageState = S }
   type Aux[P, S] = RoutablePage[?] { type PageParams = P; type PageState = S }
