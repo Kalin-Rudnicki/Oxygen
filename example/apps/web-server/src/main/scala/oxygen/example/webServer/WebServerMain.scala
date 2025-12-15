@@ -50,7 +50,8 @@ object WebServerMain extends ExecutableApp {
             UserApiImpl.layer ++
             ConnectionApiImpl.layer ++
             PostApiImpl.layer ++
-            UIApiImpl.layer
+            UIApiImpl.layer ++
+            StreamApiImpl.layer
         },
         CompiledEndpoints.endpointLayer(
         ),

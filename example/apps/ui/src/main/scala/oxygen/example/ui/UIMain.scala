@@ -14,7 +14,7 @@ import zio.*
 object UIMain extends PageApp[UIMain.Env] {
 
   type Env =
-    UserApi & ConnectionApi & LocalService
+    UserApi & ConnectionApi & StreamApi & LocalService
 
   override val logLevel: LogLevel = LogLevel.Debug
 
@@ -41,6 +41,7 @@ object UIMain extends PageApp[UIMain.Env] {
       Client.layer.localPort(3010),
       DeriveClient.clientLayer[UserApi],
       DeriveClient.clientLayer[ConnectionApi],
+      DeriveClient.clientLayer[StreamApi],
       // other
       LocalStorage.live,
       LocalService.layer,

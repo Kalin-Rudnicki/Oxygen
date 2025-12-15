@@ -48,7 +48,7 @@ object ServerErrors {
 
     def fromThrowable(cause: Throwable, trace: StackTrace, includeTrace: Boolean): Cause =
       Cause(
-        `class` = cause.getClass.getTypeName,
+        `class` = cause.getClass.getName,
         message = cause.safeGetMessage,
         throwableTrace = cause.convertThrowableTrace(includeTrace),
         zioTrace = trace.convertZioTrace(includeTrace),

@@ -105,7 +105,7 @@ object PartialBodyCodec extends PartialBodyCodecLowPriority.LowPriority1 {
       val rawBytes: Stream[Throwable, Byte] =
         encodedSSE >>> ZioHttpCompat.rawEventBinaryCodec.streamEncoder
 
-      Body.fromStreamChunked(rawBytes)
+      Body.fromStreamChunked(rawBytes).contentType(MediaType.text.`event-stream`)
     }
 
   }
