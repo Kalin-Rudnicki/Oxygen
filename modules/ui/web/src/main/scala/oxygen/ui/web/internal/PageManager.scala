@@ -1,7 +1,7 @@
 package oxygen.ui.web.internal
 
 import oxygen.predef.core.*
-import oxygen.ui.web.{NonRoutablePage, Page, RoutablePage, UIError}
+import oxygen.ui.web.{NonRoutablePage, Page, PageJob, RoutablePage, UIError}
 import oxygen.ui.web.internal.NavigationEvent.Target
 import zio.*
 import zio.http.Path
@@ -28,6 +28,7 @@ object PageManager {
       pagePrefixPath: Path,
       currentRef: Ref[Option[PageInstance.Untyped]],
       errorHandler: RootErrorHandler,
+      watchdog: ActivityWatchdog,
   ) extends PageManager {
 
     override def currentPageInstance: UIO[PageInstance.Untyped] =
@@ -121,7 +122,9 @@ object PageManager {
                 newScope.extend[Env] {
                   ZIO.suspendSucceed {
                     val state = pageInstance.pageState
-                    target.page.postLoad(state, state.renderTimeValue)
+                    // TODO (KR) : do better than dying
+                    ZIO.foreachDiscard(target.page.internalJobs) { job => watchdog.scheduleEffect(job.name, job.timeout.getOrElse(PageJob.defaultTimeout), job.effect(state).orDie) } *>
+                      target.page.postLoad(state, state.renderTimeValue)
                   }
                 }
               }
@@ -156,11 +159,11 @@ object PageManager {
   private[web] def reRenderCurrentPage: UIO[Unit] =
     currentPage.flatMap(_.reRenderCurrentPage)
 
-  def make(errorHandler: RootErrorHandler, pagePrefixPath: Path): UIO[PageManager] =
-    for
+  def make(errorHandler: RootErrorHandler, pagePrefixPath: Path, watchdog: ActivityWatchdog): UIO[PageManager] =
+    for {
       runningRef <- Ref.make(Option.empty[PageInstance.Untyped])
-      pageManager = Impl(pagePrefixPath, runningRef, errorHandler)
+      pageManager = Impl(pagePrefixPath, runningRef, errorHandler, watchdog)
       _ <- currentPageManagerRef.set(pageManager.some)
-    yield pageManager
+    } yield pageManager
 
 }

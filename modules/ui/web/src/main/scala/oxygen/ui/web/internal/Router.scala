@@ -89,16 +89,17 @@ object Router {
       pages: ArraySeq[RoutablePage[Env]],
       pagePrefix: ArraySeq[String],
       rootErrorHandler: RootErrorHandler,
+      watchdog: ActivityWatchdog,
   ): URIO[Env, Router] = {
     val pagePrefixPath: Path = pagePrefix.foldLeft(Path.root)(_ / _)
 
-    for
-      pageManager <- PageManager.make(rootErrorHandler, pagePrefixPath)
+    for {
+      pageManager <- PageManager.make(rootErrorHandler, pagePrefixPath, watchdog)
       uiRuntime <- UIRuntime.make[Env]
       router = Inst(pages, pagePrefixPath, pageManager, uiRuntime, rootErrorHandler)
       _ <- currentRouterRef.set(router.some)
       _ <- ZIO.succeed { window.onpopstate = { _ => uiRuntime.unsafeExecute { router.routeWindowURL } } }
-    yield router
+    } yield router
   }
 
 }

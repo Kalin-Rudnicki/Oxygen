@@ -18,6 +18,15 @@ object UIMain extends PageApp[UIMain.Env] {
 
   override val logLevel: LogLevel = LogLevel.Debug
 
+  /*
+  override val jobs: Seq[GlobalJob[Env]] =
+    Seq(
+      GlobalJob.simplePoll("say-hi", 15.seconds)(5.seconds) {
+        PageMessages.schedule(PageMessage.info("Hi there!"), 2.seconds)
+      },
+    )
+   */
+
   override val styleSheets: ArraySeq[StyleSheet] = ArraySeq(
     normalizeCssReset,
     OxygenStyleVars.toCSS(OxygenStyleVarDefaults.CZR),

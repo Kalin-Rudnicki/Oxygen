@@ -1,45 +1,38 @@
 package oxygen.ui.web.create
 
 import org.scalajs.dom.{Window as _, *}
-import oxygen.ui.web.{NonRoutablePage, PageURL, PWidget, RaiseHandler, RoutablePage, UIError, WidgetState}
-import oxygen.ui.web.service.Window
+import oxygen.ui.web.{NonRoutablePage, PWidget, RaiseHandler, RoutablePage, UIError, WidgetState}
 import zio.*
 
 object onClick extends EventHandlerBuilder[MouseEvent]("onclick") {
 
   def push(page: RoutablePage[?])(using ev: Unit <:< page.PageParams): Widget =
     push(page)(ev(()))
-  def push(page: RoutablePage[?])(params: page.PageParams): Widget = {
-    def url: PageURL = page.paramCodec.encode(params)
-
+  def push(page: RoutablePage[?])(params: page.PageParams): Widget =
+    push(page.navigate(params))
+  def push(page: RoutablePage.Navigate): Widget =
     fragment(
       this.e.handle { e =>
-        if e.ctrlKey || e.metaKey || e.button == 1 then Window.newTab(url)
-        else if e.shiftKey then Window.newWindow(url) // unfortunately seems no way to force this, so will behave the same as `newTab`
-        else page.navigate.push(params)
+        if e.ctrlKey || e.metaKey || e.button == 1 then page.openInNewTab
+        else if e.shiftKey then page.openInNewTab // unfortunately seems no way to force this, so will behave the same as `newTab`
+        else page.push
       },
-      onAuxClick.handle {
-        Window.newTab(url)
-      },
+      onAuxClick := page.openInNewTab,
     )
-  }
 
   def replace(page: RoutablePage[?])(using ev: Unit <:< page.PageParams): Widget =
     replace(page)(ev(()))
-  def replace(page: RoutablePage[?])(params: page.PageParams): Widget = {
-    def url: PageURL = page.paramCodec.encode(params)
-
+  def replace(page: RoutablePage[?])(params: page.PageParams): Widget =
+    replace(page.navigate(params))
+  def replace(page: RoutablePage.Navigate): Widget =
     fragment(
       this.e.handle { e =>
-        if e.ctrlKey || e.metaKey || e.button == 1 then Window.newTab(url)
-        else if e.shiftKey then Window.newWindow(url) // unfortunately seems no way to force this, so will behave the same as `newTab`
-        else page.navigate.replace(params)
+        if e.ctrlKey || e.metaKey || e.button == 1 then page.openInNewTab
+        else if e.shiftKey then page.openInNewTab // unfortunately seems no way to force this, so will behave the same as `newTab`
+        else page.replace
       },
-      onAuxClick.handle {
-        Window.newTab(url)
-      },
+      onAuxClick := page.openInNewTab,
     )
-  }
 
   def render[Env](page: NonRoutablePage[Env])(using ev: Unit <:< page.PageParams): WidgetE[Env] =
     render(page)(ev(()))
