@@ -65,6 +65,7 @@ given DeriveEndpoints[UserApi] = DeriveEndpoints.derived
 given DeriveEndpoints[ConnectionApi] = DeriveEndpoints.derived
 given DeriveEndpoints[PostApi] = DeriveEndpoints.derived
 given DeriveEndpoints[UIApi] = DeriveEndpoints.derived
+given DeriveEndpoints[StreamApi] = DeriveEndpoints.derived
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////
 //      Show
