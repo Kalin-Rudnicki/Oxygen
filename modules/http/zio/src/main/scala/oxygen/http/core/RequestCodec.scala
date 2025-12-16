@@ -637,3 +637,5 @@ object RequestCodec {
   }
 
 }
+
+given stringToRequestCodec: Conversion[String, RequestCodec.PathLike[Unit]] = RequestCodec.path.const(_)

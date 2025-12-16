@@ -50,10 +50,11 @@ object IndexPage extends RoutablePage.NoParams[LocalService & StreamApi] {
     Seq(
       job.simplePoll("simple-poll", 5.seconds)(1.second) { _.update { s => s.copy(counter = s.counter + 1) } },
       job.nowAndOnReturn("now-and-on-return", 5.seconds) { _.update { s => s.copy(returnCount = s.returnCount + 1) } }.delay(2.seconds),
-      job.fromStream("uuid-stream", 30.seconds)(ZStream.scoped { ZIO.addFinalizer(ZIO.logWarning("I have been killed!")) } *> StreamApi.randomUUIDs) { (state, id) =>
-        Clock.instant.flatMap { now =>
-          state.update(_.copy(uuid = ReceivedEvent(id.id, id.timestamp, now).some))
-        }
+      job.fromStream("uuid-stream", 30.seconds)(ZStream.scoped { ZIO.addFinalizer(ZIO.logWarning("Client finalized")) } *> StreamApi.randomUUIDs) { (state, id) =>
+        ZIO.logInfo("Received UUID!") *>
+          Clock.instant.flatMap { now =>
+            state.update(_.copy(uuid = ReceivedEvent(id.id, id.timestamp, now).some))
+          }
       },
     )
 

@@ -10,7 +10,7 @@ import scala.sys.process._
 //////////////////////////////////////////////////////////////////////////////////////////////////////
 
 ThisBuild / watchBeforeCommand := Watch.clearScreen
-ThisBuild / resolvers += Resolver.sonatypeCentralSnapshots
+ThisBuild / resolvers ++= Seq(Resolver.sonatypeCentralSnapshots, Resolver.mavenLocal)
 ThisBuild / updateOptions := updateOptions.value.withLatestSnapshots(false)
 
 enablePlugins(GitVersioning)
