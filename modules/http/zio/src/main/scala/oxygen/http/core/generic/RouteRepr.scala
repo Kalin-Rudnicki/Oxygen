@@ -157,23 +157,17 @@ sealed abstract class RouteRepr[Api](
   private val inUnderlying: K0.ProductGeneric.UnderlyingConverter[In] =
     K0.ProductGeneric.UnderlyingConverter.of[In](allParamsInParseOrder.collect { case p: ParamRepr.FunctionArg[?] => p.typeRepr }.toList)
 
-  private val paramOrderToParseOrderIndices: ArraySeq[Int] =
-    functionParamsInParamOrder.zipWithIndex.sortBy(_._1.parseIdx).map(_._2)
-
-  private val parseOrderToParamOrderIndices: ArraySeq[Int] =
-    functionParamsInParamOrder.zipWithIndex.sortBy(_._1.parseIdx).map(_._2)
-
   final def inExprToParseOrderTerms(in: Expr[In])(using Quotes): List[Term] =
     inUnderlying.splitExpr(in)
 
   final def parseOrderTermsToInExpr(terms: List[Term])(using Quotes): Expr[In] =
     inUnderlying.joinExpr(terms)
 
-  final def inExprToParamOrderTerms(in: Expr[In])(using Quotes): List[Term] =
-    inUnderlying.splitExpr(in).zip(parseOrderToParamOrderIndices).sortBy(_._2).map(_._1)
+  private val paramOrderReverseLookup: ArraySeq[Int] = functionParamsInParamOrder.zipWithIndex.sortBy(_._1.parseIdx).map(_._2)
+  final def inExprToParamOrderTerms(in: Expr[In])(using Quotes): List[Term] = inUnderlying.splitExpr(in).zip(paramOrderReverseLookup).sortBy(_._2).map(_._1)
 
-  final def paramOrderTermsToInExpr(terms: List[Term])(using Quotes): Expr[In] =
-    inUnderlying.joinExpr(terms.zip(paramOrderToParseOrderIndices).sortBy(_._2).map(_._1))
+  private val parseOrderReverseLookup: ArraySeq[Int] = functionParamsInParseOrder.zipWithIndex.sortBy(_._1.paramIdx).map(_._2)
+  final def paramOrderTermsToInExpr(terms: List[Term])(using Quotes): Expr[In] = inUnderlying.joinExpr(terms.zip(parseOrderReverseLookup).sortBy(_._2).map(_._1))
 
   final given inType: Type[In] = inUnderlying.aType
 

@@ -1,8 +1,9 @@
 package oxygen.http
 
+import java.time.Instant
 import java.util.UUID
 import oxygen.http.client.{ClientErrorHandler, DeriveClient}
-import oxygen.http.core.*
+import oxygen.http.core.{*, given}
 import oxygen.http.server.{DeriveEndpoints, ServerErrorConfig, ServerErrorHandler}
 import oxygen.json.*
 import oxygen.predef.core.*
@@ -29,6 +30,14 @@ final case class UserEvent(
     userId: UUID,
     message: String,
 ) derives JsonSchema
+
+final case class CustomPathItem(value: String)
+object CustomPathItem {
+
+  given RequestCodec.PathLike[CustomPathItem] =
+    ("custom" / "path" / RequestCodec.path.plain[String]("value")).autoTransform[CustomPathItem]
+
+}
 
 enum ApiError derives JsonSchema, StatusCodes {
 
@@ -62,7 +71,7 @@ object ApiError {
 }
 
 @experimental
-trait UserApi derives DeriveEndpoints, DeriveClient {
+trait UserApi {
 
   @route.get("/user/%")
   def userById(
@@ -88,5 +97,19 @@ trait UserApi derives DeriveEndpoints, DeriveClient {
       @param.path userId: UUID,
       @param.query numEvents: Option[Int],
   ): ServerSentEvents[String, UserEvent]
+
+  @route.get("/abc/%/ghi")
+  def macroTest(
+      @param.path.custom value: CustomPathItem,
+      @param.query instant: Option[Instant],
+      @param.query limit: Option[Int],
+      @param.header authorization: String,
+  ): IO[String, String]
+
+}
+object UserApi {
+
+  given DeriveEndpoints[UserApi] = DeriveEndpoints.derived
+  given DeriveClient[UserApi] = DeriveClient.derived
 
 }
