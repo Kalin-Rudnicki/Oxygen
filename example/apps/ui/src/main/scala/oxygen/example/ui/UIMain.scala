@@ -16,7 +16,7 @@ object UIMain extends PageApp[UIMain.Env] {
   type Env =
     UserApi & ConnectionApi & StreamApi & LocalService
 
-  override val logLevel: LogLevel = LogLevel.Debug
+  // override val logLevel: LogLevel = LogLevel.Debug
 
   /*
   override val jobs: Seq[GlobalJob[Env]] =

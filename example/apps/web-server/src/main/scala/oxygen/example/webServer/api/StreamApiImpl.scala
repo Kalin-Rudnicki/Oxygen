@@ -11,7 +11,7 @@ final case class StreamApiImpl() extends StreamApi {
   override def randomUUIDs(): ServerSentEvents[Nothing, StreamApi.UUIDEvent] =
     ServerSentEvents.succeed {
       ZStream.logInfo("Starting UUID stream") *>
-        ZStream.scoped { ZIO.addFinalizer { ZIO.logInfo("Disconnected from UUID stream") } } *>
+        ZStream.scoped { ZIO.addFinalizer { ZIO.logWarning("Server finalized") } } *>
         ZStream.repeatZIO {
           for {
             sleepMillis <- Random.nextIntBetween(100, 5000)

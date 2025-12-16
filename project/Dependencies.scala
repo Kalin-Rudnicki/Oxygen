@@ -44,7 +44,7 @@ object Dependencies {
 
     // =====| HTTP |=====
 
-    val httpVersion = "3.7.0"
+    val httpVersion = "3.7.4"
 
     val http = "zio-http"
 
