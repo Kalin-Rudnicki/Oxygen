@@ -94,6 +94,15 @@ object RequestCodec {
 
     inline def deriveSum[A]: RequestCodec.PathLike[A] = ${ deriveSumImpl[A] }
 
+    def customSum[A](case0: RequestCodec.PathLike[? <: A], caseN: RequestCodec.PathLike[? <: A]*)(encodeCase: A => RequestCodec.PathLike[? <: A]): RequestCodec.PathLike[A] =
+      new RequestCodec.internal.PathOr[A] {
+        override val underlying: NonEmptyList[PathLike[? <: A]] = NonEmptyList(case0, caseN.toList)
+        override def encodeInternal(value: A, acc: RequestBuilder): RequestBuilder = {
+          val unsafeCase: RequestCodec.PathLike[A] = encodeCase(value).asInstanceOf[RequestCodec.PathLike[A]]
+          unsafeCase.encodeInternal(value, acc)
+        }
+      }
+
   }
 
   object nonPath {
@@ -119,6 +128,15 @@ object RequestCodec {
     }
 
     inline def deriveSum[A]: RequestCodec.NonPathLike[A] = ${ deriveSumImpl[A] }
+
+    def customSum[A](case0: RequestCodec.NonPathLike[? <: A], caseN: RequestCodec.NonPathLike[? <: A]*)(encodeCase: A => RequestCodec.NonPathLike[? <: A]): RequestCodec.NonPathLike[A] =
+      new RequestCodec.internal.NonPathOr[A] {
+        override val underlying: NonEmptyList[NonPathLike[? <: A]] = NonEmptyList(case0, caseN.toList)
+        override def encodeInternal(value: A, acc: RequestBuilder): RequestBuilder = {
+          val unsafeCase: RequestCodec.NonPathLike[A] = encodeCase(value).asInstanceOf[RequestCodec.NonPathLike[A]]
+          unsafeCase.encodeInternal(value, acc)
+        }
+      }
 
   }
 
