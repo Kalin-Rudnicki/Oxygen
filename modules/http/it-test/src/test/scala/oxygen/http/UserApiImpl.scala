@@ -1,5 +1,6 @@
 package oxygen.http
 
+import java.time.Instant
 import java.util.UUID
 import oxygen.http.core.ServerSentEvents
 import oxygen.predef.core.*
@@ -39,8 +40,6 @@ final case class UserApiImpl(ref: Ref[Map[UUID, User]]) extends UserApi {
       filtered = if filters.isEmpty then all else all.filter { u => filters.forall(_(u)) }
     } yield filtered.toSet
 
-  // =====| Main Stream |=====
-
   override def userEvents(
       userId: UUID,
       numEvents: Option[Int],
@@ -62,6 +61,14 @@ final case class UserApiImpl(ref: Ref[Map[UUID, User]]) extends UserApi {
       ZStream.succeed(UserEvent(user.id, "Welcome to the stream!")) ++
         ZStream.fromIterableZIO { (Random.RandomLive.nextIntBetween(100, 500).flatMap { t => Clock.ClockLive.sleep(t.millis) } *> randomEvent).replicateZIO(numEvents.get) }
     }
+
+  override def macroTest(
+      value: CustomPathItem,
+      instant: Option[Instant],
+      limit: Option[Int],
+      authorization: String,
+  ): IO[String, String] =
+    ZIO.succeed("success")
 
 }
 object UserApiImpl {

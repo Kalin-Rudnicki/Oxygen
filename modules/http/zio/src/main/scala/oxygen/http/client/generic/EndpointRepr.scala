@@ -29,6 +29,8 @@ sealed trait EndpointRepr[Api] {
 
   final def withImpl[O: Type](f: EndpointRepr.WithImpl[Api] => Expr[O])(using Quotes): Expr[O] = {
     given Type[Out] = outTpe
+    // if route.derivedEndpointName == "macroTest" then report.errorAndAbort(makeImpl.showShortCode)
+
     ValDef.companion.letExpr[DerivedClientEndpointImpl[In, Out], O](
       route.defDef.name + "__Impl",
       makeImpl,
