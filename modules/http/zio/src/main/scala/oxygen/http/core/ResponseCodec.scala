@@ -23,6 +23,7 @@ trait ResponseCodec[A] {
   }
 
   final def transform[B](ab: A => B, ba: B => A): ResponseCodec[B] = ResponseCodec.Transform(this, ab, ba)
+  final def transformZIO[B](ab: A => ZIO[Scope, ResponseDecodingFailure, B], ba: B => A): ResponseCodec[B] = ResponseCodec.TransformZIO(this, ab, ba)
 
 }
 object ResponseCodec {
@@ -44,7 +45,7 @@ object ResponseCodec {
 
   }
 
-  final case class Raw(expectedStatuses: ExpectedStatuses) extends ResponseCodec[(Status, Headers, ReadOnlyCachedHttpBody)] {
+  final case class Raw(expectedStatuses: ExpectedStatuses) extends ResponseCodec[(Status, Headers, Body)] {
 
     override def unsafeBuild(apiName: String, endpointName: String): ResponseSchema =
       ResponseSchemaAggregator.empty.unsafeBuild(apiName, endpointName, expectedStatuses)
@@ -52,10 +53,10 @@ object ResponseCodec {
     override def canLikelyDecode(status: Status): Boolean =
       expectedStatuses.contains(status)
 
-    override def decode(response: ReceivedResponse): ZIO[Scope, ResponseDecodingFailure, (Status, Headers, ReadOnlyCachedHttpBody)] =
+    override def decode(response: ReceivedResponse): ZIO[Scope, ResponseDecodingFailure, (Status, Headers, Body)] =
       ZIO.succeed { (response.status, ZioHttpCompat.filterStandardHeaders(response.headers), response.body) }
 
-    override def encode(value: (Status, Headers, ReadOnlyCachedHttpBody)): (Status, Headers, Body) =
+    override def encode(value: (Status, Headers, Body)): (Status, Headers, Body) =
       (value._1, ZioHttpCompat.filterStandardHeaders(value._2), value._3)
 
   }
@@ -67,6 +68,18 @@ object ResponseCodec {
     override def canLikelyDecode(status: Status): Boolean = a.canLikelyDecode(status)
 
     override def decode(response: ReceivedResponse): ZIO[Scope, ResponseDecodingFailure, B] = a.decode(response).map(ab)
+
+    override def encode(value: B): (Status, Headers, Body) = a.encode(ba(value))
+
+  }
+
+  final case class TransformZIO[A, B](a: ResponseCodec[A], ab: A => ZIO[Scope, ResponseDecodingFailure, B], ba: B => A) extends ResponseCodec[B] {
+
+    override def unsafeBuild(apiName: String, endpointName: String): ResponseSchema = a.unsafeBuild(apiName, endpointName)
+
+    override def canLikelyDecode(status: Status): Boolean = a.canLikelyDecode(status)
+
+    override def decode(response: ReceivedResponse): ZIO[Scope, ResponseDecodingFailure, B] = a.decode(response).flatMap(ab)
 
     override def encode(value: B): (Status, Headers, Body) = a.encode(ba(value))
 
