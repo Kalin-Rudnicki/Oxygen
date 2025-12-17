@@ -1,6 +1,7 @@
 package oxygen.example.webServer
 
 import oxygen.crypto.service.{HashKey, JWTService, PasswordService}
+import oxygen.example.api.*
 import oxygen.example.api.model.user.User
 import oxygen.example.api.service.*
 import oxygen.example.domain.repo.*
@@ -40,19 +41,20 @@ object WebServerMain extends ExecutableApp {
   type Env = Server & Server.Config & CompiledEndpoints & MigrationService
   object Env {
 
+    private val endpoints: Endpoints[UserApi & ConnectionApi & PostApi & UIApi & StreamApi] =
+      Endpoints.empty.add[UserApi].add[ConnectionApi].add[PostApi].add[UIApi].add[StreamApi]
+
     def layer(config: Config): TaskLayer[Env] =
       ZLayer.make[Env](
         // server
         ZLayer.succeed(Server.Config(config.http.errors)),
         Server.layer.simple(config.http.port),
-        Endpoints.layer {
-          _ ++
-            UserApiImpl.layer ++
-            ConnectionApiImpl.layer ++
-            PostApiImpl.layer ++
-            UIApiImpl.layer ++
-            StreamApiImpl.layer
-        },
+        endpoints.toLayer,
+        UserApiImpl.layer,
+        ConnectionApiImpl.layer,
+        PostApiImpl.layer,
+        UIApiImpl.layer,
+        StreamApiImpl.layer,
         CompiledEndpoints.endpointLayer(
         ),
         Server.layer.serving,

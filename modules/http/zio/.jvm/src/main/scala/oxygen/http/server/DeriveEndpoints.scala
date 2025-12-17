@@ -7,12 +7,10 @@ import oxygen.predef.core.*
 import scala.quoted.*
 
 trait DeriveEndpoints[-Api] {
-  def endpoints(api: Api): Endpoints
+  def endpoints: Growable[Endpoint[Api]]
+  final def appliedEndpoints(api: Api): AppliedEndpoints = AppliedEndpoints { endpoints.map(_(api)) }
 }
 object DeriveEndpoints {
-
-  def endpoints[Api: DeriveEndpoints as der](api: Api): Endpoints =
-    der.endpoints(api)
 
   //////////////////////////////////////////////////////////////////////////////////////////////////////
   //      Generic
@@ -34,11 +32,8 @@ object DeriveEndpoints {
         case Nil =>
           '{
             new DeriveEndpoints[Api] {
-              override def endpoints(api: Api): Endpoints = {
-                val growableEndpoints: Growable[Endpoint] =
-                  ${ Growable.many(rStack.reverse).map(_.toEndpoint('api)).seqToExpr }
-                Endpoints(growableEndpoints)
-              }
+              override def endpoints: Growable[Endpoint[Api]] =
+                ${ Growable.many(rStack.reverse).map(_.toEndpoint).seqToExpr }
             }
           }
       }

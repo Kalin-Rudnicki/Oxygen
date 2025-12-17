@@ -49,7 +49,7 @@ trait CompiledEndpoints {
 object CompiledEndpoints {
 
   def layer(
-      endpoints: Endpoints,
+      endpoints: AppliedEndpoints,
       requestMiddleware: RequestMiddleware = RequestMiddleware.Empty,
       responseMiddleware: ResponseMiddleware = ResponseMiddleware.Empty,
       endpointMiddleware: EndpointMiddleware = EndpointMiddleware.Empty,
@@ -60,17 +60,17 @@ object CompiledEndpoints {
       requestMiddleware: RequestMiddleware = RequestMiddleware.Empty,
       responseMiddleware: ResponseMiddleware = ResponseMiddleware.Empty,
       endpointMiddleware: EndpointMiddleware = EndpointMiddleware.Empty,
-  ): RLayer[Endpoints, CompiledEndpoints] =
-    ZLayer.scoped { ZIO.serviceWithZIO[Endpoints] { _.compile(requestMiddleware, responseMiddleware, endpointMiddleware) } }
+  ): RLayer[AppliedEndpoints, CompiledEndpoints] =
+    ZLayer.scoped { ZIO.serviceWithZIO[AppliedEndpoints] { _.compile(requestMiddleware, responseMiddleware, endpointMiddleware) } }
 
-  final case class SeqScan(endpoints: Endpoints) extends CompiledEndpoints {
+  final case class SeqScan(endpoints: AppliedEndpoints) extends CompiledEndpoints {
 
-    private val endpointArray: ArraySeq[Endpoint] = endpoints.arraySeq
+    private val endpointArray: ArraySeq[AppliedEndpoint] = endpoints.arraySeq
     private val endpointArrayLength: Int = endpointArray.length
 
     private def loop(idx: Int, input: EndpointInput): ZIO[Scope, Response, Response] =
       if idx < endpointArrayLength then {
-        val endpoint: Endpoint = endpointArray(idx)
+        val endpoint: AppliedEndpoint = endpointArray(idx)
         endpoint.handle(input) match {
           case Some(maybeResponse) =>
             maybeResponse.flatMap {
