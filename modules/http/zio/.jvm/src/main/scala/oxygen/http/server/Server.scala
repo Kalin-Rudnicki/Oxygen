@@ -78,7 +78,7 @@ object Server {
       ZLayer.scoped { Server.serve }
 
     def serving(
-        endpoints: Endpoints,
+        endpoints: AppliedEndpoints,
         config: Server.Config = Server.Config.default,
         requestMiddleware: RequestMiddleware = RequestMiddleware.Empty,
         responseMiddleware: ResponseMiddleware = ResponseMiddleware.Empty,

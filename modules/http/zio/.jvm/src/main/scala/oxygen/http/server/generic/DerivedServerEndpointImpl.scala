@@ -41,7 +41,10 @@ trait DerivedServerEndpointImpl[Api, In] {
         )
     }
 
-  def toEndpoint(api: Api): Endpoint
+  protected def makeSchema: EndpointSchema
+
+  final def toEndpoint: Endpoint[Api] =
+    Endpoint[Api](makeSchema, handle)
 
 }
 object DerivedServerEndpointImpl {
@@ -70,15 +73,14 @@ object DerivedServerEndpointImpl {
         value => ZIO.succeed(successResponseCodec.encodeResponse(value)),
       )
 
-    override def toEndpoint(api: Api): Endpoint =
-      Endpoint(
+    override protected def makeSchema: EndpointSchema =
+      EndpointSchema(
         apiName = apiName.some,
         endpointName = endpointName,
         requestSchema = requestCodec.schemaAggregator.unsafeBuild(apiName, endpointName),
         successResponseSchema = successResponseCodec.unsafeBuild(apiName, endpointName),
         errorResponseSchema = errorResponseCodec.unsafeBuild(apiName, endpointName),
         doc = doc,
-        handle = handle(api),
       )
 
   }
@@ -110,15 +112,14 @@ object DerivedServerEndpointImpl {
         value => ZIO.succeed(sseResponseCodec.encodeResponse(value)),
       )
 
-    override def toEndpoint(api: Api): Endpoint =
-      Endpoint(
+    override protected def makeSchema: EndpointSchema =
+      EndpointSchema(
         apiName = apiName.some,
         endpointName = endpointName,
         requestSchema = requestCodec.schemaAggregator.unsafeBuild(apiName, endpointName),
         successResponseSchema = sseResponseCodec.unsafeBuild(apiName, endpointName),
         errorResponseSchema = errorResponseCodec.unsafeBuild(apiName, endpointName),
         doc = doc,
-        handle = handle(api),
       )
 
   }

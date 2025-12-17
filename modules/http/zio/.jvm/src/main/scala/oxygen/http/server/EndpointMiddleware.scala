@@ -4,7 +4,7 @@ import zio.*
 
 trait EndpointMiddleware {
 
-  def apply(endpoints: Endpoints): URIO[Scope, Endpoints]
+  def apply(endpoints: AppliedEndpoints): URIO[Scope, AppliedEndpoints]
 
   final def >>>(that: EndpointMiddleware): EndpointMiddleware =
     (this, that) match
@@ -16,7 +16,7 @@ trait EndpointMiddleware {
 object EndpointMiddleware {
 
   case object Empty extends EndpointMiddleware {
-    override def apply(endpoints: Endpoints): UIO[Endpoints] = ZIO.succeed(endpoints)
+    override def apply(endpoints: AppliedEndpoints): UIO[AppliedEndpoints] = ZIO.succeed(endpoints)
   }
 
   // TODO (KR) : docs

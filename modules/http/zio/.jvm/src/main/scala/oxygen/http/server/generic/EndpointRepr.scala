@@ -32,8 +32,8 @@ object EndpointRepr {
   final class WithImpl[Api](val endpointRepr: EndpointRepr[Api])(val impl: Expr[DerivedServerEndpointImpl[Api, endpointRepr.In]]) {
     import endpointRepr.route.given
 
-    def toEndpoint(apiExpr: Expr[Api])(using Quotes): Expr[Endpoint] =
-      '{ $impl.toEndpoint($apiExpr) }
+    def toEndpoint(using Quotes): Expr[Endpoint[Api]] =
+      '{ $impl.toEndpoint }
 
   }
 
