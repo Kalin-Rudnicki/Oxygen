@@ -8,17 +8,41 @@ trait EndpointMiddleware {
 
   final def >>>(that: EndpointMiddleware): EndpointMiddleware =
     (this, that) match
-      case (EndpointMiddleware.Empty, _) => that
-      case (_, EndpointMiddleware.Empty) => this
-      case _                             => this.apply(_).flatMap(that.apply)
+      case (EndpointMiddleware.Empty, _)                                              => that
+      case (_, EndpointMiddleware.Empty)                                              => this
+      case (self: EndpointMiddleware.Effectless, that: EndpointMiddleware.Effectless) => EndpointMiddleware.ThenEffectless(self, that)
+      case _                                                                          => EndpointMiddleware.ThenEffectful(this, that)
 
 }
 object EndpointMiddleware {
 
-  case object Empty extends EndpointMiddleware {
-    override def apply(endpoints: AppliedEndpoints): UIO[AppliedEndpoints] = ZIO.succeed(endpoints)
-  }
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
+  //      Default Instances
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
+
+  // TODO (KR) :
 
   // TODO (KR) : docs
+
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
+  //      Helpers
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
+
+  trait Effectless extends EndpointMiddleware {
+    def applyEffectless(endpoints: AppliedEndpoints): AppliedEndpoints
+    override final def apply(endpoints: AppliedEndpoints): URIO[Scope, AppliedEndpoints] = ZIO.succeed(endpoints)
+  }
+
+  case object Empty extends EndpointMiddleware.Effectless {
+    override def applyEffectless(endpoints: AppliedEndpoints): AppliedEndpoints = endpoints
+  }
+
+  final case class ThenEffectless(a: EndpointMiddleware.Effectless, b: EndpointMiddleware.Effectless) extends EndpointMiddleware.Effectless {
+    override def applyEffectless(endpoints: AppliedEndpoints): AppliedEndpoints = b.applyEffectless(a.applyEffectless(endpoints))
+  }
+
+  final case class ThenEffectful(a: EndpointMiddleware, b: EndpointMiddleware) extends EndpointMiddleware {
+    override def apply(endpoints: AppliedEndpoints): URIO[Scope, AppliedEndpoints] = a.apply(endpoints).flatMap(b.apply)
+  }
 
 }
