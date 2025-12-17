@@ -167,4 +167,9 @@ object ZioHttpCompat {
       e => e.copy(data = schema.encode(e.data)),
     )
 
+  extension (self: Body)
+    def optMediaType(tpe: Option[MediaType]): Body = tpe match
+      case Some(tpe) => self.contentType(tpe)
+      case None      => self
+
 }
