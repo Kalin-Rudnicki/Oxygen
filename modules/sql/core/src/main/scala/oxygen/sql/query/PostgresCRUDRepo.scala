@@ -9,7 +9,7 @@ import zio.stream.*
 
 object PostgresCRUDRepo {
 
-  trait Unmapped[A, K] extends CRUDRepo[A, K] {
+  trait Unmapped[K, A] extends CRUDRepo[K, A] {
 
     //////////////////////////////////////////////////////////////////////////////////////////////////////
     //      Abstract
@@ -83,7 +83,7 @@ object PostgresCRUDRepo {
 
   }
 
-  trait MapInfallible[A, K] extends CRUDRepo[A, K] {
+  trait MapInfallible[K, A] extends CRUDRepo[K, A] {
 
     //////////////////////////////////////////////////////////////////////////////////////////////////////
     //      Abstract
@@ -169,7 +169,7 @@ object PostgresCRUDRepo {
 
   }
 
-  trait MapFallible[A, K] extends CRUDRepo[A, K] {
+  trait MapFallible[K, A] extends CRUDRepo[K, A] {
 
     //////////////////////////////////////////////////////////////////////////////////////////////////////
     //      Abstract
@@ -177,8 +177,8 @@ object PostgresCRUDRepo {
 
     val db: Database
 
-    protected type DbA
     protected type DbK
+    protected type DbA
 
     protected val companion: TableCompanion[DbA, DbK]
 
