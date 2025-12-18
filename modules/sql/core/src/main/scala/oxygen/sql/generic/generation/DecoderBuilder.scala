@@ -46,6 +46,7 @@ final class DecoderBuilder {
         case QueryExpr.InstantiateTable(_, gen, tr, _) => ParseResult.success(GeneratedResultDecoder.single(tr.tableRowRepr.resultDecoder, gen.typeRepr))
         case _: QueryExpr.StringConcat                 => ParseResult.success(GeneratedResultDecoder.single(TypeclassExpr.RowRepr.string.resultDecoder, TypeRepr.of[String]))
         case QueryExpr.OptionApply(_, inner)           => convert(inner, parentContext.map(_.optional))
+        case _: QueryExpr.OptionNullability            => ParseResult.success(GeneratedResultDecoder.single(TypeclassExpr.RowRepr.boolean.resultDecoder, TypeRepr.of[Boolean]))
 
   }
 
