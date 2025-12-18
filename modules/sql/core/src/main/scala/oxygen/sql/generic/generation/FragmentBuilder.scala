@@ -235,6 +235,15 @@ final case class FragmentBuilder(inputs: List[InputPart])(using Quotes) {
           }
         case QueryExpr.OptionApply(_, inner) =>
           queryExprToFragment(inner, parentContext)
+        case QueryExpr.OptionNullability(_, inner, _, showSql) =>
+          // TODO (KR) : this will currently only work for single columns, aka: undefined behavior for `Option[CaseClass].nonEmpty`
+          //           : the full solution probably involves something like `a IS NULL AND b IS NULL AND c IS NULL` / `a IS NOT NULL AND b IS NOT NULL AND c IS NOT NULL`
+          for {
+            innerFrag <- queryExprToFragment.query(inner)
+          } yield GeneratedFragment.of(
+            innerFrag,
+            " " + showSql,
+          )
       }
 
   }

@@ -122,7 +122,7 @@ private[generic] object QueryExpr extends Parser[RawQueryExpr, QueryExpr] {
       case QueryExpr.InputVariableReferenceLike.SelectNonPrimaryKey(_, inner, _)  => s"${inner.show}.${"tableNPK".hexFg("#35A7FF")}"
 
   }
-  object InputVariableReferenceLike {
+  object InputVariableReferenceLike extends Parser[RawQueryExpr.VariableReferenceLike, QueryExpr.InputVariableReferenceLike] {
 
     sealed trait CanSelect extends InputVariableReferenceLike
     sealed trait CanNotSelect extends InputVariableReferenceLike
@@ -178,6 +178,12 @@ private[generic] object QueryExpr extends Parser[RawQueryExpr, QueryExpr] {
       override def simplified: TermTransformer.Simplified = inner >>> doApply
     }
 
+    override def parse(input: RawQueryExpr.VariableReferenceLike)(using ParseContext, Quotes): ParseResult[InputVariableReferenceLike] =
+      VariableReferenceLike.parse(input).flatMap {
+        case ref: InputVariableReferenceLike => ParseResult.success(ref)
+        case ref: QueryVariableReferenceLike => ParseResult.error(ref.fullTerm, "Expected input reference at root, got query element")
+      }
+
   }
 
   /////// QueryVariableReferenceLike ///////////////////////////////////////////////////////////////
@@ -197,7 +203,7 @@ private[generic] object QueryExpr extends Parser[RawQueryExpr, QueryExpr] {
       case sel @ QueryExpr.QueryVariableReferenceLike.SelectNonPrimaryKey(_, inner, _) => s"${inner.show}.${"tableNPK".hexFg("#35A7FF")}(using ${sel.rowRepr.show})"
 
   }
-  object QueryVariableReferenceLike {
+  object QueryVariableReferenceLike extends Parser[RawQueryExpr.VariableReferenceLike, QueryExpr.QueryVariableReferenceLike] {
 
     sealed trait CanSelect extends QueryVariableReferenceLike
     sealed trait CanNotSelect extends QueryVariableReferenceLike
@@ -235,6 +241,12 @@ private[generic] object QueryExpr extends Parser[RawQueryExpr, QueryExpr] {
       override val queryRef: VariableReference.FromQuery = inner.queryRef
       override def rowRepr(using Quotes): TypeclassExpr.RowRepr = givenTableRepr.npkRowRepr(fullTerm)
     }
+
+    override def parse(input: RawQueryExpr.VariableReferenceLike)(using ParseContext, Quotes): ParseResult[QueryVariableReferenceLike] =
+      VariableReferenceLike.parse(input).flatMap {
+        case ref: QueryVariableReferenceLike => ParseResult.success(ref)
+        case ref: InputVariableReferenceLike => ParseResult.error(ref.fullTerm, "Expected query element reference at root, got input")
+      }
 
   }
 
@@ -312,9 +324,10 @@ private[generic] object QueryExpr extends Parser[RawQueryExpr, QueryExpr] {
   sealed trait Composite extends QueryExpr {
 
     override final def show(using Quotes): String = this match
-      case QueryExpr.InstantiateTable(_, gen, _, args) => args.map(_.show).mkString(s"${gen.typeRepr.showCode}.apply(", ", ", ")")
-      case QueryExpr.StringConcat(_, args)             => args.map(_.show).mkString("CONCAT(", ", ", ")")
-      case QueryExpr.OptionApply(_, inner)             => s"Option(${inner.show})"
+      case QueryExpr.InstantiateTable(_, gen, _, args)         => args.map(_.show).mkString(s"${gen.typeRepr.showCode}.apply(", ", ", ")")
+      case QueryExpr.StringConcat(_, args)                     => args.map(_.show).mkString("CONCAT(", ", ", ")")
+      case QueryExpr.OptionApply(_, inner)                     => s"Option(${inner.show})"
+      case QueryExpr.OptionNullability(_, inner, showScala, _) => s"${inner.show}.${showScala.blueFg}"
 
   }
 
@@ -344,22 +357,28 @@ private[generic] object QueryExpr extends Parser[RawQueryExpr, QueryExpr] {
     override def queryRefs: Growable[VariableReference] = inner.queryRefs
   }
 
+  final case class OptionNullability(select: Select, inner: QueryVariableReferenceLike, showScala: String, showSql: String) extends Composite {
+    override val fullTerm: Term = select
+    override def queryRefs: Growable[VariableReference] = inner.queryRefs
+  }
+
   //////////////////////////////////////////////////////////////////////////////////////////////////////
   //      Parse
   //////////////////////////////////////////////////////////////////////////////////////////////////////
 
   override def parse(expr: RawQueryExpr)(using ParseContext, Quotes): ParseResult[QueryExpr] =
     expr match {
-      case expr: RawQueryExpr.VariableReferenceLike                           => VariableReferenceLike.parse(expr)
-      case expr: RawQueryExpr.Binary                                          => Binary.parse(expr)
-      case RawQueryExpr.InstantiateTable(fullTerm, gen, givenTableRepr, args) => args.traverse(parse).map(QueryExpr.InstantiateTable(fullTerm, gen, givenTableRepr, _))
-      case RawQueryExpr.RandomUUID(fullTerm)                                  => ParseResult.success(QueryExpr.Static(fullTerm, "gen_random_uuid()", TypeclassExpr.RowRepr.uuid))
-      case RawQueryExpr.InstantNow(fullTerm)                                  => ParseResult.success(QueryExpr.Static(fullTerm, "NOW()", TypeclassExpr.RowRepr.instant))
-      case RawQueryExpr.StringConcat(fullTerm, args)                          => args.traverse(parse(_)).map(StringConcat(fullTerm, _))
-      case RawQueryExpr.OptionApply(fullTerm, inner)                          => QueryExpr.parse(inner).map(QueryExpr.OptionApply(fullTerm, _))
-      case RawQueryExpr.ConstValue(fullTerm, constTerm)                       => ParseResult.Success(QueryExpr.ConstValue(fullTerm, constTerm))
-      case RawQueryExpr.StaticCount(fullTerm, out)                            => ParseResult.Success(QueryExpr.Static(fullTerm, s"COUNT($out)", TypeclassExpr.RowRepr.long))
-      case RawQueryExpr.CountWithArg(fullTerm, inner)                         =>
+      case expr: RawQueryExpr.VariableReferenceLike                            => VariableReferenceLike.parse(expr)
+      case expr: RawQueryExpr.Binary                                           => Binary.parse(expr)
+      case RawQueryExpr.InstantiateTable(fullTerm, gen, givenTableRepr, args)  => args.traverse(parse).map(QueryExpr.InstantiateTable(fullTerm, gen, givenTableRepr, _))
+      case RawQueryExpr.RandomUUID(fullTerm)                                   => ParseResult.success(QueryExpr.Static(fullTerm, "gen_random_uuid()", TypeclassExpr.RowRepr.uuid))
+      case RawQueryExpr.InstantNow(fullTerm)                                   => ParseResult.success(QueryExpr.Static(fullTerm, "NOW()", TypeclassExpr.RowRepr.instant))
+      case RawQueryExpr.StringConcat(fullTerm, args)                           => args.traverse(parse(_)).map(StringConcat(fullTerm, _))
+      case RawQueryExpr.OptionApply(fullTerm, inner)                           => QueryExpr.parse(inner).map(QueryExpr.OptionApply(fullTerm, _))
+      case RawQueryExpr.ConstValue(fullTerm, constTerm)                        => ParseResult.Success(QueryExpr.ConstValue(fullTerm, constTerm))
+      case RawQueryExpr.StaticCount(fullTerm, out)                             => ParseResult.Success(QueryExpr.Static(fullTerm, s"COUNT($out)", TypeclassExpr.RowRepr.long))
+      case RawQueryExpr.OptionNullability(fullTerm, inner, showScala, showSql) => QueryExpr.QueryVariableReferenceLike.parse(inner).map(QueryExpr.OptionNullability(fullTerm, _, showScala, showSql))
+      case RawQueryExpr.CountWithArg(fullTerm, inner)                          =>
         parse(inner).flatMap {
           case inner: QueryExpr.QueryVariableReferenceLike => ParseResult.Success(QueryExpr.CountWithArg(fullTerm, inner))
           case inner                                       => ParseResult.error(inner.fullTerm, "can only count( _ ) a unary query")

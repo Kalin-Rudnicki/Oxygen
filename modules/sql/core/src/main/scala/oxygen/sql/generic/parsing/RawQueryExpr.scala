@@ -33,6 +33,7 @@ private[generic] sealed trait RawQueryExpr {
     case RawQueryExpr.CountWithArg(_, inner)                        => s"${"COUNT".cyanFg}( ${inner.show} )"
     case RawQueryExpr.SelectProductField(select, inner)             => s"${inner.show}.${select.name.magentaFg}"
     case RawQueryExpr.OptionGet(_, inner)                           => s"${inner.show}.${"get".hexFg("#35A7FF")}"
+    case RawQueryExpr.OptionNullability(_, inner, showScala, _)     => s"${inner.show}.${showScala.hexFg("#35A7FF")}"
     case RawQueryExpr.SelectPrimaryKey(_, inner, _)                 => s"${inner.show}.${"tablePK".hexFg("#35A7FF")}"
     case RawQueryExpr.SelectNonPrimaryKey(_, inner, _)              => s"${inner.show}.${"tableNPK".hexFg("#35A7FF")}"
     case bin: RawQueryExpr.Binary if bin.lhs.isBin || bin.rhs.isBin => s"(${bin.lhs.show}) ${bin.op.show} (${bin.rhs.show})"
@@ -131,7 +132,6 @@ private[generic] object RawQueryExpr extends Parser[(Term, RefMap), RawQueryExpr
     override def parse(input: (Term, RefMap))(using ParseContext, Quotes): ParseResult[OptionGet] = {
       input match
         case (term @ Select(lhs, "get"), refs) if lhs.tpe <:< TypeRepr.of[Option[?]] => VariableReferenceLike.parse((lhs, refs)).map(OptionGet(term, _))
-        case (term @ Select(lhs, funct), _) if lhs.tpe <:< TypeRepr.of[Option[?]]    => ParseResult.error(term, s"invalid function call on Option: $funct")
         case (term, _)                                                               => ParseResult.unknown(term, "not an option.get")
     }
 
@@ -333,6 +333,26 @@ private[generic] object RawQueryExpr extends Parser[(Term, RefMap), RawQueryExpr
 
   }
 
+  final case class OptionNullability(
+      select: Select,
+      inner: RawQueryExpr.VariableReferenceLike,
+      showScala: String,
+      showSql: String,
+  ) extends RawQueryExpr.Composite {
+    override val fullTerm: Term = select
+  }
+  object OptionNullability extends Parser[(Term, RefMap), OptionNullability] {
+
+    override def parse(input: (Term, RefMap))(using ParseContext, Quotes): ParseResult[OptionNullability] = {
+      input match
+        case (term @ Select(lhs, "isEmpty"), refs) if lhs.tpe <:< TypeRepr.of[Option[?]]   => VariableReferenceLike.parse((lhs, refs)).map(OptionNullability(term, _, "isEmpty", "IS NULL"))
+        case (term @ Select(lhs, "nonEmpty"), refs) if lhs.tpe <:< TypeRepr.of[Option[?]]  => VariableReferenceLike.parse((lhs, refs)).map(OptionNullability(term, _, "nonEmpty", "IS NOT NULL"))
+        case (term @ Select(lhs, "isDefined"), refs) if lhs.tpe <:< TypeRepr.of[Option[?]] => VariableReferenceLike.parse((lhs, refs)).map(OptionNullability(term, _, "isDefined", "IS NOT NULL"))
+        case (term, _)                                                                     => ParseResult.unknown(term, "not an option null check")
+    }
+
+  }
+
   //////////////////////////////////////////////////////////////////////////////////////////////////////
   //      Parse
   //////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -345,6 +365,7 @@ private[generic] object RawQueryExpr extends Parser[(Term, RefMap), RawQueryExpr
     case SelectPrimaryKey.optional(res)    => res
     case SelectNonPrimaryKey.optional(res) => res
     case OptionGet.optional(res)           => res
+    case OptionNullability.optional(res)   => res
     case SelectProductField.optional(res)  => res
     case Binary.optional(res)              => res
     case InstantiateTable.optional(res)    => res

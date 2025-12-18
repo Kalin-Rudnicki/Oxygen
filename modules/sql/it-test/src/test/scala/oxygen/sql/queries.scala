@@ -24,10 +24,10 @@ object Person extends TableCompanion[Person, UUID](TableRepr.derived[Person]) {
   private val randomName: UIO[String] = RandomGen.capitalizedString()
 
   def generate(groupId: UUID)(
-      id: Specified[UUID] = Specified.WasNotSpecified,
-      first: Specified[String] = Specified.WasNotSpecified,
-      last: Specified[String] = Specified.WasNotSpecified,
-      age: Specified[Int] = Specified.WasNotSpecified,
+      id: Specified[UUID] = ___,
+      first: Specified[String] = ___,
+      last: Specified[String] = ___,
+      age: Specified[Int] = ___,
   ): UIO[Person] =
     for {
       id <- id.orGen { Random.nextUUID }
@@ -358,6 +358,20 @@ object queries {
       }
       _ <- limit(Q.const(4))
     } yield (p, n)
+
+  @compile
+  val selectIsEmpty: QueryO[Note2] =
+    for {
+      n <- Q.select[Note2]
+      _ <- where if n.note2.isEmpty
+    } yield n
+
+  @compile
+  val selectNonEmpty: QueryO[Note2] =
+    for {
+      n <- Q.select[Note2]
+      _ <- where if n.note2.nonEmpty
+    } yield n
 
   //////////////////////////////////////////////////////////////////////////////////////////////////////
   //      Update

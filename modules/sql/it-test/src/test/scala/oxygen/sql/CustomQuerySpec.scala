@@ -302,6 +302,27 @@ object CustomQuerySpec extends OxygenSpec[Database] {
           res2 == exp,
         )
       },
+      test("isEmpty/nonEmpty") {
+        for {
+          groupId <- Random.nextUUID
+
+          p1 <- Person.generate(groupId)()
+
+          n1 <- Note2.generate(p1.id)(note2 = "n1".some)
+          n2 <- Note2.generate(p1.id)(note2 = "n2".some)
+          n3 <- Note2.generate(p1.id)(note2 = None)
+          n4 <- Note2.generate(p1.id)(note2 = None)
+
+          _ <- Person.insert(p1).unit
+          _ <- Note2.insert.all(n1, n2, n3, n4).unit
+
+          res1 <- queries.selectNonEmpty.execute().to[Set]
+          res2 <- queries.selectIsEmpty.execute().to[Set]
+        } yield assertTrue(
+          res1 == Set(n1, n2),
+          res2 == Set(n3, n4),
+        )
+      },
     )
 
   override def testAspects: Chunk[CustomQuerySpec.TestSpecAspect] = Chunk(TestAspect.nondeterministic, TestAspect.withLiveClock, SqlAspects.isolateTestsInRollbackTransaction)
