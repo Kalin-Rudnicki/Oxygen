@@ -4,7 +4,7 @@ import oxygen.predef.core.*
 import zio.*
 import zio.stream.*
 
-trait CRUDRepo[A, K] {
+trait CRUDRepo[K, A] {
 
   // =====| Create |=====
 
@@ -21,6 +21,7 @@ trait CRUDRepo[A, K] {
 
   def findByKey(key: K): UIO[Option[A]]
   def getByKeyOrDie(key: K): UIO[A]
+  final def getByKeyOrFail[E](key: K, error: => E): IO[E, A] = findByKey(key).someOrFail(error)
 
   // =====| Update |=====
 

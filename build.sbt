@@ -95,6 +95,7 @@ lazy val `oxygen-modules-jvm`: Project =
 
       // sql
       `oxygen-storage`,
+      `oxygen-storage-in-memory`,
       `oxygen-sql`,
       `oxygen-sql-migration`,
       `oxygen-sql-test`,
@@ -333,6 +334,18 @@ lazy val `oxygen-storage`: Project =
     .dependsOn(
       `oxygen-zio`.jvm % testAndCompile,
       `oxygen-test`.jvm % Test,
+    )
+
+lazy val `oxygen-storage-in-memory`: Project =
+  project
+    .in(file("modules/sql/storage-in-memory"))
+    .settings(
+      publishedProjectSettings,
+      name := "oxygen-storage-in-memory",
+      description := "In-memory implementation of oxygen-storage",
+    )
+    .dependsOn(
+      `oxygen-storage` % testAndCompile,
     )
 
 lazy val `oxygen-sql`: Project =
