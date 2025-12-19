@@ -1,0 +1,88 @@
+
+site_name: 'Oxygen documentation'
+repo_url: https://github.com/Kalin-Rudnicki/Oxygen
+edit_uri: edit/main/docs/docs/
+docs_dir: 'docs'
+theme:
+  name: material
+  palette:
+    # Palette toggle for automatic mode
+    - media: "(prefers-color-scheme)"
+      toggle:
+        icon: material/brightness-auto
+        name: Switch to light mode
+
+    # Palette toggle for light mode
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: red
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+
+    # Palette toggle for dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: black
+      toggle:
+        icon: material/brightness-4
+        name: Switch to system preference
+
+  features:
+    - content.action.edit
+    - content.code.copy
+    - content.code.select
+    - content.tooltips
+    - navigation.expand
+    - navigation.footer
+    - navigation.instant
+    - navigation.instant.progress
+    - navigation.path
+    - navigation.sections
+    - navigation.tracking
+    - navigation.tabs
+    - navigation.tabs.sticky
+    - search.highlight
+    - search.suggest
+    - toc.integrate
+  font:
+    code: Fira Code
+  icon:
+    repo: fontawesome/brands/github
+  logo: assets/images/logo.svg
+nav:
+  - 'Welcome': 'index.md'
+  - 'Quick Start': 'quickstart.md'
+  - 'Supported Transformations': 'supported-transformations.md'
+  - 'Supported Patching': 'supported-patching.md'
+  - 'Cookbook': 'cookbook.md'
+  - 'Troubleshooting': 'troubleshooting.md'
+  - 'Cheat Sheet': 'cheatsheet.md'
+  - 'Under the Hood': 'under-the-hood.md'
+  - 'Benchmarks': 'benchmarks.md'
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+      use_pygments: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.superfences
+plugins:
+  - macros
+  - search
+copyright: |
+  TODO : copyright
+extra:
+  generator: false
+  scala:
+    3:    "3.7.4"
+  libraries:
+    zio: "2.1.21"
+    zio-http: "3.7.4"
+  local:
+    tag: !ENV [CI_LATEST_TAG, 'latest'] # used as git.tag fallback in Docker container
