@@ -14,7 +14,7 @@ final case class PostgresPostRepo(
     db: Database,
 ) extends PostRepo { self =>
 
-  private object PostgresPosts extends Posts, PostgresCRUDRepo.MapInfallible[Post, PostId] {
+  private object PostgresPosts extends Posts, PostgresCRUDRepo.MapInfallible[PostId, Post] {
 
     override val db: Database = self.db
 
@@ -32,7 +32,7 @@ final case class PostgresPostRepo(
 
   }
 
-  private object PostgresComments extends Comments, PostgresCRUDRepo.MapInfallible[Comment, CommentId] {
+  private object PostgresComments extends Comments, PostgresCRUDRepo.MapInfallible[CommentId, Comment] {
 
     override val db: Database = self.db
 

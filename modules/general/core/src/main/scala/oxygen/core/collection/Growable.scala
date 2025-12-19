@@ -27,19 +27,30 @@ sealed trait Growable[+A] {
   def addTo[G[_], B >: A](builder: mutable.Builder[B, G[B]]): Unit =
     foreach(builder.addOne)
 
-  final def toArraySeq[A2 >: A](using ClassTag[A2]): ArraySeq[A2] = {
+  def toArraySeq[A2 >: A](using ClassTag[A2]): ArraySeq[A2] = {
     val builder = ArraySeq.newBuilder[A2]
     this.addTo(builder)
     builder.result()
   }
 
-  final def ++[B >: A](that: Growable[B]): Growable[B] = Growable.Concat(this, that)
+  final def foldLeft[B](zero: B)(acc: (B, A) => B): B = {
+    var value: B = zero
+    foreach { a =>
+      value = acc(value, a)
+    }
+    value
+  }
 
-  final def :+[B >: A](that: B): Growable[B] = Growable.Concat(this, Growable.Single(that))
-  final def :++[B >: A](that: Growable[B]): Growable[B] = Growable.Concat(this, that)
+  final def ++[B >: A](that: Growable[B]): Growable[B] = (this, that) match
+    case (_, Growable.Empty) => this
+    case (Growable.Empty, _) => that
+    case _                   => Growable.Concat(this, that)
 
-  final def +:[B >: A](that: B): Growable[B] = Growable.Concat(Growable.Single(that), this)
-  final def ++:[B >: A](that: Growable[B]): Growable[B] = Growable.Concat(that, this)
+  final def :+[B >: A](that: B): Growable[B] = this ++ Growable.Single(that)
+  final def :++[B >: A](that: Growable[B]): Growable[B] = this ++ that
+
+  final def +:[B >: A](that: B): Growable[B] = Growable.Single(that) ++ this
+  final def ++:[B >: A](that: Growable[B]): Growable[B] = that ++ this
 
   final def map[B](f: A => B): Growable[B] = Growable.Map(this, f)
   final def flatMap[B](f: A => Growable[B]): Growable[B] = Growable.FlatMap(this, f)
@@ -84,6 +95,14 @@ object Growable {
       seqOps.newIterator(values).foreach(f)
     override def addTo[G[_], B >: A](builder: mutable.Builder[B, G[B]]): Unit =
       seqOps.addToBuilder(values)(builder)
+  }
+
+  final case class WrappedArraySeq[A](arraySeq: ArraySeq[A]) extends Growable[A] {
+    override val knownSize: Int = arraySeq.length
+    override def size: Int = arraySeq.length
+    override def foreach(f: A => Unit): Unit = arraySeq.foreach(f)
+    override def addTo[G[_], B >: A](builder: mutable.Builder[B, G[B]]): Unit = builder.addAll(arraySeq)
+    override def toArraySeq[A2 >: A](using ClassTag[A2]): ArraySeq[A2] = arraySeq
   }
 
   final case class Concat[A](a: Growable[A], b: Growable[A]) extends Growable[A] {
@@ -156,6 +175,7 @@ object Growable {
   def single[A](value: A): Growable[A] = Single(value)
   def many[S[_], A](values: S[A])(using seqOps: SeqRead[S]): Growable[A] = values.asInstanceOf[Matchable] match
     case growable: Growable[A @unchecked] => growable
+    case arraySeq: ArraySeq[A @unchecked] => WrappedArraySeq(arraySeq)
     case _                                => Many(values, seqOps)
 
   def manyMapped[S[_]: SeqRead, A, B](values: S[A])(f: A => B): Growable[B] =

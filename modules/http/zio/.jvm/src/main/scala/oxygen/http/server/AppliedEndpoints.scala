@@ -13,9 +13,7 @@ final case class AppliedEndpoints(endpoints: Growable[AppliedEndpoint]) {
       responseMiddleware: ResponseMiddleware,
       endpointMiddleware: EndpointMiddleware,
   ): URIO[Scope, CompiledEndpoints] =
-    endpointMiddleware(this).map { finalEndpoints =>
-      CompiledEndpoints.SeqScan(finalEndpoints).withMiddleware(requestMiddleware, responseMiddleware)
-    }
+    CompiledEndpoints.compile(this, requestMiddleware, responseMiddleware, endpointMiddleware)
 
 }
 object AppliedEndpoints {

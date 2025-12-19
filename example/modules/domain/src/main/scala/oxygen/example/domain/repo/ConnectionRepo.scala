@@ -12,8 +12,8 @@ trait ConnectionRepo {
   protected val atomically: Atomically
 
   // Intentionally protected. We DO want the benefit of the free queries, but we DON'T want to expose the raw functionality outside the repo.
-  protected val connection: CRUDRepo[Connection, (UserId, UserId)]
-  protected val connectionRequest: CRUDRepo[ConnectionRequest, (UserId, UserId)]
+  protected val connection: CRUDRepo[(UserId, UserId), Connection]
+  protected val connectionRequest: CRUDRepo[(UserId, UserId), ConnectionRequest]
 
   def getConnectedUsers(userId: UserId): UIO[Seq[SimpleUser]]
 

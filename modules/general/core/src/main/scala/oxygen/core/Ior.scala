@@ -62,5 +62,12 @@ object Ior {
     }
 
   def zippedMap[K, A, B](a: Map[K, A], b: Map[K, B]): Map[K, Ior[A, B]] = zippedMapIterator(a, b).toMap
+  def zippedMapWith[K, A, B, C](a: Map[K, A], b: Map[K, B])(left: A => C, right: B => C, both: (A, B) => C): Map[K, C] =
+    zippedMapIterator(a, b).map {
+      case (k, Left(a))    => (k, left(a))
+      case (k, Right(b))   => (k, right(b))
+      case (k, Both(a, b)) => (k, both(a, b))
+    }.toMap
+  def mergeMap[K, A](a: Map[K, A], b: Map[K, A])(join: (A, A) => A): Map[K, A] = zippedMapWith(a, b)(identity, identity, join)
 
 }

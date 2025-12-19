@@ -12,7 +12,7 @@ import zio.*
 final case class PostgresUserRepo(
     db: Database,
 ) extends UserRepo,
-      PostgresCRUDRepo.MapInfallible[FullUser, UserId] {
+      PostgresCRUDRepo.MapInfallible[UserId, FullUser] {
 
   override protected type DbA = UserRow
   override protected type DbK = UserId

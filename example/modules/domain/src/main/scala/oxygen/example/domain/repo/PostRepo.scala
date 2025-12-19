@@ -12,7 +12,7 @@ trait PostRepo {
   val post: Posts
   val comment: Comments
 
-  trait Posts extends CRUDRepo[Post, PostId] {
+  trait Posts extends CRUDRepo[PostId, Post] {
 
     def postsByUser(userId: UserId): UIO[Seq[Post]]
 
@@ -21,7 +21,7 @@ trait PostRepo {
 
   }
 
-  trait Comments extends CRUDRepo[Comment, CommentId] {
+  trait Comments extends CRUDRepo[CommentId, Comment] {
 
     def commentsForPost(postId: PostId): UIO[Seq[Comment]]
 

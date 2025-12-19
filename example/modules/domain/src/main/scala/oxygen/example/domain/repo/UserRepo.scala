@@ -6,7 +6,7 @@ import oxygen.example.domain.model.user.*
 import oxygen.storage.CRUDRepo
 import zio.*
 
-trait UserRepo extends CRUDRepo[FullUser, UserId] {
+trait UserRepo extends CRUDRepo[UserId, FullUser] {
 
   def findUserByEmail(email: Email): UIO[Option[FullUser]]
 
