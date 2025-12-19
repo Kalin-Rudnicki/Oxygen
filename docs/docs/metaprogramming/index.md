@@ -5,7 +5,10 @@ The oxygen library heavily relies on macros.
 With Scala-3 came two core concepts: `Macros` and `Mirrors`.
 All the popular "typeclass derivation" libraries like `shapeless`, `magnolia`, and `kittens` primarily use `Mirrors`.
 
-With all the respect for the team that works on scala, I strongly believe that `Mirrors` are a giant mistake, and should `never` be used.
+!!! danger
+
+    With all the respect for the team that works on scala, I strongly believe that `Mirrors` are a giant mistake, and should `never` be used.
+
 The core reasons for this bold statement are as follows:
 1. You have almost zero control over what code is generated.
 2. You have no control over what is actually inlined, and what is not.  
