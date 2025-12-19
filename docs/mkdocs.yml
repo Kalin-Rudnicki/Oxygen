@@ -1,8 +1,30 @@
 
-site_name: 'Oxygen documentation'
+site_name: 'Oxygen Documentation'
 repo_url: https://github.com/Kalin-Rudnicki/Oxygen
 edit_uri: edit/main/docs/docs/
 docs_dir: 'docs'
+
+nav:
+  - 'Home': 'index.md'
+  - 'Oxygen SQL': 'sql/index.md'
+  - 'Oxygen HTTP':
+    - 'Overview': 'http/index.md'
+    - 'Client': 'http/client/index.md'
+    - 'Server': 'http/server/index.md'
+  - 'Oxygen UI': 'ui/index.md'
+
+extra:
+  generator: false
+  scala:
+    3:    "3.7.4"
+  libraries:
+    zio: "2.1.21"
+    zio-http: "3.7.4"
+  local:
+    tag: !ENV [CI_LATEST_TAG, 'latest'] # used as git.tag fallback in Docker container
+
+# copyright: |
+#   TODO : copyright
 theme:
   name: material
   palette:
@@ -50,16 +72,6 @@ theme:
   icon:
     repo: fontawesome/brands/github
   logo: assets/images/logo.svg
-nav:
-  - 'Welcome': 'index.md'
-  - 'Quick Start': 'quickstart.md'
-  - 'Supported Transformations': 'supported-transformations.md'
-  - 'Supported Patching': 'supported-patching.md'
-  - 'Cookbook': 'cookbook.md'
-  - 'Troubleshooting': 'troubleshooting.md'
-  - 'Cheat Sheet': 'cheatsheet.md'
-  - 'Under the Hood': 'under-the-hood.md'
-  - 'Benchmarks': 'benchmarks.md'
 markdown_extensions:
   - admonition
   - pymdownx.details
@@ -75,14 +87,3 @@ markdown_extensions:
 plugins:
   - macros
   - search
-copyright: |
-  TODO : copyright
-extra:
-  generator: false
-  scala:
-    3:    "3.7.4"
-  libraries:
-    zio: "2.1.21"
-    zio-http: "3.7.4"
-  local:
-    tag: !ENV [CI_LATEST_TAG, 'latest'] # used as git.tag fallback in Docker container
