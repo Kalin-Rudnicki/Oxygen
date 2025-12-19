@@ -11,7 +11,7 @@ nav:
     - 'Oxygen Quoted': 'metaprogramming/quoted.md'
     - 'Oxygen Meta': 'metaprogramming/meta.md'
   - 'Oxygen SQL':
-    - 'SQL Overview': 'http/index.md'
+    - 'SQL Overview': 'sql/index.md'
   - 'Oxygen HTTP':
     - 'HTTP Overview': 'http/index.md'
     - 'Client': 'http/client/index.md'
