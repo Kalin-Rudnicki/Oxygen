@@ -6,17 +6,24 @@ docs_dir: 'docs'
 
 nav:
   - 'Home': 'index.md'
-  - 'Oxygen SQL': 'sql/index.md'
+  - 'Metaprogramming':
+    - 'Metaprogramming Overview': 'metaprogramming/index.md'
+    - 'Oxygen Quoted': 'metaprogramming/quoted.md'
+    - 'Oxygen Meta': 'metaprogramming/meta.md'
+  - 'Oxygen SQL':
+    - 'SQL Overview': 'http/index.md'
   - 'Oxygen HTTP':
-    - 'Overview': 'http/index.md'
+    - 'HTTP Overview': 'http/index.md'
     - 'Client': 'http/client/index.md'
     - 'Server': 'http/server/index.md'
-  - 'Oxygen UI': 'ui/index.md'
+  - 'Oxygen UI':
+    - 'UI Overview': 'ui/index.md'
+  - 'Future Plans': 'future-plans.md'
 
 extra:
   generator: false
   scala:
-    3:    "3.7.4"
+    3: "3.7.4"
   libraries:
     zio: "2.1.21"
     zio-http: "3.7.4"
@@ -27,28 +34,6 @@ extra:
 #   TODO : copyright
 theme:
   name: material
-  palette:
-    # Palette toggle for automatic mode
-    - media: "(prefers-color-scheme)"
-      toggle:
-        icon: material/brightness-auto
-        name: Switch to light mode
-
-    # Palette toggle for light mode
-    - media: "(prefers-color-scheme: light)"
-      scheme: default
-      primary: red
-      toggle:
-        icon: material/brightness-7
-        name: Switch to dark mode
-
-    # Palette toggle for dark mode
-    - media: "(prefers-color-scheme: dark)"
-      scheme: slate
-      primary: black
-      toggle:
-        icon: material/brightness-4
-        name: Switch to system preference
 
   features:
     - content.action.edit
@@ -72,6 +57,28 @@ theme:
   icon:
     repo: fontawesome/brands/github
   logo: assets/images/logo.svg
+  palette:
+    # Palette toggle for automatic mode
+    - media: "(prefers-color-scheme)"
+      toggle:
+        icon: material/brightness-auto
+        name: Switch to light mode
+
+    # Palette toggle for light mode
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: red
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+
+    # Palette toggle for dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: black
+      toggle:
+        icon: material/brightness-4
+        name: Switch to system preference
 markdown_extensions:
   - admonition
   - pymdownx.details

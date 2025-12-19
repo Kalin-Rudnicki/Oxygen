@@ -4,4 +4,10 @@ hide:
   - toc
 ---
 
-Index Things
+# Oxygen
+
+Oxygen is a group of scala libraries aimed to make everyday tasks in scala easier.
+
+!!! important "Mission Statement"
+
+    The mission statement of `Oxygen` is to be able to both develop and deploy full-stack applications using `nothing but scala`, and requiring only `Oxygen` as a direct dependency.
