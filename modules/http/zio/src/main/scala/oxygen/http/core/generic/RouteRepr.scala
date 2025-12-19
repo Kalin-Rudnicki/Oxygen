@@ -211,6 +211,24 @@ sealed abstract class RouteRepr[Api](
             override lazy val sources: List[RequestDecodingFailure.Source] = codecParts.flatMap(_.sources)
             override lazy val schemaAggregator: RequestSchemaAggregator = codecParts.foldLeft(RequestSchemaAggregator.empty) { (acc, c) => acc >>> c.schemaAggregator }
 
+            @tailrec
+            private def matchesPathLoop(
+                path: List[String],
+                queue: List[RequestCodec[?]],
+            ): Option[List[String]] =
+              queue match {
+                case head :: tail =>
+                  head.matchesPathPatternInternal(path) match {
+                    case Some(newPath) => matchesPathLoop(newPath, tail)
+                    case None          => None
+                  }
+                case Nil =>
+                  path.some
+              }
+
+            override def matchesPathPatternInternal(path: List[String]): Option[List[String]] =
+              matchesPathLoop(path, codecParts)
+
             override def decodeInternal(remainingPaths: List[String], request: ReceivedRequest): IntermediateRequestParseResult[In] =
               ${ decodeRec('remainingPaths, 'request, params, Nil) }
 

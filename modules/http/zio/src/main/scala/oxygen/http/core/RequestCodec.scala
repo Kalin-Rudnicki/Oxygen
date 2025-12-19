@@ -21,6 +21,11 @@ sealed trait RequestCodec[A] {
   protected final def makeDecodingFailure(cause: DecodingFailureCause): RequestDecodingFailure = RequestDecodingFailure(sources, cause)
   protected final def makeDecodingFailure(error: String): RequestDecodingFailure = RequestDecodingFailure(sources, DecodingFailureCause.DecodeError(error))
 
+  def matchesPathPatternInternal(path: List[String]): Option[List[String]]
+  final def matchesPathPattern(path: List[String]): Boolean = matchesPathPatternInternal(path) match
+    case Some(Nil) => true
+    case _         => false
+
   def decodeInternal(remainingPaths: List[String], request: ReceivedRequest): IntermediateRequestParseResult[A]
 
   final def decode(request: ReceivedRequest): FinalRequestParseResult[A] =
@@ -289,6 +294,8 @@ object RequestCodec {
     final def transform[B](ab: A => B, ba: B => A): RequestCodec.NonPathLike[B] = RequestCodec.internal.TransformNonPathLike(this, ab, ba)
     final def transformOrFail[B](ab: A => Either[String, B], ba: B => A): RequestCodec.NonPathLike[B] = RequestCodec.internal.TransformOrFailNonPathLike(this, ab, ba)
 
+    override final def matchesPathPatternInternal(path: List[String]): Option[List[String]] = path.some
+
     inline final def autoTransform[B]: RequestCodec.NonPathLike[B] = {
       val (ab, ba) = K0.ProductGeneric.deriveTransform[A, B]
       transform(ab, ba)
@@ -321,6 +328,8 @@ object RequestCodec {
 
     override lazy val sources: List[RequestDecodingFailure.Source] = underlying.sources
     override lazy val schemaAggregator: RequestSchemaAggregator = RequestSchemaAggregator.method(method) >>> underlying.schemaAggregator
+
+    override def matchesPathPatternInternal(path: List[String]): Option[List[String]] = underlying.matchesPathPatternInternal(path)
 
     override def decodeInternal(remainingPaths: List[String], request: ReceivedRequest): IntermediateRequestParseResult[A] =
       if request.method == method then underlying.decodeInternal(remainingPaths, request)
@@ -377,20 +386,48 @@ object RequestCodec {
     //      PathLike
     //////////////////////////////////////////////////////////////////////////////////////////////////////
 
-    final case class Then_Path_NonPath[A, B, C](a: PathLike[A], b: NonPathLike[B], zip: Zip.Out[A, B, C]) extends PathLike[C], ThenLike[A, B, C]
+    final case class Then_Path_NonPath[A, B, C](a: PathLike[A], b: NonPathLike[B], zip: Zip.Out[A, B, C]) extends PathLike[C], ThenLike[A, B, C] {
+      override def matchesPathPatternInternal(path: List[String]): Option[List[String]] = a.matchesPathPatternInternal(path).flatMap(b.matchesPathPatternInternal)
+    }
 
-    final case class Then_NonPath_Path[A, B, C](a: NonPathLike[A], b: PathLike[B], zip: Zip.Out[A, B, C]) extends PathLike[C], ThenLike[A, B, C]
+    final case class Then_NonPath_Path[A, B, C](a: NonPathLike[A], b: PathLike[B], zip: Zip.Out[A, B, C]) extends PathLike[C], ThenLike[A, B, C] {
+      override def matchesPathPatternInternal(path: List[String]): Option[List[String]] = a.matchesPathPatternInternal(path).flatMap(b.matchesPathPatternInternal)
+    }
 
-    final case class Then_Path_Path[A, B, C](a: PathLike[A], b: PathLike[B], zip: Zip.Out[A, B, C]) extends PathLike[C], ThenLike[A, B, C]
+    final case class Then_Path_Path[A, B, C](a: PathLike[A], b: PathLike[B], zip: Zip.Out[A, B, C]) extends PathLike[C], ThenLike[A, B, C] {
+      override def matchesPathPatternInternal(path: List[String]): Option[List[String]] = a.matchesPathPatternInternal(path).flatMap(b.matchesPathPatternInternal)
+    }
 
     trait PathOr[A] extends PathLike[A], OrLike[A] {
+
       override val underlying: NonEmptyList[RequestCodec.PathLike[? <: A]]
+
+      @tailrec
+      private def canDecodePathInternalLoop(
+          path: List[String],
+          queue: List[RequestCodec.PathLike[?]],
+      ): Option[List[String]] =
+        queue match {
+          case head :: tail =>
+            head.matchesPathPatternInternal(path) match {
+              case some @ Some(_) => some
+              case None           => canDecodePathInternalLoop(path, tail)
+            }
+          case Nil =>
+            None
+        }
+
+      override final def matchesPathPatternInternal(path: List[String]): Option[List[String]] =
+        canDecodePathInternalLoop(path, underlying.toList)
+
     }
 
     final case class TransformPathLike[A, B](a: PathLike[A], ab: A => B, ba: B => A) extends PathLike[B] {
 
       override lazy val sources: List[RequestDecodingFailure.Source] = a.sources
       override lazy val schemaAggregator: RequestSchemaAggregator = a.schemaAggregator
+
+      override def matchesPathPatternInternal(path: List[String]): Option[List[String]] = a.matchesPathPatternInternal(path)
 
       override def decodeInternal(remainingPaths: List[String], request: ReceivedRequest): IntermediateRequestParseResult[B] =
         a.decodeInternal(remainingPaths, request).map(ab)
@@ -404,6 +441,8 @@ object RequestCodec {
 
       override lazy val sources: List[RequestDecodingFailure.Source] = a.sources
       override lazy val schemaAggregator: RequestSchemaAggregator = a.schemaAggregator
+
+      override def matchesPathPatternInternal(path: List[String]): Option[List[String]] = a.matchesPathPatternInternal(path)
 
       override def decodeInternal(remainingPaths: List[String], request: ReceivedRequest): IntermediateRequestParseResult[B] =
         a.decodeInternal(remainingPaths, request).flatMap { (value, rest) =>
@@ -424,6 +463,8 @@ object RequestCodec {
       override lazy val sources: List[RequestDecodingFailure.Source] = Nil
       override lazy val schemaAggregator: RequestSchemaAggregator = RequestSchemaAggregator.empty
 
+      override def matchesPathPatternInternal(path: List[String]): Option[List[String]] = path.some
+
       override def decodeInternal(remainingPaths: List[String], request: ReceivedRequest): IntermediateRequestParseResult[Unit] =
         IntermediateRequestParseResult.Success((), remainingPaths)
 
@@ -437,6 +478,10 @@ object RequestCodec {
       override lazy val sources: List[RequestDecodingFailure.Source] = Nil
       override lazy val schemaAggregator: RequestSchemaAggregator =
         RequestSchemaAggregator.paths(NonEmptyList.one(Growable.single(PartiallyAppliedPathSchema.Const(const))))
+
+      override def matchesPathPatternInternal(path: List[String]): Option[List[String]] = path match
+        case `const` :: tail => tail.some
+        case _               => None
 
       override def decodeInternal(remainingPaths: List[String], request: ReceivedRequest): IntermediateRequestParseResult[Unit] =
         remainingPaths match
@@ -455,19 +500,34 @@ object RequestCodec {
         RequestSchemaAggregator.paths(NonEmptyList.one(Growable.many(const).map(PartiallyAppliedPathSchema.Const(_))))
 
       @tailrec
-      private def loop(remainingPaths: List[String], exp: List[String]): IntermediateRequestParseResult[Unit] =
+      private def decodeLoop(remainingPaths: List[String], exp: List[String]): IntermediateRequestParseResult[Unit] =
         exp match {
           case expHead :: expTail =>
             remainingPaths match {
-              case `expHead` :: rest => loop(rest, expTail)
+              case `expHead` :: rest => decodeLoop(rest, expTail)
               case _                 => IntermediateRequestParseResult.NotFound
             }
           case Nil =>
             IntermediateRequestParseResult.Success((), remainingPaths)
         }
 
+      @tailrec
+      private def matchLoop(remainingPaths: List[String], exp: List[String]): Option[List[String]] =
+        exp match {
+          case expHead :: expTail =>
+            remainingPaths match {
+              case `expHead` :: rest => matchLoop(rest, expTail)
+              case _                 => None
+            }
+          case Nil =>
+            remainingPaths.some
+        }
+
+      override def matchesPathPatternInternal(path: List[String]): Option[List[String]] =
+        matchLoop(path, const.toList)
+
       override def decodeInternal(remainingPaths: List[String], request: ReceivedRequest): IntermediateRequestParseResult[Unit] =
-        loop(remainingPaths, const.toList)
+        decodeLoop(remainingPaths, const.toList)
 
       override def encodeInternal(value: Unit, acc: RequestBuilder): RequestBuilder =
         acc.copy(paths = acc.paths :++ Growable.many(const))
@@ -479,6 +539,9 @@ object RequestCodec {
       override lazy val sources: List[RequestDecodingFailure.Source] = RequestDecodingFailure.Source.Path(name) :: Nil
       override lazy val schemaAggregator: RequestSchemaAggregator =
         RequestSchemaAggregator.simplePath(PartiallyAppliedPathSchema.Param(name, part.partialPathSchema.tpe, part.partialPathSchema.schema, doc))
+
+      override def matchesPathPatternInternal(path: List[String]): Option[List[String]] =
+        part.decode(path).map(_._2)
 
       override def decodeInternal(remainingPaths: List[String], request: ReceivedRequest): IntermediateRequestParseResult[A] =
         part.decode(remainingPaths) match

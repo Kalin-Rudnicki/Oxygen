@@ -16,7 +16,7 @@ final case class PostgresConnectionRepo(
     atomically: Atomically,
 ) extends ConnectionRepo { self =>
 
-  private object PostgresConnection extends PostgresCRUDRepo.MapInfallible[Connection, (UserId, UserId)] {
+  private object PostgresConnection extends PostgresCRUDRepo.MapInfallible[(UserId, UserId), Connection] {
 
     override val db: Database = self.db
 
@@ -31,7 +31,7 @@ final case class PostgresConnectionRepo(
 
   }
 
-  private object PostgresConnectionRequest extends PostgresCRUDRepo.MapInfallible[ConnectionRequest, (UserId, UserId)] {
+  private object PostgresConnectionRequest extends PostgresCRUDRepo.MapInfallible[(UserId, UserId), ConnectionRequest] {
 
     override val db: Database = self.db
 
@@ -46,8 +46,8 @@ final case class PostgresConnectionRepo(
 
   }
 
-  override protected val connection: CRUDRepo[Connection, (UserId, UserId)] = PostgresConnection
-  override protected val connectionRequest: CRUDRepo[ConnectionRequest, (UserId, UserId)] = PostgresConnectionRequest
+  override protected val connection: CRUDRepo[(UserId, UserId), Connection] = PostgresConnection
+  override protected val connectionRequest: CRUDRepo[(UserId, UserId), ConnectionRequest] = PostgresConnectionRequest
 
   override def getConnectedUsers(userId: UserId): UIO[Seq[SimpleUser]] =
     UserRow.getConnections.map(_.toDomain.toSimple).execute(userId).to[Seq].orDie.usingDb(db)

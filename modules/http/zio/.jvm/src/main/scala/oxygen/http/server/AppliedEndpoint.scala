@@ -10,6 +10,7 @@ final case class AppliedEndpoint(
     handle: EndpointInput => Option[URIO[Scope, Option[Response]]],
 ) {
 
+  val method: Option[Method] = schema.requestSchema.method
   def apiName: Option[String] = schema.apiName
   def endpointName: String = schema.endpointName
   def requestSchema: RequestSchema = schema.requestSchema
