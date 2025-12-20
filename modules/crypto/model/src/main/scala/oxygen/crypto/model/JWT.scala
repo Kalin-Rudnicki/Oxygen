@@ -20,25 +20,22 @@ object JWT {
       payload: P,
   ) derives JsonCodec
 
+  def decode[A: JsonDecoder](bearerToken: BearerToken): Either[String, JWT[A]] =
+    bearerToken.payload.fromJsonString[A].leftMap(_.getMessage).map(JWT(_, bearerToken))
+
   /**
     * Accepts format(s):
     * - "Bearer headerBase64.payloadBase64.signatureBase64"
     */
   def decodeBearer[A: JsonDecoder](string: String): Either[String, JWT[A]] =
-    for {
-      bearerToken <- BearerToken.decodeBearer(string)
-      payload <- bearerToken.payload.fromJsonString[A].leftMap(_.getMessage)
-    } yield JWT(payload, bearerToken)
+    BearerToken.decodeBearer(string).flatMap(decode[A])
 
   /**
     * Accepts format(s):
     * - "headerBase64.payloadBase64.signatureBase64"
     */
   def decodeToken[A: JsonDecoder](string: String): Either[String, JWT[A]] =
-    for {
-      bearerToken <- BearerToken.decodeToken(string)
-      payload <- bearerToken.payload.fromJsonString[A].leftMap(_.getMessage)
-    } yield JWT(payload, bearerToken)
+    BearerToken.decodeToken(string).flatMap(decode[A])
 
   /**
     * Accepts format(s):
@@ -46,9 +43,6 @@ object JWT {
     * - "headerBase64.payloadBase64.signatureBase64"
     */
   def decodeBearerOrToken[A: JsonDecoder](string: String): Either[String, JWT[A]] =
-    for {
-      bearerToken <- BearerToken.decodeBearerOrToken(string)
-      payload <- bearerToken.payload.fromJsonString[A].leftMap(_.getMessage)
-    } yield JWT(payload, bearerToken)
+    BearerToken.decodeBearerOrToken(string).flatMap(decode[A])
 
 }

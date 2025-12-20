@@ -24,7 +24,7 @@ object IntermediateRepr {
   final case class PlainText(sourceFile: SourcePosition) extends PlainRepr
   final case class FormattedText(plainRef: IntermediateTypeRef.Plain, formats: NonEmptyList[String]) extends PlainRepr
   final case class Enum(values: Seq[String], caseSensitive: Boolean, exhaustive: Boolean) extends PlainRepr
-  final case class JWT(jsonRef: IntermediateTypeRef.Json) extends PlainRepr
+  final case class BearerToken(payloadRef: IntermediateTypeRef.Plain) extends PlainRepr
   final case class EncodedText(plainRef: IntermediateTypeRef.Plain, encoding: String) extends PlainRepr
   final case class JsonEncodedText(jsonRef: IntermediateTypeRef.Json) extends PlainRepr
   final case class PlainTransform(plainRef: IntermediateTypeRef.Plain, sourceFile: SourcePosition) extends PlainRepr
@@ -79,9 +79,9 @@ object IntermediateRepr {
         case PlainTextSchema.EncodedText(underlying, encoding) =>
           val gen = compilePlain(underlying, input)
           gen.withPlain(schema, EncodedText(gen.ref, encoding.name))
-        case schema: PlainTextSchema.JWTSchema[?] =>
-          val gen = compileJson(schema.payloadSchema, input)
-          gen.withPlain(schema, JWT(gen.ref))
+        case schema: PlainTextSchema.BearerTokenSchema[?] =>
+          val gen = compilePlain(schema.payloadSchema, input)
+          gen.withPlain(schema, BearerToken(gen.ref))
         case schema: PlainTextSchema.JsonEncoded[?] =>
           val gen = compileJson(schema.underlying, input)
           gen.withPlain(schema, JsonEncodedText(gen.ref))

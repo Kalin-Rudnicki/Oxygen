@@ -113,13 +113,13 @@ object FullCompiledPlainSchema {
 
   }
 
-  final case class JWT(
-      ref: CompiledSchemaRef.JWT,
-      payloadType: Lazy[FullCompiledJsonSchema],
+  final case class BearerToken(
+      ref: CompiledSchemaRef.BearerToken,
+      payloadType: Lazy[FullCompiledPlainSchema],
   ) extends FullCompiledPlainSchema {
 
     override protected def __toIndentedStringInternal(seen: Set[CompiledSchemaRef]): IndentedString =
-      makeIndentedString("JWT")(
+      makeIndentedString("BearerToken")(
         "payload-type" -> payloadType.value.toIndentedString(seen),
       )
 
