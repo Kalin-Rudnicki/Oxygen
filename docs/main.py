@@ -48,7 +48,7 @@ def define_env(env):
 
     my_v4 = oxygen_version_string
 
-    print(f"[DEBUGGING-STUFF] v1={myV1}, v2={my_v2}, v3={my_v3}, v4={my_v4}")
+    print(f"[DEBUGGING-STUFF] v1={my_v1}, v2={my_v2}, v3={my_v3}, v4={my_v4}")
 
     @env.macro
     def oxygen_version():
