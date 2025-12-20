@@ -12,7 +12,7 @@ Oxygen is a group of scala libraries aimed to make everyday tasks in scala easie
 
     The mission statement of `Oxygen` is to make it easy and accessible for anyone who knows scala to both develop and deploy full-stack applications using `nothing but scala`, and requiring only `Oxygen` as a direct dependency.
 
-## The story of Oxygen
+## The Story of Oxygen
 
 The story of how `Oxygen` came to be is a very personal one, so I will start with a little bit about me.
 

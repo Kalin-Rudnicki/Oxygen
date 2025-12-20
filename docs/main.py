@@ -9,7 +9,7 @@ def define_env(env):
     """
     if not oxygen_version_string:
         try:
-            pipe = os.popen('git describe --tags')
+            pipe = os.popen('git describe --tags --abbrev=0')
             oxygen_version_string = pipe.read().replace("\n", '').strip()
             pipe.close()
         except Exception:
