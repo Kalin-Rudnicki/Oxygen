@@ -20,6 +20,9 @@ object JWT {
       payload: P,
   ) derives JsonCodec
 
+  def decode[A: JsonDecoder](bearerToken: BearerToken): Either[String, JWT[A]] =
+    bearerToken.payload.fromJsonString[A].leftMap(_.getMessage).map(JWT(_, bearerToken))
+
   /**
     * Accepts format(s):
     * - "Bearer headerBase64.payloadBase64.signatureBase64"

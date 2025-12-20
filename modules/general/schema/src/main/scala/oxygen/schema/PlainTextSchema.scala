@@ -4,6 +4,7 @@ import java.time.*
 import java.util.{TimeZone, UUID}
 import oxygen.core.{SourcePosition, TypeTag}
 import oxygen.crypto.model.{BearerToken, JWT, Password}
+import oxygen.json.JsonDecoder
 import oxygen.meta.K0
 import oxygen.predef.core.*
 import scala.quoted.*
@@ -58,9 +59,13 @@ object PlainTextSchema extends PlainTextSchemaLowPriority.LowPriority1 {
   given localTime: PlainTextSchema[LocalTime] = standardJavaTime.localTime
   given localDateTime: PlainTextSchema[LocalDateTime] = standardJavaTime.localDateTime
 
-  given bearerToken: PlainTextSchema[BearerToken] = PlainTextSchema.fromStringCodecWithFormat("Bearer Token", "RFC 6750")
+  given bearerToken: PlainTextSchema[BearerToken] = 
+    PlainTextSchema.BearerTokenSchema[BearerToken](TypeTag.derived, PlainTextSchema.string, _.asRight, identity)
 
-  given standardJWT: [A: JsonSchema] => PlainTextSchema[JWT.Std[A]] = PlainTextSchema.JWTSchema(instances.standardJWTPayloadSchema[A])
+  given standardJWT: [A: JsonSchema] => PlainTextSchema[JWT.Std[A]] = {
+    given JsonSchema[JWT.StandardPayload[A]] = JsonSchema.derived
+    PlainTextSchema.jwt[JWT.StandardPayload[A]]
+  }
 
   given password: PlainTextSchema[Password.PlainText] =
     PlainTextSchema.fromStringCodec
@@ -146,14 +151,20 @@ object PlainTextSchema extends PlainTextSchemaLowPriority.LowPriority1 {
 
   }
 
-  private[schema] final case class JWTSchema[A](payloadSchema: JsonSchema[A]) extends PlainTextSchema[JWT[A]] {
-    override val typeTag: TypeTag[JWT[A]] = {
-      given TypeTag[A] = payloadSchema.typeTag
-      TypeTag.derived[JWT[A]]
-    }
-    override protected def __internalReferenceOf(builder: SchemaLike.ReferenceBuilder): String = s"JWT(${builder.referenceOf(payloadSchema)})"
-    override def decode(string: String): Either[String, JWT[A]] = JWT.decodeBearer[A](string)(using payloadSchema.jsonDecoder)
-    override def encode(value: JWT[A]): String = value.token.bearer
+  private[schema] final case class BearerTokenSchema[A](
+      typeTag: TypeTag[A],
+      underlyingSchema: PlainTextSchema[?],
+      fromToken: BearerToken => Either[String, A],
+      toToken: A => BearerToken,
+  ) extends PlainTextSchema[A] {
+    override protected def __internalReferenceOf(builder: SchemaLike.ReferenceBuilder): String = withHeader("BearerToken", "underlying" -> builder.referenceOf(underlyingSchema))
+    override def decode(string: String): Either[String, A] =
+      for {
+        token <- BearerToken.decodeToken(string)
+        value <- fromToken(token).leftMap { "Error decoding bearer token payload: " + _ }
+      } yield value
+    override def encode(value: A): String =
+      toToken(value).bearer
   }
 
   private[schema] final case class JsonEncoded[A](underlying: JsonSchema[A]) extends PlainTextSchema[A] {
@@ -283,7 +294,11 @@ object PlainTextSchemaLowPriority {
 
   trait LowPriority1 {
 
-    given jwt: [A: JsonSchema as payloadSchema] => PlainTextSchema[JWT[A]] = PlainTextSchema.JWTSchema(payloadSchema)
+    given jwt: [A: JsonSchema as payloadSchema] => PlainTextSchema[JWT[A]] = {
+      given TypeTag[A] = payloadSchema.typeTag
+      given JsonDecoder[A] = payloadSchema.jsonDecoder
+      PlainTextSchema.BearerTokenSchema[JWT[A]](TypeTag.derived, PlainTextSchema.JsonEncoded(payloadSchema), JWT.decode[A], _.token)
+    }
 
     given strictEnum: [A: StrictEnum as e] => PlainTextSchema[A] = PlainTextSchema.StrictEnumSchema(e)
     given enumWithOther: [A: EnumWithOther as e] => PlainTextSchema[A] = PlainTextSchema.EnumWithOtherSchema(e)
