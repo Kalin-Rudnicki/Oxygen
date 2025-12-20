@@ -56,17 +56,16 @@ object FullCompiledPlainSchema {
   }
 
   final case class FormattedText(
-      raw: RawCompiledPlainSchema,
-      rawRepr: RawCompiledPlainSchema.FormattedText,
+      ref: CompiledSchemaRef.FormattedText,
+      underlyingType: Lazy[FullCompiledPlainSchema],
   ) extends FullCompiledPlainSchema {
 
-    override val ref: CompiledSchemaRef = raw.ref
+    def formats: NonEmptyList[String] = ref.formats
 
     override protected def __toIndentedStringInternal(seen: Set[CompiledSchemaRef]): IndentedString =
-      makeIndentedStringOpt("Formatted Text")(
-        "source-file" -> rawRepr.sourceFile.file.some,
-        "source-file-line" -> rawRepr.sourceFile.lineNo.map(_.toString),
-        ("formats", IndentedString.inline(rawRepr.formats.toList.map { f => s"- $f" }).some),
+      makeIndentedString("Formatted Text")(
+        ("formats", IndentedString.inline(formats.toList.map { f => s"- $f" }).some),
+        ("underlying-type", underlyingType.value.toIndentedString(seen)),
       )
 
   }
@@ -89,9 +88,10 @@ object FullCompiledPlainSchema {
 
   final case class EncodedText(
       ref: CompiledSchemaRef.EncodedText,
-      encoding: String,
       underlyingType: Lazy[FullCompiledPlainSchema],
   ) extends FullCompiledPlainSchema {
+
+    def encoding: String = ref.encoding
 
     override protected def __toIndentedStringInternal(seen: Set[CompiledSchemaRef]): IndentedString =
       makeIndentedString("Encoded Text")(

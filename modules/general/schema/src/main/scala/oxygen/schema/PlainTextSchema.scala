@@ -19,6 +19,11 @@ sealed trait PlainTextSchema[A] extends SchemaLike[A] {
 
   final def @@(wrapper: PlainTextSchema.Encoding): PlainTextSchema[A] = PlainTextSchema.EncodedText(this, wrapper)
 
+  final def withFormats(format0: String, formatN: String*): PlainTextSchema[A] = this.withFormats(NonEmptyList(format0, formatN.toList))
+  final def withFormats(formats: NonEmptyList[String]): PlainTextSchema[A] = this match
+    case PlainTextSchema.WithFormats(underlying, existingFormats) => PlainTextSchema.WithFormats(underlying, (existingFormats ++ formats).distinct)
+    case _                                                        => PlainTextSchema.WithFormats(this, formats)
+
 }
 object PlainTextSchema extends PlainTextSchemaLowPriority.LowPriority1 {
 
@@ -61,9 +66,9 @@ object PlainTextSchema extends PlainTextSchemaLowPriority.LowPriority1 {
     PlainTextSchema.fromStringCodec
 
   def fromStringCodec[A: StringCodec as codec](using pos: SourcePosition): PlainTextSchema[A] =
-    PlainTextSchema.FromStringCodec(codec, None, pos)
+    PlainTextSchema.FromStringCodec(codec, pos)
   def fromStringCodecWithFormat[A: StringCodec as codec](format0: String, formatN: String*)(using pos: SourcePosition): PlainTextSchema[A] =
-    PlainTextSchema.FromStringCodec(codec, NonEmptyList(format0, formatN.toList).some, pos)
+    PlainTextSchema.FromStringCodec(codec, pos).withFormats(format0, formatN*)
 
   def jsonString[A: JsonSchema as schema]: PlainTextSchema[A] = PlainTextSchema.JsonEncoded(schema)
 
@@ -161,27 +166,33 @@ object PlainTextSchema extends PlainTextSchemaLowPriority.LowPriority1 {
     override def encode(value: A): String = underlying.encode(value)
   }
 
-  private[schema] final case class FromStringCodec[A](codec: StringCodec[A], formats: Option[NonEmptyList[String]], pos: SourcePosition) extends PlainTextSchema[A] {
+  private[schema] final case class FromStringCodec[A](codec: StringCodec[A], pos: SourcePosition) extends PlainTextSchema[A] {
 
     override val typeTag: TypeTag[A] = codec.decoder.typeInfo
 
-    override protected def __internalReferenceOf(builder: SchemaLike.ReferenceBuilder): String = formats match
-      case Some(NonEmptyList(head, Nil)) => withHeader("FromStringCodec", "pos" -> pos.toString, "format" -> head)
-      case Some(formats)                 => withHeader("FromStringCodec", "pos" -> pos.toString, "formats" -> formats.mkString("[", ",", "]"))
-      case None                          => withHeader("FromStringCodec", "pos" -> pos.toString)
+    override protected def __internalReferenceOf(builder: SchemaLike.ReferenceBuilder): String =
+      withHeader("FromStringCodec", "pos" -> pos.toString)
 
-    private val formatsSuffix: Option[String] =
-      formats.map {
+    override def decode(string: String): Either[String, A] = codec.decoder.decodeDetailed(string)
+    override def encode(value: A): String = codec.encoder.encode(value)
+
+  }
+
+  private[schema] final case class WithFormats[A](underlying: PlainTextSchema[A], formats: NonEmptyList[String]) extends PlainTextSchema[A] {
+
+    override val typeTag: TypeTag[A] = underlying.typeTag
+
+    override protected def __internalReferenceOf(builder: SchemaLike.ReferenceBuilder): String = formats match
+      case NonEmptyList(head, Nil) => withHeader("WithFormat", "format" -> head, "underlying" -> builder.referenceOf(underlying))
+      case formats                 => withHeader("WithFormat", "formats" -> formats.mkString("[", ",", "]"), "underlying" -> builder.referenceOf(underlying))
+
+    private val formatsSuffix: String =
+      formats match
         case NonEmptyList(head, Nil) => s"\n  Accepted Format: $head"
         case formats                 => "\n  Accepted Formats:" + formats.map { f => s"\n    - $f" }.mkString
-      }
 
-    private val decodeInternal: String => Either[String, A] = formatsSuffix match
-      case Some(formatsSuffix) => codec.decoder.decodeDetailed(_).leftMap(_ + formatsSuffix)
-      case None                => codec.decoder.decodeDetailed
-
-    override def decode(string: String): Either[String, A] = decodeInternal(string)
-    override def encode(value: A): String = codec.encoder.encode(value)
+    override def decode(string: String): Either[String, A] = underlying.decode(string).leftMap { _ + formatsSuffix }
+    override def encode(value: A): String = underlying.encode(value)
 
   }
 
@@ -225,7 +236,7 @@ object PlainTextSchema extends PlainTextSchemaLowPriority.LowPriority1 {
     override def encode(value: B): String = underlying.encode(ba(value))
   }
 
-  final case class Encoding private (codec: StringCodec[String], name: String) {
+  final case class Encoding(codec: StringCodec[String], name: String) {
     override def toString: String = s"PlainTextSchema.Encoding($name)"
   }
   object Encoding {

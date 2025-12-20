@@ -36,8 +36,6 @@ final case class FullCompiledSchemas(rawSchemas: RawCompiledSchemas) {
       raw.repr match {
         case repr: RawCompiledPlainSchema.PlainText =>
           FullCompiledPlainSchema.PlainText(raw, repr)
-        case repr: RawCompiledPlainSchema.FormattedText =>
-          FullCompiledPlainSchema.FormattedText(raw, repr)
         case repr: RawCompiledPlainSchema.Enum =>
           FullCompiledPlainSchema.Enum(raw, repr)
         case repr: RawCompiledPlainSchema.PlainTransform =>
@@ -60,8 +58,10 @@ final case class FullCompiledSchemas(rawSchemas: RawCompiledSchemas) {
       ref match {
         case _: CompiledSchemaRef.PlainRef =>
           throw new RuntimeException(s"Internal Defect : Missing schema type ~ $ref")
-        case ref @ CompiledSchemaRef.EncodedText(plainRef, encoding) =>
-          FullCompiledPlainSchema.EncodedText(ref, encoding, mutableInternalState.resolvePlain(plainRef))
+        case ref @ CompiledSchemaRef.EncodedText(plainRef, _) =>
+          FullCompiledPlainSchema.EncodedText(ref, mutableInternalState.resolvePlain(plainRef))
+        case ref @ CompiledSchemaRef.FormattedText(plainRef, _) =>
+          FullCompiledPlainSchema.FormattedText(ref, mutableInternalState.resolvePlain(plainRef))
         case ref @ CompiledSchemaRef.JsonEncodedText(rawJsonRef) =>
           FullCompiledPlainSchema.JsonEncoded(ref, mutableInternalState.resolveJson(rawJsonRef))
         case ref @ CompiledSchemaRef.JWT(payloadType) =>

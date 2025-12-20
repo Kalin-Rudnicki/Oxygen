@@ -157,6 +157,7 @@ object DeriveSchemaSpec extends OxygenSpecDefault {
             _ <- Compiled.usingJson[Option[Product2]]
             _ <- Compiled.usingJson[List[Product2]]
             _ <- Compiled.plain(PlainTextSchema.bearerToken)
+            _ <- Compiled.plain(PlainTextSchema.standardJWT[Product1])
             _ <- Compiled.usingJson[Product2.Wrapped]
             _ <- Compiled.usingJson[Product2.OptWrapped]
             ref <- Compiled.usingJson[TestProduct]
