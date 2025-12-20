@@ -61,10 +61,6 @@ final case class RawCompiledPlainSchema(
           "case-sensitive" -> caseSensitive.toString,
           "exhaustive" -> exhaustive.toString,
         )
-      case RawCompiledPlainSchema.FormattedText(formats, _) =>
-        IndentedString.keyValueSectionSuffixKey(s"[${ref.fullTypeName}]: <Formatted>", ": ")(
-          "formats" -> formats.toList,
-        )
       case RawCompiledPlainSchema.PlainTransform(plainRef, _) =>
         s"[${ref.fullTypeName}]: <PlainTransform> - $plainRef"
     }
@@ -73,7 +69,6 @@ final case class RawCompiledPlainSchema(
     copy(
       repr = repr match {
         case rt: RawCompiledPlainSchema.PlainText      => rt.copy(sourceFile = rt.sourceFile.withoutLineNo)
-        case ft: RawCompiledPlainSchema.FormattedText  => ft.copy(sourceFile = ft.sourceFile.withoutLineNo)
         case e: RawCompiledPlainSchema.Enum            => e
         case pt: RawCompiledPlainSchema.PlainTransform => pt.copy(sourceFile = pt.sourceFile.withoutLineNo)
       },
@@ -101,13 +96,12 @@ object RawCompiledPlainSchema {
     repr match {
       case I.IntermediateRepr.PlainText(sourceFile) =>
         (typeIdentifier, Lazy(RawCompiledPlainSchema.PlainText(RawCompiledSchema.SourceFile.fromSourcePosition(sourceFile)))).asRight
-      case I.IntermediateRepr.FormattedText(formats, sourceFile) =>
-        (typeIdentifier, Lazy(RawCompiledPlainSchema.FormattedText(formats, RawCompiledSchema.SourceFile.fromSourcePosition(sourceFile)))).asRight
       case I.IntermediateRepr.PlainTransform(plainRef, sourceFile) =>
         (typeIdentifier, Lazy(RawCompiledPlainSchema.PlainTransform(CompiledSchemaRef.resolvePlain(plainRef, reprs), RawCompiledSchema.SourceFile.fromSourcePosition(sourceFile)))).asRight
       case I.IntermediateRepr.Enum(values, caseSensitive, exhaustive) => (typeIdentifier, Lazy(RawCompiledPlainSchema.Enum(values, caseSensitive, exhaustive))).asRight
       case I.IntermediateRepr.JWT(jsonRef)                            => CompiledSchemaRef.JWT(CompiledSchemaRef.resolveJson(jsonRef, reprs)).asLeft
-      case I.IntermediateRepr.EncodedText(plainRef, wrapperName)      => CompiledSchemaRef.EncodedText(CompiledSchemaRef.resolvePlain(plainRef, reprs), wrapperName).asLeft
+      case I.IntermediateRepr.EncodedText(plainRef, encoding)         => CompiledSchemaRef.EncodedText(CompiledSchemaRef.resolvePlain(plainRef, reprs), encoding).asLeft
+      case I.IntermediateRepr.FormattedText(plainRef, formats)        => CompiledSchemaRef.FormattedText(CompiledSchemaRef.resolvePlain(plainRef, reprs), formats).asLeft
       case I.IntermediateRepr.JsonEncodedText(jsonRef)                => CompiledSchemaRef.JsonEncodedText(CompiledSchemaRef.resolveJson(jsonRef, reprs)).asLeft
     }
   }
@@ -119,10 +113,6 @@ object RawCompiledPlainSchema {
 
   final case class PlainText(sourceFile: RawCompiledSchema.SourceFile) extends Repr {
     override def mapTypeIdentifier(f: TypeIdentifier.MapFunction): PlainText = this
-  }
-
-  final case class FormattedText(formats: NonEmptyList[String], sourceFile: RawCompiledSchema.SourceFile) extends Repr {
-    override def mapTypeIdentifier(f: TypeIdentifier.MapFunction): FormattedText = this
   }
 
   final case class Enum(values: Seq[String], caseSensitive: Boolean, exhaustive: Boolean) extends Repr {

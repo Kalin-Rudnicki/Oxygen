@@ -13,6 +13,7 @@ sealed trait CompiledSchemaRef derives JsonCodec {
     case CompiledSchemaRef.JsonString(ref)         => ref.primaryReference
     case CompiledSchemaRef.JsonEncodedText(ref)    => ref.primaryReference
     case CompiledSchemaRef.EncodedText(ref, _)     => ref.primaryReference
+    case CompiledSchemaRef.FormattedText(ref, _)   => ref.primaryReference
     case CompiledSchemaRef.JWT(payloadType)        => payloadType.primaryReference
     case CompiledSchemaRef.JsonOption(elemType)    => elemType.primaryReference
     case CompiledSchemaRef.JsonSpecified(elemType) => elemType.primaryReference
@@ -20,16 +21,17 @@ sealed trait CompiledSchemaRef derives JsonCodec {
     case CompiledSchemaRef.JsonMap(_, valueType)   => valueType.primaryReference
 
   final lazy val showBase: String = this match
-    case CompiledSchemaRef.PlainRef(tpe)                 => tpe.fullTypeName
-    case CompiledSchemaRef.JsonRef(tpe)                  => tpe.fullTypeName
-    case CompiledSchemaRef.EncodedText(ref, wrapperName) => s"WrappedString<$wrapperName>(${ref.showBase})"
-    case CompiledSchemaRef.JsonString(ref)               => s"Json.PlainText(${ref.showBase})"
-    case CompiledSchemaRef.JsonEncodedText(ref)          => s"PlainText.JsonEncoded(${ref.showBase})"
-    case CompiledSchemaRef.JWT(payloadType)              => s"JWT<${payloadType.showBase}>"
-    case CompiledSchemaRef.JsonArray(elemType)           => s"Array<${elemType.showBase}>"
-    case CompiledSchemaRef.JsonMap(keyType, valueType)   => s"Map<key=${keyType.showBase},value=${valueType.showBase}>"
-    case CompiledSchemaRef.JsonOption(elemType)          => s"Option<${elemType.showBase}>"
-    case CompiledSchemaRef.JsonSpecified(elemType)       => s"Specified<${elemType.showBase}>"
+    case CompiledSchemaRef.PlainRef(tpe)               => tpe.fullTypeName
+    case CompiledSchemaRef.JsonRef(tpe)                => tpe.fullTypeName
+    case CompiledSchemaRef.EncodedText(ref, encoding)  => s"EncodedText<$encoding>(${ref.showBase})"
+    case CompiledSchemaRef.FormattedText(ref, formats) => s"FormattedText<${formats.mkString("|")}>(${ref.showBase})"
+    case CompiledSchemaRef.JsonString(ref)             => s"Json.PlainText(${ref.showBase})"
+    case CompiledSchemaRef.JsonEncodedText(ref)        => s"PlainText.JsonEncoded(${ref.showBase})"
+    case CompiledSchemaRef.JWT(payloadType)            => s"JWT<${payloadType.showBase}>"
+    case CompiledSchemaRef.JsonArray(elemType)         => s"Array<${elemType.showBase}>"
+    case CompiledSchemaRef.JsonMap(keyType, valueType) => s"Map<key=${keyType.showBase},value=${valueType.showBase}>"
+    case CompiledSchemaRef.JsonOption(elemType)        => s"Option<${elemType.showBase}>"
+    case CompiledSchemaRef.JsonSpecified(elemType)     => s"Specified<${elemType.showBase}>"
 
   final lazy val coreType: String = this match
     case _: CompiledSchemaRef.PlainLike => "Plain Text"
@@ -70,6 +72,10 @@ object CompiledSchemaRef {
 
   final case class EncodedText(ref: PlainLike, encoding: String) extends PlainLike {
     override def mapTypeIdentifier(f: TypeIdentifier.MapFunction): CompiledSchemaRef.EncodedText = EncodedText(ref.mapTypeIdentifier(f), encoding)
+  }
+
+  final case class FormattedText(ref: PlainLike, formats: NonEmptyList[String]) extends PlainLike {
+    override def mapTypeIdentifier(f: TypeIdentifier.MapFunction): CompiledSchemaRef.FormattedText = FormattedText(ref.mapTypeIdentifier(f), formats)
   }
 
   final case class JWT(payloadType: JsonLike) extends PlainLike {
