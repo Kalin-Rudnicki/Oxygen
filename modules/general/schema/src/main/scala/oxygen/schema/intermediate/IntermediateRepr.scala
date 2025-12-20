@@ -22,9 +22,9 @@ object IntermediateRepr {
 
   sealed trait PlainRepr extends IntermediateRepr
   final case class PlainText(sourceFile: SourcePosition) extends PlainRepr
-  final case class FormattedText(formats: NonEmptyList[String], sourceFile: SourcePosition) extends PlainRepr
+  final case class FormattedText(plainRef: IntermediateTypeRef.Plain, formats: NonEmptyList[String]) extends PlainRepr
   final case class Enum(values: Seq[String], caseSensitive: Boolean, exhaustive: Boolean) extends PlainRepr
-  final case class JWT(jsonRef: IntermediateTypeRef.Json) extends PlainRepr
+  final case class JWT(jsonRef: IntermediateTypeRef.Json) extends PlainRepr // FIX-PRE-MERGE (KR) : remove
   final case class EncodedText(plainRef: IntermediateTypeRef.Plain, encoding: String) extends PlainRepr
   final case class JsonEncodedText(jsonRef: IntermediateTypeRef.Json) extends PlainRepr
   final case class PlainTransform(plainRef: IntermediateTypeRef.Plain, sourceFile: SourcePosition) extends PlainRepr
@@ -71,10 +71,11 @@ object IntermediateRepr {
           IntermediateCompiledRef.plain(schema, PlainText(schema.pos), input.reprs)
         case schema: PlainTextSchema.EnumSchema[?] =>
           IntermediateCompiledRef.plain(schema, Enum(schema.encodedValues, schema.caseSensitive, schema.exhaustive), input.reprs)
-        case PlainTextSchema.FromStringCodec(_, None, pos) =>
+        case PlainTextSchema.FromStringCodec(_, pos) =>
           IntermediateCompiledRef.plain(schema, PlainText(pos), input.reprs)
-        case PlainTextSchema.FromStringCodec(_, Some(formats), pos) =>
-          IntermediateCompiledRef.plain(schema, FormattedText(formats, pos), input.reprs)
+        case PlainTextSchema.WithFormats(underlying, formats) =>
+          val gen = compilePlain(underlying, input)
+          gen.withPlain(schema, FormattedText(gen.ref, formats))
         case PlainTextSchema.EncodedText(underlying, encoding) =>
           val gen = compilePlain(underlying, input)
           gen.withPlain(schema, EncodedText(gen.ref, encoding.name))
