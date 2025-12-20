@@ -37,7 +37,6 @@ def define_env(env):
 
     my_v3 = oxygen_version_string
 
-
     """
     If git describe tells us that this is NOT a git tag but git tag + some offset, we need to add -SNAPSHOT to match sbt 
     """
