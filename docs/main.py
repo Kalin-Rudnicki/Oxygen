@@ -16,7 +16,7 @@ def define_env(env):
         except Exception:
             oxygen_version_string = ''
 
-    my_v1 = oxygen_version
+    my_v1 = oxygen_version_string
 
     """
     If that fails then fallback on CI_LATEST_TAG env var we passed manually to Docker image 
@@ -27,7 +27,7 @@ def define_env(env):
         except KeyError:
             oxygen_version_string = ''
 
-    my_v2 = oxygen_version
+    my_v2 = oxygen_version_string
 
     """
     Finally fallback on something :/
@@ -35,7 +35,7 @@ def define_env(env):
     if not oxygen_version_string:
         oxygen_version_string = 'oxygen_version'
 
-    my_v3 = oxygen_version
+    my_v3 = oxygen_version_string
 
 
     """
@@ -46,7 +46,7 @@ def define_env(env):
     elif re.compile('.+-[0-9]+-[0-9a-z]{8}').match(oxygen_version_string):
         oxygen_version_string = oxygen_version_string + '-SNAPSHOT'
 
-    my_v4 = oxygen_version
+    my_v4 = oxygen_version_string
 
     print(f"[DEBUGGING-STUFF] v1={myV1}, v2={my_v2}, v3={my_v3}, v4={my_v4}")
 
