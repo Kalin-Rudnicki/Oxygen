@@ -61,8 +61,9 @@ object IntermediateRepr {
   private[intermediate] def compilePlain(
       schema: PlainTextSchema[?],
       input: CompileInput,
+      typeTag: Specified[TypeTag[?]] = ___,
   ): IntermediateCompiledRef.Plain = {
-    val myRef: IntermediateTypeRef.Plain = IntermediateTypeRef.plain(schema)
+    val myRef: IntermediateTypeRef.Plain = IntermediateTypeRef.plain(schema, typeTag)
     if input.reprs.plain.contains(myRef) then IntermediateCompiledRef.emptyPlain(schema, input.reprs)
     else
       schema match {
@@ -78,9 +79,9 @@ object IntermediateRepr {
         case PlainTextSchema.EncodedText(underlying, encoding) =>
           val gen = compilePlain(underlying, input)
           gen.withPlain(schema, EncodedText(gen.ref, encoding.name))
-        case schema: PlainTextSchema.JWTSchema[?] =>
-          val gen = compileJson(schema.payloadSchema, input)
-          gen.withPlain(schema, JWT(gen.ref))
+        case schema: PlainTextSchema.BearerTokenSchema[?] =>
+          val gen = compilePlain(schema.underlyingSchema, input)
+          gen.withPlain(schema, EncodedText(gen.ref, "Bearer Token"))
         case schema: PlainTextSchema.JsonEncoded[?] =>
           val gen = compileJson(schema.underlying, input)
           gen.withPlain(schema, JsonEncodedText(gen.ref))
@@ -96,8 +97,9 @@ object IntermediateRepr {
   private[intermediate] def compileJson(
       schema: JsonSchema[?],
       input: CompileInput,
+      typeTag: Specified[TypeTag[?]] = ___,
   ): IntermediateCompiledRef.Json = {
-    val myRef: IntermediateTypeRef.Json = IntermediateTypeRef.json(schema)
+    val myRef: IntermediateTypeRef.Json = IntermediateTypeRef.json(schema, typeTag)
     if input.reprs.json.contains(myRef) || input.recursive.contains(myRef) then IntermediateCompiledRef.emptyJson(schema, input.reprs)
     else
       schema match {
