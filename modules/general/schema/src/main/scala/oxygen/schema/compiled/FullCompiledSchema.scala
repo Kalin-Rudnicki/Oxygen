@@ -113,18 +113,6 @@ object FullCompiledPlainSchema {
 
   }
 
-  final case class JWT(
-      ref: CompiledSchemaRef.JWT,
-      payloadType: Lazy[FullCompiledJsonSchema],
-  ) extends FullCompiledPlainSchema {
-
-    override protected def __toIndentedStringInternal(seen: Set[CompiledSchemaRef]): IndentedString =
-      makeIndentedString("JWT")(
-        "payload-type" -> payloadType.value.toIndentedString(seen),
-      )
-
-  }
-
   final case class Transformed(
       raw: RawCompiledPlainSchema,
       repr: RawCompiledPlainSchema.PlainTransform,

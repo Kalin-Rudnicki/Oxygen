@@ -64,8 +64,6 @@ final case class FullCompiledSchemas(rawSchemas: RawCompiledSchemas) {
           FullCompiledPlainSchema.FormattedText(ref, mutableInternalState.resolvePlain(plainRef))
         case ref @ CompiledSchemaRef.JsonEncodedText(rawJsonRef) =>
           FullCompiledPlainSchema.JsonEncoded(ref, mutableInternalState.resolveJson(rawJsonRef))
-        case ref @ CompiledSchemaRef.JWT(payloadType) =>
-          FullCompiledPlainSchema.JWT(ref, mutableInternalState.resolveJson(payloadType))
       }
 
     def jsonRef(ref: CompiledSchemaRef.JsonLike): FullCompiledJsonSchema =

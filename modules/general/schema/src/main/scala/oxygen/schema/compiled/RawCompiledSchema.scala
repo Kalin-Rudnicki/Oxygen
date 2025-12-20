@@ -99,7 +99,6 @@ object RawCompiledPlainSchema {
       case I.IntermediateRepr.PlainTransform(plainRef, sourceFile) =>
         (typeIdentifier, Lazy(RawCompiledPlainSchema.PlainTransform(CompiledSchemaRef.resolvePlain(plainRef, reprs), RawCompiledSchema.SourceFile.fromSourcePosition(sourceFile)))).asRight
       case I.IntermediateRepr.Enum(values, caseSensitive, exhaustive) => (typeIdentifier, Lazy(RawCompiledPlainSchema.Enum(values, caseSensitive, exhaustive))).asRight
-      case I.IntermediateRepr.JWT(jsonRef)                            => CompiledSchemaRef.JWT(CompiledSchemaRef.resolveJson(jsonRef, reprs)).asLeft
       case I.IntermediateRepr.EncodedText(plainRef, encoding)         => CompiledSchemaRef.EncodedText(CompiledSchemaRef.resolvePlain(plainRef, reprs), encoding).asLeft
       case I.IntermediateRepr.FormattedText(plainRef, formats)        => CompiledSchemaRef.FormattedText(CompiledSchemaRef.resolvePlain(plainRef, reprs), formats).asLeft
       case I.IntermediateRepr.JsonEncodedText(jsonRef)                => CompiledSchemaRef.JsonEncodedText(CompiledSchemaRef.resolveJson(jsonRef, reprs)).asLeft

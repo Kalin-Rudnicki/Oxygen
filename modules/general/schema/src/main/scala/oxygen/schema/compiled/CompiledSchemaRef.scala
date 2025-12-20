@@ -14,7 +14,6 @@ sealed trait CompiledSchemaRef derives JsonCodec {
     case CompiledSchemaRef.JsonEncodedText(ref)    => ref.primaryReference
     case CompiledSchemaRef.EncodedText(ref, _)     => ref.primaryReference
     case CompiledSchemaRef.FormattedText(ref, _)   => ref.primaryReference
-    case CompiledSchemaRef.JWT(payloadType)        => payloadType.primaryReference
     case CompiledSchemaRef.JsonOption(elemType)    => elemType.primaryReference
     case CompiledSchemaRef.JsonSpecified(elemType) => elemType.primaryReference
     case CompiledSchemaRef.JsonArray(elemType)     => elemType.primaryReference
@@ -27,7 +26,6 @@ sealed trait CompiledSchemaRef derives JsonCodec {
     case CompiledSchemaRef.FormattedText(ref, formats) => s"FormattedText<${formats.mkString("|")}>(${ref.showBase})"
     case CompiledSchemaRef.JsonString(ref)             => s"Json.PlainText(${ref.showBase})"
     case CompiledSchemaRef.JsonEncodedText(ref)        => s"PlainText.JsonEncoded(${ref.showBase})"
-    case CompiledSchemaRef.JWT(payloadType)            => s"JWT<${payloadType.showBase}>"
     case CompiledSchemaRef.JsonArray(elemType)         => s"Array<${elemType.showBase}>"
     case CompiledSchemaRef.JsonMap(keyType, valueType) => s"Map<key=${keyType.showBase},value=${valueType.showBase}>"
     case CompiledSchemaRef.JsonOption(elemType)        => s"Option<${elemType.showBase}>"
@@ -76,10 +74,6 @@ object CompiledSchemaRef {
 
   final case class FormattedText(ref: PlainLike, formats: NonEmptyList[String]) extends PlainLike {
     override def mapTypeIdentifier(f: TypeIdentifier.MapFunction): CompiledSchemaRef.FormattedText = FormattedText(ref.mapTypeIdentifier(f), formats)
-  }
-
-  final case class JWT(payloadType: JsonLike) extends PlainLike {
-    override def mapTypeIdentifier(f: TypeIdentifier.MapFunction): CompiledSchemaRef.JWT = JWT(payloadType.mapTypeIdentifier(f))
   }
 
   private[compiled] def resolvePlain(ref: I.IntermediateTypeRef.Plain, reprs: I.IntermediateReprs): CompiledSchemaRef.PlainLike =

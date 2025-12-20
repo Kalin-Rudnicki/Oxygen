@@ -1,6 +1,6 @@
 package oxygen.schema.intermediate
 
-import oxygen.core.{Specified, TypeTag}
+import oxygen.core.*
 import oxygen.schema.{JsonSchema, PlainTextSchema, SchemaLike}
 
 private[schema] enum IntermediateTypeRef {
@@ -18,9 +18,9 @@ private[schema] enum IntermediateTypeRef {
 }
 object IntermediateTypeRef {
 
-  def plain(schema: PlainTextSchema[?], typeTag: Specified[TypeTag[?]]): IntermediateTypeRef.Plain =
+  def plain(schema: PlainTextSchema[?], typeTag: Specified[TypeTag[?]] = ___): IntermediateTypeRef.Plain =
     IntermediateTypeRef.Plain(typeTag.getOrElse(schema.typeTag), schema.referenceName)
-  def json(schema: JsonSchema[?], typeTag: Specified[TypeTag[?]]): IntermediateTypeRef.Json =
+  def json(schema: JsonSchema[?], typeTag: Specified[TypeTag[?]] = ___): IntermediateTypeRef.Json =
     IntermediateTypeRef.Json(typeTag.getOrElse(schema.typeTag), schema.referenceName)
 
   given Ordering[IntermediateTypeRef] =

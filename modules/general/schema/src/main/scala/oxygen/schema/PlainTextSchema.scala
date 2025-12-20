@@ -59,11 +59,11 @@ object PlainTextSchema extends PlainTextSchemaLowPriority.LowPriority1 {
   given localTime: PlainTextSchema[LocalTime] = standardJavaTime.localTime
   given localDateTime: PlainTextSchema[LocalDateTime] = standardJavaTime.localDateTime
 
-  given bearerToken: PlainTextSchema[BearerToken] = 
+  given bearerToken: PlainTextSchema[BearerToken] =
     PlainTextSchema.BearerTokenSchema[BearerToken](TypeTag.derived, PlainTextSchema.string, _.asRight, identity)
 
   given standardJWT: [A: JsonSchema] => PlainTextSchema[JWT.Std[A]] = {
-    given JsonSchema[JWT.StandardPayload[A]] = JsonSchema.derived
+    given JsonSchema[JWT.StandardPayload[A]] = instances.standardJWTPayloadSchema[A]
     PlainTextSchema.jwt[JWT.StandardPayload[A]]
   }
 

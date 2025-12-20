@@ -80,7 +80,7 @@ object IntermediateRepr {
           val gen = compilePlain(underlying, input)
           gen.withPlain(schema, EncodedText(gen.ref, encoding.name))
         case schema: PlainTextSchema.BearerTokenSchema[?] =>
-          val gen = compilePlain(schema.underlyingSchema, input)
+          val gen = compilePlain(schema.underlyingSchema, input, schema.typeTag)
           gen.withPlain(schema, EncodedText(gen.ref, "Bearer Token"))
         case schema: PlainTextSchema.JsonEncoded[?] =>
           val gen = compileJson(schema.underlying, input)
