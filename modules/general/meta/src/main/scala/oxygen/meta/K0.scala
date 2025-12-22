@@ -205,6 +205,8 @@ object K0 {
 
     /////// Basic Members ///////////////////////////////////////////////////////////////
 
+    final lazy val debugTypes: Set[annotation.DebugType] = sym.asQuotesUsing { annotations.optionalOfValue[annotation.debug].fold(Set.empty)(_.types) }
+
     def children: ArraySeq[AnyChild]
 
     override final def pos: Position = sym.pos.get
@@ -342,14 +344,27 @@ object K0 {
               build(exprs).toTerm
           }
 
+        def tmp(using Quotes): List[(ValDef, Ref)] =
+          mapChildren
+            .map[(ValDef, Ref)] { [a <: ChildBound] => (_, _) ?=> (child: Child[a]) =>
+              val valDef = ValDef.companion.newVal(valName(child.name), valType) { makeVal(child).toTerm }
+              (valDef, valDef.valRef)
+            }
+            .to[List]
+
         new ValDefinitions[F, A]([b] =>
           (_, _) ?=>
-            (build: Expressions[F, A] => Expr[b]) =>
+            (build: Expressions[F, A] => Expr[b]) => {
+              val pairs: List[(ValDef, Ref)] = tmp
+              val valDefs: List[ValDef] = pairs.map(_._1)
+              val refs: List[Expressions.Elem[F, ?]] =
+
               rec(
                 children.toList,
                 Growable.empty,
                 build,
-              ).asExprOf[b],
+              ).asExprOf[b]
+            },
         )
       }
 
@@ -1985,6 +2000,31 @@ object K0 {
     final class showAllDerivation extends Annotation
     final class showDerivation[F[_]] extends Annotation
 
+    final class debug(_types: DebugType*) {
+      val types: Set[DebugType] = if _types.nonEmpty then _types.toSet else DebugType.values.toSet
+    }
+    object debug {
+
+      given fromExpr: FromExprT[debug] =
+        new FromExprT[debug] {
+          override def unapply(x: Expr[debug])(using Type[debug], Quotes): Option[debug] = x match
+            case '{ new `debug`(${ Varargs(exprs) }*) } => exprs.traverse(DebugType.fromExpr.unapply(_)).map { types => new debug(types*) }
+            case _                                      => None
+        }
+
+    }
+
+    enum DebugType { case ChildInstances } // NOTE : add any new cases to `fromExpr`
+    object DebugType {
+
+      given fromExpr: FromExprT[DebugType] =
+        new FromExprT[DebugType] {
+          override def unapply(x: Expr[DebugType])(using Type[DebugType], Quotes): Option[DebugType] = x match
+            case '{ DebugType.ChildInstances } => DebugType.ChildInstances.some
+            case _                             => None
+        }
+
+    }
   }
 
 }

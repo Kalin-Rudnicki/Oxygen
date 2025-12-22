@@ -143,6 +143,9 @@ final class ValDefCompanion(using quotes: Quotes) {
   def apply(symbol: Symbol, rhs: Option[Term]): ValDef =
     ValDef.wrap(quotes.reflect.ValDef.apply(symbol.unwrapWithin, rhs.map(_.unwrapWithin)))
 
+  def make(symbol: Symbol, rhs: Option[Term]): ValDef =
+    apply(symbol, rhs)
+
   def copy(original: Tree)(name: String, tpt: TypeTree, rhs: Option[Term]): ValDef =
     ValDef.wrap(quotes.reflect.ValDef.copy(original.unwrapWithin)(name, tpt.unwrapWithin, rhs.map(_.unwrapWithin)))
 
