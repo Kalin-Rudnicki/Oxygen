@@ -1,11 +1,12 @@
 package oxygen.core.generic
 
-import oxygen.core.TypeTag
-import oxygen.predef.base.*
+import oxygen.core.*
+import oxygen.core.syntax.common.*
 import scala.annotation.tailrec
 import scala.quoted.*
 import scala.reflect.ClassTag
 
+// TODO (KR) : use oxygen.quoted/oxygen.meta
 final class DeriveTypeTag(val quotes: Quotes) {
   private given Quotes = quotes
   import quotes.reflect as R

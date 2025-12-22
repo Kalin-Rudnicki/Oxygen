@@ -1,6 +1,7 @@
 package oxygen.sql.generic.typeclass
 
 import oxygen.meta.{*, given}
+import oxygen.meta.k0.*
 import oxygen.predef.core.*
 import oxygen.sql.*
 import oxygen.sql.query.InputWriter
@@ -8,9 +9,9 @@ import oxygen.sql.schema.*
 import scala.quoted.*
 
 final class DeriveProductInputEncoder[A](
-    instances: K0.Expressions[InputEncoder, A],
-)(using Quotes, Type[InputEncoder], Type[A], K0.ProductGeneric[A])
-    extends K0.Derivable.ProductDeriver[InputEncoder, A] {
+    instances: Expressions[InputEncoder, A],
+)(using Quotes, Type[InputEncoder], Type[A], ProductGeneric[A])
+    extends Derivable.ProductDeriver[InputEncoder, A] {
 
   private def makeSize: Expr[Int] =
     generic.mapChildren.foldLeftExpr[Int](Expr(0)) { [i] => (_, _) ?=> (field: generic.Field[i], acc: Expr[Int]) =>

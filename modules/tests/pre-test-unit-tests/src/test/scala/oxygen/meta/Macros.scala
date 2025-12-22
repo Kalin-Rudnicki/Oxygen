@@ -1,6 +1,7 @@
 package oxygen.meta
 
 import oxygen.meta.*
+import oxygen.meta.k0.*
 import oxygen.predef.core.*
 import oxygen.quoted.*
 import scala.quoted.*
@@ -29,7 +30,7 @@ object Macros {
   inline def stringMatch(str1: String, str2: String): String = ${ stringMatchImpl('str1, 'str2) }
 
   private def defaultArgsImpl[A: Type](using Quotes): Expr[String] = {
-    val g = K0.ProductGeneric.of[A]
+    val g = ProductGeneric.of[A]
 
     g.mapChildren
       .map { [b] => (_, _) ?=> (field: g.Field[b]) =>
@@ -49,10 +50,10 @@ object Macros {
 
   inline def defaultArgs[A]: String = ${ defaultArgsImpl[A] }
 
-  // @K0.annotation.showDerivation[ToExprT]
+  // @annotation.showDerivation[ToExprT]
   final case class InnerExample(c: Char) derives ToExprT, FromExprT
 
-  // @K0.annotation.showDerivation[FromExprT]
+  // @annotation.showDerivation[FromExprT]
   final case class ProductToExprExample(a: String, b: Boolean, c: Option[InnerExample]) derives ToExprT, FromExprT
 
   private def productToExprExampleImpl(aExpr: Expr[String], bExpr: Expr[Boolean], cExpr: Expr[Char])(using Quotes): Expr[ProductToExprExample] = {
@@ -65,7 +66,7 @@ object Macros {
 
   inline def productToExprExample(a: String, b: Boolean, c: Char): ProductToExprExample = ${ productToExprExampleImpl('a, 'b, 'c) }
 
-  // @K0.annotation.showDerivation[FromExprT]
+  // @annotation.showDerivation[FromExprT]
   enum SumToExprExample derives ToExprT, FromExprT {
     case Case1(a: String, b: Option[Boolean], c: InnerExample)
     case Case2(c: Int)

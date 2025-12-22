@@ -3,7 +3,7 @@ package oxygen.sql.schema
 import java.time.*
 import java.util.UUID
 import org.postgresql.util.PGobject
-import oxygen.meta.*
+import oxygen.meta.k0.*
 import oxygen.predef.core.*
 import oxygen.predef.json.*
 import oxygen.sql.error.*
@@ -42,7 +42,7 @@ trait RowRepr[A] {
   final def transformOrFail[B](ab: A => Either[String, B], ba: B => A): RowRepr[B] = RowRepr.TransformOrFail(this, ab, ba)
 
   inline final def transformAuto[B]: RowRepr[B] = {
-    val (ab, ba) = K0.ProductGeneric.deriveTransform[A, B]
+    val (ab, ba) = ProductGeneric.deriveTransform[A, B]
     this.transform(ab, ba)
   }
 
@@ -147,13 +147,13 @@ object RowRepr extends RowReprLowPriority.LowPriority1 {
     override final def prefixedInline(prefix: String): RowRepr.ProductRepr[A] = this
 
   }
-  object ProductRepr extends K0.Derivable[ProductRepr] {
+  object ProductRepr extends Derivable[ProductRepr] {
 
-    override protected def productDeriver[A](using Quotes, Type[ProductRepr], Type[A], K0.ProductGeneric[A], K0.Derivable[ProductRepr]): K0.Derivable.ProductDeriver[ProductRepr, A] =
-      K0.Derivable.ProductDeriver.impl { DeriveProductRowRepr.populateFields[A].defineAndUse { DeriveProductRowRepr(_).derive } }
+    override protected def productDeriver[A](using Quotes, Type[ProductRepr], Type[A], ProductGeneric[A], Derivable[ProductRepr]): Derivable.ProductDeriver[ProductRepr, A] =
+      Derivable.ProductDeriver.impl { DeriveProductRowRepr.populateFields[A].defineAndUse { DeriveProductRowRepr(_).derive } }
 
-    override protected def sumDeriver[A](using Quotes, Type[ProductRepr], Type[A], K0.SumGeneric[A], K0.Derivable[ProductRepr]): K0.Derivable.SumDeriver[ProductRepr, A] =
-      K0.Derivable.SumDeriver.notSupported
+    override protected def sumDeriver[A](using Quotes, Type[ProductRepr], Type[A], SumGeneric[A], Derivable[ProductRepr]): Derivable.SumDeriver[ProductRepr, A] =
+      Derivable.SumDeriver.notSupported
 
     override inline def derived[A]: RowRepr.ProductRepr[A] = ${ derivedImpl[A] }
 

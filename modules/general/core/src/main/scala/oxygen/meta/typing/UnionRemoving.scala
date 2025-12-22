@@ -1,6 +1,6 @@
 package oxygen.meta.typing
 
-import oxygen.predef.base.*
+import oxygen.core.syntax.common.*
 import oxygen.quoted.*
 import scala.quoted.*
 import scala.reflect.TypeTest

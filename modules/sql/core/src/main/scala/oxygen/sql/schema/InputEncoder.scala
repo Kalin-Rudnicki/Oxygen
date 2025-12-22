@@ -1,6 +1,6 @@
 package oxygen.sql.schema
 
-import oxygen.meta.*
+import oxygen.meta.k0.*
 import oxygen.predef.core.*
 import oxygen.sql.generic.typeclass.*
 import oxygen.sql.query.InputWriter
@@ -27,7 +27,7 @@ trait InputEncoder[-A] {
   final def optional: InputEncoder[Option[A]] = InputEncoder.OptionalEncoder(this)
 
 }
-object InputEncoder extends K0.Derivable[InputEncoder] {
+object InputEncoder extends Derivable[InputEncoder] {
 
   //////////////////////////////////////////////////////////////////////////////////////////////////////
   //      Instances
@@ -147,11 +147,11 @@ object InputEncoder extends K0.Derivable[InputEncoder] {
   //      Generic
   //////////////////////////////////////////////////////////////////////////////////////////////////////
 
-  override protected def productDeriver[A](using Quotes, Type[InputEncoder], Type[A], K0.ProductGeneric[A], K0.Derivable[InputEncoder]): K0.Derivable.ProductDeriver[InputEncoder, A] =
-    K0.Derivable.ProductDeriver.withInstances { DeriveProductInputEncoder(_) }
+  override protected def productDeriver[A](using Quotes, Type[InputEncoder], Type[A], ProductGeneric[A], Derivable[InputEncoder]): Derivable.ProductDeriver[InputEncoder, A] =
+    Derivable.ProductDeriver.withInstances { DeriveProductInputEncoder(_) }
 
-  override protected def sumDeriver[A](using Quotes, Type[InputEncoder], Type[A], K0.SumGeneric[A], K0.Derivable[InputEncoder]): K0.Derivable.SumDeriver[InputEncoder, A] =
-    K0.Derivable.SumDeriver.notSupported
+  override protected def sumDeriver[A](using Quotes, Type[InputEncoder], Type[A], SumGeneric[A], Derivable[InputEncoder]): Derivable.SumDeriver[InputEncoder, A] =
+    Derivable.SumDeriver.notSupported
 
   override inline def derived[A]: InputEncoder[A] = ${ derivedImpl[A] }
 

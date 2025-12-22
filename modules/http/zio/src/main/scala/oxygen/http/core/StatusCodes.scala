@@ -2,8 +2,8 @@ package oxygen.http.core
 
 import oxygen.http.core.generic.given
 import oxygen.http.schema.ExpectedStatuses
-import oxygen.meta.K0.*
 import oxygen.meta.given
+import oxygen.meta.k0.*
 import oxygen.quoted.*
 import scala.quoted.*
 import zio.http.Status
@@ -41,7 +41,7 @@ object StatusCodes {
   //////////////////////////////////////////////////////////////////////////////////////////////////////
 
   private def derivedImpl[A: Type](using Quotes): Expr[StatusCodes[A]] =
-    Generic.of[A](Derivable.Config(defaultUnrollStrategy = SumGeneric.UnrollStrategy.Unroll)) match {
+    Generic.of[A](Derivable.Config(defaultUnrollStrategy = SumGeneric.UnrollStrategy.Unroll)).productOrSumGenericSelf match {
       case generic: ProductGeneric[A] =>
         val code: statusCode = generic.annotations.requiredOfValue[statusCode]
         '{ StatusCodes.Exact(${ Expr(code.status) }) }

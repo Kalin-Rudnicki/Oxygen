@@ -145,8 +145,7 @@ object NonEmptyList {
     import quotes.reflect.*
     val size = sizeExpr.valueOrAbort
     if size < 1 then report.errorAndAbort("NonEmptyList.fill requires size >= 1")
-    else if size == 1 then '{ NonEmptyList(${ elemExpr }, Nil) }
-    else '{ NonEmptyList(${ elemExpr }, List.fill(${ Expr(size - 1) })(${ elemExpr })) }
+    else if size == 1 then '{ NonEmptyList(${ elemExpr }, Nil) } else '{ NonEmptyList(${ elemExpr }, List.fill(${ Expr(size - 1) })(${ elemExpr })) }
   }
 
   inline def fromList[A](list: List[A]): Option[NonEmptyList[A]] = list match

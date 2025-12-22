@@ -1,7 +1,7 @@
 package oxygen.meta.typing
 
+import oxygen.core.syntax.common.*
 import oxygen.meta.typing.TypeRelationship.*
-import oxygen.predef.base.*
 import oxygen.quoted.{SuperType as _, *}
 import scala.annotation.publicInBinary
 import scala.quoted.*

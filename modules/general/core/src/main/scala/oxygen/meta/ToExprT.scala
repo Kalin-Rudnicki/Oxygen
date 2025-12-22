@@ -1,10 +1,12 @@
 package oxygen.meta
 
-import oxygen.core.syntax.functor.*
+import oxygen.core.*
+import oxygen.core.syntax.all.*
+import oxygen.core.typeclass.*
 import oxygen.meta.InternalHelpers.*
-import oxygen.meta.K0.*
-import oxygen.predef.core.*
+import oxygen.meta.k0.*
 import oxygen.quoted.*
+import scala.collection.immutable.ArraySeq
 import scala.quoted.*
 
 trait ToExprT[A] {
@@ -190,3 +192,5 @@ object ToExprT extends Derivable[ToExprT] {
   override inline def derived[A]: ToExprT[A] = ${ derivedImpl[A] }
 
 }
+
+given toExprT_to_toExpr: [A: {Type as tpe, ToExprT as tet}] => ToExpr[A] = ToExprT.applied(tpe, tet)

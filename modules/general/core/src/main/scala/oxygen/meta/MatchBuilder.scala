@@ -1,6 +1,7 @@
 package oxygen.meta
 
-import oxygen.predef.core.*
+import oxygen.core.{Unapply as _, *}
+import oxygen.core.collection.*
 import oxygen.quoted.*
 import scala.quoted.*
 

@@ -1,6 +1,6 @@
 package oxygen.meta
 
-import oxygen.predef.core.*
+import oxygen.core.collection.*
 import oxygen.quoted.{Wildcard as WILD, *}
 import scala.Tuple.{++, :*}
 import scala.quoted.*

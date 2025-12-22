@@ -2,8 +2,7 @@ package oxygen.sql.generic.parsing
 
 import java.time.Instant
 import java.util.UUID
-import oxygen.meta.*
-import oxygen.meta.K0.ProductGeneric
+import oxygen.meta.k0.*
 import oxygen.predef.color.given
 import oxygen.predef.core.*
 import oxygen.quoted.*
@@ -110,7 +109,7 @@ private[generic] object RawQueryExpr extends Parser[(Term, RefMap), RawQueryExpr
 
           for {
             gen <-
-              if lhsTpe.typeType.product.option.nonEmpty then ParseResult.Success(K0.ProductGeneric.of[T](K0.Derivable.Config()))
+              if lhsTpe.typeType.product.option.nonEmpty then ParseResult.Success(ProductGeneric.of[T](Derivable.Config()))
               else ParseResult.unknown(lhs, s"not a product type (${lhsTpe.showAnsiCode})")
             _ <- gen.fields.iterator.find(_.name == funct) match {
               case Some(field) => ParseResult.Success(field)

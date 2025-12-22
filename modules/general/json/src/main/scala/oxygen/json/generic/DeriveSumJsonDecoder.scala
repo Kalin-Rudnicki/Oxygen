@@ -2,13 +2,14 @@ package oxygen.json.generic
 
 import oxygen.json.*
 import oxygen.meta.{*, given}
+import oxygen.meta.k0.*
 import oxygen.predef.core.*
 import scala.quoted.*
 
 final class DeriveSumJsonDecoder[A](
-    instances: K0.Expressions[JsonDecoder.ObjectDecoder, A],
-)(using Quotes, Type[JsonDecoder.ObjectDecoder], Type[A], K0.SumGeneric[A])
-    extends K0.Derivable.SumDeriver[JsonDecoder.ObjectDecoder, A] {
+    instances: Expressions[JsonDecoder.ObjectDecoder, A],
+)(using Quotes, Type[JsonDecoder.ObjectDecoder], Type[A], SumGeneric[A])
+    extends Derivable.SumDeriver[JsonDecoder.ObjectDecoder, A] {
 
   private val validKeysExpr: Expr[String] =
     Expr(

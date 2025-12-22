@@ -1,7 +1,7 @@
 package oxygen.sql.generic.typeclass
 
 import oxygen.meta.{*, given}
-import oxygen.meta.K0.ProductGeneric
+import oxygen.meta.k0.*
 import oxygen.predef.core.*
 import oxygen.quoted.*
 import oxygen.sql.*
@@ -9,18 +9,18 @@ import oxygen.sql.schema.*
 import scala.quoted.*
 
 final class DeriveProductRowRepr[A](
-    instances: K0.Expressions[RowRepr, A],
-)(using Quotes, Type[RowRepr], Type[A], K0.ProductGeneric[A])
-    extends K0.Derivable.ProductDeriver[RowRepr, A] {
+    instances: Expressions[RowRepr, A],
+)(using Quotes, Type[RowRepr], Type[A], ProductGeneric[A])
+    extends Derivable.ProductDeriver[RowRepr, A] {
 
-  private def decoderInstances: K0.Expressions[ResultDecoder, A] =
+  private def decoderInstances: Expressions[ResultDecoder, A] =
     instances.mapK[ResultDecoder] { [i] => _ ?=> (v: Expr[RowRepr[i]]) =>
       '{
         $v.decoder
       }
     }
 
-  private def encoderInstances: K0.Expressions[InputEncoder, A] =
+  private def encoderInstances: Expressions[InputEncoder, A] =
     instances.mapK[InputEncoder] { [i] => _ ?=> (v: Expr[RowRepr[i]]) =>
       '{
         $v.encoder
@@ -57,7 +57,7 @@ final class DeriveProductRowRepr[A](
 }
 object DeriveProductRowRepr {
 
-  def populateFields[A: Type](using quotes: Quotes, generic: ProductGeneric[A]): K0.ValDefinitions[RowRepr, A] =
+  def populateFields[A: Type](using quotes: Quotes, generic: ProductGeneric[A]): ValDefinitions[RowRepr, A] =
     generic.cacheVals[RowRepr]() { [i] => (_, _) ?=> (field: generic.Field[i]) =>
       val isInline: Boolean =
         field.annotations.optionalOfValue[inlineColumnNames].nonEmpty

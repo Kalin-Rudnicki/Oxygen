@@ -1,6 +1,6 @@
 package oxygen.sql.generic.model
 
-import oxygen.meta.K0.ProductGeneric
+import oxygen.meta.k0.*
 import oxygen.predef.color.given
 import oxygen.predef.core.*
 import oxygen.quoted.*

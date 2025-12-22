@@ -5,6 +5,7 @@ import oxygen.http.core.partial.*
 import oxygen.http.model.internal.*
 import oxygen.http.schema.partial.*
 import oxygen.meta.{*, given}
+import oxygen.meta.k0.*
 import oxygen.predef.core.*
 import oxygen.quoted.*
 import oxygen.schema.*
@@ -154,8 +155,8 @@ sealed abstract class RouteRepr[Api](
     *
     * Because we are working with [[Term]]/[[Expr]] here, the generated code is extremely efficient, there is no repeated tupling/un-tupling.
     */
-  private val inUnderlying: K0.ProductGeneric.UnderlyingConverter[In] =
-    K0.ProductGeneric.UnderlyingConverter.of[In](allParamsInParseOrder.collect { case p: ParamRepr.FunctionArg[?] => p.typeRepr }.toList)
+  private val inUnderlying: UnderlyingConverter[In] =
+    UnderlyingConverter.of[In](allParamsInParseOrder.collect { case p: ParamRepr.FunctionArg[?] => p.typeRepr }.toList)
 
   final def inExprToParseOrderTerms(in: Expr[In])(using Quotes): List[Term] =
     inUnderlying.splitExpr(in)

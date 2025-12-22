@@ -6,6 +6,7 @@ import oxygen.http.model.internal.*
 import oxygen.http.schema.*
 import oxygen.http.schema.partial.*
 import oxygen.meta.*
+import oxygen.meta.k0.*
 import oxygen.predef.core.*
 import oxygen.schema.*
 import scala.annotation.tailrec
@@ -78,7 +79,7 @@ object RequestCodec {
       RequestCodec.internal.AppliedPartialPath(codec, name, doc)
 
     private def deriveSumImpl[A: Type](using Quotes): Expr[RequestCodec.internal.PathOr[A]] = {
-      val gen: K0.SumGeneric[A] = K0.SumGeneric.of[A]
+      val gen: SumGeneric[A] = SumGeneric.of[A]
       gen.cacheVals.summonTypeClasses[RequestCodec.PathLike]().defineAndUse { instances =>
         def schemas: List[Expr[RequestCodec.PathLike[? <: A]]] =
           gen.mapChildren.mapExpr[RequestCodec.PathLike[? <: A]] { [b <: A] => (_, _) ?=> (kase: gen.Case[b]) => kase.getExpr(instances) }.to[List]
@@ -113,7 +114,7 @@ object RequestCodec {
   object nonPath {
 
     private def deriveSumImpl[A: Type](using Quotes): Expr[RequestCodec.internal.NonPathOr[A]] = {
-      val gen: K0.SumGeneric[A] = K0.SumGeneric.of[A]
+      val gen: SumGeneric[A] = SumGeneric.of[A]
       gen.cacheVals.summonTypeClasses[RequestCodec.NonPathLike]().defineAndUse { instances =>
         def schemas: List[Expr[RequestCodec.NonPathLike[? <: A]]] =
           gen.mapChildren.mapExpr[RequestCodec.NonPathLike[? <: A]] { [b <: A] => (_, _) ?=> (kase: gen.Case[b]) => kase.getExpr(instances) }.to[List]
@@ -272,7 +273,7 @@ object RequestCodec {
     final def transformOrFailOpt[B](ab: A => Either[String, Option[B]], ba: B => A): RequestCodec.PathLike[B] = RequestCodec.internal.TransformOrFailPathLike(this, ab, ba)
 
     inline final def autoTransform[B]: RequestCodec.PathLike[B] = {
-      val (ab, ba) = K0.ProductGeneric.deriveTransform[A, B]
+      val (ab, ba) = ProductGeneric.deriveTransform[A, B]
       transform(ab, ba)
     }
 
@@ -297,7 +298,7 @@ object RequestCodec {
     override final def matchesPathPatternInternal(path: List[String]): Option[List[String]] = path.some
 
     inline final def autoTransform[B]: RequestCodec.NonPathLike[B] = {
-      val (ab, ba) = K0.ProductGeneric.deriveTransform[A, B]
+      val (ab, ba) = ProductGeneric.deriveTransform[A, B]
       transform(ab, ba)
     }
 

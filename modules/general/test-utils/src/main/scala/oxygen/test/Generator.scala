@@ -3,7 +3,7 @@ package oxygen.test
 import java.time.*
 import java.util.UUID
 import oxygen.meta.*
-import oxygen.meta.K0.*
+import oxygen.meta.k0.*
 import oxygen.predef.core.*
 import oxygen.quoted.*
 import oxygen.zio.instances.given

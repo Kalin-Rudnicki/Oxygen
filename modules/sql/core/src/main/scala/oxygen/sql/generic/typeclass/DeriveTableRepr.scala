@@ -1,6 +1,7 @@
 package oxygen.sql.generic.typeclass
 
 import oxygen.meta.{*, given}
+import oxygen.meta.k0.*
 import oxygen.predef.core.*
 import oxygen.quoted.*
 import oxygen.sql.*
@@ -8,8 +9,8 @@ import oxygen.sql.schema.*
 import scala.quoted.*
 
 final class DeriveTableRepr[A: Type](
-    instances: K0.Expressions[RowRepr, A],
-)(using quotes: Quotes, fTpe: Type[RowRepr], generic: K0.ProductGeneric[A]) {
+    instances: Expressions[RowRepr, A],
+)(using quotes: Quotes, fTpe: Type[RowRepr], generic: ProductGeneric[A]) {
 
   private def schemaNameExpr: Expr[String] =
     Expr { generic.annotations.optionalOfValue[schemaName].fold("public")(_.name) }
@@ -22,7 +23,7 @@ final class DeriveTableRepr[A: Type](
 
   private def makePartial(isPK: Boolean): (TypeRepr, Expr[TableRepr.Partial[A, ?]]) = {
     type B
-    val subset: K0.ProductGeneric.Subset[A, B] =
+    val subset: ProductGenericSubset[A, B] =
       generic.filtered[B] { [i] => (_, _) ?=> (field: generic.Field[i]) =>
         field.annotations.optionalOfValue[primaryKey].nonEmpty == isPK
       }
@@ -46,7 +47,7 @@ final class DeriveTableRepr[A: Type](
 
   private object foreignKeys {
 
-    private final case class ForeignKeyField[PGT, FT](gen: K0.ProductGeneric[PGT], field: gen.Field[FT]) {
+    private final case class ForeignKeyField[PGT, FT](gen: ProductGeneric[PGT], field: gen.Field[FT]) {
 
       private given Type[PGT] = gen.tpe
       private given Type[FT] = field.tpe
@@ -57,7 +58,7 @@ final class DeriveTableRepr[A: Type](
     }
     private object ForeignKeyField {
 
-      def parse[PGT](gen: K0.ProductGeneric[PGT], fExpr: Expr[PGT => Any])(using quotes: Quotes): ForeignKeyField[PGT, ?] = {
+      def parse[PGT](gen: ProductGeneric[PGT], fExpr: Expr[PGT => Any])(using quotes: Quotes): ForeignKeyField[PGT, ?] = {
         val defDef: DefDef =
           fExpr.toTerm.removeInlineAndTyped match {
             case Block(List(defDef: DefDef), _: Closure) => defDef
@@ -97,7 +98,7 @@ final class DeriveTableRepr[A: Type](
         ForeignKeyPair(current.asInstanceOf[ForeignKeyField[A, FT]], references.asInstanceOf[ForeignKeyField[RT, FT]])
       }
 
-      def parse[RT](referencesGen: K0.ProductGeneric[RT], currentFExpr: Expr[A => Any], referencesFExpr: Expr[RT => Any], pos: Position)(using Quotes): ForeignKeyPair[RT, ?] =
+      def parse[RT](referencesGen: ProductGeneric[RT], currentFExpr: Expr[A => Any], referencesFExpr: Expr[RT => Any], pos: Position)(using Quotes): ForeignKeyPair[RT, ?] =
         validate(ForeignKeyField.parse(generic, currentFExpr), ForeignKeyField.parse(referencesGen, referencesFExpr), pos)
 
     }
@@ -117,9 +118,9 @@ final class DeriveTableRepr[A: Type](
         case _                                                  => report.errorAndAbort("unable to extract foreign key expr pairs", expr)
 
       type RT_FK
-      val rtGeneric: K0.ProductGeneric[RT] = K0.ProductGeneric.of[RT]
+      val rtGeneric: ProductGeneric[RT] = ProductGeneric.of[RT]
 
-      val rtFkSubset: K0.ProductGeneric.Subset[RT, RT_FK] =
+      val rtFkSubset: ProductGenericSubset[RT, RT_FK] =
         rtGeneric.filtered[RT_FK] { [i] => (_, _) ?=> (field: rtGeneric.Field[i]) =>
           field.annotations.optionalOfValue[primaryKey].nonEmpty
         }
@@ -169,9 +170,9 @@ final class DeriveTableRepr[A: Type](
         case _                           => report.errorAndAbort("unable to extract reference type", expr)
 
       type RT_FK
-      val rtGeneric: K0.ProductGeneric[RT] = K0.ProductGeneric.of[RT]
+      val rtGeneric: ProductGeneric[RT] = ProductGeneric.of[RT]
 
-      val rtFkSubset: K0.ProductGeneric.Subset[RT, RT_FK] =
+      val rtFkSubset: ProductGenericSubset[RT, RT_FK] =
         rtGeneric.filtered[RT_FK] { [i] => (_, _) ?=> (field: rtGeneric.Field[i]) =>
           field.annotations.optionalOfValue[primaryKey].nonEmpty
         }
@@ -209,7 +210,7 @@ final class DeriveTableRepr[A: Type](
 
   private object indices {
 
-    private final case class IndexField[PGT, FT](gen: K0.ProductGeneric[PGT], field: gen.Field[FT]) {
+    private final case class IndexField[PGT, FT](gen: ProductGeneric[PGT], field: gen.Field[FT]) {
 
       private given Type[PGT] = gen.tpe
       private given Type[FT] = field.tpe
@@ -220,7 +221,7 @@ final class DeriveTableRepr[A: Type](
     }
     private object IndexField {
 
-      def parse[PGT](gen: K0.ProductGeneric[PGT], fExpr: Expr[PGT => Any])(using quotes: Quotes): IndexField[PGT, ?] = {
+      def parse[PGT](gen: ProductGeneric[PGT], fExpr: Expr[PGT => Any])(using quotes: Quotes): IndexField[PGT, ?] = {
         val defDef: DefDef =
           fExpr.toTerm.removeInlineAndTyped match {
             case Block(List(defDef: DefDef), _: Closure) => defDef

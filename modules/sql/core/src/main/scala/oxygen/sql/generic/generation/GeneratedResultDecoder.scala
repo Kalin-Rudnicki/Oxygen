@@ -1,6 +1,6 @@
 package oxygen.sql.generic.generation
 
-import oxygen.meta.*
+import oxygen.meta.k0.*
 import oxygen.predef.core.*
 import oxygen.quoted.*
 import oxygen.sql.generic.model.TypeclassExpr
@@ -33,9 +33,9 @@ final class GeneratedResultDecoder private (
         )
       case _ =>
         type A
-        given tupGeneric: K0.ProductGeneric[A] = K0.ProductGeneric.ofTuple[A](many.map(_.tpe).toList)
+        given tupGeneric: ProductGeneric[A] = ProductGeneric.ofTuple[A](many.map(_.tpe).toList)
         val fTpe: Type[ResultDecoder] = Type.of[ResultDecoder]
-        val instances: K0.Expressions[ResultDecoder, A] = K0.Expressions(fTpe, tupGeneric.tpe, many.map(_.toElem))
+        val instances: Expressions[ResultDecoder, A] = Expressions(fTpe, tupGeneric.tpe, many.map(_.toElem))
 
         GeneratedResultDecoder.Built(
           tupGeneric.typeRepr,
@@ -50,9 +50,9 @@ object GeneratedResultDecoder {
 
   private final case class Part(buildExpr: TypeclassExpr.ResultDecoder, tpe: TypeRepr) {
 
-    def toElem[A]: K0.Expressions.Elem[ResultDecoder, A] = {
+    def toElem[A]: Expressions.Elem[ResultDecoder, A] = {
       given typed: Type[A] = tpe.asTypeOf
-      K0.Expressions.Elem[ResultDecoder, A](
+      Expressions.Elem[ResultDecoder, A](
         typed,
         buildExpr.expr.asExprOf[ResultDecoder[A]],
       )

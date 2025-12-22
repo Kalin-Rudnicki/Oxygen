@@ -3,7 +3,7 @@ package oxygen.json
 import java.time.*
 import java.util.TimeZone
 import java.util.UUID
-import oxygen.meta.K0
+import oxygen.meta.k0.*
 import oxygen.predef.core.*
 import scala.quoted.*
 import scala.reflect.ClassTag
@@ -20,7 +20,7 @@ final case class JsonCodec[A](
     JsonCodec(encoder.contramap(ba), decoder.mapOrFail(ab))
 
   inline def autoTransform[B]: JsonCodec[B] = {
-    val (ab, ba) = K0.ProductGeneric.deriveTransform[A, B]
+    val (ab, ba) = ProductGeneric.deriveTransform[A, B]
     transform(ab, ba)
   }
 
@@ -116,10 +116,10 @@ object JsonCodec extends JsonCodecLowPriority.LowPriority1 {
 
   private def deriveWrappedImpl[A: Type](using Quotes): Expr[JsonCodec[A]] = {
     type B
-    val wrapping = K0.ProductGeneric.extractSingleCaseClassField[A, B]
+    val wrapping: ProductGeneric.SingleFieldCaseClassGeneric[A, B] = ProductGeneric.SingleFieldCaseClassGeneric.ofTypeField[A, B]
     given Type[B] = wrapping.field.tpe
 
-    '{ ${ wrapping.field.summonTypeClass[JsonCodec] }.transform[A](${ wrapping.wrapExpr }, ${ wrapping.unwrapExpr }) }
+    '{ ${ wrapping.field.summonTypeClass[JsonCodec] }.transform[A](${ wrapping.singleField.wrapExpr }, ${ wrapping.singleField.unwrapExpr }) }
   }
 
   /**
