@@ -1,10 +1,13 @@
 package oxygen.meta
 
+import oxygen.core.*
+import oxygen.core.collection.*
+import oxygen.core.syntax.common.*
 import oxygen.core.syntax.functor.*
-import oxygen.meta
-import oxygen.predef.core.*
+import oxygen.core.typeclass.*
 import oxygen.quoted.*
 import scala.annotation.{tailrec, targetName, unused}
+import scala.collection.immutable.ArraySeq
 import scala.collection.mutable
 import scala.quoted.*
 import scala.reflect.ClassTag

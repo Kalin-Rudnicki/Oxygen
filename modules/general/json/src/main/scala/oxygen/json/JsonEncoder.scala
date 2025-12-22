@@ -5,7 +5,7 @@ import java.util.{TimeZone, UUID}
 import oxygen.core.javaEnums.given
 import oxygen.core.typeclass.{NonEmpty, SeqOps}
 import oxygen.json.generic.*
-import oxygen.meta.*
+import oxygen.meta.k0.*
 import oxygen.predef.core.*
 import scala.quoted.*
 import scala.reflect.ClassTag
@@ -29,7 +29,7 @@ trait JsonEncoder[A] {
     JsonEncoder.MapJsonOutput(this, json => f.lift(json).getOrElse(json))
 
   inline final def autoContramap[B]: JsonEncoder[B] = {
-    val (_, ba) = K0.ProductGeneric.deriveTransform[A, B]
+    val (_, ba) = ProductGeneric.deriveTransform[A, B]
     contramap(ba)
   }
 
@@ -38,7 +38,7 @@ trait JsonEncoder[A] {
   final def toStringEncoder: StringEncoder[A] = toStringEncoderCompact
 
 }
-object JsonEncoder extends K0.Derivable[JsonEncoder.ObjectEncoder], JsonEncoderLowPriority.LowPriority1 {
+object JsonEncoder extends Derivable[JsonEncoder.ObjectEncoder], JsonEncoderLowPriority.LowPriority1 {
 
   inline def apply[A](using ev: JsonEncoder[A]): JsonEncoder[A] = ev
 
@@ -238,28 +238,28 @@ object JsonEncoder extends K0.Derivable[JsonEncoder.ObjectEncoder], JsonEncoderL
       Quotes,
       Type[JsonEncoder.ObjectEncoder],
       Type[A],
-      K0.ProductGeneric[A],
-      K0.Derivable[JsonEncoder.ObjectEncoder],
-  ): K0.Derivable.ProductDeriver[JsonEncoder.ObjectEncoder, A] =
-    K0.Derivable.ProductDeriver.withDisjointInstances[JsonEncoder.ObjectEncoder, JsonEncoder, A] { DeriveProductJsonEncoder[A](_) }
+      ProductGeneric[A],
+      Derivable[JsonEncoder.ObjectEncoder],
+  ): Derivable.ProductDeriver[JsonEncoder.ObjectEncoder, A] =
+    Derivable.ProductDeriver.withDisjointInstances[JsonEncoder.ObjectEncoder, JsonEncoder, A] { DeriveProductJsonEncoder[A](_) }
 
   override protected def sumDeriver[A](using
       Quotes,
       Type[JsonEncoder.ObjectEncoder],
       Type[A],
-      K0.SumGeneric[A],
-      K0.Derivable[JsonEncoder.ObjectEncoder],
-  ): K0.Derivable.SumDeriver[JsonEncoder.ObjectEncoder, A] =
-    K0.Derivable.SumDeriver.withInstances { DeriveSumJsonEncoder[A](_) }
+      SumGeneric[A],
+      Derivable[JsonEncoder.ObjectEncoder],
+  ): Derivable.SumDeriver[JsonEncoder.ObjectEncoder, A] =
+    Derivable.SumDeriver.withInstances { DeriveSumJsonEncoder[A](_) }
 
   override inline def derived[A]: JsonEncoder.ObjectEncoder[A] = ${ derivedImpl[A] }
 
   private def deriveWrappedImpl[A: Type](using Quotes): Expr[JsonEncoder[A]] = {
     type B
-    val wrapping = K0.ProductGeneric.extractSingleCaseClassField[A, B]
+    val wrapping: ProductGeneric.SingleFieldCaseClassGeneric[A, B] = ProductGeneric.SingleFieldCaseClassGeneric.ofTypeField[A, B]
     given Type[B] = wrapping.field.tpe
 
-    '{ ${ wrapping.field.summonTypeClass[JsonEncoder] }.contramap[A](${ wrapping.unwrapExpr }) }
+    '{ ${ wrapping.field.summonTypeClass[JsonEncoder] }.contramap[A](${ wrapping.singleField.unwrapExpr }) }
   }
 
   inline def deriveWrapped[A]: JsonEncoder[A] = ${ deriveWrappedImpl[A] }

@@ -1,7 +1,7 @@
 package oxygen.cli
 
 import oxygen.cli.error.*
-import oxygen.predef.base.*
+import oxygen.predef.core.*
 import scala.annotation.tailrec
 import scala.annotation.unchecked.uncheckedVariance
 

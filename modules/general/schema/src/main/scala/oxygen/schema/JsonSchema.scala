@@ -6,7 +6,7 @@ import oxygen.core.SourcePosition
 import oxygen.json.*
 import oxygen.json.generic.*
 import oxygen.meta.{*, given}
-import oxygen.meta.K0.*
+import oxygen.meta.k0.*
 import oxygen.predef.core.*
 import oxygen.quoted.*
 import scala.quoted.*
@@ -401,10 +401,10 @@ object JsonSchema extends Derivable[JsonSchema.ProductLike], JsonSchemaLowPriori
 
   private def deriveWrappedImpl[A: Type](using Quotes): Expr[JsonSchema[A]] = {
     type B
-    val wrapping = K0.ProductGeneric.extractSingleCaseClassField[A, B]
+    val wrapping: ProductGeneric.SingleFieldCaseClassGeneric[A, B] = ProductGeneric.SingleFieldCaseClassGeneric.ofTypeField[A, B]
     given Type[B] = wrapping.field.tpe
 
-    '{ ${ wrapping.field.summonTypeClass[JsonSchema] }.transform[A](${ wrapping.wrapExpr }, ${ wrapping.unwrapExpr }) }
+    '{ ${ wrapping.field.summonTypeClass[JsonSchema] }.transform[A](${ wrapping.singleField.wrapExpr }, ${ wrapping.singleField.unwrapExpr }) }
   }
 
   /**

@@ -3,6 +3,7 @@ package oxygen.core.typeclass
 import oxygen.core.TypeTag
 import oxygen.core.collection.NonEmptyList
 import oxygen.core.syntax.string.*
+import oxygen.meta.k0.*
 import scala.annotation.targetName
 
 trait StrictEnum[A] {
@@ -43,5 +44,21 @@ object StrictEnum {
 
   @targetName("make_values")
   def make[A: {TypeTag, EnumEncoding as enc}](values: Seq[A]): StrictEnum[A] = make[A](values, enc.encodeMany)
+
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
+  //      Generic
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
+
+  inline def deriveNel[A: TypeTag](encode: A => NonEmptyList[String]): StrictEnum[A] = {
+    val values: Seq[A] = SumGeneric.EnumGeneric.deriveEnum.strictEnum.values[A]
+    StrictEnum.make[A](values, encode)
+  }
+
+  inline def deriveSingle[A: TypeTag](encode: A => String): StrictEnum[A] = StrictEnum.deriveNel[A](a => NonEmptyList.one(encode(a)))
+  inline def derive[A: TypeTag](encode: A => String): StrictEnum[A] = StrictEnum.deriveNel[A](a => NonEmptyList.one(encode(a)))
+
+  inline def derive[A: {TypeTag, EnumEncoding as enc}]: StrictEnum[A] = StrictEnum.deriveNel[A](enc.encodeMany)
+
+  inline def derived[A: {TypeTag, EnumEncoding}]: StrictEnum[A] = StrictEnum.derive[A]
 
 }

@@ -1,6 +1,6 @@
 package oxygen.sql.schema
 
-import oxygen.meta.*
+import oxygen.meta.k0.*
 import oxygen.predef.core.*
 import oxygen.quoted.*
 import oxygen.sql.generic.typeclass.*
@@ -71,15 +71,15 @@ object TableRepr {
   }
 
   private def derivedImpl[A: Type](using quotes: Quotes): Expr[TableRepr.Typed[A, ?, ?]] = {
-    given g: K0.ProductGeneric[A] =
-      K0.ProductGeneric.of[A](K0.Derivable.Config())
+    given g: ProductGeneric[A] =
+      ProductGeneric.of[A](Derivable.Config())
 
     val expr: Expr[TableRepr.Typed[A, ?, ?]] =
       DeriveProductRowRepr.populateFields[A].defineAndUse {
         DeriveTableRepr[A](_).derive
       }
 
-    MacroUtil.macroShowExprWhen(expr, g.annotations.optionalOf[K0.annotation.showDerivation[TableRepr]].orElse(g.annotations.optionalOf[K0.annotation.showAllDerivation]))
+    MacroUtil.macroShowExprWhen(expr, g.annotations.optionalOf[showDerivation[TableRepr]].orElse(g.annotations.optionalOf[showAllDerivation]))
   }
 
   transparent inline def derived[A]: TableRepr.Typed[A, ?, ?] = ${ derivedImpl[A] }

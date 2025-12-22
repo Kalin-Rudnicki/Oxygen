@@ -2,13 +2,14 @@ package oxygen.json.generic
 
 import oxygen.json.*
 import oxygen.meta.{*, given}
+import oxygen.meta.k0.*
 import oxygen.predef.core.*
 import scala.quoted.*
 
 final class DeriveProductJsonEncoder[A](
-    instances: K0.Expressions[JsonEncoder, A],
-)(using Quotes, Type[JsonEncoder.ObjectEncoder], Type[A], K0.ProductGeneric[A])
-    extends K0.Derivable.ProductDeriver[JsonEncoder.ObjectEncoder, A] {
+    instances: Expressions[JsonEncoder, A],
+)(using Quotes, Type[JsonEncoder.ObjectEncoder], Type[A], ProductGeneric[A])
+    extends Derivable.ProductDeriver[JsonEncoder.ObjectEncoder, A] {
 
   private def makeEncodeJsonAST(value: Expr[A]): Expr[Json.Obj] = {
     val fields: Growable[Expr[Option[(String, Json)]]] =

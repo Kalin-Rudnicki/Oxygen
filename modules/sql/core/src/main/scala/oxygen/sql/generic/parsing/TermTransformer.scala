@@ -1,6 +1,6 @@
 package oxygen.sql.generic.parsing
 
-import oxygen.meta.*
+import oxygen.meta.k0.*
 import oxygen.quoted.*
 import scala.quoted.*
 
@@ -104,7 +104,7 @@ private[generic] object TermTransformer {
     override protected def convertTermInternal(term: Term)(using Quotes): Term = term.select(sel.symbol)
   }
 
-  final case class FromProductGenericField(g: K0.ProductGeneric[?], field: g.Field[?]) extends Transform {
+  final case class FromProductGenericField(g: ProductGeneric[?], field: g.Field[?]) extends Transform {
     override def inTpe: TypeRepr = g.typeRepr.widen
     override def outTpe: TypeRepr = field.typeRepr.widen
     override protected def convertTermInternal(term: Term)(using Quotes): Term = field.fromParentTerm(term)

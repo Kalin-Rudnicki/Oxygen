@@ -1,6 +1,6 @@
 package oxygen.sql.generic.generation
 
-import oxygen.meta.*
+import oxygen.meta.k0.*
 import oxygen.predef.core.*
 import oxygen.quoted.*
 import oxygen.sql.generic.model.*
@@ -25,12 +25,12 @@ final case class FragmentBuilder(inputs: List[InputPart])(using Quotes) {
   private val symIdxMap: Map[Symbol, Int] =
     nonConstInputParams.map(_.param.sym).zipWithIndex.toMap
 
-  private val tmp: (TypeRepr, Option[K0.ProductGeneric[?]]) =
+  private val tmp: (TypeRepr, Option[ProductGeneric[?]]) =
     nonConstInputParams match {
       case Nil      => (TypeRepr.of[Any], None)
       case i :: Nil => (i.param.tpe, None)
       case is       =>
-        val gen = K0.ProductGeneric.ofTuple(is.map(_.nonConstInputType))
+        val gen = ProductGeneric.ofTuple(is.map(_.nonConstInputType))
         (gen.typeRepr, gen.some)
     }
 

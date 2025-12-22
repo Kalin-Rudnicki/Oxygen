@@ -1,6 +1,7 @@
 package oxygen.sql.generic.typeclass
 
 import oxygen.meta.{*, given}
+import oxygen.meta.k0.*
 import oxygen.predef.core.*
 import oxygen.sql.*
 import oxygen.sql.error.*
@@ -8,9 +9,9 @@ import oxygen.sql.schema.*
 import scala.quoted.*
 
 final class DeriveProductResultDecoder[A](
-    instances: K0.Expressions[ResultDecoder, A],
-)(using Quotes, Type[ResultDecoder], Type[A], K0.ProductGeneric[A])
-    extends K0.Derivable.ProductDeriver[ResultDecoder, A] {
+    instances: Expressions[ResultDecoder, A],
+)(using Quotes, Type[ResultDecoder], Type[A], ProductGeneric[A])
+    extends Derivable.ProductDeriver[ResultDecoder, A] {
 
   private def makeSize(using Quotes): Expr[Int] =
     generic.mapChildren.foldLeftExpr[Int](Expr(0)) { [i] => (_, _) ?=> (field: generic.Field[i], acc: Expr[Int]) =>

@@ -3,9 +3,14 @@ package oxygen.core.typeclass
 import java.time.*
 import java.util.{TimeZone, UUID}
 import oxygen.core.*
-import oxygen.core.syntax.string.*
-import oxygen.core.syntax.throwable.*
+import oxygen.core.collection.*
+import oxygen.core.syntax.common.*
+import oxygen.meta.{*, given}
+import oxygen.meta.k0.*
+import oxygen.quoted.*
+import scala.annotation.Annotation
 import scala.collection.mutable
+import scala.quoted.*
 
 trait Show[A] {
 
@@ -14,7 +19,7 @@ trait Show[A] {
   def writeTo(builder: mutable.StringBuilder, value: A): Unit = builder.append(show(value))
 
 }
-object Show extends ShowLowPriority.LowPriority1 {
+object Show extends ShowLowPriority.LowPriority1, Derivable[Show] {
 
   inline def apply[A: Show as ev]: Show[A] = ev
 
@@ -158,6 +163,117 @@ object Show extends ShowLowPriority.LowPriority1 {
     given valueWithShownToShown: [A: Show as s] => Conversion[A, ValueWithShown[A]] = ValueWithShown.show(_)
 
   }
+
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
+  //      Generic
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
+
+  object annotation {
+
+    sealed trait obfuscate extends Annotation derives FromExprT
+    object obfuscate {
+
+      final case class map(char: Char) extends obfuscate
+      final case class const(str: String) extends obfuscate
+
+    }
+
+    final case class hide() extends Annotation derives FromExprT
+
+    final case class fieldName(name: String) extends Annotation derives FromExprT
+
+    final case class typeName(name: String) extends Annotation derives FromExprT
+
+  }
+
+  override protected def productDeriver[A](using Quotes, Type[Show], Type[A], ProductGeneric[A], Derivable[Show]): Derivable.ProductDeriver[Show, A] =
+    Derivable.ProductDeriver.withInstances[Show, A] { instances =>
+      new Derivable.ProductDeriver.Split[Show, A] {
+
+        private def makeWriteTo(builder: Expr[mutable.StringBuilder], value: Expr[A]): Expr[Unit] =
+          generic.mapChildren
+            .map[Option[Growable[StringExpr]]] { [b] => (_, _) ?=> (field: generic.Field[b]) =>
+              val valueExpr: Option[StringExpr] =
+                (field.annotations.optionalOfValue[Show.annotation.obfuscate], field.annotations.optionalOfValue[Show.annotation.hide]) match {
+                  case (None, None) =>
+                    StringExpr.StrBuilder { builder => '{ ${ field.getExpr(instances) }.writeTo($builder, ${ field.fromParent(value) }) } }.some
+                  case (Some(Show.annotation.obfuscate.map(char)), None) =>
+                    StringExpr.StrBuilder { builder => '{ $builder.append(${ field.getExpr(instances) }.show(${ field.fromParent(value) }).map { _ => ${ Expr(char) } }) } }.some
+                  case (Some(Show.annotation.obfuscate.const(str)), None) =>
+                    StringExpr.const(str).some
+                  case (None, Some(_))    => None
+                  case (Some(_), Some(_)) => report.errorAndAbort("You can not both hide and obfuscate a field")
+                }
+
+              valueExpr.map { value =>
+                Growable(
+                  StringExpr.const(field.annotations.optionalOfValue[annotation.fieldName].fold(field.name)(_.name)),
+                  StringExpr.const(" = "),
+                  value,
+                )
+              }
+            }
+            .flatMap(identity)
+            .surround(
+              Growable.single(StringExpr.const(generic.annotations.optionalOfValue[annotation.typeName].fold(generic.label)(_.name) + "(")),
+              Growable.single(StringExpr.const(", ")),
+              Growable.single(StringExpr.const(")")),
+            )
+            .flatten
+            .exprMkStringTo(builder)
+
+        override def deriveCaseClass(generic: ProductGeneric.CaseClassGeneric[A]): Expr[Show[A]] =
+          '{
+            new Show.PreferBuffer[A] {
+              override def writeTo(builder: mutable.StringBuilder, value: A): Unit = ${ makeWriteTo('builder, 'value) }
+            }
+          }
+
+        override def deriveAnyVal[B: Type](generic: ProductGeneric.AnyValGeneric[A, B]): Expr[Show[A]] =
+          '{
+            new Show[A] {
+              override def show(value: A): String =
+                ${ generic.field.getExpr(instances) }.show(${ generic.singleField.unwrap('value) })
+              override def writeTo(builder: mutable.StringBuilder, value: A): Unit =
+                ${ generic.field.getExpr(instances) }.writeTo(builder, ${ generic.singleField.unwrap('value) })
+            }
+          }
+
+        override def deriveCaseObject(generic: ProductGeneric.CaseObjectGeneric[A]): Expr[Show[A]] =
+          '{
+            new Show[A] {
+              override def show(value: A): String = ${ Expr(generic.annotations.optionalOfValue[annotation.typeName].fold(generic.label)(_.name)) }
+            }
+          }
+
+      }
+    }
+
+  override protected def sumDeriver[A](using Quotes, Type[Show], Type[A], SumGeneric[A], Derivable[Show]): Derivable.SumDeriver[Show, A] =
+    Derivable.SumDeriver.withInstances[Show, A] { instances =>
+      new Derivable.SumDeriver[Show, A] {
+
+        private def showChild(builder: Expr[mutable.StringBuilder], value: Expr[A]): Expr[Unit] =
+          generic.matcher.instance[Unit](value) { [b <: A] => (_, _) ?=> (kase: generic.Case[b]) =>
+            kase.caseExtractor.withRHS { bValue =>
+              '{ ${ kase.getExpr(instances) }.writeTo($builder, $bValue) }
+            }
+          }
+
+        override def derive: Expr[Show[A]] =
+          '{
+            new Show.PreferBuffer[A] {
+              override def writeTo(builder: mutable.StringBuilder, value: A): Unit = {
+                builder.append(${ Expr(generic.annotations.optionalOfValue[annotation.typeName].fold(generic.label)(_.name) + ".") })
+                ${ showChild('builder, 'value) }
+              }
+            }
+          }
+
+      }
+    }
+
+  inline def derived[A]: Show[A] = ${ derivedImpl[A] }
 
 }
 

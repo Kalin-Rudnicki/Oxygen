@@ -1,6 +1,6 @@
 package oxygen.cli
 
-import oxygen.predef.base.*
+import oxygen.predef.core.*
 
 enum HelpType { case Help, HelpExtra }
 object HelpType {

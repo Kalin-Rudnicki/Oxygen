@@ -2,13 +2,14 @@ package oxygen.json.generic
 
 import oxygen.json.*
 import oxygen.meta.{*, given}
+import oxygen.meta.k0.*
 import oxygen.predef.core.*
 import scala.quoted.*
 
 final class DeriveProductJsonDecoder[A](
-    instances: K0.Expressions[JsonDecoder, A],
-)(using Quotes, Type[JsonDecoder.ObjectDecoder], Type[A], K0.ProductGeneric[A])
-    extends K0.Derivable.ProductDeriver[JsonDecoder.ObjectDecoder, A] {
+    instances: Expressions[JsonDecoder, A],
+)(using Quotes, Type[JsonDecoder.ObjectDecoder], Type[A], ProductGeneric[A])
+    extends Derivable.ProductDeriver[JsonDecoder.ObjectDecoder, A] {
 
   private def makeDecodeJsonAST(map: Expr[Map[String, Json]]): Expr[Either[JsonError, A]] =
     generic.instantiate.either[JsonError] { [a] => (_, _) ?=> (field: generic.Field[a]) =>

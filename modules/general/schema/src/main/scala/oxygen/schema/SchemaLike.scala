@@ -2,7 +2,7 @@ package oxygen.schema
 
 import java.util.UUID
 import oxygen.core.{PlatformCompat, SourcePosition}
-import oxygen.meta.K0
+import oxygen.meta.k0.*
 import oxygen.predef.core.*
 import scala.util.Try
 
@@ -37,7 +37,7 @@ trait SchemaLike[A] { self =>
     transformOptionObscure(a => Try { ab(a) }.toOption, ba)
 
   inline final def transformAuto[B: TypeTag](using pos: SourcePosition): S[B] = {
-    val (ab, ba) = K0.ProductGeneric.deriveTransform[A, B]
+    val (ab, ba) = ProductGeneric.deriveTransform[A, B]
     transform[B](ab, ba)
   }
 

@@ -3,6 +3,7 @@ package oxygen.ui.web
 import oxygen.http.core.RequestDecodingFailure
 import oxygen.http.core.partial.{PartialParamCodec, PartialPathCodec}
 import oxygen.meta.*
+import oxygen.meta.k0.*
 import oxygen.predef.core.*
 import oxygen.schema.*
 import scala.annotation.tailrec
@@ -36,7 +37,7 @@ trait PageCodec[A] {
   final def transformOption[B](ab: A => Option[B], ba: B => A): PageCodec[B] = this.transformResult(ab(_).asRight, ba)
 
   inline final def autoTransform[B]: PageCodec[B] = {
-    val (ab, ba) = K0.ProductGeneric.deriveTransform[A, B]
+    val (ab, ba) = ProductGeneric.deriveTransform[A, B]
     transform(ab, ba)
   }
 
@@ -217,7 +218,7 @@ object PageCodec {
   object FromDecodeCases {
 
     private def derivedImpl[A: Type](using Quotes): Expr[FromDecodeCases[A]] = {
-      val gen: K0.SumGeneric[A] = K0.SumGeneric.of[A]
+      val gen: SumGeneric[A] = SumGeneric.of[A]
       gen.cacheVals.summonTypeClasses[PageCodec]().defineAndUse { instances =>
         def schemas: List[Expr[PageCodec[? <: A]]] =
           gen.mapChildren.mapExpr[PageCodec[? <: A]] { [b <: A] => (_, _) ?=> (kase: gen.Case[b]) => kase.getExpr(instances) }.to[List]

@@ -1,6 +1,7 @@
 package oxygen.json
 
 import java.time.*
+import oxygen.meta.k0.*
 import oxygen.predef.test.*
 
 object JsonSpec extends OxygenSpecDefault {
@@ -68,6 +69,68 @@ object JsonSpec extends OxygenSpecDefault {
 
   final case class MyClass2(field: MyClass1) derives JsonCodec
 
+  object NestedSums {
+
+    sealed trait UnrollNoDiscriminator derives JsonCodec
+    object UnrollNoDiscriminator {
+
+      sealed trait Case1 extends UnrollNoDiscriminator
+      sealed trait Case2 extends UnrollNoDiscriminator
+
+      case object A extends Case1
+      case object B extends Case1
+      case object C extends Case2
+      case object D extends Case2
+
+    }
+
+    @jsonDiscriminator("type")
+    sealed trait UnrollWithDiscriminator derives JsonCodec
+    object UnrollWithDiscriminator {
+
+      sealed trait Case1 extends UnrollWithDiscriminator
+      sealed trait Case2 extends UnrollWithDiscriminator
+
+      case object A extends Case1
+      case object B extends Case1
+      case object C extends Case2
+      case object D extends Case2
+
+    }
+
+    @overrideAllUnrollStrategy(SumGeneric.UnrollStrategy.Nested)
+    sealed trait NestedNoDiscriminator derives JsonCodec
+    object NestedNoDiscriminator {
+
+      sealed trait Case1 extends NestedNoDiscriminator
+      sealed trait Case2 extends NestedNoDiscriminator
+
+      case object A extends Case1
+      case object B extends Case1
+      case object C extends Case2
+      case object D extends Case2
+
+    }
+
+    @overrideAllUnrollStrategy(SumGeneric.UnrollStrategy.Nested)
+    @jsonDiscriminator("type1")
+    sealed trait NestedWithDiscriminator derives JsonCodec
+    object NestedWithDiscriminator {
+
+      @jsonDiscriminator("type2")
+      sealed trait Case1 extends NestedWithDiscriminator
+      @jsonDiscriminator("type3")
+      sealed trait Case2 extends NestedWithDiscriminator
+
+      case object A extends Case1
+      case object B extends Case1
+      case object C extends Case2
+      case object D extends Case2
+
+    }
+
+  }
+
   override def testSpec: TestSpec =
     suite("JsonSpec")(
       suite("provided instances")(
@@ -118,6 +181,32 @@ object JsonSpec extends OxygenSpecDefault {
         suite("Sum3")(
           directRoundTripTest[Sum3]("""{"type":"c1","f1":1}""")(Sum3.Case1(1)),
           directRoundTripTest[Sum3]("""{"type":"Case2","b":true}""")(Sum3.Case2(true)),
+        ),
+        suite("NestedSums")(
+          suite("UnrollNoDiscriminator")(
+            directRoundTripTest[NestedSums.UnrollNoDiscriminator]("""{"A":{}}""")(NestedSums.UnrollNoDiscriminator.A),
+            directRoundTripTest[NestedSums.UnrollNoDiscriminator]("""{"B":{}}""")(NestedSums.UnrollNoDiscriminator.B),
+            directRoundTripTest[NestedSums.UnrollNoDiscriminator]("""{"C":{}}""")(NestedSums.UnrollNoDiscriminator.C),
+            directRoundTripTest[NestedSums.UnrollNoDiscriminator]("""{"D":{}}""")(NestedSums.UnrollNoDiscriminator.D),
+          ),
+          suite("UnrollWithDiscriminator")(
+            directRoundTripTest[NestedSums.UnrollWithDiscriminator]("""{"type":"A"}""")(NestedSums.UnrollWithDiscriminator.A),
+            directRoundTripTest[NestedSums.UnrollWithDiscriminator]("""{"type":"B"}""")(NestedSums.UnrollWithDiscriminator.B),
+            directRoundTripTest[NestedSums.UnrollWithDiscriminator]("""{"type":"C"}""")(NestedSums.UnrollWithDiscriminator.C),
+            directRoundTripTest[NestedSums.UnrollWithDiscriminator]("""{"type":"D"}""")(NestedSums.UnrollWithDiscriminator.D),
+          ),
+          suite("NestedNoDiscriminator")(
+            directRoundTripTest[NestedSums.NestedNoDiscriminator]("""{"Case1":{"A":{}}}""")(NestedSums.NestedNoDiscriminator.A),
+            directRoundTripTest[NestedSums.NestedNoDiscriminator]("""{"Case1":{"B":{}}}""")(NestedSums.NestedNoDiscriminator.B),
+            directRoundTripTest[NestedSums.NestedNoDiscriminator]("""{"Case2":{"C":{}}}""")(NestedSums.NestedNoDiscriminator.C),
+            directRoundTripTest[NestedSums.NestedNoDiscriminator]("""{"Case2":{"D":{}}}""")(NestedSums.NestedNoDiscriminator.D),
+          ),
+          suite("NestedWithDiscriminator")(
+            directRoundTripTest[NestedSums.NestedWithDiscriminator]("""{"type1":"Case1","type2":"A"}""")(NestedSums.NestedWithDiscriminator.A),
+            directRoundTripTest[NestedSums.NestedWithDiscriminator]("""{"type1":"Case1","type2":"B"}""")(NestedSums.NestedWithDiscriminator.B),
+            directRoundTripTest[NestedSums.NestedWithDiscriminator]("""{"type1":"Case2","type3":"C"}""")(NestedSums.NestedWithDiscriminator.C),
+            directRoundTripTest[NestedSums.NestedWithDiscriminator]("""{"type1":"Case2","type3":"D"}""")(NestedSums.NestedWithDiscriminator.D),
+          ),
         ),
       ),
       suite("string transform")(

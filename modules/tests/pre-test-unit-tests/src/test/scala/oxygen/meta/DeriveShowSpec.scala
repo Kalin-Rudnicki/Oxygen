@@ -1,8 +1,7 @@
 package oxygen.meta
 
-import oxygen.core.generic.ShowGeneric.annotation.*
-import oxygen.core.generic.derived
 import oxygen.core.typeclass.Show
+import oxygen.core.typeclass.Show.annotation.*
 import oxygen.predef.test.*
 
 object DeriveShowSpec extends OxygenSpecDefault {

@@ -1,12 +1,12 @@
 package oxygen.ui.web.defaults
 
-import oxygen.meta.K0
+import oxygen.meta.k0.*
 import oxygen.ui.web.create.*
 
 object InlinePseudoClassStyles {
 
   private val all: Seq[CssBuilder] =
-    K0.SumGeneric.EnumGeneric.deriveEnum.lax.values[CssBuilder]
+    SumGeneric.EnumGeneric.deriveEnum.lax.values[CssBuilder]
 
   private def single(b: CssBuilder): String = {
     val mods: Seq[b.InlinePseudoAttr] =

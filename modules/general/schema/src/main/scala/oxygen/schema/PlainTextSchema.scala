@@ -4,7 +4,7 @@ import java.time.*
 import java.util.{TimeZone, UUID}
 import oxygen.core.{SourcePosition, TypeTag}
 import oxygen.crypto.model.{BearerToken, JWT, Password}
-import oxygen.meta.K0
+import oxygen.meta.k0.*
 import oxygen.predef.core.*
 import scala.quoted.*
 
@@ -264,10 +264,10 @@ object PlainTextSchema extends PlainTextSchemaLowPriority.LowPriority1 {
 
   private def deriveWrappedImpl[A: Type](using Quotes): Expr[PlainTextSchema[A]] = {
     type B
-    val wrapping = K0.ProductGeneric.extractSingleCaseClassField[A, B]
+    val wrapping: ProductGeneric.SingleFieldCaseClassGeneric[A, B] = ProductGeneric.SingleFieldCaseClassGeneric.ofTypeField[A, B]
     given Type[B] = wrapping.field.tpe
 
-    '{ ${ wrapping.field.summonTypeClass[PlainTextSchema] }.transform[A](${ wrapping.wrapExpr }, ${ wrapping.unwrapExpr }) }
+    '{ ${ wrapping.field.summonTypeClass[PlainTextSchema] }.transform[A](${ wrapping.singleField.wrapExpr }, ${ wrapping.singleField.unwrapExpr }) }
   }
 
   /**

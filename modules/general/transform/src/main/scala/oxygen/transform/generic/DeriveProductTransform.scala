@@ -1,6 +1,6 @@
 package oxygen.transform.generic
 
-import oxygen.meta.K0.*
+import oxygen.meta.k0.*
 import oxygen.predef.core.*
 import oxygen.quoted.*
 import oxygen.transform.*

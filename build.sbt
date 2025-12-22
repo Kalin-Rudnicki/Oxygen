@@ -87,7 +87,6 @@ lazy val `oxygen-modules-jvm`: Project =
       `oxygen-cli`.jvm,
       `oxygen-executable`.jvm,
       `oxygen-json`.jvm,
-      `oxygen-meta`.jvm,
       `oxygen-quoted`.jvm,
       `oxygen-schema`.jvm,
       `oxygen-transform`.jvm,
@@ -131,7 +130,6 @@ lazy val `oxygen-modules-js`: Project =
       `oxygen-cli`.js,
       `oxygen-executable`.js,
       `oxygen-json`.js,
-      `oxygen-meta`.js,
       `oxygen-quoted`.js,
       `oxygen-schema`.js,
       `oxygen-transform`.js,
@@ -167,7 +165,6 @@ lazy val `oxygen-modules-native`: Project =
       `oxygen-cli`.native,
       `oxygen-executable`.native,
       `oxygen-json`.native,
-      `oxygen-meta`.native,
       `oxygen-quoted`.native,
       `oxygen-schema`.native,
       `oxygen-transform`.native,
@@ -212,6 +209,9 @@ lazy val `oxygen-core`: CrossProject =
       buildInfoKeys := Seq[BuildInfoKey](version),
       buildInfoPackage := "oxygen.core",
     )
+    .dependsOn(
+      `oxygen-quoted` % testAndCompile,
+    )
 
 lazy val `oxygen-cli`: CrossProject =
   crossProject(JSPlatform, JVMPlatform, NativePlatform)
@@ -252,7 +252,7 @@ lazy val `oxygen-json`: CrossProject =
       description := "Why not run your own json library... Not enough exist already...",
     )
     .dependsOn(
-      `oxygen-meta` % testAndCompile,
+      `oxygen-core` % testAndCompile,
     )
 
 lazy val `oxygen-crypto-model`: CrossProject =
@@ -283,20 +283,6 @@ lazy val `oxygen-crypto-service`: Project =
     .dependsOn(
       `oxygen-crypto-model`.jvm % testAndCompile,
       `oxygen-zio`.jvm % testAndCompile,
-    )
-
-lazy val `oxygen-meta`: CrossProject =
-  crossProject(JSPlatform, JVMPlatform, NativePlatform)
-    .crossType(CrossType.Pure)
-    .in(file("modules/general/meta"))
-    .settings(
-      publishedProjectSettings,
-      name := "oxygen-meta",
-      description := "Metaprogramming for scala-3.",
-    )
-    .dependsOn(
-      `oxygen-core` % testAndCompile,
-      `oxygen-quoted` % testAndCompile,
     )
 
 lazy val `oxygen-quoted`: CrossProject =
@@ -385,7 +371,7 @@ lazy val `oxygen-transform`: CrossProject =
       description := "Transform models between api/domain, domain/db, etc",
     )
     .dependsOn(
-      `oxygen-meta` % testAndCompile,
+      `oxygen-core` % testAndCompile,
       `oxygen-test` % Test,
     )
 

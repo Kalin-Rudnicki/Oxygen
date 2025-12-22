@@ -1,6 +1,6 @@
 package oxygen.sql.schema
 
-import oxygen.meta.*
+import oxygen.meta.k0.*
 import oxygen.predef.core.*
 import oxygen.sql.generic.typeclass.*
 import scala.quoted.*
@@ -22,13 +22,13 @@ final case class Columns[A](columns: ArraySeq[Column]) {
   def `(ref.a, ref.b, ref.c)`(ref: String): String = `ref.a, ref.b, ref.c`(ref).surroundIfMulti
 
 }
-object Columns extends K0.Derivable[Columns] {
+object Columns extends Derivable[Columns] {
 
-  override protected def productDeriver[A](using Quotes, Type[Columns], Type[A], K0.ProductGeneric[A], K0.Derivable[Columns]): K0.Derivable.ProductDeriver[Columns, A] =
-    K0.Derivable.ProductDeriver.withInstances[Columns, A] { DeriveProductColumns(_) }
+  override protected def productDeriver[A](using Quotes, Type[Columns], Type[A], ProductGeneric[A], Derivable[Columns]): Derivable.ProductDeriver[Columns, A] =
+    Derivable.ProductDeriver.withInstances[Columns, A] { DeriveProductColumns(_) }
 
-  override protected def sumDeriver[A](using Quotes, Type[Columns], Type[A], K0.SumGeneric[A], K0.Derivable[Columns]): K0.Derivable.SumDeriver[Columns, A] =
-    K0.Derivable.SumDeriver.notSupported
+  override protected def sumDeriver[A](using Quotes, Type[Columns], Type[A], SumGeneric[A], Derivable[Columns]): Derivable.SumDeriver[Columns, A] =
+    Derivable.SumDeriver.notSupported
 
   override inline def derived[A]: Columns[A] = ${ derivedImpl[A] }
 

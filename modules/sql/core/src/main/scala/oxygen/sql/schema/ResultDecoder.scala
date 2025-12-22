@@ -1,6 +1,6 @@
 package oxygen.sql.schema
 
-import oxygen.meta.*
+import oxygen.meta.k0.*
 import oxygen.predef.core.*
 import oxygen.sql.error.QueryError
 import oxygen.sql.generic.typeclass.*
@@ -36,7 +36,7 @@ trait ResultDecoder[+A] {
   final def optional: ResultDecoder[Option[A]] = ResultDecoder.OptionalDecoder(this)
 
 }
-object ResultDecoder extends K0.Derivable[ResultDecoder] {
+object ResultDecoder extends Derivable[ResultDecoder] {
 
   //////////////////////////////////////////////////////////////////////////////////////////////////////
   //      Instances
@@ -149,11 +149,11 @@ object ResultDecoder extends K0.Derivable[ResultDecoder] {
   //      Generic
   //////////////////////////////////////////////////////////////////////////////////////////////////////
 
-  override protected def productDeriver[A](using Quotes, Type[ResultDecoder], Type[A], K0.ProductGeneric[A], K0.Derivable[ResultDecoder]): K0.Derivable.ProductDeriver[ResultDecoder, A] =
-    K0.Derivable.ProductDeriver.withInstances { DeriveProductResultDecoder(_) }
+  override protected def productDeriver[A](using Quotes, Type[ResultDecoder], Type[A], ProductGeneric[A], Derivable[ResultDecoder]): Derivable.ProductDeriver[ResultDecoder, A] =
+    Derivable.ProductDeriver.withInstances { DeriveProductResultDecoder(_) }
 
-  override protected def sumDeriver[A](using Quotes, Type[ResultDecoder], Type[A], K0.SumGeneric[A], K0.Derivable[ResultDecoder]): K0.Derivable.SumDeriver[ResultDecoder, A] =
-    K0.Derivable.SumDeriver.notSupported
+  override protected def sumDeriver[A](using Quotes, Type[ResultDecoder], Type[A], SumGeneric[A], Derivable[ResultDecoder]): Derivable.SumDeriver[ResultDecoder, A] =
+    Derivable.SumDeriver.notSupported
 
   override inline def derived[A]: ResultDecoder[A] = ${ derivedImpl[A] }
 

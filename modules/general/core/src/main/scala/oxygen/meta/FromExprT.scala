@@ -1,9 +1,11 @@
 package oxygen.meta
 
+import oxygen.core.*
+import oxygen.core.syntax.common.*
 import oxygen.meta.InternalHelpers.*
-import oxygen.meta.K0.*
-import oxygen.predef.core.*
+import oxygen.meta.k0.*
 import oxygen.quoted.*
+import scala.collection.immutable.ArraySeq
 import scala.quoted.*
 
 trait FromExprT[A] { self =>
@@ -236,3 +238,5 @@ object FromExprT extends Derivable[FromExprT] {
   override inline def derived[A]: FromExprT[A] = ${ derivedImpl[A] }
 
 }
+
+given fromExprT_to_fromExpr: [A: {Type as tpe, FromExprT as fet}] => FromExpr[A] = FromExprT.applied(tpe, fet)

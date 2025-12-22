@@ -1,5 +1,6 @@
 package oxygen.meta
 
+import oxygen.meta.k0.*
 import oxygen.predef.test.*
 
 object MacroSpec extends OxygenSpecDefault {
@@ -45,7 +46,7 @@ object MacroSpec extends OxygenSpecDefault {
 
   private inline def transformTest[Source, Target](source: Source, target: Target): TestSpec =
     test(s"$source <-> $target") {
-      val (ab, ba) = K0.ProductGeneric.deriveTransform[Source, Target]
+      val (ab, ba) = ProductGeneric.deriveTransform[Source, Target]
       assertTrue(
         ab(source) == target,
         ba(target) == source,
@@ -83,31 +84,31 @@ object MacroSpec extends OxygenSpecDefault {
       suite("enum values")(
         test("Sum1") {
           assertTrue(
-            K0.SumGeneric.EnumGeneric.deriveEnum.strictEnum.values[Sum1].toSet ==
+            SumGeneric.EnumGeneric.deriveEnum.strictEnum.values[Sum1].toSet ==
               Set(Sum1.Case1, Sum1.Case2, Sum1.Case3),
           )
         },
         test("Sum2") {
           assertTrue(
-            K0.SumGeneric.EnumGeneric.deriveEnum.ignoreSingleCaseClass.values[Sum2].toSet ==
+            SumGeneric.EnumGeneric.deriveEnum.ignoreSingleCaseClass.values[Sum2].toSet ==
               Set(Sum2.Case1, Sum2.Case2, Sum2.Case3),
           )
         },
         test("Sum3") {
           assertTrue(
-            K0.SumGeneric.EnumGeneric.deriveEnum.strictEnum.values[Sum3].toSet ==
+            SumGeneric.EnumGeneric.deriveEnum.strictEnum.values[Sum3].toSet ==
               Set(Sum1.Case1, Sum2.Case1),
           )
         },
         test("Sum4") {
           assertTrue(
-            K0.SumGeneric.EnumGeneric.deriveEnum.ignoreSingleCaseClass.values[Sum4].toSet ==
+            SumGeneric.EnumGeneric.deriveEnum.ignoreSingleCaseClass.values[Sum4].toSet ==
               Set(Sum1.Case1, Sum1.Case2, Sum1.Case3, Sum2.Case1, Sum2.Case2, Sum2.Case3),
           )
         },
         test("Sum5") {
           assertTrue(
-            K0.SumGeneric.EnumGeneric.deriveEnum.strictEnum.values[Sum5].toSet ==
+            SumGeneric.EnumGeneric.deriveEnum.strictEnum.values[Sum5].toSet ==
               Set(Sum1.Case1),
           )
         },
