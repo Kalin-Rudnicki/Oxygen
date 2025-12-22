@@ -131,6 +131,17 @@ object JsonSpec extends OxygenSpecDefault {
 
   }
 
+  final case class FlattenOuterRequired(
+      outer1: Int,
+      outer2: Option[String],
+      @jsonFlatten inner: FlattenInner,
+  ) derives JsonCodec
+
+  final case class FlattenInner(
+      inner1: Int,
+      inner2: Option[String],
+  ) derives JsonCodec
+
   override def testSpec: TestSpec =
     suite("JsonSpec")(
       suite("provided instances")(
@@ -207,6 +218,10 @@ object JsonSpec extends OxygenSpecDefault {
             directRoundTripTest[NestedSums.NestedWithDiscriminator]("""{"type1":"Case2","type3":"C"}""")(NestedSums.NestedWithDiscriminator.C),
             directRoundTripTest[NestedSums.NestedWithDiscriminator]("""{"type1":"Case2","type3":"D"}""")(NestedSums.NestedWithDiscriminator.D),
           ),
+        ),
+        suite("FlattenOuterRequired")(
+          directRoundTripTest("""{"outer1":1,"inner1":2}""")(FlattenOuterRequired(1, None, FlattenInner(2, None))),
+          directRoundTripTest("""{"outer1":1,"outer2":"O","inner1":2,"inner2":"I"}""")(FlattenOuterRequired(1, "O".some, FlattenInner(2, "I".some))),
         ),
       ),
       suite("string transform")(

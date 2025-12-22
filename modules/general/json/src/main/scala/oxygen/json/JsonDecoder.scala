@@ -42,6 +42,10 @@ trait JsonDecoder[A] {
 
   final def toStringDecoder: StringDecoder[A] = StringDecoder.string.mapOrFail(this.decodeJsonString(_).leftMap(_.getMessage))
 
+  final def toObjectDecoderOrThrow: JsonDecoder.ObjectDecoder[A] = this match
+    case self: JsonDecoder.ObjectDecoder[A] => self
+    case _                                  => throw new RuntimeException(s"Not a `JsonDecoder.ObjectDecoder`: ${this.getClass.getName}\n$this")
+
 }
 object JsonDecoder extends Derivable[JsonDecoder.ObjectDecoder], JsonDecoderLowPriority.LowPriority1 {
 
@@ -122,7 +126,7 @@ object JsonDecoder extends Derivable[JsonDecoder.ObjectDecoder], JsonDecoderLowP
 
   trait ObjectDecoder[A] extends JsonDecoder[A] {
 
-    def decodeJsonObjectAST(ast: Json.Obj): Either[JsonError, A]
+    def decodeJsonObjectAST(ast: Json.Obj, fieldMap: Map[String, Json]): Either[JsonError, A]
 
     override def map[B](f: A => B): JsonDecoder.ObjectDecoder[B] =
       JsonDecoder.MappedObject(this, f)
@@ -131,7 +135,7 @@ object JsonDecoder extends Derivable[JsonDecoder.ObjectDecoder], JsonDecoderLowP
       JsonDecoder.MappedOrFailObject(this, f)
 
     override final def decodeJsonAST(ast: Json): Either[JsonError, A] = ast match
-      case ast: Json.Obj => decodeJsonObjectAST(ast)
+      case ast: Json.Obj => decodeJsonObjectAST(ast, ast.valueMap)
       case _             => JsonError(Nil, JsonError.Cause.InvalidType(Json.Type.Object, ast.tpe)).asLeft
 
   }
@@ -301,15 +305,15 @@ object JsonDecoder extends Derivable[JsonDecoder.ObjectDecoder], JsonDecoderLowP
   }
 
   final case class MappedObject[A, B](decoder: JsonDecoder.ObjectDecoder[A], f: A => B) extends JsonDecoder.ObjectDecoder[B] {
-    override def decodeJsonObjectAST(ast: Json.Obj): Either[JsonError, B] =
-      decoder.decodeJsonObjectAST(ast).map(f)
+    override def decodeJsonObjectAST(ast: Json.Obj, fieldMap: Map[String, Json]): Either[JsonError, B] =
+      decoder.decodeJsonObjectAST(ast, fieldMap).map(f)
     override val onMissingFromObject: Option[B] =
       decoder.onMissingFromObject.map(f)
   }
 
   final case class MappedOrFailObject[A, B](decoder: JsonDecoder.ObjectDecoder[A], f: A => Either[String, B]) extends JsonDecoder.ObjectDecoder[B] {
-    override def decodeJsonObjectAST(ast: Json.Obj): Either[JsonError, B] =
-      decoder.decodeJsonObjectAST(ast).flatMap(f(_).leftMap(e => JsonError(Nil, JsonError.Cause.DecodingFailed(e))))
+    override def decodeJsonObjectAST(ast: Json.Obj, fieldMap: Map[String, Json]): Either[JsonError, B] =
+      decoder.decodeJsonObjectAST(ast, fieldMap).flatMap(f(_).leftMap(e => JsonError(Nil, JsonError.Cause.DecodingFailed(e))))
     override val onMissingFromObject: Option[B] =
       decoder.onMissingFromObject.flatMap(f(_).toOption)
   }

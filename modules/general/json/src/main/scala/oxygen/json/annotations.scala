@@ -10,3 +10,5 @@ final case class jsonField(name: String) extends Annotation derives ToExprT, Fro
 final case class jsonType(name: String) extends Annotation derives ToExprT, FromExprT
 
 final case class jsonDiscriminator(name: String) extends Annotation derives ToExprT, FromExprT
+
+final case class jsonFlatten() extends Annotation derives ToExprT, FromExprT
