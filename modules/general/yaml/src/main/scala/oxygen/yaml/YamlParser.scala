@@ -2,6 +2,7 @@ package oxygen.yaml
 
 import scala.collection.mutable
 
+@scala.annotation.nowarn // TODO (KR) : remove
 final class YamlParser private (string: String) {
 
   private object sb {
@@ -23,6 +24,7 @@ final class YamlParser private (string: String) {
 }
 object YamlParser {
 
+  @scala.annotation.nowarn // TODO (KR) : remove
   def parse(string: String): Either[String, Yaml] = {
     val parser = new YamlParser(string)
 

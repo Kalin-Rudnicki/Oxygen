@@ -15,7 +15,9 @@ object Yaml {
 
   final case class Bool(value: Boolean) extends Yaml.NonEmpty
 
-  final case class Str(value: String, format: Specified[FormatPreference] = ___) extends Yaml.NonEmpty
+  sealed trait Str extends Yaml.NonEmpty
+
+  final case class InlineStr(value: String) extends Yaml.Str
 
   final case class Num(value: BigDecimal) extends Yaml.NonEmpty
 
@@ -33,6 +35,8 @@ object Yaml {
 
   enum FormatPreference derives StrictEnum { case Inline, MultiLine }
 
+  enum QuoteType derives StrictEnum { case Unquoted, SingleQuotes, DoubleQuotes }
+  
   def fromString(string: String): Either[String, Yaml] =
     YamlParser.parse(string)
 
