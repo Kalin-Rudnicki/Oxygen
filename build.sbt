@@ -87,6 +87,7 @@ lazy val `oxygen-modules-jvm`: Project =
       `oxygen-cli`.jvm,
       `oxygen-executable`.jvm,
       `oxygen-json`.jvm,
+      `oxygen-yaml`.jvm,
       `oxygen-meta`.jvm,
       `oxygen-quoted`.jvm,
       `oxygen-schema`.jvm,
@@ -131,6 +132,7 @@ lazy val `oxygen-modules-js`: Project =
       `oxygen-cli`.js,
       `oxygen-executable`.js,
       `oxygen-json`.js,
+      `oxygen-yaml`.js,
       `oxygen-meta`.js,
       `oxygen-quoted`.js,
       `oxygen-schema`.js,
@@ -167,6 +169,7 @@ lazy val `oxygen-modules-native`: Project =
       `oxygen-cli`.native,
       `oxygen-executable`.native,
       `oxygen-json`.native,
+      `oxygen-yaml`.native,
       `oxygen-meta`.native,
       `oxygen-quoted`.native,
       `oxygen-schema`.native,
@@ -250,6 +253,19 @@ lazy val `oxygen-json`: CrossProject =
       publishedProjectSettings,
       name := "oxygen-json",
       description := "Why not run your own json library... Not enough exist already...",
+    )
+    .dependsOn(
+      `oxygen-meta` % testAndCompile,
+    )
+
+lazy val `oxygen-yaml`: CrossProject =
+  crossProject(JSPlatform, JVMPlatform, NativePlatform)
+    .crossType(CrossType.Pure)
+    .in(file("modules/general/yaml"))
+    .settings(
+      publishedProjectSettings,
+      name := "oxygen-yaml",
+      description := "Why not run your own yaml library... Not enough exist already...",
     )
     .dependsOn(
       `oxygen-meta` % testAndCompile,
@@ -548,6 +564,7 @@ lazy val `ut`: CrossProject =
     )
     .dependsOn(
       `oxygen-schema` % testAndCompile,
+      `oxygen-yaml` % testAndCompile,
       `oxygen-zio` % testAndCompile,
       `oxygen-test` % Test,
     )

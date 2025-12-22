@@ -19,6 +19,8 @@ private[json] final class JsonParser private (string: String) {
       str
     }
 
+    override def toString: String = getAndClear()
+    
   }
 
   private inline def fail(): Nothing =
