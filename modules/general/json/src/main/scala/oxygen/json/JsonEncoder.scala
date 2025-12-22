@@ -37,6 +37,10 @@ trait JsonEncoder[A] {
   final def toStringEncoderPretty: StringEncoder[A] = StringEncoder.string.contramap(this.encodeJsonStringPretty)
   final def toStringEncoder: StringEncoder[A] = toStringEncoderCompact
 
+  final def toObjectEncoderOrThrow: JsonEncoder.ObjectEncoder[A] = this match
+    case self: JsonEncoder.ObjectEncoder[A] => self
+    case _                                  => throw new RuntimeException(s"Not a `JsonEncoder.ObjectEncoder`: ${this.getClass.getName}\n$this")
+
 }
 object JsonEncoder extends Derivable[JsonEncoder.ObjectEncoder], JsonEncoderLowPriority.LowPriority1 {
 
@@ -109,7 +113,9 @@ object JsonEncoder extends Derivable[JsonEncoder.ObjectEncoder], JsonEncoderLowP
 
   trait ObjectEncoder[A] extends JsonEncoder[A] {
 
-    override def encodeJsonAST(value: A): Json.Obj
+    def encodeJsonObjectFields(value: A): Growable[(String, Json)]
+
+    override final def encodeJsonAST(value: A): Json.Obj = Json.Obj(encodeJsonObjectFields(value).toArraySeq)
 
     override def contramap[B](f: B => A): JsonEncoder.ObjectEncoder[B] =
       JsonEncoder.ContramappedObject(this, f)
@@ -217,8 +223,8 @@ object JsonEncoder extends Derivable[JsonEncoder.ObjectEncoder], JsonEncoderLowP
   }
 
   final case class ContramappedObject[A, B](encoder: JsonEncoder.ObjectEncoder[A], f: B => A) extends JsonEncoder.ObjectEncoder[B] {
-    override def encodeJsonAST(value: B): Json.Obj =
-      encoder.encodeJsonAST(f(value))
+    override def encodeJsonObjectFields(value: B): Growable[(String, Json)] =
+      encoder.encodeJsonObjectFields(f(value))
     override def addToObject(value: B): Boolean =
       encoder.addToObject(f(value))
   }

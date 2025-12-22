@@ -11,27 +11,39 @@ final class DeriveProductJsonEncoder[A](
 )(using Quotes, Type[JsonEncoder.ObjectEncoder], Type[A], ProductGeneric[A])
     extends Derivable.ProductDeriver[JsonEncoder.ObjectEncoder, A] {
 
-  private def makeEncodeJsonAST(value: Expr[A]): Expr[Json.Obj] = {
-    val fields: Growable[Expr[Option[(String, Json)]]] =
-      generic.mapChildren.mapExpr[Option[(String, Json)]] { [a] => (_, _) ?=> (field: generic.Field[a]) =>
+  private def makeEncodeObjectFields(value: Expr[A]): Expr[Growable[(String, Json)]] = {
+    val fields: Growable[Expr[Growable[(String, Json)]]] =
+      generic.mapChildren.mapExpr[Growable[(String, Json)]] { [a] => (_, _) ?=> (field: generic.Field[a]) =>
 
-        val fieldNameExpr = Expr(field.annotations.optionalOfValue[jsonField].fold(field.name)(_.name))
+        val fieldNameExpr: Expr[String] = Expr(field.annotations.optionalOfValue[jsonField].fold(field.name)(_.name))
+        val instanceExpr: Expr[JsonEncoder[a]] = field.getExpr(instances)
+        val fieldExpr: Expr[a] = field.fromParent(value)
+        val isFlattened: Boolean = field.annotations.optionalOf[jsonFlatten].nonEmpty
 
-        '{
-          Option.when(${ field.getExpr(instances) }.addToObject(${ field.fromParent(value) })) {
-            $fieldNameExpr ->
-              ${ field.getExpr(instances) }.encodeJsonAST(${ field.fromParent(value) })
+        if isFlattened then
+          // TODO (KR) : is there a more type-safe & compile-time way to do this?
+          '{
+            $instanceExpr.toObjectEncoderOrThrow.encodeJsonObjectFields($fieldExpr)
           }
-        }
+        else
+          '{
+            if $instanceExpr.addToObject($fieldExpr) then
+              Growable.single {
+                $fieldNameExpr ->
+                  $instanceExpr.encodeJsonAST($fieldExpr)
+              }
+            else
+              Growable.empty
+          }
       }
 
-    '{ Json.Obj(${ fields.seqToArraySeqExpr }.flatten) }
+    '{ ${ fields.seqToExpr }.flatten }
   }
 
   override def derive: Expr[JsonEncoder.ObjectEncoder[A]] =
     '{
       new JsonEncoder.ObjectEncoder[A] {
-        override def encodeJsonAST(value: A): Json.Obj = ${ makeEncodeJsonAST('value) }
+        override def encodeJsonObjectFields(value: A): Growable[(String, Json)] = ${ makeEncodeObjectFields('value) }
       }
     }
 

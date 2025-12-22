@@ -132,10 +132,10 @@ object IntermediateRepr {
         case schema: JsonSchema.TransformOrFail[?, ?] =>
           val gen = compileJson(schema.underlying, input)
           gen.withJson(schema, JsonTransform(gen.ref, schema.pos))
-        case schema: JsonSchema.TransformProduct[?, ?] =>
+        case schema: JsonSchema.TransformObject[?, ?] =>
           val gen = compileJson(schema.underlying, input)
           gen.withJson(schema, JsonTransform(gen.ref, schema.pos))
-        case schema: JsonSchema.TransformOrFailProduct[?, ?] =>
+        case schema: JsonSchema.TransformOrFailObject[?, ?] =>
           val gen = compileJson(schema.underlying, input)
           gen.withJson(schema, JsonTransform(gen.ref, schema.pos))
 

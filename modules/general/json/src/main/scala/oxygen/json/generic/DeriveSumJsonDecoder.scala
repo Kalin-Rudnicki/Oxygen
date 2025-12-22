@@ -40,7 +40,7 @@ final class DeriveSumJsonDecoder[A](
   private def deriveNoDiscriminator: Expr[JsonDecoder.ObjectDecoder[A]] =
     '{
       new JsonDecoder.ObjectDecoder[A] {
-        override def decodeJsonObjectAST(obj: Json.Obj): Either[JsonError, A] =
+        override def decodeJsonObjectAST(obj: Json.Obj, fieldMap: Map[String, Json]): Either[JsonError, A] =
           obj.value.toList match {
             case (key, value) :: Nil => ${ makeDecodeJsonAST('key, 'value) }
             case _                   => JsonError(Nil, JsonError.Cause.DecodingFailed("Expected single object key, expected one of: " + $validKeysExpr)).asLeft // TODO (KR) : include keys?
@@ -68,7 +68,7 @@ final class DeriveSumJsonDecoder[A](
     val discrimExpr = Expr(discrim)
     '{
       new JsonDecoder.ObjectDecoder[A] {
-        override def decodeJsonObjectAST(obj: Json.Obj): Either[JsonError, A] =
+        override def decodeJsonObjectAST(obj: Json.Obj, fieldMap: Map[String, Json]): Either[JsonError, A] =
           obj.valueMap.get($discrimExpr) match {
             case Some(Json.Str(parsedDiscrim)) => ${ matchOnStr('parsedDiscrim, 'obj) }
             case Some(json)                    => JsonError(JsonError.Path.Field($discrimExpr) :: Nil, JsonError.Cause.InvalidType(Json.Type.String, json.tpe)).asLeft

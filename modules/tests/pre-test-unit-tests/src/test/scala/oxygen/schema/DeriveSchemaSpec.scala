@@ -12,11 +12,11 @@ object DeriveSchemaSpec extends OxygenSpecDefault {
   final case class Product1(
       field1: String,
       field2: Option[Boolean],
-  ) derives JsonSchema.ProductLike
+  ) derives JsonSchema.ObjectLike
 
   final case class Product2(
       @jsonField("product") p: Product1,
-  ) derives JsonSchema.ProductLike
+  ) derives JsonSchema.ObjectLike
   object Product2 {
 
     final case class Wrapped(value: Product2)
@@ -37,7 +37,7 @@ object DeriveSchemaSpec extends OxygenSpecDefault {
       timestamp: Instant,
       date: LocalDate,
       updated: Updated,
-  ) derives JsonSchema.ProductLike
+  ) derives JsonSchema.ObjectLike
 
   final case class Updated(at: Option[Instant])
   object Updated {
@@ -46,14 +46,14 @@ object DeriveSchemaSpec extends OxygenSpecDefault {
 
   enum MyEnum derives StrictEnum { case A, B, C }
 
-  enum Sum1 derives JsonSchema.ProductLike {
+  enum Sum1 derives JsonSchema.ObjectLike {
     @jsonType("_A_") case A
     case B()
     case C(@jsonField("p2") p: Product2)
   }
 
   @jsonDiscriminator("type")
-  enum Sum2 derives JsonSchema.ProductLike {
+  enum Sum2 derives JsonSchema.ObjectLike {
     case A
     @jsonType("_B_") case B()
     case C(@jsonField("p2") p: Product2, p3: Product3, e: MyEnum)
@@ -70,6 +70,17 @@ object DeriveSchemaSpec extends OxygenSpecDefault {
     given PlainTextSchema[Base64OxygenDate] = JsonSchema.deriveWrapped[Base64OxygenDate] @@ PlainTextSchema.Encoding.base64WithPadding
     given JsonSchema[Base64OxygenDate] = JsonSchema.fromPlainText
   }
+
+  final case class FlattenOuterRequired(
+      outer1: Int,
+      outer2: Option[String],
+      @jsonFlatten inner: FlattenInner,
+  ) derives JsonSchema
+
+  final case class FlattenInner(
+      inner1: Int,
+      inner2: Option[String],
+  ) derives JsonSchema
 
   final case class TestProduct(
       ip1: IntPlusOne,
@@ -147,6 +158,16 @@ object DeriveSchemaSpec extends OxygenSpecDefault {
           )
         },
       ),
+      suite("FlattenOuterRequired")(
+        test("works") {
+          val schema: JsonSchema.ProductSchema[FlattenOuterRequired] = JsonSchema[FlattenOuterRequired].asInstanceOf[JsonSchema.ProductSchema[FlattenOuterRequired]]
+          val fields = schema.fields.toList
+          assertTrue(
+            fields.map(_.name) == List("outer1", "outer2", "inner1", "inner2"),
+            fields.find(_.name == "outer1").exists(_.schema == JsonSchema.int),
+          )
+        },
+      ),
       test("compiler") {
         val compiling: Compiled[CompiledSchemaRef] =
           for {
@@ -160,6 +181,7 @@ object DeriveSchemaSpec extends OxygenSpecDefault {
             _ <- Compiled.plain(PlainTextSchema.standardJWT[Product1])
             _ <- Compiled.usingJson[Product2.Wrapped]
             _ <- Compiled.usingJson[Product2.OptWrapped]
+            _ <- Compiled.usingJson[FlattenOuterRequired]
             ref <- Compiled.usingJson[TestProduct]
           } yield ref
 

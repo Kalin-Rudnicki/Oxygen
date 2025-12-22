@@ -163,42 +163,25 @@ sealed trait Generic[A] extends Entity[Any, A] {
     )(
         makeVal: ChildFunction0.FExpr[F],
     ): ValDefinitions[F, A] = {
-      def rec[Out: Type](
-          queue: List[AnyChild],
-          acc: Growable[Expressions.Elem[F, ?]],
-          build: Expressions[F, A] => Expr[Out],
-      )(using Quotes): Term =
-        queue match {
-          case child0 :: tail =>
-            type B <: ChildBound
-            val child: Child[B] = child0.typedAs[B]
-            given Type[B] = child.tpe
+      def makePairs(using Quotes): ArraySeq[(ValDef, Expressions.Elem[F, ?])] =
+        mapChildren.map[(ValDef, Expressions.Elem[F, ?])] { [b <: ChildBound] => (_, _) ?=> (child: Child[b]) =>
+          val childExpr: Expr[F[b]] = makeVal(child)
+          val childTerm: Term = childExpr.toTerm
+          val valDef: ValDef = ValDef.newVal(valName(child.name), valType)(childTerm)
+          val exprElem: Expressions.Elem[F, b] = Expressions.Elem[F, b](summon[Type[b]], valDef.valRef.asExprOf[F[b]])
+          (valDef, exprElem)
+        }.toArraySeq
 
-            ValDef.let(
-              Symbol.spliceOwner,
-              valName(child.name),
-              makeVal(child).toTerm,
-              valType.toFlags,
-            ) { valRef =>
-              rec(
-                tail,
-                acc :+ Expressions.Elem(child.tpe, valRef.asExprOf[F[B]]),
-                build,
-              )
-            }
-          case Nil =>
-            val exprs: Expressions[F, A] = new Expressions[F, A](fTpe, tpe, acc.toArraySeq)
-            build(exprs).toTerm
-        }
+      new ValDefinitions[F, A](
+        { [b] => (_, _) ?=> (build: Expressions[F, A] => Expr[b]) =>
+          val pairs: ArraySeq[(ValDef, Expressions.Elem[F, ?])] = makePairs
+          val valDefs: List[ValDef] = pairs.map(_._1).toList
+          val exprs: Expressions[F, A] = new Expressions[F, A](fTpe, tpe, pairs.map(_._2))
 
-      new ValDefinitions[F, A]([b] =>
-        (_, _) ?=>
-          (build: Expressions[F, A] => Expr[b]) =>
-            rec(
-              children.toList,
-              Growable.empty,
-              build,
-            ).asExprOf[b],
+          val out: Expr[b] = build(exprs)
+          val outWithValDefs: Term = Block.companion.apply(valDefs, out.toTerm)
+          outWithValDefs.asExprOf[b]
+        },
       )
     }
 

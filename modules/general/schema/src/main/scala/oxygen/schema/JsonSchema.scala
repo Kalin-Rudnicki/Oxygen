@@ -27,8 +27,12 @@ sealed trait JsonSchema[A] extends SchemaLike[A] {
   final def @@(encoding: PlainTextSchema.Encoding): PlainTextSchema[A] = PlainTextSchema.JsonEncoded(this) @@ encoding
   final def @@@(encoding: PlainTextSchema.Encoding): JsonSchema[A] = JsonSchema.StringSchema(this @@ encoding)
 
+  final def toProductLikeOrThrow: JsonSchema.ObjectLike[A] = this match
+    case self: JsonSchema.ObjectLike[A] => self
+    case _                              => throw new RuntimeException(s"Not a `JsonEncoder.ObjectEncoder`: ${this.getClass.getName}")
+
 }
-object JsonSchema extends Derivable[JsonSchema.ProductLike], JsonSchemaLowPriority.LowPriority1 {
+object JsonSchema extends Derivable[JsonSchema.ObjectLike], JsonSchemaLowPriority.LowPriority1 {
 
   def apply[A: JsonSchema as schema]: JsonSchema[A] = schema
 
@@ -251,61 +255,70 @@ object JsonSchema extends Derivable[JsonSchema.ProductLike], JsonSchemaLowPriori
       schema: JsonSchema[A],
   )
 
-  sealed trait ProductLike[A] extends JsonSchema[A] {
+  sealed trait ObjectLike[A] extends JsonSchema[A] {
 
-    override final type S[a] = JsonSchema.ProductLike[a]
+    override final type S[a] = JsonSchema.ObjectLike[a]
 
     override val jsonEncoder: JsonEncoder.ObjectEncoder[A]
     override val jsonDecoder: JsonDecoder.ObjectDecoder[A]
 
-    override final def transform[B: TypeTag as newTypeTag](ab: A => B, ba: B => A)(using pos: SourcePosition): JsonSchema.ProductLike[B] =
-      JsonSchema.TransformProduct(this, newTypeTag, ab, ba, pos)
-    override final def transformOrFail[B: TypeTag as newTypeTag](ab: A => Either[String, B], ba: B => A)(using pos: SourcePosition): JsonSchema.ProductLike[B] =
-      JsonSchema.TransformOrFailProduct(this, newTypeTag, ab, ba, pos)
+    override final def transform[B: TypeTag as newTypeTag](ab: A => B, ba: B => A)(using pos: SourcePosition): JsonSchema.ObjectLike[B] =
+      JsonSchema.TransformObject(this, newTypeTag, ab, ba, pos)
+    override final def transformOrFail[B: TypeTag as newTypeTag](ab: A => Either[String, B], ba: B => A)(using pos: SourcePosition): JsonSchema.ObjectLike[B] =
+      JsonSchema.TransformOrFailObject(this, newTypeTag, ab, ba, pos)
+
+    final def root: ObjectLike.Root[?] = this match
+      case root: ObjectLike.Root[?]                       => root
+      case TransformObject(underlying = underlying)       => underlying.root
+      case TransformOrFailObject(underlying = underlying) => underlying.root
 
   }
-  object ProductLike {
+  object ObjectLike {
 
-    def apply[A: JsonSchema.ProductLike as schema]: JsonSchema.ProductLike[A] = schema
+    sealed trait Root[A] extends ObjectLike[A]
 
-    inline def derived[A]: JsonSchema.ProductLike[A] = JsonSchema.derived[A]
+    def apply[A: JsonSchema.ObjectLike as schema]: JsonSchema.ObjectLike[A] = schema
+
+    inline def derived[A]: JsonSchema.ObjectLike[A] = JsonSchema.derived[A]
 
   }
 
-  private[schema] trait ProductSchema[A] extends ProductLike[A] {
+  private[schema] trait ProductSchema[A] extends ObjectLike.Root[A] {
     lazy val fields: ArraySeq[ProductField[?]]
     override protected final def __internalReferenceOf(builder: SchemaLike.ReferenceBuilder): String =
       withHeader("JsonProduct", "fields" -> fields.map { f => s"${f.name}=${builder.referenceOf(f.schema)}" }.mkString("{", ",", "}"))
   }
 
-  private[schema] trait SumSchema[A] extends ProductLike[A] {
+  private[schema] trait SumSchema[A] extends ObjectLike.Root[A] {
     val discriminator: Option[String]
+
     lazy val children: ArraySeq[SumCase[? <: A]]
+
     override protected final def __internalReferenceOf(builder: SchemaLike.ReferenceBuilder): String = discriminator match
       case Some(discriminator) => withHeader("JsonSum", "discriminator" -> discriminator, "children" -> children.map { c => s"${c.name}=${builder.referenceOf(c.schema)}" }.mkString("{", ",", "}"))
       case None                => withHeader("JsonSum", "children" -> children.map { c => s"${c.name}=${builder.referenceOf(c.schema)}" }.mkString("{", ",", "}"))
   }
 
-  private[schema] final case class TransformProduct[A, B] private[JsonSchema] (
-      underlying: ProductLike[A],
+  private[schema] final case class TransformObject[A, B] private[JsonSchema] (
+      underlying: ObjectLike[A],
       typeTag: TypeTag[B],
       ab: A => B,
       ba: B => A,
       pos: SourcePosition,
-  ) extends JsonSchema.ProductLike[B] {
+  ) extends JsonSchema.ObjectLike[B] {
     override protected def __internalReferenceOf(builder: SchemaLike.ReferenceBuilder): String =
       withHeader("Json.Transform", "pos" -> pos.toString, "underlying" -> builder.referenceOf(underlying))
     override val jsonEncoder: JsonEncoder.ObjectEncoder[B] = underlying.jsonEncoder.contramap(ba)
     override val jsonDecoder: JsonDecoder.ObjectDecoder[B] = underlying.jsonDecoder.map(ab)
   }
 
-  private[schema] final case class TransformOrFailProduct[A, B] private[JsonSchema] (
-      underlying: ProductLike[A],
+  private[schema] final case class TransformOrFailObject[A, B] private[JsonSchema] (
+      underlying: ObjectLike[A],
       typeTag: TypeTag[B],
       ab: A => Either[String, B],
       ba: B => A,
       pos: SourcePosition,
-  ) extends JsonSchema.ProductLike[B] {
+  ) extends JsonSchema.ObjectLike[B] {
     override protected def __internalReferenceOf(builder: SchemaLike.ReferenceBuilder): String =
       withHeader("Json.TransformOrFail", "pos" -> pos.toString, "underlying" -> builder.referenceOf(underlying))
     override val jsonEncoder: JsonEncoder.ObjectEncoder[B] = underlying.jsonEncoder.contramap(ba)
@@ -316,9 +329,9 @@ object JsonSchema extends Derivable[JsonSchema.ProductLike], JsonSchemaLowPriori
   //      Generic
   //////////////////////////////////////////////////////////////////////////////////////////////////////
 
-  override protected def productDeriver[A](using Quotes, Type[ProductLike], Type[A], ProductGeneric[A], Derivable[ProductLike]): Derivable.ProductDeriver[ProductLike, A] =
-    Derivable.ProductDeriver.withDisjointInstances[JsonSchema.ProductLike, JsonSchema, A] { instances =>
-      new Derivable.ProductDeriver[JsonSchema.ProductLike, A] {
+  override protected def productDeriver[A](using Quotes, Type[ObjectLike], Type[A], ProductGeneric[A], Derivable[ObjectLike]): Derivable.ProductDeriver[ObjectLike, A] =
+    Derivable.ProductDeriver.withDisjointInstances[JsonSchema.ObjectLike, JsonSchema, A] { instances =>
+      new Derivable.ProductDeriver[JsonSchema.ObjectLike, A] {
 
         private val typeTagExpr: Expr[TypeTag[A]] = Implicits.companion.searchRequiredIgnoreExplanation[TypeTag[A]]
 
@@ -331,17 +344,42 @@ object JsonSchema extends Derivable[JsonSchema.ProductLike], JsonSchemaLowPriori
         private val derivedJsonEncoder: Expr[JsonEncoder.ObjectEncoder[A]] = DeriveProductJsonEncoder[A](jsonEncoderInstances).derive
         private val derivedJsonDecoder: Expr[JsonDecoder.ObjectDecoder[A]] = DeriveProductJsonDecoder[A](jsonDecoderInstances).derive
 
-        private val fieldsExpr: Expr[ArraySeq[ProductField[?]]] =
-          generic.mapChildren
-            .mapExpr[ProductField[?]] { [a] => (_, _) ?=> (field: generic.Field[a]) =>
+        private val fieldsExprs: Growable[Expr[Growable[ProductField[?]]]] =
+          generic.mapChildren.mapExpr[Growable[ProductField[?]]] { [a] => (_, _) ?=> (field: generic.Field[a]) =>
+
+            val fieldName: String = field.annotations.optionalOfValue[jsonField].fold(field.name)(_.name)
+            val instanceExpr: Expr[JsonSchema[a]] = field.getExpr(instances)
+            val isFlattened: Boolean = field.annotations.optionalOf[jsonFlatten].nonEmpty
+
+            def flattenSumErrorString(underlyingType: String): String =
+              s"""Not Supprted : JsonSchema only supports @jsonFlatten on product schema, but got $underlyingType.
+                 |  parent-type: ${generic.typeRepr.showCode}
+                 |   field-name: ${field.name}
+                 |   field-type: ${field.typeRepr.showCode}
+                 |""".stripMargin
+
+            if isFlattened then
               '{
-                ProductField[a](
-                  name = ${ Expr(field.annotations.optionalOfValue[jsonField].fold(field.name)(_.name)) },
-                  schema = ${ field.getExpr(instances) },
+                $instanceExpr.toProductLikeOrThrow match {
+                  case fieldInstance: JsonSchema.ProductSchema[?] => Growable.many(fieldInstance.fields)
+                  case _: JsonSchema.SumSchema[?]                 =>
+                    // TODO (KR) : is there a more type-safe & compile-time way to do this?
+                    throw new UnsupportedOperationException(${ Expr(flattenSumErrorString("sum schema")) })
+                  case _: (JsonSchema.TransformObject[?, ?] | JsonSchema.TransformOrFailObject[?, ?]) =>
+                    // TODO (KR) : is there a more type-safe & compile-time way to do this?
+                    throw new UnsupportedOperationException(${ Expr(flattenSumErrorString("transformed schema")) })
+                }
+              }
+            else
+              '{
+                Growable.single(
+                  ProductField[a](
+                    name = ${ Expr(fieldName) },
+                    schema = $instanceExpr,
+                  ),
                 )
               }
-            }
-            .seqToArraySeqExpr
+          }
 
         override def derive: Expr[ProductSchema[A]] =
           '{
@@ -349,24 +387,24 @@ object JsonSchema extends Derivable[JsonSchema.ProductLike], JsonSchemaLowPriori
               override val typeTag: TypeTag[A] = $typeTagExpr
               override val jsonEncoder: JsonEncoder.ObjectEncoder[A] = $derivedJsonEncoder
               override val jsonDecoder: JsonDecoder.ObjectDecoder[A] = $derivedJsonDecoder
-              override lazy val fields: ArraySeq[ProductField[?]] = $fieldsExpr
+              override lazy val fields: ArraySeq[ProductField[?]] = ${ fieldsExprs.seqToExpr }.flatten.toArraySeq
             }
           }
 
       }
     }
 
-  override protected def sumDeriver[A](using Quotes, Type[ProductLike], Type[A], SumGeneric[A], Derivable[ProductLike]): Derivable.SumDeriver[ProductLike, A] =
-    Derivable.SumDeriver.withInstances[JsonSchema.ProductLike, A] { instances =>
-      new Derivable.SumDeriver[JsonSchema.ProductLike, A] {
+  override protected def sumDeriver[A](using Quotes, Type[ObjectLike], Type[A], SumGeneric[A], Derivable[ObjectLike]): Derivable.SumDeriver[ObjectLike, A] =
+    Derivable.SumDeriver.withInstances[JsonSchema.ObjectLike, A] { instances =>
+      new Derivable.SumDeriver[JsonSchema.ObjectLike, A] {
 
         private val typeTagExpr: Expr[TypeTag[A]] = Implicits.companion.searchRequiredIgnoreExplanation[TypeTag[A]]
 
         private val jsonEncoderInstances: Expressions[JsonEncoder.ObjectEncoder, A] =
-          instances.mapK { [a] => _ ?=> (expr: Expr[JsonSchema.ProductLike[a]]) => '{ $expr.jsonEncoder } }
+          instances.mapK { [a] => _ ?=> (expr: Expr[JsonSchema.ObjectLike[a]]) => '{ $expr.jsonEncoder } }
 
         private val jsonDecoderInstances: Expressions[JsonDecoder.ObjectDecoder, A] =
-          instances.mapK { [a] => _ ?=> (expr: Expr[JsonSchema.ProductLike[a]]) => '{ $expr.jsonDecoder } }
+          instances.mapK { [a] => _ ?=> (expr: Expr[JsonSchema.ObjectLike[a]]) => '{ $expr.jsonDecoder } }
 
         private val derivedJsonEncoder: Expr[JsonEncoder.ObjectEncoder[A]] = DeriveSumJsonEncoder[A](jsonEncoderInstances).derive
         private val derivedJsonDecoder: Expr[JsonDecoder.ObjectDecoder[A]] = DeriveSumJsonDecoder[A](jsonDecoderInstances).derive
@@ -374,9 +412,10 @@ object JsonSchema extends Derivable[JsonSchema.ProductLike], JsonSchemaLowPriori
         private val childrenExpr: Expr[ArraySeq[SumCase[? <: A]]] =
           generic.mapChildren
             .mapExpr[SumCase[? <: A]] { [a <: A] => (_, _) ?=> (kase: generic.Case[a]) =>
+              val caseName: String = kase.annotations.optionalOfValue[jsonType].fold(kase.name)(_.name)
               '{
                 SumCase[a](
-                  name = ${ Expr(kase.annotations.optionalOfValue[jsonType].fold(kase.name)(_.name)) },
+                  name = ${ Expr(caseName) },
                   schema = ${ kase.getExpr(instances) },
                 )
               }
@@ -397,7 +436,7 @@ object JsonSchema extends Derivable[JsonSchema.ProductLike], JsonSchemaLowPriori
       }
     }
 
-  override inline def derived[A]: ProductLike[A] = ${ derivedImpl[A] }
+  override inline def derived[A]: ObjectLike[A] = ${ derivedImpl[A] }
 
   private def deriveWrappedImpl[A: Type](using Quotes): Expr[JsonSchema[A]] = {
     type B
