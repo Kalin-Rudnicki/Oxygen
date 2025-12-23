@@ -17,7 +17,7 @@ final case class SqlColumn(
   def show: String =
     if nullable then s"$columnName $columnType NULL"
     else s"$columnName $columnType NOT NULL"
-  
+
 }
 
 trait SqlSchema[A] {
@@ -168,7 +168,10 @@ object SqlSchema {
           }
         }
 
-      // report.info(resultExpr.showAnsiCode)
+      if gen.name == "TwoInts" then {
+        val inst: SqlSchema[A] = ExprEvaluator.evaluateExpr(resultExpr)
+        report.info(s"=====| COMPILE TIME |=====\n\n${gen.name}\n${inst.columns.map { c => s"\n  - ${c.show}" }.mkString}")
+      }
 
       resultExpr
     }
@@ -185,15 +188,15 @@ object SqlSchema {
 trait SqlTable[A] {
   val tableName: String
   val schema: SqlSchema[A]
-  
+
   final def show: String =
     s"""--- $tableName ---
        |columns (${schema.size}):${schema.columns.map { c => s"\n  - ${c.show}" }.mkString}
        |""".stripMargin
-  
+
 }
 object SqlTable {
-  
+
   def apply[A: SqlTable as table]: SqlTable[A] = table
 
   private def derivedImpl[A: Type](using Quotes): Expr[SqlTable[A]] = {
@@ -207,7 +210,7 @@ object SqlTable {
         }
       }
 
-    report.info(expr.showAnsiCode)
+    // report.info(expr.showAnsiCode)
 
     expr
   }
