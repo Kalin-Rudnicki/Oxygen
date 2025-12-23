@@ -10,7 +10,15 @@ final case class SqlColumn(
     columnName: String,
     columnType: String,
     nullable: Boolean,
-)
+) {
+
+  def prefixed(prefix: String): SqlColumn = copy(columnName = if columnName.isEmpty then prefix else s"${prefix}_$columnName")
+
+  def show: String =
+    if nullable then s"$columnName $columnType NULL"
+    else s"$columnName $columnType NOT NULL"
+  
+}
 
 trait SqlSchema[A] {
 
@@ -24,9 +32,17 @@ trait SqlSchema[A] {
   final def decode(values: ArraySeq[Any]): Either[String, A] =
     if values.length != this.size then s"Invalid size [expected=${this.size}] [actual=${values.length}]".asLeft
     else decodeInternal(values.asInstanceOf[ArraySeq[Matchable]])
+  final def decode(values: Any*): Either[String, A] =
+    decode(values.toArraySeq)
+
+  final def prefixed(prefix: String): SqlSchema[A] = SqlSchema.Prefixed(this, prefix)
+  final def transform[B](ab: A => B, ba: B => A): SqlSchema[B] = SqlSchema.Transform(this, ab, ba)
+  final def transformOrFail[B](ab: A => Either[String, B], ba: B => A): SqlSchema[B] = SqlSchema.TransformOrFail(this, ab, ba)
 
 }
 object SqlSchema {
+
+  def apply[A: SqlSchema as schema]: SqlSchema[A] = schema
 
   /////// Givens ///////////////////////////////////////////////////////////////
 
@@ -60,6 +76,27 @@ object SqlSchema {
     override def decodeInternal(values: ArraySeq[Matchable]): Either[String, Option[A]] =
       if values.forall { _ == null } then None.asRight
       else underlying.decodeInternal(values).map(_.some)
+  }
+
+  final case class Prefixed[A](underlying: SqlSchema[A], prefix: String) extends SqlSchema[A] {
+    override val columns: List[SqlColumn] = underlying.columns.map(_.prefixed(prefix))
+    override def encodeInternal(value: A): Growable[Any] = underlying.encodeInternal(value)
+    override def decodeInternal(values: ArraySeq[Matchable]): Either[String, A] = underlying.decodeInternal(values)
+  }
+
+  final case class Transform[A, B](a: SqlSchema[A], ab: A => B, ba: B => A) extends SqlSchema[B] {
+    override val columns: List[SqlColumn] = a.columns
+    override def encodeInternal(value: B): Growable[Any] = a.encodeInternal(ba(value))
+    override def decodeInternal(values: ArraySeq[Matchable]): Either[String, B] = a.decodeInternal(values).map(ab)
+  }
+
+  final case class TransformOrFail[A, B](a: SqlSchema[A], ab: A => Either[String, B], ba: B => A) extends SqlSchema[B] {
+    override val columns: List[SqlColumn] = a.columns
+    override def encodeInternal(value: B): Growable[Any] = a.encodeInternal(ba(value))
+    override def decodeInternal(values: ArraySeq[Matchable]): Either[String, B] =
+      a.decodeInternal(values).flatMap { aValue =>
+        ab(aValue).leftMap { error => s"Error during transform decode:\n  Raw values:  ${values.mkString("[ ", ", ", " ]")}\n  Decoded underlying: $aValue\n  Error: $error" }
+      }
   }
 
   /////// Derived ///////////////////////////////////////////////////////////////
@@ -96,35 +133,44 @@ object SqlSchema {
         val myInstExpr: Expr[SqlSchema[b]] = field.getExpr(instances)
         val myValuesExpr: Expr[ArraySeq[Matchable]] = '{ $valuesExpr.slice($myStartExpr, $myEndExpr) }
 
-        '{ $myInstExpr.decodeInternal($myValuesExpr) }
+        '{
+          // println(s"offsets: ${$myStartExpr}, ${$myEndExpr}")
+          $myInstExpr.decodeInternal($myValuesExpr)
+        }
       }
 
     private def makeOffsets[A: Type](gen: ProductGeneric.CaseClassGeneric[A], instances: Expressions[SqlSchema, A])(using Quotes): ValDefinitions[Const[(Int, Int)], A] =
       gen.cacheVals.foldLeft[(Int, Int)]("offset_" + _, ValDef.ValType.LazyVal)('{ (0, 0) }) { [b] => (_, _) ?=> (field: gen.Field[b], acc: Expr[(Int, Int)]) =>
         '{
-          val (_, prevEnd): (Int, Int) = $acc
+          val prevEnd: Int = $acc._2
           val myInst: SqlSchema[b] = ${ field.getExpr(instances) }
           (prevEnd, prevEnd + myInst.size)
         }
       }
 
     def derivedImpl[A: Type](gen: ProductGeneric.CaseClassGeneric[A])(using Quotes): Expr[SqlSchema[A]] = {
-      val valDefinitions: ValDefinitions[SqlSchema, A] = gen.cacheVals.summonTypeClasses[SqlSchema]()
-      valDefinitions.defineAndUse { instances =>
-        makeOffsets[A](gen, instances).defineAndUse { offsets =>
-          '{
-            new SqlSchema[A] {
+      val resultExpr: Expr[SqlSchema[A]] =
+        gen.cacheVals.apply[SqlSchema]("instance_" + _, ValDef.ValType.LazyVal) { [b] => (_, _) ?=> (field: gen.Field[b]) =>
+          '{ ${ field.summonTypeClass[SqlSchema] }.prefixed(${ Expr(field.name) }) }
+        }.defineAndUse { instances =>
+          makeOffsets[A](gen, instances).defineAndUse { offsets =>
+            '{
+              new SqlSchema[A] {
 
-              override val columns: List[SqlColumn] = ${ columnsExpr[A](gen, instances) }
+                override val columns: List[SqlColumn] = ${ columnsExpr[A](gen, instances) }
 
-              override def encodeInternal(value: A): Growable[Any] = ${ encodeInternalExpr[A](gen, instances, 'value) }
+                override def encodeInternal(value: A): Growable[Any] = ${ encodeInternalExpr[A](gen, instances, 'value) }
 
-              override def decodeInternal(values: ArraySeq[Matchable]): Either[String, A] = ${ decodeInternalExpr[A](gen, instances, offsets, 'values) }
+                override def decodeInternal(values: ArraySeq[Matchable]): Either[String, A] = ${ decodeInternalExpr[A](gen, instances, offsets, 'values) }
 
+              }
             }
           }
         }
-      }
+
+      // report.info(resultExpr.showAnsiCode)
+
+      resultExpr
     }
 
     def derivedImpl[A: Type](using Quotes): Expr[SqlSchema[A]] =
@@ -139,10 +185,18 @@ object SqlSchema {
 trait SqlTable[A] {
   val tableName: String
   val schema: SqlSchema[A]
+  
+  final def show: String =
+    s"""--- $tableName ---
+       |columns (${schema.size}):${schema.columns.map { c => s"\n  - ${c.show}" }.mkString}
+       |""".stripMargin
+  
 }
 object SqlTable {
+  
+  def apply[A: SqlTable as table]: SqlTable[A] = table
 
-  def derivedImpl[A: Type](using Quotes): Expr[SqlTable[A]] = {
+  private def derivedImpl[A: Type](using Quotes): Expr[SqlTable[A]] = {
     val gen: ProductGeneric.CaseClassGeneric[A] = ProductGeneric.CaseClassGeneric.of[A]
     val schemaExpr: Expr[SqlSchema[A]] = SqlSchema.internal.derivedImpl[A](gen)
     val expr: Expr[SqlTable[A]] =

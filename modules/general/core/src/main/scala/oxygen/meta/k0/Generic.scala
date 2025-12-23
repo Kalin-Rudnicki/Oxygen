@@ -220,18 +220,17 @@ sealed trait Generic[A] extends Entity[Any, A] {
             val child: Child[B] = child0.typedAs[B]
             given Type[B] = child.tpe
 
-            val newValue: Expr[V] = f(child, prevValue)
-
             ValDef.let(
               Symbol.spliceOwner,
               valName(child.name),
-              newValue.toTerm, // val _ = `newValue`
+              f(child, prevValue).toTerm, // val _ = `newValue`
               valType.toFlags,
             ) { valRef =>
+              val valExpr: Expr[V] = valRef.asExprOf[V]
               rec(
                 tail,
-                newValue, // pass `newValue` (should be be valRef?)
-                acc :+ Expressions.Elem(child.tpe, valRef.asExprOf[V]),
+                valExpr,
+                acc :+ Expressions.Elem(child.tpe, valExpr),
                 build,
               )
             }
@@ -275,18 +274,17 @@ sealed trait Generic[A] extends Entity[Any, A] {
             val child: Child[B] = child0.typedAs[B]
             given Type[B] = child.tpe
 
-            val newValue: Expr[V] = f(child, prevValue)
-
             ValDef.let(
               Symbol.spliceOwner,
               valName(child.name),
               prevValue.toTerm, // val _ = `prevValue`
               valType.toFlags,
             ) { valRef =>
+              val valExpr: Expr[V] = valRef.asExprOf[V]
               rec(
                 tail,
-                newValue, // pass `newValue` (should be be valRef?)
-                acc :+ Expressions.Elem(child.tpe, valRef.asExprOf[V]),
+                f(child, valExpr),
+                acc :+ Expressions.Elem(child.tpe, valExpr),
                 build,
               )
             }
