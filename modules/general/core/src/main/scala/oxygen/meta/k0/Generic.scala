@@ -230,7 +230,7 @@ sealed trait Generic[A] extends Entity[Any, A] {
             ) { valRef =>
               rec(
                 tail,
-                newValue, // pass `newValue`
+                newValue, // pass `newValue` (should be be valRef?)
                 acc :+ Expressions.Elem(child.tpe, valRef.asExprOf[V]),
                 build,
               )
@@ -285,7 +285,7 @@ sealed trait Generic[A] extends Entity[Any, A] {
             ) { valRef =>
               rec(
                 tail,
-                newValue, // pass `newValue`
+                newValue, // pass `newValue` (should be be valRef?)
                 acc :+ Expressions.Elem(child.tpe, valRef.asExprOf[V]),
                 build,
               )
