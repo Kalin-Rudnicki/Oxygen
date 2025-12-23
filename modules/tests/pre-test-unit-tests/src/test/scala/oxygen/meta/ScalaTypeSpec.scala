@@ -36,6 +36,6 @@ object ScalaTypeSpec {
 
   //
 
-  // Macros.doTheTypeStuff[Outer.InvisibleOpaqueType1]
+  Macros.doTheTypeStuff[Outer.InvisibleOpaqueType3[String]]
 
 }

@@ -49,7 +49,7 @@ private[compiletime] object DeriveScalaType {
           "< Not a ClassDef >"
       }
 
-    report.errorAndAbort(
+    val infoStr: String =
       s"""
          |=====| TypeRepr |=====
          |  ${typeRepr0.showAnsiCode}
@@ -58,31 +58,21 @@ private[compiletime] object DeriveScalaType {
          |  ${typeRepr0.dealiasKeepOpaques.showAnsiCode}
          |
          |
-         |
          |${showSymbol("symbol", symbol)}
          |
          |${showSymbol("typeSymbol", typeSymbol0)}
          |
          |${showSymbol("termSymbol", termSymbol0)}
          |
-         |${symbol.isClassDef}
          |
-         |${typeRepr0.toIndentedString.toStringColorized}
          |
-         |$classInfo
-         |""".stripMargin,
-        /*
-        // ${symbol.tree.toIndentedString.toStringColorized}
+         |
+         |""".stripMargin +
+        s"isClass = ${symbol.isClassDef}\n\n${typeRepr0.toIndentedString.toString("|   ")}\n\n$classInfo"
 
-         |${symbol.tree.narrow[ClassDef].constructor.showAnsiCode}
-         |
-         |${symbol.tree.narrow[ClassDef].constructor.toIndentedString.toStringColorized}
-         |
-parents: ${symbol.tree.narrow[ClassDef].parents.zipWithIndex.map { case (p, i) => s"\n  [$i] : ${p.showAnsiCode}" }.mkString}
-
-${symbol.tree.narrow[ClassDef].showAnsiCode}
-         */
-    )
+    val path = java.nio.file.Paths.get("target/type-info.txt").toAbsolutePath
+    java.nio.file.Files.writeString(path, infoStr)
+    report.errorAndAbort(s"wrote to path: $path")
 
     ??? // FIX-PRE-MERGE (KR) :
   }
