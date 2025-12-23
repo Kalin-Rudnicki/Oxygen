@@ -103,6 +103,8 @@ object SqlSchema {
 
   object internal {
 
+    private given compiler: staging.Compiler = staging.Compiler.make(getClass.getClassLoader)
+
     private def columnsExpr[A: Type](gen: ProductGeneric[A], instances: Expressions[SqlSchema, A])(using Quotes): Expr[List[SqlColumn]] = {
       val tmp: Growable[Expr[List[SqlColumn]]] =
         gen.mapChildren.mapExpr { [b] => (_, _) ?=> (field: gen.Field[b]) =>
@@ -128,6 +130,8 @@ object SqlSchema {
         valuesExpr: Expr[ArraySeq[Matchable]],
     )(using Quotes): Expr[Either[String, A]] =
       gen.instantiate.either[String] { [b] => (_, _) ?=> (field: gen.Field[b]) =>
+        println(s"inlined ${gen.name}/${field.name}:\n" + staging.run { field.summonTypeClass[SqlSchema] }.columns.map(_.show).mkString("\n"))
+
         val myStartExpr: Expr[Int] = '{ ${ field.getExpr(offsets) }._1 }
         val myEndExpr: Expr[Int] = '{ ${ field.getExpr(offsets) }._2 }
         val myInstExpr: Expr[SqlSchema[b]] = field.getExpr(instances)
@@ -168,10 +172,14 @@ object SqlSchema {
           }
         }
 
+      /*
       if gen.name == "TwoInts" then {
-        val inst: SqlSchema[A] = ExprEvaluator.evaluateExpr(resultExpr)
+        val inst: SqlSchema[A] = staging.run { resultExpr }
         report.info(s"=====| COMPILE TIME |=====\n\n${gen.name}\n${inst.columns.map { c => s"\n  - ${c.show}" }.mkString}")
       }
+       */
+
+      report.errorAndAbort("my-env-var: " + java.lang.System.getenv("MY_ENV_VAR"))
 
       resultExpr
     }

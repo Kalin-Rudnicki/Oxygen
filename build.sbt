@@ -208,6 +208,7 @@ lazy val `oxygen-core`: CrossProject =
       description := "Basic utilities beneficial for any scala user.",
       buildInfoKeys := Seq[BuildInfoKey](version),
       buildInfoPackage := "oxygen.core",
+      libraryDependencies += "org.scala-lang" %% "scala3-staging" % scalaVersion.value,
     )
     .dependsOn(
       `oxygen-quoted` % testAndCompile,
