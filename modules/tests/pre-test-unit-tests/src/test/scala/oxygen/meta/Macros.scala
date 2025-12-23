@@ -1,6 +1,7 @@
 package oxygen.meta
 
 import oxygen.meta.*
+import oxygen.meta.compiletime.ScalaType
 import oxygen.meta.k0.*
 import oxygen.predef.core.*
 import oxygen.quoted.*
@@ -101,5 +102,23 @@ object Macros {
   }
 
   inline def sumRoundTrip(inline a: SumToExprExample): SumToExprExample = ${ sumRoundTripImpl('a) }
+
+  // FIX-PRE-MERGE (KR) : remove
+  private def doTheTypeStuffImpl[A <: AnyKind: Type](using Quotes): Expr[Unit] = {
+    ScalaType.of[A]
+    '{ () }
+  }
+
+  inline def doTheTypeStuff[A <: AnyKind]: Unit = ${ doTheTypeStuffImpl[A] }
+
+  trait MyThing[A <: AnyKind]
+  object MyThing {
+
+    inline def derived[A <: AnyKind]: MyThing[A] = {
+      doTheTypeStuff[A]
+      ???
+    }
+
+  }
 
 }
