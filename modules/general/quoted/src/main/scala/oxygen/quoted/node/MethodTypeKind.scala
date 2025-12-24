@@ -1,4 +1,4 @@
-package oxygen.quoted
+package oxygen.quoted.node
 
 import scala.quoted.*
 

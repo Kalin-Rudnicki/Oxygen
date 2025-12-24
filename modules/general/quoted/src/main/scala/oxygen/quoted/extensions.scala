@@ -60,6 +60,7 @@ extension (self: Type[?]) {
 
 }
 
+// FIX-PRE-MERGE (KR) : remove, Type[?] match { case '[...] => ??? }  is way better, didnt know this existed
 extension (self: Type.type) {
 
   def unwrap1[T[_], T1](using Type[T[T1]], Quotes): (Type[T], Type[T1]) = TypeRepr.of[T[T1]] match

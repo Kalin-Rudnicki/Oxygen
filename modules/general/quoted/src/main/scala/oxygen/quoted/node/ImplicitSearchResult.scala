@@ -1,4 +1,4 @@
-package oxygen.quoted
+package oxygen.quoted.node
 
 import oxygen.quoted.error.UnknownCase
 import scala.quoted.*

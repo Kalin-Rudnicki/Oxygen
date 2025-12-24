@@ -7,7 +7,7 @@ class Annotations(
     target: => String,
 )(using Quotes) {
 
-  def all: List[Term] = _all
+  lazy val all: List[Term] = _all
 
   def allOf[Annot: Type]: List[Expr[Annot]] =
     all.flatMap { tree => // TODO (KR) : now that `<:<` is fixed, use that, no try/catch?
