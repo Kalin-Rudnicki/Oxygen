@@ -11,7 +11,7 @@ ThisBuild / watchBeforeCommand := Watch.clearScreen
 ThisBuild / resolvers ++= Seq(Resolver.sonatypeCentralSnapshots, Resolver.mavenLocal)
 
 Global / concurrentRestrictions := Seq(
-  Tags.limitAll(math.max(1, java.lang.Runtime.getRuntime.availableProcessors() - 1))
+  Tags.limitAll(math.max(1, java.lang.Runtime.getRuntime.availableProcessors() - 1)),
 )
 ThisBuild / turbo := true
 
