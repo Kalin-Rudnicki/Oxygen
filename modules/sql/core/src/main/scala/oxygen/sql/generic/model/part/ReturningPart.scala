@@ -204,7 +204,7 @@ object ReturningPart {
       returningExprsNel: NonEmptyList[ReturningPart.Elem.Aggregate],
   ) extends NonSubQuery, NonEmpty {
 
-    override val returningExprs: List[Elem.NonSubQuery] = returningExprsNel.toList
+    override val returningExprs: List[Elem.Aggregate] = returningExprsNel.toList
 
     def showOpt(using Quotes): Option[String] = returningExprs match
       case Nil         => None

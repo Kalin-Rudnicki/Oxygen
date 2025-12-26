@@ -11,9 +11,9 @@ enum AggType {
   case ManyNonEmpty
 
   final def show: String = this match
-    case AggType.Required              => "Required"
-    case AggType.Optional              => "Optional"
-    case AggType.Many(_, sTypeRepr, _) => s"Many[${sTypeRepr.showAnsiCode}]"
-    case AggType.ManyNonEmpty          => "ManyNonEmpty"
+    case AggType.Required      => "Required"
+    case AggType.Optional      => "Optional"
+    case AggType.Many(_, _, _) => "Many"
+    case AggType.ManyNonEmpty  => "ManyNonEmpty"
 
 }

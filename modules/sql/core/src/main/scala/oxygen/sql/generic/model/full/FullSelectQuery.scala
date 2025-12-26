@@ -34,7 +34,7 @@ object FullSelectQuery {
   }
   object NonSubQuery {
 
-    def wrap(inputs: List[InputPart], s: PartialQuery.SelectQuery, ret: ReturningPart.NonSubQuery, refs: RefMap)(using ParseContext): ParseResult[FullSelectQuery.NonSubQuery] =
+    def wrap(inputs: List[InputPart], s: PartialQuery.SelectQuery, ret: ReturningPart.NonSubQuery, refs: RefMap)(using Quotes, ParseContext): ParseResult[FullSelectQuery.NonSubQuery] =
       ret match {
         case ret: ReturningPart.BasicNel =>
           ParseResult.success { FullSelectQuery.Basic(inputs, s.select, s.joins, s.where, s.orderBy, s.limit, s.offset, ret, refs) }
@@ -45,6 +45,10 @@ object FullSelectQuery {
       }
 
   }
+
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
+  //      Basic
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
 
   final case class Basic(
       inputs: List[InputPart],
@@ -120,7 +124,7 @@ object FullSelectQuery {
   }
   object Basic extends Parser[(Term, RefMap), FullSelectQuery.Basic] {
 
-    def wrap(inputs: List[InputPart], s: PartialQuery.SelectQuery, ret: ReturningPart.NonSubQuery, refs: RefMap)(using ParseContext): ParseResult[FullSelectQuery.Basic] =
+    def wrap(inputs: List[InputPart], s: PartialQuery.SelectQuery, ret: ReturningPart.NonSubQuery, refs: RefMap)(using Quotes, ParseContext): ParseResult[FullSelectQuery.Basic] =
       NonSubQuery.wrap(inputs, s, ret, refs).flatMap {
         case basic: Basic => ParseResult.success(basic)
         case _: Aggregate => ParseResult.error(ret.fullTree, "Aggregate returning not allowed here")
@@ -133,15 +137,41 @@ object FullSelectQuery {
 
   }
 
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
+  //      Aggregate
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
+
   trait Aggregate extends FullSelectQuery.NonSubQuery {
     // FIX-PRE-MERGE (KR) :
   }
   object Aggregate {
 
-    def wrap(inputs: List[InputPart], s: PartialQuery.SelectQuery, ret: ReturningPart.Aggregate, refs: RefMap)(using ParseContext): ParseResult[FullSelectQuery.Aggregate] =
+    def wrap(inputs: List[InputPart], s: PartialQuery.SelectQuery, ret: ReturningPart.Aggregate, refs: RefMap)(using Quotes, ParseContext): ParseResult[FullSelectQuery.Aggregate] = {
+      val tmp: List[String] = ret.returningExprs.map(basicString)
+
+      report.errorAndAbort(s"RET : [ ${tmp.mkString(" , ")} ]")
+
       ??? // FIX-PRE-MERGE (KR) :
+    }
+
+    private def basicString(agg: ReturningPart.Elem.Aggregate): String =
+      agg match
+        case agg: ReturningPart.Elem.Aggregate.ReturnSelf      => s"< ${agg.retExpr.queryRef.sqlString} >"
+        case agg: ReturningPart.Elem.Aggregate.ReturnAggregate => s"${agg.aggType.show} ${basicString(agg.select)}"
+
+    private def basicString(agg: AggregateSelectPart): String =
+      agg match {
+        case agg: AggregateSelectPart.ReturningLeaf =>
+          s"{ ${agg.retExpr.queryRef.sqlString} }"
+        case agg: AggregateSelectPart.ReturningNested =>
+          agg.ret.map(basicString).mkString("[ ", " , ", " ]")
+      }
 
   }
+
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
+  //      SubQuery
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
 
   final case class SubQuery(
       inputs: List[InputPart], // FIX-PRE-MERGE (KR) : remove?
