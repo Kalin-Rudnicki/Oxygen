@@ -14,8 +14,6 @@ sealed trait AggregateSelectPart {
 object AggregateSelectPart extends Parser[(Term, RefMap), AggregateSelectPart] {
 
   final case class ReturningLeaf(
-      // TODO (KR) : are inputs needed, or a separate type?
-      //           : inputs: List[InputPart],
       select: SelectPart,
       // TODO (KR) : maybe support joins?
       //           : joins: List[JoinPart],
@@ -28,8 +26,6 @@ object AggregateSelectPart extends Parser[(Term, RefMap), AggregateSelectPart] {
   ) extends AggregateSelectPart
 
   final case class ReturningNested(
-      // TODO (KR) : are inputs needed, or a separate type?
-      //           : inputs: List[InputPart],
       select: SelectPart,
       // TODO (KR) : maybe support joins?
       //           : joins: List[JoinPart],

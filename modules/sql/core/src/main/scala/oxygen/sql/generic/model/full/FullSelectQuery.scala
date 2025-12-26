@@ -141,9 +141,8 @@ object FullSelectQuery {
   //      Aggregate
   //////////////////////////////////////////////////////////////////////////////////////////////////////
 
-  trait Aggregate extends FullSelectQuery.NonSubQuery {
-    // FIX-PRE-MERGE (KR) :
-  }
+  // FIX-PRE-MERGE (KR) :
+  trait Aggregate extends FullSelectQuery.NonSubQuery {}
   object Aggregate {
 
     def wrap(inputs: List[InputPart], s: PartialQuery.SelectQuery, ret: ReturningPart.Aggregate, refs: RefMap)(using Quotes, ParseContext): ParseResult[FullSelectQuery.Aggregate] = {
@@ -166,6 +165,75 @@ object FullSelectQuery {
         case agg: AggregateSelectPart.ReturningNested =>
           agg.ret.map(basicString).mkString("[ ", " , ", " ]")
       }
+
+    /////// 1 ///////////////////////////////////////////////////////////////
+
+    sealed trait ReturningAgg {
+
+      val refs: RefMap
+
+      def queryRefs: Growable[VariableReference]
+
+    }
+
+    final case class ReturningLeaf(
+        select: SelectPart,
+        // TODO (KR) : maybe support joins?
+        //           : joins: List[JoinPart],
+        where: Option[WherePart],
+        orderBy: Option[OrderByPart],
+        limit: Option[LimitPart],
+        offset: Option[OffsetPart],
+        retExpr: QueryExpr.QueryVariableReferenceLike.ReferencedVariable, // TODO (KR) : NonEmptyList[ReferencedVariable], and allow join?
+        refs: RefMap,
+    ) extends ReturningAgg {
+
+      override def queryRefs: Growable[VariableReference] = ??? // FIX-PRE-MERGE (KR) :
+
+    }
+
+    final case class ReturningNested(
+        select: SelectPart,
+        // TODO (KR) : maybe support joins?
+        //           : joins: List[JoinPart],
+        where: Option[WherePart],
+        orderBy: Option[OrderByPart],
+        limit: Option[LimitPart],
+        offset: Option[OffsetPart],
+        ret: NonEmptyList[NestedReturnPart],
+        refs: RefMap,
+    ) extends ReturningAgg {
+
+      override def queryRefs: Growable[VariableReference] = ??? // FIX-PRE-MERGE (KR) :
+
+    }
+
+    /////// 2 ///////////////////////////////////////////////////////////////
+
+    sealed trait NestedReturnPart {
+
+      def queryRefs: Growable[VariableReference]
+
+    }
+
+    final case class ReturningSelf(
+        retExpr: QueryExpr.QueryVariableReferenceLike.ReferencedVariable,
+    ) extends NestedReturnPart {
+
+      override def queryRefs: Growable[VariableReference] = retExpr.queryRefs
+
+    }
+
+    final case class ReturnAggregate(
+        aggType: AggType,
+        select: AggregateSelectPart,
+        aType: TypeRepr,
+        outType: TypeRepr,
+    ) extends NestedReturnPart {
+
+      override def queryRefs: Growable[VariableReference] = select.queryRefs
+
+    }
 
   }
 
