@@ -6,7 +6,11 @@ import oxygen.sql.generic.model.*
 import oxygen.sql.generic.parsing.*
 import scala.quoted.*
 
-sealed trait AggregateSelectPart
+sealed trait AggregateSelectPart {
+
+  def queryRefs: Growable[VariableReference] = ??? // FIX-PRE-MERGE (KR) :
+
+}
 object AggregateSelectPart extends Parser[(Term, RefMap), AggregateSelectPart] {
 
   final case class ReturningLeaf(

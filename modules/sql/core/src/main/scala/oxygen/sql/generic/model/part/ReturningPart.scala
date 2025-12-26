@@ -3,7 +3,6 @@ package oxygen.sql.generic.model.part
 import oxygen.predef.core.*
 import oxygen.quoted.*
 import oxygen.sql.generic.model.*
-import oxygen.sql.generic.model.full.FullSelectQuery
 import oxygen.sql.generic.parsing.*
 import oxygen.sql.query.dsl.Q
 import scala.quoted.*
@@ -37,10 +36,8 @@ object ReturningPart {
     sealed trait NonSubQuery extends Elem {
 
       final def show(using Quotes): String = this match
-        case Basic(expr)                                      => expr.show
-        case Aggregate.ReturnFromSelf(expr)                   => s"Aggregate.Basic : ${expr.show}"
-        case Aggregate.ReturnLeafAgg(select, _, _, outType)   => s"\nAggregate.Leaf(${outType.showShortCode}) {\n  ${select.show.replaceAll("\n", "\n  ")}\n}".replaceAll("\n", "\n       ")
-        case Aggregate.ReturnNestedAgg(select, _, _, outType) => s"\nAggregate.Nested(${outType.showShortCode}) {\n  ${select.show.replaceAll("\n", "\n  ")}\n}".replaceAll("\n", "\n       ")
+        case Basic(expr)                      => expr.show
+        case Aggregate(select, _, _, outType) => s"\nAggregate(${outType.showShortCode}) {\n  ${select.show.replaceAll("\n", "\n  ")}\n}".replaceAll("\n", "\n       ")
 
     }
     object NonSubQuery extends Parser[(Term, RefMap), ReturningPart.Elem.NonSubQuery] {
@@ -71,7 +68,11 @@ object ReturningPart {
         select: AggregateSelectPart,
         aType: TypeRepr,
         outType: TypeRepr,
-    ) extends Elem.NonSubQuery
+    ) extends Elem.NonSubQuery {
+
+      override def queryRefs: Growable[VariableReference] = select.queryRefs
+
+    }
     object Aggregate extends Parser[(Term, RefMap), ReturningPart.Elem.Aggregate] {
 
       // workaround to bypass silly compiler not wanting to allow extracting   '{ Q.agg.many[s] }
@@ -90,22 +91,16 @@ object ReturningPart {
         }
       }
 
-      @scala.annotation.nowarn // FIX-PRE-MERGE (KR) : remove
       override def parse(input: (Term, RefMap))(using ParseContext, Quotes): ParseResult[ReturningPart.Elem.Aggregate] = {
         val (term, refs) = input
 
-        // FIX-PRE-MERGE (KR) : query-agg-bookmark
         for {
           (aggType, aType, outType, subQueryTerm) <- parseAggregateCore(term)
-          /*
-          select <- FullSelectQuery.NonSubQuery.parse((subQueryTerm, refs)).unknownAsError
-          agg = select match {
-            case select: FullSelectQuery.Basic     => Aggregate.ReturnLeafAgg(select, aggType, aType, outType)
-            case select: FullSelectQuery.Aggregate => Aggregate.ReturnNestedAgg(select, aggType, aType, outType)
-          }
-        } yield agg
-           */
-        } yield ???
+          // TODO (KR) : can the sub-query remapping be done here?
+          //           : agg queries (almost always?) require a sub-query before doing a CROSS JOIN LATERAL
+          //           : can the RefMap passed into parsing the children fix this?
+          select <- AggregateSelectPart.parse((subQueryTerm, refs))
+        } yield ReturningPart.Elem.Aggregate(aggType, select, aType, outType)
       }
 
     }
@@ -128,21 +123,6 @@ object ReturningPart {
           case _: Elem.Aggregate => None
         }
 
-    extension (elems: NonEmptyList[Elem.NonSubQuery])
-      private def allAgg(using ParseContext): ParseResult[NonEmptyList[Elem.Aggregate]] =
-        elems.traverse {
-          case Elem.Basic(expr: QueryExpr.QueryVariableReferenceLike.ReferencedVariable) => ParseResult.success(Elem.Aggregate.ReturnFromSelf(expr))
-          case Elem.Basic(expr)                                                          => ParseResult.error(expr.fullTerm, "Not yet supported, nested aggregate queries can only return full rows")
-          case elem: Elem.Aggregate                                                      => ParseResult.success(elem)
-        }
-
-    extension (elems: NonEmptyList[Elem.Aggregate])
-      private def allNonNested: Option[NonEmptyList[Elem.Aggregate.NonNested]] =
-        elems.traverse {
-          case elem: Elem.Aggregate.NonNested    => elem.some
-          case _: Elem.Aggregate.ReturnNestedAgg => None
-        }
-
     override def parse(input: (Term, RefMap))(using ParseContext, Quotes): ParseResult[ReturningPart.NonSubQuery] =
       for {
         (term, refs) <- ParseResult.Success(input)
@@ -157,13 +137,7 @@ object ReturningPart {
           case Some(elems) =>
             elems.allBasic match {
               case Some(allBasic) => ParseResult.success(ReturningPart.BasicNel(term, allBasic))
-              case None           =>
-                elems.allAgg.map { elems =>
-                  elems.allNonNested match {
-                    case Some(allNonNested) => ReturningPart.Aggregate.NonNested(term, allNonNested)
-                    case None               => ReturningPart.Aggregate.Nested(term, elems)
-                  }
-                }
+              case None           => ParseResult.success(ReturningPart.Aggregate(term, elems))
             }
           case None => ParseResult.success(ReturningPart.BasicUnit(term))
         }
@@ -216,6 +190,8 @@ object ReturningPart {
       fullTree: Tree,
       returningExprsNel: NonEmptyList[ReturningPart.Elem.NonSubQuery],
   ) extends NonSubQuery, NonEmpty {
+
+    override val returningExprs: List[Elem.NonSubQuery] = returningExprsNel.toList
 
     def showOpt(using Quotes): Option[String] = returningExprs match
       case Nil         => None
