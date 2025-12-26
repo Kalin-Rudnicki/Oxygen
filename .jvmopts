@@ -1,2 +1,9 @@
 -Xmx16G
+-Xms2G
 -Xss4M
+-XX:+UseG1GC
+-XX:MaxGCPauseMillis=200
+-XX:+ParallelRefProcEnabled
+-XX:ReservedCodeCacheSize=512m
+-XX:MaxMetaspaceSize=2G
+-XX:CICompilerCount=2
