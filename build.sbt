@@ -1,5 +1,3 @@
-//
-
 import Dependencies._
 import Settings._
 import sbtcrossproject.CrossProject
@@ -11,7 +9,11 @@ import scala.sys.process._
 
 ThisBuild / watchBeforeCommand := Watch.clearScreen
 ThisBuild / resolvers ++= Seq(Resolver.sonatypeCentralSnapshots, Resolver.mavenLocal)
-ThisBuild / updateOptions := updateOptions.value.withLatestSnapshots(false)
+
+Global / concurrentRestrictions := Seq(
+  Tags.limitAll(math.max(1, java.lang.Runtime.getRuntime.availableProcessors() - 1)),
+)
+ThisBuild / turbo := true
 
 enablePlugins(GitVersioning)
 git.gitTagToVersionNumber := { tag =>
