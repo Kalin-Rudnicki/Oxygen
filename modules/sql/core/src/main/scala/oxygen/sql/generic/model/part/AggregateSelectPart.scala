@@ -23,7 +23,7 @@ object AggregateSelectPart extends Parser[(Term, RefMap), AggregateSelectPart] {
       orderBy: Option[OrderByPart],
       limit: Option[LimitPart],
       offset: Option[OffsetPart],
-      retExpr: QueryExpr.QueryVariableReferenceLike.ReferencedVariable,
+      retExpr: QueryExpr.QueryVariableReferenceLike.ReferencedVariable, // TODO (KR) : NonEmptyList[ReferencedVariable], and allow join?
       refs: RefMap,
   ) extends AggregateSelectPart
 
@@ -48,9 +48,9 @@ object AggregateSelectPart extends Parser[(Term, RefMap), AggregateSelectPart] {
       limit: Option[LimitPart],
       offset: Option[OffsetPart],
   )
-  private object Partial {
+  private object Partial extends PartialQueryParsers[AggregateSelectPart.Partial] {
 
-    lazy val partialParser: MapChainParser[AggregateSelectPart.Partial] =
+    override lazy val partialParser: MapChainParser[AggregateSelectPart.Partial] =
       (
         SelectPart.withContext("Select") >>>
           WherePart.maybe.withContext("Where") >>>
@@ -62,7 +62,21 @@ object AggregateSelectPart extends Parser[(Term, RefMap), AggregateSelectPart] {
   }
 
   override def parse(input: (Term, RefMap))(using ParseContext, Quotes): ParseResult[AggregateSelectPart] =
-    ??? // FIX-PRE-MERGE (KR) :
+    Partial.fullParserAcceptingRefs.parse(input).flatMap {
+      case FullQueryResult(Nil, p, ret: ReturningPart.BasicNel, refMap) =>
+        ret.returningExprsNel match {
+          case NonEmptyList(ReturningPart.Elem.Basic(retExpr: QueryExpr.QueryVariableReferenceLike.ReferencedVariable), Nil) =>
+            ParseResult.success(AggregateSelectPart.ReturningLeaf(p.select, p.where, p.orderBy, p.limit, p.offset, retExpr, refMap))
+          case NonEmptyList(ReturningPart.Elem.Basic(retExpr), Nil) =>
+            ParseResult.error(retExpr.fullTerm, "Only a full row return is allowed")
+          case NonEmptyList(_, tailHead :: _) =>
+            ParseResult.error(tailHead.expr.fullTerm, "Only a single return is allowed")
+        }
+      case FullQueryResult(Nil, p, ret: ReturningPart.Aggregate, refMap) =>
+        ParseResult.success(AggregateSelectPart.ReturningNested(p.select, p.where, p.orderBy, p.limit, p.offset, ret.returningExprsNel, refMap))
+      case FullQueryResult(Nil, _, ret: ReturningPart.BasicUnit, _) => ParseResult.error(ret.fullTree, "Returning unit not allowed")
+      case FullQueryResult(i :: _, _, _, _)                         => ParseResult.error(i.mapQueryRef.param.tree, "Input not allowed in aggregate returning")
+    }
 
 }
 
