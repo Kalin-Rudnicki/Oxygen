@@ -143,7 +143,14 @@ object ReturningPart {
           case Some(elems) =>
             elems.allBasic match {
               case Some(allBasic) => ParseResult.success(ReturningPart.BasicNel(term, allBasic))
-              case None           => ParseResult.success(ReturningPart.Aggregate(term, elems))
+              case None           =>
+                elems
+                  .traverse {
+                    case elem: Elem.Aggregate                                                      => ParseResult.success(elem)
+                    case Elem.Basic(expr: QueryExpr.QueryVariableReferenceLike.ReferencedVariable) => ParseResult.success(Elem.Aggregate.ReturnSelf(expr))
+                    case Elem.Basic(expr) => ParseResult.error(expr.fullTerm, "Only returning a full row is supported during nested aggregation")
+                  }
+                  .map { ReturningPart.Aggregate(term, _) }
             }
           case None => ParseResult.success(ReturningPart.BasicUnit(term))
         }
@@ -194,7 +201,7 @@ object ReturningPart {
 
   final case class Aggregate(
       fullTree: Tree,
-      returningExprsNel: NonEmptyList[ReturningPart.Elem.NonSubQuery],
+      returningExprsNel: NonEmptyList[ReturningPart.Elem.Aggregate],
   ) extends NonSubQuery, NonEmpty {
 
     override val returningExprs: List[Elem.NonSubQuery] = returningExprsNel.toList
