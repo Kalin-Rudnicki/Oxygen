@@ -37,7 +37,7 @@ object AggregateSelectPart extends Parser[(Term, RefMap), AggregateSelectPart] {
       orderBy: Option[OrderByPart],
       limit: Option[LimitPart],
       offset: Option[OffsetPart],
-      ret: NonEmptyList[AggregateElemPart],
+      ret: NonEmptyList[ReturningPart.Elem.Aggregate],
       refs: RefMap,
   ) extends AggregateSelectPart
 
@@ -48,9 +48,9 @@ object AggregateSelectPart extends Parser[(Term, RefMap), AggregateSelectPart] {
       limit: Option[LimitPart],
       offset: Option[OffsetPart],
   )
-  private object Partial extends PartialQueryParsers[AggregateSelectPart.Partial] {
+  private object Partial {
 
-    override lazy val partialParser: MapChainParser[AggregateSelectPart.Partial] =
+    lazy val partialParser: MapChainParser[AggregateSelectPart.Partial] =
       (
         SelectPart.withContext("Select") >>>
           WherePart.maybe.withContext("Where") >>>
@@ -62,9 +62,7 @@ object AggregateSelectPart extends Parser[(Term, RefMap), AggregateSelectPart] {
   }
 
   override def parse(input: (Term, RefMap))(using ParseContext, Quotes): ParseResult[AggregateSelectPart] =
-    for {
-      _ <- AggregateSelectPart.Partial.fullParserAcceptingRefs.parse(input)
-    } yield ???
+    ??? // FIX-PRE-MERGE (KR) :
 
 }
 

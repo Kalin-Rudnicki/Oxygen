@@ -36,8 +36,9 @@ object ReturningPart {
     sealed trait NonSubQuery extends Elem {
 
       final def show(using Quotes): String = this match
-        case Basic(expr)                      => expr.show
-        case Aggregate(select, _, _, outType) => s"\nAggregate(${outType.showShortCode}) {\n  ${select.show.replaceAll("\n", "\n  ")}\n}".replaceAll("\n", "\n       ")
+        case Basic(expr)                                      => expr.show
+        case Aggregate.ReturnSelf(ret)                        => s"\nAggregate.ReturnAggregate(${ret.show})"
+        case Aggregate.ReturnAggregate(select, _, _, outType) => s"\nAggregate.ReturnAggregate(${outType.showShortCode}) {\n  ${select.show.replaceAll("\n", "\n  ")}\n}".replaceAll("\n", "\n       ")
 
     }
     object NonSubQuery extends Parser[(Term, RefMap), ReturningPart.Elem.NonSubQuery] {
@@ -63,17 +64,25 @@ object ReturningPart {
 
     }
 
-    final case class Aggregate(
-        aggType: AggType,
-        select: AggregateSelectPart,
-        aType: TypeRepr,
-        outType: TypeRepr,
-    ) extends Elem.NonSubQuery {
+    sealed trait Aggregate extends Elem.NonSubQuery
+    object Aggregate extends Parser[(Term, RefMap), Elem.Aggregate.ReturnAggregate] {
 
-      override def queryRefs: Growable[VariableReference] = select.queryRefs
+      final case class ReturnSelf(retExpr: QueryExpr.QueryVariableReferenceLike.ReferencedVariable) extends Elem.Aggregate {
 
-    }
-    object Aggregate extends Parser[(Term, RefMap), ReturningPart.Elem.Aggregate] {
+        override def queryRefs: Growable[VariableReference] = retExpr.queryRefs
+
+      }
+
+      final case class ReturnAggregate(
+          aggType: AggType,
+          select: AggregateSelectPart,
+          aType: TypeRepr,
+          outType: TypeRepr,
+      ) extends Elem.Aggregate {
+
+        override def queryRefs: Growable[VariableReference] = select.queryRefs
+
+      }
 
       // workaround to bypass silly compiler not wanting to allow extracting   '{ Q.agg.many[s] }
       private type HKT[F[x]] = F
@@ -91,16 +100,13 @@ object ReturningPart {
         }
       }
 
-      override def parse(input: (Term, RefMap))(using ParseContext, Quotes): ParseResult[ReturningPart.Elem.Aggregate] = {
+      override def parse(input: (Term, RefMap))(using ParseContext, Quotes): ParseResult[Elem.Aggregate.ReturnAggregate] = {
         val (term, refs) = input
 
         for {
           (aggType, aType, outType, subQueryTerm) <- parseAggregateCore(term)
-          // TODO (KR) : can the sub-query remapping be done here?
-          //           : agg queries (almost always?) require a sub-query before doing a CROSS JOIN LATERAL
-          //           : can the RefMap passed into parsing the children fix this?
           select <- AggregateSelectPart.parse((subQueryTerm, refs))
-        } yield ReturningPart.Elem.Aggregate(aggType, select, aType, outType)
+        } yield Elem.Aggregate.ReturnAggregate(aggType, select, aType, outType)
       }
 
     }
