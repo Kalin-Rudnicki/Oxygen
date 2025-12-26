@@ -2,8 +2,6 @@ package oxygen.sql.generic.model
 
 import oxygen.predef.core.*
 import oxygen.quoted.*
-import oxygen.sql.generic.model.*
-import oxygen.sql.generic.parsing.*
 import scala.quoted.*
 
 enum AggType {

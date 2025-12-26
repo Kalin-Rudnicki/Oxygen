@@ -1,10 +1,7 @@
 package oxygen.sql.generic.model.part
 
-import oxygen.predef.core.*
 import oxygen.quoted.*
 import oxygen.sql.generic.model.*
-import oxygen.sql.generic.parsing.*
-import scala.quoted.*
 
 sealed trait AggregateElemPart
 object AggregateElemPart {
