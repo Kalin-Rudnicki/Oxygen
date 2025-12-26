@@ -66,9 +66,11 @@ object FromExprT extends Derivable[FromExprT] {
   given option: [A: FromExprT as aFromExpr] => FromExprT[Option[A]] =
     new FromExprT[Option[A]] {
 
-      override def unapply(x: Expr[Option[A]])(using Type[Option[A]], Quotes): Option[Option[A]] = {
-        val (_, aType) = Type.unwrap1[Option, A]
-        given Type[A] = aType
+      override def unapply(x: Expr[Option[A]])(using parentTpe: Type[Option[A]], quotes: Quotes): Option[Option[A]] = {
+        val _aType: TypeRepr = parentTpe match
+          case '[Option[a]] => TypeRepr.of[a]
+          case _            => report.errorAndAbort(s"Unable to extract A type from Option[A]: ${parentTpe.toTypeRepr.showAnsiCode}")
+        given Type[A] = _aType.asTypeOf
 
         x match
           case '{ Option[A](${ aFromExpr(a) }) }   => Option(a).some
@@ -85,10 +87,12 @@ object FromExprT extends Derivable[FromExprT] {
   given either: [A: FromExprT as aFromExpr, B: FromExprT as bFromExpr] => FromExprT[Either[A, B]] =
     new FromExprT[Either[A, B]] {
 
-      override def unapply(x: Expr[Either[A, B]])(using Type[Either[A, B]], Quotes): Option[Either[A, B]] = {
-        val (_, aType, bType) = Type.unwrap2[Either, A, B]
-        given Type[A] = aType
-        given Type[B] = bType
+      override def unapply(x: Expr[Either[A, B]])(using parentTpe: Type[Either[A, B]], quotes: Quotes): Option[Either[A, B]] = {
+        val (_aType, _bType): (TypeRepr, TypeRepr) = parentTpe match
+          case '[Either[a, b]] => (TypeRepr.of[a], TypeRepr.of[b])
+          case _               => report.errorAndAbort(s"Unable to extract A/B type from Either[A, B]: ${parentTpe.toTypeRepr.showAnsiCode}")
+        given Type[A] = _aType.asTypeOf
+        given Type[B] = _bType.asTypeOf
 
         x match
           case '{ (${ bFromExpr(a) }: B).asRight }     => a.asRight.some
