@@ -66,57 +66,26 @@ object ReturningPart {
 
     }
 
-    sealed trait Aggregate extends Elem.NonSubQuery
+    final case class Aggregate(
+        aggType: AggType,
+        select: AggregateSelectPart,
+        aType: TypeRepr,
+        outType: TypeRepr,
+    ) extends Elem.NonSubQuery
     object Aggregate extends Parser[(Term, RefMap), ReturningPart.Elem.Aggregate] {
-
-      // =====| Nodes |=====
-
-      sealed trait NonNested extends Aggregate
-
-      sealed trait NonSelf extends Aggregate {
-
-        val select: FullSelectQuery.NonSubQuery
-        val aggType: ReturningPart.Aggregate.AggType
-        val aType: TypeRepr
-        val outType: TypeRepr
-
-        override final def queryRefs: Growable[VariableReference] = select.allQueryRefs
-
-      }
-
-      // =====| Leaves |=====
-
-      final case class ReturnFromSelf(expr: QueryExpr.QueryVariableReferenceLike.ReferencedVariable) extends Elem.Aggregate.NonNested {
-        override def queryRefs: Growable[VariableReference] = expr.queryRefs
-      }
-
-      final case class ReturnLeafAgg(
-          select: FullSelectQuery.Basic,
-          aggType: ReturningPart.Aggregate.AggType,
-          aType: TypeRepr,
-          outType: TypeRepr,
-      ) extends Elem.Aggregate.NonSelf,
-            Elem.Aggregate.NonNested
-
-      final case class ReturnNestedAgg(
-          select: FullSelectQuery.Aggregate,
-          aggType: ReturningPart.Aggregate.AggType,
-          aType: TypeRepr,
-          outType: TypeRepr,
-      ) extends Elem.Aggregate.NonSelf
 
       // workaround to bypass silly compiler not wanting to allow extracting   '{ Q.agg.many[s] }
       private type HKT[F[x]] = F
 
-      private def parseAggregateCore(term: Term)(using ParseContext, Quotes): ParseResult[(ReturningPart.Aggregate.AggType, TypeRepr, TypeRepr, Term)] = {
+      private def parseAggregateCore(term: Term)(using ParseContext, Quotes): ParseResult[(AggType, TypeRepr, TypeRepr, Term)] = {
         term.asExpr match {
           case '{ Q.agg.many[HKT[s]](using $seqExpr).apply[a]($subExpr) } =>
             type MyS[x]
             given mySType: Type[MyS] = TypeRepr.of[s].asTypeOf
-            ParseResult.success((ReturningPart.Aggregate.AggType.Many(mySType, mySType.toTypeRepr, seqExpr.asExprOf[SeqOps[MyS]]), TypeRepr.of[a], TypeRepr.of[MyS[a]], subExpr.toTerm))
-          case '{ Q.agg.manyNonEmpty.apply[a]($subExpr) } => ParseResult.success((ReturningPart.Aggregate.AggType.ManyNonEmpty, TypeRepr.of[a], TypeRepr.of[NonEmptyList[a]], subExpr.toTerm))
-          case '{ Q.agg.optional.apply[a]($subExpr) }     => ParseResult.success((ReturningPart.Aggregate.AggType.Optional, TypeRepr.of[a], TypeRepr.of[Option[a]], subExpr.toTerm))
-          case '{ Q.agg.required.apply[a]($subExpr) }     => ParseResult.success((ReturningPart.Aggregate.AggType.Required, TypeRepr.of[a], TypeRepr.of[a], subExpr.toTerm))
+            ParseResult.success((AggType.Many(mySType, mySType.toTypeRepr, seqExpr.asExprOf[SeqOps[MyS]]), TypeRepr.of[a], TypeRepr.of[MyS[a]], subExpr.toTerm))
+          case '{ Q.agg.manyNonEmpty.apply[a]($subExpr) } => ParseResult.success((AggType.ManyNonEmpty, TypeRepr.of[a], TypeRepr.of[NonEmptyList[a]], subExpr.toTerm))
+          case '{ Q.agg.optional.apply[a]($subExpr) }     => ParseResult.success((AggType.Optional, TypeRepr.of[a], TypeRepr.of[Option[a]], subExpr.toTerm))
+          case '{ Q.agg.required.apply[a]($subExpr) }     => ParseResult.success((AggType.Required, TypeRepr.of[a], TypeRepr.of[a], subExpr.toTerm))
           case _                                          => ParseResult.unknown(term, "not a ReturningPart.Elem.Aggregate")
         }
       }
@@ -243,50 +212,15 @@ object ReturningPart {
 
   }
 
-  sealed trait Aggregate extends NonSubQuery, NonEmpty {
+  final case class Aggregate(
+      fullTree: Tree,
+      returningExprsNel: NonEmptyList[ReturningPart.Elem.NonSubQuery],
+  ) extends NonSubQuery, NonEmpty {
 
-    val fullTree: Tree
-    val returningExprsNel: NonEmptyList[ReturningPart.Elem.Aggregate]
-
-    final def showOpt(using Quotes): Option[String] = returningExprs match
+    def showOpt(using Quotes): Option[String] = returningExprs match
       case Nil         => None
       case expr :: Nil => expr.show.some
       case exprs       => exprs.map(_.show).mkString(", ").some
-
-  }
-  object Aggregate {
-
-    final case class NonNested(
-        fullTree: Tree,
-        returningExprsNel: NonEmptyList[ReturningPart.Elem.Aggregate.NonNested],
-    ) extends Aggregate {
-
-      override val returningExprs: List[Elem.NonSubQuery] = returningExprsNel.toList
-
-    }
-
-    final case class Nested(
-        fullTree: Tree,
-        returningExprsNel: NonEmptyList[ReturningPart.Elem.Aggregate],
-    ) extends Aggregate {
-
-      override val returningExprs: List[Elem.NonSubQuery] = returningExprsNel.toList
-
-    }
-
-    enum AggType {
-      case Required
-      case Optional
-      case Many[S[_]](sType: Type[S], sTypeRepr: TypeRepr, seqOpsExpr: Expr[SeqOps[S]])
-      case ManyNonEmpty
-
-      final def show: String = this match
-        case AggType.Required              => "Required"
-        case AggType.Optional              => "Optional"
-        case AggType.Many(_, sTypeRepr, _) => s"Many[${sTypeRepr.showAnsiCode}]"
-        case AggType.ManyNonEmpty          => "ManyNonEmpty"
-
-    }
 
   }
 

@@ -1,14 +1,13 @@
 package oxygen.sql.generic.model.part
 
 import oxygen.predef.core.*
+import oxygen.quoted.*
 import oxygen.sql.generic.model.*
 import oxygen.sql.generic.parsing.*
-// FIX-PRE-MERGE (KR) :
-// import oxygen.quoted.*
-// import scala.quoted.*
+import scala.quoted.*
 
 sealed trait AggregateSelectPart
-object AggregateSelectPart {
+object AggregateSelectPart extends Parser[(Term, RefMap), AggregateSelectPart] {
 
   final case class ReturningLeaf(
       // TODO (KR) : are inputs needed, or a separate type?
@@ -57,6 +56,11 @@ object AggregateSelectPart {
       ).withContext("Aggregate Query").map { AggregateSelectPart.Partial.apply }
 
   }
+
+  override def parse(input: (Term, RefMap))(using ParseContext, Quotes): ParseResult[AggregateSelectPart] =
+    for {
+      _ <- AggregateSelectPart.Partial.fullParserAcceptingRefs.parse(input)
+    } yield ???
 
 }
 
