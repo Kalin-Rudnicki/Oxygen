@@ -121,17 +121,22 @@ object ReturningPart {
         }
       }
 
+      @scala.annotation.nowarn // FIX-PRE-MERGE (KR) : remove
       override def parse(input: (Term, RefMap))(using ParseContext, Quotes): ParseResult[ReturningPart.Elem.Aggregate] = {
         val (term, refs) = input
 
+        // FIX-PRE-MERGE (KR) : query-agg-bookmark
         for {
           (aggType, aType, outType, subQueryTerm) <- parseAggregateCore(term)
+          /*
           select <- FullSelectQuery.NonSubQuery.parse((subQueryTerm, refs)).unknownAsError
           agg = select match {
             case select: FullSelectQuery.Basic     => Aggregate.ReturnLeafAgg(select, aggType, aType, outType)
             case select: FullSelectQuery.Aggregate => Aggregate.ReturnNestedAgg(select, aggType, aType, outType)
           }
         } yield agg
+           */
+        } yield ???
       }
 
     }
