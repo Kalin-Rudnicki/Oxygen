@@ -13,7 +13,7 @@ import zio.{ExitCode, ZIOAppArgs, ZIOAppDefault}
 
 trait ExecutableApp extends ZIOAppDefault {
 
-  val executable: Executable
+  def executable: Executable
 
   val additionalLoggerDecoders: ArraySeq[KeyedMapDecoder.Decoder[LogConfig.LoggerElem]] = ArraySeq.empty[KeyedMapDecoder.Decoder[LogConfig.LoggerElem]]
   val additionalLoggerParsers: ArraySeq[Params[Logger]] = ArraySeq.empty[Params[Logger]]
