@@ -1,6 +1,7 @@
 package oxygen.meta
 
 import oxygen.core.*
+import oxygen.core.collection.NonEmptyList
 import oxygen.core.syntax.all.*
 import oxygen.core.typeclass.*
 import oxygen.meta.InternalHelpers.*
@@ -58,6 +59,22 @@ object ToExprT extends Derivable[ToExprT] {
 
     }
 
+  given specified: [A: ToExprT as aToExpr] => ToExprT[Specified[A]] =
+    new ToExprT[Specified[A]] {
+
+      override def apply(x: Specified[A])(using parentTpe: Type[Specified[A]], quotes: Quotes): Expr[Specified[A]] = {
+        val _aType: TypeRepr = parentTpe match
+          case '[Specified[a]] => TypeRepr.of[a]
+          case _               => report.errorAndAbort(s"Unable to extract A type from Specified[A]: ${parentTpe.toTypeRepr.showAnsiCode}")
+        given Type[A] = _aType.asTypeOf
+
+        x match
+          case Specified.WasSpecified(x) => '{ Specified.WasSpecified(${ aToExpr.apply(x) }) }
+          case Specified.WasNotSpecified => '{ Specified.WasNotSpecified }
+      }
+
+    }
+
   given either: [A: ToExprT as aToExpr, B: ToExprT as bToExpr] => ToExprT[Either[A, B]] =
     new ToExprT[Either[A, B]] {
 
@@ -103,6 +120,20 @@ object ToExprT extends Derivable[ToExprT] {
 
         tmp1.seqToExpr
       }
+    }
+
+  given nel: [A: ToExprT as aToExpr] => ToExprT[NonEmptyList[A]] =
+    new ToExprT[NonEmptyList[A]] {
+
+      override def apply(x: NonEmptyList[A])(using parentTpe: Type[NonEmptyList[A]], quotes: Quotes): Expr[NonEmptyList[A]] = {
+        val _aType: TypeRepr = parentTpe match
+          case '[NonEmptyList[a]] => TypeRepr.of[a]
+          case _                  => report.errorAndAbort(s"Unable to extract A type from NonEmptyList[A]: ${parentTpe.toTypeRepr.showAnsiCode}")
+        given Type[A] = _aType.asTypeOf
+
+        '{ NonEmptyList(${ Expr(x.head) }, ${ Expr(x.tail) }) }
+      }
+
     }
 
   //////////////////////////////////////////////////////////////////////////////////////////////////////
