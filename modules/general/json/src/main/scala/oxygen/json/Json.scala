@@ -12,17 +12,7 @@ sealed trait Json {
 
   infix final def merge(that: Json): Json =
     (this, that) match {
-      case (self: Json.Obj, that: Json.Obj) =>
-        Json.Obj(
-          (self.value.map(_._1) ++ that.value.map(_._1)).distinct.map { k =>
-            (self.valueMap.get(k), that.valueMap.get(k)) match {
-              case (Some(a), Some(b)) => k -> a.merge(b)
-              case (Some(a), None)    => k -> a
-              case (None, Some(b))    => k -> b
-              case (None, None)       => throw new RuntimeException(s"not possible, key in neither map: $k")
-            }
-          },
-        )
+      case (self: Json.Obj, that: Json.Obj) => self merge that
       case (self: Json.Arr, that: Json.Arr) =>
         val zipped = self.value.zip(that.value).map(_.merge(_))
         val len1 = self.value.length
@@ -30,8 +20,8 @@ sealed trait Json {
         if len1 > len2 then Json.Arr(zipped ++ self.value.drop(len2))
         else if len1 < len2 then Json.Arr(zipped ++ that.value.drop(len1))
         else Json.Arr(zipped)
-      case _ =>
-        that
+      case (_, Json.Null) => this
+      case _              => that
     }
 
   final def showCompact: String = {
@@ -152,6 +142,18 @@ object Json {
   final case class Obj(value: ArraySeq[(String, Json)]) extends Json {
 
     lazy val valueMap: Map[String, Json] = value.toMap
+
+    infix def merge(that: Json.Obj): Json.Obj =
+      Json.Obj(
+        (this.value.map(_._1) ++ that.value.map(_._1)).distinct.map { k =>
+          (this.valueMap.get(k), that.valueMap.get(k)) match {
+            case (Some(a), Some(b)) => k -> a.merge(b)
+            case (Some(a), None)    => k -> a
+            case (None, Some(b))    => k -> b
+            case (None, None)       => throw new RuntimeException(s"not possible, key in neither map: $k")
+          }
+        },
+      )
 
     override private[Json] def writeCompact(sb: mutable.StringBuilder): Unit = {
       sb.append('{')
