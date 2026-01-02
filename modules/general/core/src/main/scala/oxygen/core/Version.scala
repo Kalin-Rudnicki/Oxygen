@@ -234,8 +234,8 @@ object Version {
       override def toComparableString: String = ""
     }
     final case class Final(versionSuffix: Specified[Int]) extends ReleaseSuffix {
-      override def show: String = ".Final" + versionSuffix.toOption.fold("")(_.toString)
-      override def toComparableString: String = ".Final" + versionSuffix.toOption.fold("0")(_.toString)
+      override def show: String = ".Final" + versionSuffix.fold("")(_.toString)
+      override def toComparableString: String = ".Final" + versionSuffix.fold("0")(_.toString)
     }
 
     given ordering: Ordering[ReleaseSuffix] =
@@ -251,8 +251,8 @@ object Version {
 
     sealed abstract class WellDefined(final val ordinal: Int, final val prefix: String) extends PreReleaseSuffix {
       val versionSuffix: Specified[Int]
-      override final lazy val raw: String = prefix + versionSuffix.toOption.fold("")(_.toString)
-      override final def toComparableString: String = prefix + versionSuffix.toOption.fold("0")(_.toString)
+      override final lazy val raw: String = prefix + versionSuffix.fold("")(_.toString)
+      override final def toComparableString: String = prefix + versionSuffix.fold("0")(_.toString)
     }
     object WellDefined {
 
@@ -329,7 +329,7 @@ object Version {
     private val alphaSuffix = s"^(?:\\.|-+|)alpha(?:-*($num))?$$".r
     private val customSuffix = "^(?:\\.|-+|)([a-z0-9\\-]+)$".r
 
-    private def optInt(in: String): Specified[Int] = Specified.fromOption(Option(in)).map(_.toInt)
+    private def optInt(in: String): Specified[Int] = Specified(in).map(_.toInt)
 
     def parse(input: String): Option[Repr] =
       for {

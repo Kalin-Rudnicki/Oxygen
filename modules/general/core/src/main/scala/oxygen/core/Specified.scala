@@ -42,6 +42,10 @@ sealed trait Specified[+A] {
   final def flatMapOption[B](f: A => Option[B]): Specified[B] =
     this.flatMap(v => Specified.fromOption(f(v)))
 
+  final def fold[B](notSpec: => B)(spec: A => B): B = this match
+    case Specified.WasSpecified(value) => spec(value)
+    case Specified.WasNotSpecified     => notSpec
+
   final def filter(f: A => Boolean): Specified[A] = this match
     case specified @ Specified.WasSpecified(value) if f(value) => specified
     case _                                                     => Specified.WasNotSpecified
@@ -57,6 +61,10 @@ object Specified {
 
   final case class WasSpecified[+A](value: A) extends Specified[A]
   case object WasNotSpecified extends Specified[Nothing]
+
+  def apply[A](value: A): Specified[A] =
+    if value == null then Specified.WasNotSpecified
+    else Specified.WasSpecified(value)
 
   def fromOption[A](value: Option[A]): Specified[A] = value match
     case Some(value) => Specified.WasSpecified(value)

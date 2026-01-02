@@ -14,7 +14,7 @@ sealed trait Json {
     (this, that) match {
       case (self: Json.Obj, that: Json.Obj) => self merge that
       case (self: Json.Arr, that: Json.Arr) =>
-        val zipped = self.value.zip(that.value).map(_.merge(_))
+        val zipped = self.value.zip(that.value).map(_ merge _)
         val len1 = self.value.length
         val len2 = that.value.length
         if len1 > len2 then Json.Arr(zipped ++ self.value.drop(len2))
@@ -23,6 +23,10 @@ sealed trait Json {
       case (_, Json.Null) => this
       case _              => that
     }
+  final def ++(that: Json): Json = this merge that
+
+  final def nest(path: String*): Json =
+    path.foldRight(this) { (key, acc) => Json.obj(key -> acc) }
 
   final def showCompact: String = {
     val sb = mutable.StringBuilder(128)
@@ -67,6 +71,10 @@ sealed trait Json {
   final def toJsonNull: Option[Json.Null.type] = this match
     case Json.Null => Json.Null.some
     case _         => None
+
+  final def unsafeToObject: Json.Obj = this match
+    case json: Json.Obj => json
+    case _              => throw new RuntimeException(s"not a json object: $this")
 
   override final def toString: String =
     showCompact
@@ -154,6 +162,7 @@ object Json {
           }
         },
       )
+    def ++(that: Json.Obj): Json.Obj = this merge that
 
     override private[Json] def writeCompact(sb: mutable.StringBuilder): Unit = {
       sb.append('{')
@@ -187,6 +196,14 @@ object Json {
     override def equals(that: Any): Boolean = that.asInstanceOf[Matchable] match
       case that: Json.Obj => this.valueMap == that.valueMap
       case _              => false
+
+  }
+  object Obj {
+
+    val empty: Json.Obj = Json.Obj(ArraySeq.empty)
+
+    def mergeAll(json: Json.Obj*): Json.Obj =
+      json.foldLeft(Json.Obj.empty)(_ merge _)
 
   }
 
@@ -223,5 +240,10 @@ object Json {
 
   def parseOrJsonString(string: String): Json =
     parse(string).getOrElse(Json.Str(string))
+
+  val empty: Json.Obj = Json.Obj(ArraySeq.empty)
+
+  def mergeAll(json: Json*): Json =
+    json.foldLeft(Json.Obj.empty: Json)(_ merge _)
 
 }
