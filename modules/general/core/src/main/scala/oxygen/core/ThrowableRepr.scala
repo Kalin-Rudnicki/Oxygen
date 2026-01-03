@@ -1,5 +1,6 @@
 package oxygen.core
 
+// FIX-PRE-MERGE (KR) : remove
 final case class ThrowableRepr(
     typeTag: TypeTag[?],
     message: Option[String],
