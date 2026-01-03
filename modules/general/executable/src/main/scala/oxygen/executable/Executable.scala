@@ -254,24 +254,23 @@ object SingleBuilders {
     private val logLevelParser: Params[LogLevel] =
       Params.`enum`[RichLogLevel]("log-level", hints = List("default log level"))(using RichLogLevel.strictEnum).withDefault(RichLogLevel.Info).map(_.level)
 
-    private val oxygenLoggerParser: Params[Logger] =
+    private def oxygenLoggerParser(defaults: OxygenLoggerDefaults): Params[Logger] =
       Params.valueWith(
         "oxygen-logger",
         'O',
         hints = List("Uses the default oxygen logger,", " which is more focused on human readability in the console"),
       ) {
         (
-          Params.`enum`[ColorMode]("color-mode").withDefault(ColorMode.Extended) &&
-            Params.toggle.prefixFalse("no", "log-trace", hints = List("Whether to log trace location")).withDefault(true) &&
-            Params.toggle.prefixFalse("no", "log-fiber", hints = List("Whether to log trace location")).withDefault(true) &&
-            Params.toggle.prefixFalse("no", "log-annotations", hints = List("Whether to log trace location")).withDefault(true) &&
-            Params.toggle.prefixFalse("no", "log-spans", hints = List("Whether to log trace location")).withDefault(true) &&
-            Params.toggle.prefixFalse("no", "log-timestamp", hints = List("Whether to log trace location")).withDefault(true) &&
-            Params.toggle.prefixFalse("no", "ignore-stackless", hints = List("Ignore when a cause denotes itself as `stackless`")).withDefault(true)
+          Params.`enum`[ColorMode]("color-mode").withDefault(defaults.colorMode) &&
+            Params.toggle.prefixFalse("no", "log-trace", hints = List("Whether to log trace location")).withDefault(defaults.logTrace) &&
+            Params.toggle.prefixFalse("no", "log-fiber", hints = List("Whether to log trace location")).withDefault(defaults.logFiberId) &&
+            Params.toggle.prefixFalse("no", "log-annotations", hints = List("Whether to log trace location")).withDefault(defaults.logAnnotations) &&
+            Params.toggle.prefixFalse("no", "log-spans", hints = List("Whether to log trace location")).withDefault(defaults.logSpans) &&
+            Params.toggle.prefixFalse("no", "log-timestamp", hints = List("Whether to log trace location")).withDefault(defaults.logTimestamp) &&
+            Params.toggle.prefixFalse("no", "ignore-stackless", hints = List("Ignore when a cause denotes itself as `stackless`")).withDefault(defaults.ignoreStackless)
         ).bracketed("oxygen-params")
           .map { Logger.oxygen }
           .withDefault { Logger.oxygenDefault }
-
       }
 
     private val jsonLoggerParser: Params[Logger] =
@@ -290,8 +289,8 @@ object SingleBuilders {
         hints = List("Uses the default zio logger"),
       )
 
-    private def loggerParser(otherParsers: ArraySeq[Params[Logger]])(default: Logger): Params[Logger] = {
-      val base: NonEmptyList[Params[Logger]] = NonEmptyList.of(oxygenLoggerParser, jsonLoggerParser, zioLoggerParser)
+    private def loggerParser(otherParsers: ArraySeq[Params[Logger]], oxygenLoggerDefaults: OxygenLoggerDefaults)(default: Logger): Params[Logger] = {
+      val base: NonEmptyList[Params[Logger]] = NonEmptyList.of(oxygenLoggerParser(oxygenLoggerDefaults), jsonLoggerParser, zioLoggerParser)
       val withExtras: NonEmptyList[Params[Logger]] = base :++ otherParsers
 
       Params
@@ -304,7 +303,7 @@ object SingleBuilders {
         logContextParser &&
           logSpansParser &&
           logLevelParser &&
-          loggerParser(config.additionalLoggerParsers) {
+          loggerParser(config.additionalLoggerParsers, config.oxygenLoggerDefaults) {
             if config.executableConfig.keepZioLogger then Logger.zioDefault
             else Logger.oxygenDefault
           }
