@@ -14,7 +14,7 @@ import scala.quoted.*
 
 trait Show[A] {
 
-  def show(value: A): String
+  def show(value: A): String // TODO (KR) : LazyString
 
   def writeTo(builder: mutable.StringBuilder, value: A): Unit = builder.append(show(value))
 

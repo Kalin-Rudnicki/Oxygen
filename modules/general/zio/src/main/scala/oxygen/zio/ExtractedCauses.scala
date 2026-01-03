@@ -1,5 +1,6 @@
 package oxygen.zio
 
+import oxygen.core.error.FromZioCause
 import oxygen.predef.core.*
 import scala.annotation.tailrec
 import zio.*
@@ -77,6 +78,14 @@ sealed trait ExtractedCauses[+E] {
       case ExtractedCauses.Interrupts(interrupts)                  => interrupts.toList
       case ExtractedCauses.Empty                                   => Nil
     }
+
+  final def toErrors: List[Error] = this match
+    case ExtractedCauses.Failures(failures, Nil, Nil)            => failures.toList.map(FromZioCause.fromFail)
+    case ExtractedCauses.Failures(failures, defects, interrupts) => failures.toList.map(FromZioCause.fromFail) ++ defects.map(FromZioCause.fromDie) ++ interrupts.map(FromZioCause.fromInterrupt)
+    case ExtractedCauses.Defects(defects, Nil)                   => defects.toList.map(FromZioCause.fromDie)
+    case ExtractedCauses.Defects(defects, interrupts)            => defects.toList.map(FromZioCause.fromDie) ++ interrupts.map(FromZioCause.fromInterrupt)
+    case ExtractedCauses.Interrupts(interrupts)                  => interrupts.toList.map(FromZioCause.fromInterrupt)
+    case ExtractedCauses.Empty                                   => Nil
 
   final def toCause: Cause[E] =
     this.toCauses match

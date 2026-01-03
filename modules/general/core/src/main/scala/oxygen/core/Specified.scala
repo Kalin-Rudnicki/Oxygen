@@ -66,6 +66,8 @@ object Specified {
     if value == null then Specified.WasNotSpecified
     else Specified.WasSpecified(value)
 
+  def when[A](cond: Boolean)(value: => A): Specified[A] = if cond then Specified.WasSpecified(value) else Specified.WasNotSpecified
+
   def fromOption[A](value: Option[A]): Specified[A] = value match
     case Some(value) => Specified.WasSpecified(value)
     case None        => Specified.WasNotSpecified
