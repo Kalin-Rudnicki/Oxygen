@@ -57,6 +57,8 @@ object TypeTag {
   inline def apply[A <: AnyKind](using ev: TypeTag[A]): ev.type = ev
   inline def apply[A <: AnyKind, _RefT <: TypeRef](_tag: _RefT, _closestClass: Class[?]): TypeTag.Aux[A, _RefT] = Inst[A, _RefT](_tag, _closestClass)
 
+  val any: TypeTag[?] = TypeTag.fromClass(classOf[Any])
+
   //////////////////////////////////////////////////////////////////////////////////////////////////////
   //      Types
   //////////////////////////////////////////////////////////////////////////////////////////////////////
