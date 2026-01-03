@@ -9,4 +9,5 @@ private[executable] final case class ExecutableContext(
     logTargetDecoder: KeyedMapDecoder[LogConfig.LoggerElem],
     additionalLoggerParsers: ArraySeq[Params[Logger]],
     executableConfig: ExecutableApp.Config,
+    oxygenLoggerDefaults: OxygenLoggerDefaults,
 )

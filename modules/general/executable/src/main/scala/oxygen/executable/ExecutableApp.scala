@@ -32,6 +32,7 @@ trait ExecutableApp extends ZIOAppDefault {
             logTargetDecoder = KeyedMapDecoder(LogConfig.elemDecoders.default ++ additionalLoggerDecoders),
             additionalLoggerParsers = additionalLoggerParsers,
             executableConfig = executableConfig,
+            oxygenLoggerDefaults = oxygenLoggerDefaults,
           )
           _ <- executable(jsonConfig, executableArgs, context)
         } yield ()
@@ -42,7 +43,12 @@ trait ExecutableApp extends ZIOAppDefault {
       .as(ExitCode.success)
       .catchSome { case ExecuteError.Parsing.Help(help, _) => Console.printLine(help.toString).orDie.as(ExitCode.success) }
       .catchSome { case e: ExecuteError.Parsing.FailedToParse => Console.printLine(e.getMessage).orDie.as(ExitCode.failure) }
-      .catchAllCause { ZIO.logFatalCause(_).as(ExitCode.failure) }
+      .catchAllCause { cause =>
+        ZIO.logFatalCause(cause.untraced) *>
+          ZIO.logDebugCause(cause).as(ExitCode.failure)
+      }
+
+  def oxygenLoggerDefaults: OxygenLoggerDefaults = OxygenLoggerDefaults.all()
 
   override final def run: URIO[ZIOAppArgs, Unit] =
     ZIO

@@ -533,6 +533,7 @@ object AutoComplete {
         logTargetDecoder = KeyedMapDecoder(LogConfig.elemDecoders.default ++ executableApp.additionalLoggerDecoders),
         additionalLoggerParsers = executableApp.additionalLoggerParsers,
         executableConfig = ExecutableApp.Config(Nil, false),
+        oxygenLoggerDefaults = OxygenLoggerDefaults.all(),
       )
 
       doubleDashIndices = args.zipWithIndex.collect { case ("--", i) => i }
