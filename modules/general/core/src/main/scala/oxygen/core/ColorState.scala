@@ -2,6 +2,7 @@ package oxygen.core
 
 import oxygen.core.syntax.option.*
 
+// TODO (KR) : remove - replaced by new LazyString
 final case class ColorState(fg: Option[Color], bg: Option[Color])
 object ColorState {
 

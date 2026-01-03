@@ -3,6 +3,8 @@ package oxygen.test
 import oxygen.core.collection.NonEmptyList
 import oxygen.core.syntax.common.*
 import scala.Console.*
+import zio.Trace
+import zio.internal.stacktracer.SourceLocation
 import zio.test.*
 import zio.test.Assertion.*
 
@@ -247,5 +249,17 @@ object OxygenAssertions {
     )
   def equalTo_unfilteredDiff[A](expected: A): Assertion[A] =
     equalTo_unfilteredDiff(expected) { defaultShow }
+
+  def equalTo_customShow[A](expected: A, show: A => String): Assertion[A] =
+    Assertion(
+      TestArrow.make[A, Boolean] { actual =>
+        TestTrace.boolean(expected == actual) {
+          ErrorMessage.text(s"\n\n--- expected ---\n\n${show(expected)}\n\n\n--- actual ---\n\n${show(actual)}\n".replaceAll("\n", "\n        "))
+        }
+      },
+    )
+
+  def simpleEqual[A](actual: A, expected: => A, show: A => String = (_: A).toString)(using Trace, SourceLocation) =
+    assert(actual)(equalTo_customShow(expected, show))
 
 }

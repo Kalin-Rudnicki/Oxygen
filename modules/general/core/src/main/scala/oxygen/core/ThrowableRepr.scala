@@ -1,5 +1,6 @@
 package oxygen.core
 
+// TODO (KR) : remove - replaced by new LazyString / Error
 final case class ThrowableRepr(
     typeTag: TypeTag[?],
     message: Option[String],
