@@ -5,7 +5,7 @@ import scala.reflect.ClassTag
 /**
   * FIX-PRE-MERGE (KR) : Add description
   */
-final class ArrayBuilder[A: ClassTag as ct] private (initialSize: Int, growthFactor: Double, private val threadUnsafe: Boolean) extends Iterable[A] {
+final class ArrayBuilder[A: ClassTag as ct] private (initialSize: Int, growthFactor: Double, private val threadUnsafe: Boolean) {
 
   def addAllArrayElements(elementsToAdd: Array[A]): Unit =
     if elementsToAdd eq null then ()
@@ -36,7 +36,7 @@ final class ArrayBuilder[A: ClassTag as ct] private (initialSize: Int, growthFac
     if threadUnsafe then addSingleInternal(element)
     else this.synchronized { addSingleInternal(element) }
 
-  def addAllBuilder(that: ArrayBuilder[A]): Unit =
+  def addAllBuilder(that: ArrayBuilder[A]): Unit = // FIX-PRE-MERGE (KR) :
     if that eq null then ()
     else if this eq that then {
       if this.threadUnsafe then ???
@@ -54,7 +54,7 @@ final class ArrayBuilder[A: ClassTag as ct] private (initialSize: Int, growthFac
     this
   }
 
-  override def iterator: Iterator[A] = snapshot().iterator
+  def iterator(): Iterator[A] = snapshot().iterator
 
   def snapshot(): Iterable[A] =
     if threadUnsafe then snapshotInternal()
