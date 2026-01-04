@@ -2,6 +2,7 @@ package oxygen.core
 
 import oxygen.core.syntax.option.*
 
+// FIX-PRE-MERGE (KR) : remove
 final case class ColorState(fg: Option[Color], bg: Option[Color])
 object ColorState {
 
