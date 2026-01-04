@@ -68,12 +68,8 @@ final class ArrayBuilder[A] private (private val threadUnsafe: Boolean)(using pr
     if threadUnsafe then snapshotInternal()
     else this.synchronized { snapshotInternal() }
 
-  def buildArray(): Array[A] = {
-    val res = safeSnapshot().arrayOfA
-    import oxygen.core.syntax.common.*
-    println(s"\n${scala.io.AnsiColor.YELLOW}--- array -----${scala.io.AnsiColor.RESET}\n\n${res.map(_.toString.unesc).mkString(", ")}\n")
-    res
-  }
+  def buildArray(): Array[A] =
+    safeSnapshot().arrayOfA
 
   def showInternalState(): String = {
     val sb = new scala.collection.mutable.StringBuilder()
@@ -127,12 +123,10 @@ final class ArrayBuilder[A] private (private val threadUnsafe: Boolean)(using pr
 
   private def overflowAppend(array: Array[A], used: Int): Unit = {
     if _overflowUsed >= _overflowBuffer.length then {
-      println(s"${scala.io.AnsiColor.GREEN}(2.1)${scala.io.AnsiColor.RESET}")
       val newOverflowBuffer: Array[ArrayBuilder.PotentiallyPartialArray[A]] = new Array[ArrayBuilder.PotentiallyPartialArray[A]](array.length + 32)
       System.arraycopy(_overflowBuffer, 0, newOverflowBuffer, 0, _overflowBuffer.length)
       _overflowBuffer = newOverflowBuffer
     }
-    println(s"${scala.io.AnsiColor.GREEN}(2.2)${scala.io.AnsiColor.RESET}")
     _overflowBuffer(_overflowUsed) = ArrayBuilder.PotentiallyPartialArray[A](array, used)
     _overflowTotalUsedElems = _overflowTotalUsedElems + used
     _overflowAllocatedElems = _overflowAllocatedElems + array.length
@@ -150,7 +144,6 @@ final class ArrayBuilder[A] private (private val threadUnsafe: Boolean)(using pr
   }
 
   private inline def addStringCharsNoOverflow(inline string: String, inline newElemsLength: Int, inline newAvailable: Int): Unit = {
-    println(s"${scala.io.AnsiColor.GREEN}(3.1)${scala.io.AnsiColor.RESET}")
     val castCurrentArray: Array[Char] = _currentArray.asInstanceOf[Array[Char]]
     string.getChars(0, newElemsLength, castCurrentArray, _currentUsed)
     _currentUsed = _currentUsed + newElemsLength
@@ -176,20 +169,16 @@ final class ArrayBuilder[A] private (private val threadUnsafe: Boolean)(using pr
         // at this point, you have not even allocated [[currentArray]]
         // the first thing you tried to add already took up more than half your buffer
         // just add it to overflow and increase size
-        println(s"${scala.io.AnsiColor.GREEN}(1.1)${scala.io.AnsiColor.RESET}")
         overflowAppend(string.toCharArray.asInstanceOf[Array[A]], newElemsLength)
         _currentAvailable = newSize(_currentAvailable.max(newElemsLength))
       } else {
-        println(s"${scala.io.AnsiColor.GREEN}(1.2)${scala.io.AnsiColor.RESET}")
         _currentArray = new Array[A](_currentAvailable)
         addStringCharsNoOverflow(string, newElemsLength, newAvailable)
       }
     else
       if newAvailable >= 0 then {
-        println(s"${scala.io.AnsiColor.GREEN}(1.3)${scala.io.AnsiColor.RESET}")
         addStringCharsNoOverflow(string, newElemsLength, newAvailable)
       } else {
-        println(s"${scala.io.AnsiColor.GREEN}(1.4)${scala.io.AnsiColor.RESET}")
         overflowAppend(_currentArray, _currentUsed)
         overflowAppend(string.toCharArray.asInstanceOf[Array[A]], newElemsLength)
         _currentAvailable = newSize(_currentArray.length.max(newElemsLength))
