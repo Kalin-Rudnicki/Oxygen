@@ -5,7 +5,7 @@ import scala.reflect.ClassTag
 /**
   * FIX-PRE-MERGE (KR) : Add description
   */
-final class ArrayBuilder[A: ClassTag as ct] private (initialSize: Int, growthFactor: Double, private val threadUnsafe: Boolean) {
+final class ArrayBuilder[A: ClassTag as ct] private (private val threadUnsafe: Boolean) {
 
   def addStringChars(string: String)(using ev: A =:= Char): Unit = {
     val string0: String = if string ne null then string else "null"
@@ -70,23 +70,25 @@ final class ArrayBuilder[A: ClassTag as ct] private (initialSize: Int, growthFac
     else this.synchronized { snapshotInternal() }
 
   def buildArray(): Array[A] =
-    if threadUnsafe then buildArrayInternal()
-    else this.synchronized { buildArrayInternal() }
+    this.snapshot().toArray[A]
 
   def showInternalState(): String = {
     val sb = new scala.collection.mutable.StringBuilder()
 
     sb.append("ArrayBuilder[")
     sb.append(ct.runtimeClass.getName)
-    sb.append(s"]:\n  overflow ( size = $_numOverflowElems, used = $_overflowUsedLength, total = $_overflowAllocatedLength ):")
+    sb.append(s"]:\n  overflow ( size = $_numOverflowElems, used = $_overflowTotalUsedElems, total = $_overflowAllocatedElems ):")
 
-    overflow.iterator().foreach { node =>
+    var _tmpIdx: Int = 0
+    while _tmpIdx < _numOverflowElems do {
+      val node = _overflowBuffer(_tmpIdx)
       sb.append("\n    - ( allocated = ")
       sb.append(node.array.length)
       sb.append(", used = ")
       sb.append(node.used)
       sb.append(" ): \n      ")
       node.array.addString(sb, "[", ", ", "]")
+      _tmpIdx = _tmpIdx + 1
     }
 
     sb.append(s"\n  current:\n    ( allocated = ${if _currentArray eq null then "<N/A>" else _currentArray.length}, used = ")
@@ -104,24 +106,41 @@ final class ArrayBuilder[A: ClassTag as ct] private (initialSize: Int, growthFac
   //      Internal
   //////////////////////////////////////////////////////////////////////////////////////////////////////
 
-  private var _overflowUsedLength: Long = 0
-  private var _overflowAllocatedLength: Long = 0
+  /*
+      overflow buffer elements:
+        - ["A", "B", "C", null] # 3 / 4
+        - ["D", "E", null x 6] # 2 / 8
+        - ["F", "G", "H", "I", "J", "K", "L", "M", "N", "O"] # 10 / 10
+        - null
+
+      _overflowTotalUsedElems = 3 + 2 + 10 = 15
+      _overflowAllocatedElems = 4 + 8 + 10 = 22
+      _numOverflowElems = 3
+   */
+  private var _overflowTotalUsedElems: Long = 0
+  private var _overflowAllocatedElems: Long = 0
   private var _numOverflowElems: Int = 0
-  private val overflow: LinkedList[ArrayBuilder.PotentiallyPartialArray[A]] = LinkedList.empty[ArrayBuilder.PotentiallyPartialArray[A]](!threadUnsafe)
+  private var _overflowBuffer: Array[ArrayBuilder.PotentiallyPartialArray[A]] = new Array[ArrayBuilder.PotentiallyPartialArray[A]](32)
+
   private def overflowAppend(array: Array[A], used: Int): Unit = {
-    overflow.append(ArrayBuilder.PotentiallyPartialArray[A](array, used))
-    _overflowUsedLength = _overflowUsedLength + used
-    _overflowAllocatedLength = _overflowAllocatedLength + array.length
+    if _numOverflowElems >= _overflowBuffer.length then {
+      val newOverflowBuffer: Array[ArrayBuilder.PotentiallyPartialArray[A]] = new Array[ArrayBuilder.PotentiallyPartialArray[A]](array.length + 32)
+      System.arraycopy(_overflowBuffer, 0, newOverflowBuffer, 0, _overflowBuffer.length)
+      _overflowBuffer = newOverflowBuffer
+    }
+    _overflowBuffer(_numOverflowElems) = ArrayBuilder.PotentiallyPartialArray[A](array, used)
+    _overflowTotalUsedElems = _overflowTotalUsedElems + used
+    _overflowAllocatedElems = _overflowAllocatedElems + array.length
     _numOverflowElems = _numOverflowElems + 1
   }
 
   private var _currentArray: Array[A] = null
   private var _currentUsed: Int = 0
-  private var _currentAvailable: Int = initialSize
+  private var _currentAvailable: Int = 32
 
   private inline def newSize(inline base: Int): Int = {
-    val newSizeDouble: Double = base.toLong * growthFactor
-    if newSizeDouble <= jdk.internal.util.ArraysSupport.SOFT_MAX_ARRAY_LENGTH then newSizeDouble.toInt
+    val newSizeLong: Long = base.toLong * 2
+    if newSizeLong <= jdk.internal.util.ArraysSupport.SOFT_MAX_ARRAY_LENGTH then newSizeLong.toInt
     else jdk.internal.util.ArraysSupport.SOFT_MAX_ARRAY_LENGTH
   }
 
@@ -239,53 +258,94 @@ final class ArrayBuilder[A: ClassTag as ct] private (initialSize: Int, growthFac
       _currentUsed = 1
     }
 
-  private inline def nodeIterableInternal(): Iterable[ArrayBuilder.PotentiallyPartialArray[A]] =
-    if _currentArray eq null then overflow.snapshot()
-    else overflow.snapshot() ++ Iterable.single(ArrayBuilder.PotentiallyPartialArray[A](_currentArray, _currentUsed))
-
   private inline def snapshotInternal(): Iterable[A] =
-    nodeIterableInternal().flatMap(_.iterator)
-
-  private inline def buildArrayInternal(): Array[A] = {
-    val finalSize: Long = _overflowUsedLength + _currentUsed
-    if finalSize > jdk.internal.util.ArraysSupport.SOFT_MAX_ARRAY_LENGTH then
-      throw new RuntimeException(s"Unable to build array of length $finalSize, maxArraySize=${jdk.internal.util.ArraysSupport.SOFT_MAX_ARRAY_LENGTH}")
-    val output: Array[A] = new Array[A](finalSize.toInt)
-
-    var offset: Int = 0
-
-    val nodeIter: Iterator[ArrayBuilder.PotentiallyPartialArray[A]] = nodeIterableInternal().iterator
-    while nodeIter.hasNext do {
-      val node = nodeIter.next()
-      System.arraycopy(node.array, 0, output, offset, node.used)
-      offset = offset + node.used
-    }
-
-    output
-  }
+    ArrayBuilder.Snapshot[A](_overflowBuffer, _overflowTotalUsedElems, _overflowAllocatedElems, _numOverflowElems, _currentArray, _currentUsed)
 
 }
 object ArrayBuilder {
 
-  def empty[A: ClassTag]: ArrayBuilder[A] = emptyThreadUnsafe[A]
-  def emptyThreadUnsafe[A: ClassTag]: ArrayBuilder[A] = new ArrayBuilder[A](32, 2, true)
-  def emptyThreadSafe[A: ClassTag]: ArrayBuilder[A] = new ArrayBuilder[A](32, 2, false)
-
-  def empty[A: ClassTag](initialSize: Int): ArrayBuilder[A] = emptyThreadUnsafe[A](initialSize)
-  def emptyThreadUnsafe[A: ClassTag](initialSize: Int): ArrayBuilder[A] = new ArrayBuilder[A](initialSize, 2, true)
-  def emptyThreadSafe[A: ClassTag](initialSize: Int): ArrayBuilder[A] = new ArrayBuilder[A](initialSize, 2, false)
-
-  def make[A: ClassTag](initialSize: Int, growthFactor: Double, threadSafe: Boolean): ArrayBuilder[A] = new ArrayBuilder[A](initialSize.max(8), growthFactor.max(1), !threadSafe)
+  def empty[A: ClassTag]: ArrayBuilder[A] = new ArrayBuilder[A](true)
+  def emptyThreadUnsafe[A: ClassTag]: ArrayBuilder[A] = new ArrayBuilder[A](true)
+  def emptyThreadSafe[A: ClassTag]: ArrayBuilder[A] = new ArrayBuilder[A](false)
 
   private final case class PotentiallyPartialArray[A](array: Array[A], used: Int) extends Iterable[A] {
 
-    override def iterator: Iterator[A] = new PotentiallyPartialArrayIterator(array, used)
+    override def iterator: Iterator[A] = new PartialArrayIterator[A](array, used)
 
     // TODO (KR) : known size
 
   }
 
-  private final class PotentiallyPartialArrayIterator[A](array: Array[A], used: Int) extends Iterator[A] {
+  private final case class Snapshot[A: ClassTag as aCt](
+      overflow: Array[PotentiallyPartialArray[A]],
+      overflowTotalUsedElems: Long,
+      overflowAllocatedElems: Long,
+      overflowUsed: Int,
+      currentArray: Array[A],
+      currentArrayUsed: Int,
+  ) extends Iterable[A] {
+
+    private lazy val totalSize: Int = {
+      val total: Long = overflowTotalUsedElems + currentArrayUsed
+      if total > jdk.internal.util.ArraysSupport.SOFT_MAX_ARRAY_LENGTH then
+        throw new RuntimeException(s"Unable to build array of length $total, maxArraySize=${jdk.internal.util.ArraysSupport.SOFT_MAX_ARRAY_LENGTH}")
+      total.toInt
+    }
+
+    def makeArrayOfA: Array[A] = {
+      val output: Array[A] = new Array[A](totalSize)
+
+      var _idx: Int = 0
+      var _offset: Int = 0
+
+      while _idx < overflowUsed do {
+        val tmp = overflow(_idx)
+        System.arraycopy(tmp.array, 0, output, _offset, tmp.used)
+        _idx = _idx + 1
+        _offset = _offset + 1
+      }
+
+      if currentArray ne null then
+        System.arraycopy(currentArray, 0, output, _idx, currentArrayUsed)
+
+      output
+    }
+
+    override def toArray[B >: A: ClassTag as bCt]: Array[B] =
+      if bCt.runtimeClass.isAssignableFrom(aCt.runtimeClass) then
+        makeArrayOfA.asInstanceOf[Array[B]]
+      else {
+        val output: Array[B] = new Array[B](totalSize)
+
+        var _idx: Int = 0
+        var _offset: Int = 0
+
+        while _idx < overflowUsed do {
+          val tmp = overflow(_idx)
+          Array.copy(tmp.array, 0, output, _offset, tmp.used)
+          _idx = _idx + 1
+          _offset = _offset + 1
+        }
+
+        if currentArray ne null then
+          Array.copy(currentArray, 0, output, _idx, currentArrayUsed)
+
+        output
+      }
+
+    override def iterator: Iterator[A] =
+      new SnapshotIterator(
+        overflow = overflow,
+        overflowUsed = overflowUsed,
+        currentArray = currentArray,
+        currentArrayUsed = currentArrayUsed,
+      )
+
+  }
+
+  private final case class PartialArrayIterator[A](array: Array[A], used: Int) extends Iterator[A] {
+
+    def this(ppa: PotentiallyPartialArray[A]) = this(ppa.array, ppa.used)
 
     private var _offset: Int = 0
 
@@ -297,7 +357,46 @@ object ArrayBuilder {
       value
     }
 
-    // TODO (KR) : known size
+    override def knownSize: Int = used - _offset
+
+  }
+
+  private final class SnapshotIterator[A](
+      overflow: Array[PotentiallyPartialArray[A]],
+      overflowUsed: Int,
+      currentArray: Array[A],
+      currentArrayUsed: Int,
+  ) extends Iterator[A] {
+
+    private var _usedCurrent: Boolean = false
+    private var _offset: Int = 0
+    private var _current: PartialArrayIterator[A] =
+      if overflowUsed > 0 then new PartialArrayIterator[A](overflow(0))
+      else if currentArray ne null then {
+        _usedCurrent = true
+        new PartialArrayIterator[A](currentArray, currentArrayUsed)
+      } else null
+
+    private def cycle(): Boolean = {
+      _offset = _offset + 1
+      if _offset < overflowUsed then {
+        _current = new PartialArrayIterator(overflow(_offset))
+        true
+      } else if (currentArray ne null) && !_usedCurrent then {
+        _usedCurrent = true
+        new PartialArrayIterator[A](currentArray, currentArrayUsed)
+        true
+      } else {
+        _current = null
+        false
+      }
+    }
+
+    override def hasNext: Boolean =
+      (_current ne null) && (_current.hasNext || cycle())
+
+    override def next(): A =
+      _current.next()
 
   }
 

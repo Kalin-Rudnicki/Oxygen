@@ -2,9 +2,11 @@ package oxygen.core
 
 import oxygen.core.collection.mutable.ArrayBuilder
 
-final class StringBuilder(initialSize: Int, threadSafe: Boolean) {
+final class StringBuilder(threadSafe: Boolean) {
 
-  private val chars: ArrayBuilder[Char] = ArrayBuilder.make[Char](initialSize, 2.0, threadSafe)
+  private val chars: ArrayBuilder[Char] =
+    if threadSafe then ArrayBuilder.emptyThreadSafe[Char]
+    else ArrayBuilder.emptyThreadUnsafe[Char]
 
   def append(string: String): Unit = chars.addStringChars(string)
   def <<(string: String): StringBuilder = {
