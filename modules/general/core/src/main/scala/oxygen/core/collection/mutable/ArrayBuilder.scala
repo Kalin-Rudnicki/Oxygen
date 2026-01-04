@@ -191,6 +191,7 @@ final class ArrayBuilder[A: ClassTag as ct] private (initialSize: Int, growthFac
       _currentAvailable = _currentAvailable - 1
       _currentUsed = _currentUsed + 1
     } else {
+      overflowAppend(_currentArray, _currentUsed)
       _currentAvailable = newSize(_currentUsed)
       _currentArray = new Array[A](_currentAvailable)
       _currentArray(0) = element

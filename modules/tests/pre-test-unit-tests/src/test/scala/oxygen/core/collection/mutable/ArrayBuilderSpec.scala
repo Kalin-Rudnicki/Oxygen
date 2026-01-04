@@ -135,15 +135,15 @@ object ArrayBuilderSpec extends OxygenSpecDefault {
         inserts: Seq[Insert[A]] <- genCase[A](gen, genSizeMin, genSizeMax).replicateZIO(numInserts).map(_.toSeq)
         initialSize <- Random.nextIntBetween(initialSizeMin, initialSizeMax)
         builder <- ZIO.attempt { ArrayBuilder.emptyThreadUnsafe[A](initialSize) }
-        (rAcc, _) <- ZIO.foldLeft(inserts.zipWithIndex)((List.empty[Snapshots[A]], List.empty[A])) { case ((rAcc, golden), (insert, idx)) =>
-          Snapshots.make(builder, golden, insert, idx).map { snap => (snap :: rAcc, snap.afterGolden) }
+        (acc, _) <- ZIO.foldLeft(inserts.zipWithIndex)((assertCompletes, List.empty[A])) {
+          case (res @ (acc, _), _) if acc.isFailure => ZIO.succeed(res)
+          case ((acc, golden), (insert, idx))       =>
+            for {
+              snap <- Snapshots.make(builder, golden, insert, idx)
+              runAssert <- snap.runAssertions
+            } yield (acc && runAssert, snap.afterGolden)
         }
-        asserts <- ZIO.foreach(rAcc.reverse)(_.runAssertions)
-        result = asserts.foldLeft(assertCompletes) { (acc, elem) =>
-          if acc.isSuccess then acc && elem
-          else acc
-        }
-      } yield result
+      } yield acc
     }
 
   private def makeSuite[A: ClassTag as ct](
