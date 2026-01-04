@@ -33,6 +33,13 @@ object LazyStringSpec extends OxygenSpecDefault {
       makeTest("(A)", showColor) {
         LazyString.fromString("(A)") |> { LazyString.empty }
       },
+      /*
+      makeTest("abc\n defghi\nghi", showColor) {
+        str"""abc
+             | def${"ghi"}
+             |ghi"""
+      },
+       */
     )
 
 }

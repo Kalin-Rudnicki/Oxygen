@@ -2,6 +2,10 @@ package oxygen.core
 
 import oxygen.core.collection.NonEmptyList
 import oxygen.core.typeclass.SeqRead
+// FIX-PRE-MERGE (KR) :
+// import oxygen.meta.*
+// import oxygen.quoted.*
+// import scala.quoted.*
 
 sealed trait LazyString {
 
@@ -68,6 +72,42 @@ object LazyString {
   def mkString[S[_]: SeqRead as seqRead](in: S[LazyString], join: LazyString.Auto): LazyString = mkString(in, empty, join, empty)
   def mkString[S[_]: SeqRead as seqRead](in: S[LazyString], prefix: LazyString.Auto, join: LazyString.Auto, suffix: LazyString.Auto): LazyString =
     LazyString.impl.Concat.SurroundLazyStrings(seqRead, in, prefix, join, suffix)
+
+  // FIX-PRE-MERGE (KR) : pausing string interpolation parsing
+  /*
+  // TODO (KR) : make this a macro
+  def interpolateStrInternal(sc: Expr[StringContext], args: Expr[Seq[LazyString.Auto]])(using Quotes): Expr[LazyString] = {
+    val scPos: Position = sc.toTerm.pos
+    val isMultiLine: Boolean = scPos.startLine != scPos.endLine
+
+    val argExprs: Seq[Expr[Any]] =
+      sc match
+        case '{ ($scE: StringContext).str(${ Varargs(_) }*) } => report.errorAndAbort(scE.toTerm.showAnsiCode)
+        case _                                                => report.errorAndAbort("invalid str\"\" interpolation call...")
+
+    report.errorAndAbort(argExprs.map(_.showAnsiCode).mkString("\n"))
+
+    if isMultiLine then
+      report.errorAndAbort("multi")
+
+    extension (self: Expr[?])
+      def showPos: String = {
+        val p = self.toTerm.pos
+        s"Position: ${p.startLine}:${p.endLine}"
+      }
+
+    // val
+
+    report.errorAndAbort(
+      List[String](
+        sc.toTerm.removeInline.toIndentedString.toStringColorized,
+        args.toTerm.removeInline.toIndentedString.toStringColorized,
+        sc.showPos,
+        args.showPos,
+      ).mkString("\n\n"),
+    )
+  }
+   */
 
   //////////////////////////////////////////////////////////////////////////////////////////////////////
   //      Config / State
@@ -359,3 +399,7 @@ object LazyString {
   }
 
 }
+
+// FIX-PRE-MERGE (KR) : string interp
+// extension (inline sc: StringContext)
+//   inline def str(inline args: LazyString.Auto*): LazyString = ${ LazyString.interpolateStrInternal('sc, 'args) }
