@@ -179,22 +179,20 @@ final class ArrayBuilder[A: ClassTag as ct] private (initialSize: Int, growthFac
     }
 
   private inline def addSingleInternal(inline element: A): Unit =
-    if currentAvailable > 0 then // not possible :   currentArray == null && currentAvailable == 0
-      if currentArray eq null then {
+    if currentAvailable > 0 then {
+      if currentArray eq null then
         currentArray = new Array[A](currentAvailable)
-        currentArray(0) = element
-        currentAvailable = currentAvailable - 1
-        currentUsed = 1
-      } else {
-        overflowAppend(currentArray, currentUsed)
-        currentArray(currentUsed) = element
-        currentAvailable = currentAvailable - 1
-        currentUsed = currentUsed + 1
-      }
-    else {
+
       currentArray(currentUsed) = element
       currentAvailable = currentAvailable - 1
-      currentUsed = 1
+      currentUsed = currentUsed + 1
+    } else {
+      overflowAppend(currentArray, currentUsed)
+      currentAvailable = newSize(currentUsed)
+      currentArray = new Array[A](currentAvailable)
+      currentArray(0) = element
+      currentAvailable = currentAvailable - 1
+      currentUsed = currentUsed + 1
     }
 
   private inline def nodeIterableInternal(): Iterable[ArrayBuilder.PotentiallyPartialArray[A]] =
