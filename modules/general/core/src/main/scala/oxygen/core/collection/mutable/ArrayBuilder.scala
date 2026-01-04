@@ -5,7 +5,7 @@ import scala.reflect.ClassTag
 /**
   * FIX-PRE-MERGE (KR) : Add description
   */
-final class ArrayBuilder[A: ClassTag as ct] private (initialSize: Int, growthFactor: Double, threadUnsafe: Boolean) {
+final class ArrayBuilder[A: ClassTag as ct] private (initialSize: Int, growthFactor: Double, private val threadUnsafe: Boolean) extends Iterable[A] {
 
   def addAllArrayElements(elementsToAdd: Array[A]): Unit =
     if elementsToAdd eq null then ()
@@ -36,10 +36,29 @@ final class ArrayBuilder[A: ClassTag as ct] private (initialSize: Int, growthFac
     if threadUnsafe then addSingleInternal(element)
     else this.synchronized { addSingleInternal(element) }
 
+  def addAllBuilder(that: ArrayBuilder[A]): Unit =
+    if that eq null then ()
+    else if this eq that then {
+      if this.threadUnsafe then ???
+      else this.synchronized { ??? }
+    } else
+      if this.threadUnsafe then
+        if that.threadUnsafe then ???
+        else that.synchronized { ??? }
+      else
+        if that.threadUnsafe then this.synchronized { ??? } //
+        else this.synchronized { that.synchronized { ??? } }
+
   def <<(array: Array[A]): ArrayBuilder[A] = {
     this.addAllArrayElements(array)
     this
   }
+
+  override def iterator: Iterator[A] = snapshot().iterator
+
+  def snapshot(): Iterable[A] =
+    if threadUnsafe then snapshotInternal()
+    else this.synchronized { snapshotInternal() }
 
   def buildArray(): Array[A] =
     if threadUnsafe then buildArrayInternal()
@@ -109,6 +128,12 @@ final class ArrayBuilder[A: ClassTag as ct] private (initialSize: Int, growthFac
     currentAvailable = newAvailable
   }
 
+  private inline def addAllIterableElementsNoOverflow(inline elementsToAdd: Iterable[A], inline newElemsLength: Int, inline newAvailable: Int): Unit = {
+    elementsToAdd.copyToArray(currentArray, currentUsed, newElemsLength)
+    currentUsed = currentUsed + newElemsLength
+    currentAvailable = newAvailable
+  }
+
   private inline def addAllArrayElementsInternal(inline elementsToAdd: Array[A], inline newElemsLength: Int): Unit = {
     val newAvailable: Int = currentAvailable - newElemsLength
     if currentArray eq null then
@@ -120,7 +145,7 @@ final class ArrayBuilder[A: ClassTag as ct] private (initialSize: Int, growthFac
         currentAvailable = newSize(currentAvailable.max(newElemsLength))
       } else {
         currentArray = new Array[A](currentAvailable)
-        addAllArrayElementsNoOverflow(elementsToAdd, newElemsLength, newAvailable)
+        addAllIterableElementsNoOverflow(elementsToAdd, newElemsLength, newAvailable)
       }
     else
       if newAvailable >= 0 then addAllArrayElementsNoOverflow(elementsToAdd, newElemsLength, newAvailable)
@@ -133,9 +158,10 @@ final class ArrayBuilder[A: ClassTag as ct] private (initialSize: Int, growthFac
       }
   }
 
-  private inline def addAllIterableInternal(inline elementsToAdd: Iterable[A], inline knownSize: Int): Unit =
+  private inline def addAllIterableInternal(inline elementsToAdd: Iterable[A], inline newElemsLength: Int): Unit = {
+    val newAvailable: Int = currentAvailable - newElemsLength
     if currentArray eq null then
-      if knownSize >= (currentAvailable >> 1) then {
+      if newElemsLength >= (currentAvailable >> 1) then {
         // at this point, you have not even allocated [[currentArray]]
         // the first thing you tried to add already took up more than half your buffer
         // just add it to overflow and increase size
@@ -143,36 +169,47 @@ final class ArrayBuilder[A: ClassTag as ct] private (initialSize: Int, growthFac
         overflowAppend(array, array.length)
       } else {
         currentArray = new Array[A](currentAvailable)
-        elementsToAdd.copyToArray[A](currentAvailable, 0, knownSize)
-        currentAvailable = currentAvailable - knownSize
+        elementsToAdd.copyToArray[A](currentAvailable, 0, newElemsLength)
+        currentAvailable = currentAvailable - newElemsLength
       }
     else
-      ??? // FIX-PRE-MERGE (KR) :
+      if newAvailable >= 0 then addAllArrayElementsNoOverflow(elementsToAdd, newElemsLength, newAvailable)
+      else {
+        overflowAppend(currentArray, currentUsed)
+        overflowAppend(elementsToAdd, newElemsLength)
+        currentAvailable = newSize(currentArray.length.max(newElemsLength))
+        currentArray = null
+        currentUsed = 0
+      }
+  }
 
   private inline def addAllIteratorInternal(inline elementsToAdd: Iterator[A]): Unit =
     while elementsToAdd.hasNext do {
       val next: A = elementsToAdd.next()
-
+      addSingleInternal(next)
     }
 
   private inline def addSingleInternal(inline element: A): Unit =
-    if currentAvailable == 0 then { // not possible :   currentArray == null && currentAvailable == 0
-      overflowAppend(currentArray, currentUsed)
-      currentAvailable = newSize(currentUsed)
-      currentArray = new Array[A](currentAvailable)
-      currentArray(0) = element
-      currentAvailable = currentAvailable - 1
-      currentUsed = 1
-    } else if currentArray eq null then {
-      currentArray = new Array[A](currentAvailable)
-      currentArray(0) = element
-      currentAvailable = currentAvailable - 1
-      currentUsed = 1
-    } else {
+    if currentAvailable > 0 then // not possible :   currentArray == null && currentAvailable == 0
+      if currentArray eq null then {
+        currentArray = new Array[A](currentAvailable)
+        currentArray(0) = element
+        currentAvailable = currentAvailable - 1
+        currentUsed = 1
+      } else {
+        overflowAppend(currentArray, currentUsed)
+        currentArray(currentUsed) = element
+        currentAvailable = currentAvailable - 1
+        currentUsed = currentUsed + 1
+      }
+    else {
       currentArray(currentUsed) = element
       currentAvailable = currentAvailable - 1
       currentUsed = 1
     }
+
+  private inline def snapshotInternal(): ArrayBuilder.Snapshot[A] =
+    ArrayBuilder.Snapshot[A](overflowHead, overflowTail, if currentArray eq null then null else new ArrayBuilder.OverflowNode[A](currentArray, currentUsed))
 
   private inline def buildArrayInternal(): Array[A] = {
     val finalSize: Long = overflowTotalLength + currentUsed
@@ -214,6 +251,84 @@ object ArrayBuilder {
 
   private final class OverflowNode[A](val value: Array[A], val used: Int) {
     var next: OverflowNode[A] = null
+  }
+
+  private final class OverflowNodeIterator[A](head: OverflowNode[A], tail: OverflowNode[A]) extends Iterator[OverflowNode[A]] {
+
+    private var node: OverflowNode[A] = head
+
+    override def hasNext: Boolean = node != null
+
+    override def next(): OverflowNode[A] = {
+      val value: OverflowNode[A] = node
+
+      if value eq tail then
+        node = null
+      else
+        node = node.next
+
+      value
+    }
+
+  }
+
+  private final class OverflowNodeElementIterator[A](node: OverflowNode[A]) extends Iterator[A] {
+
+    private var offset: Int = 0
+
+    override def hasNext: Boolean = offset < node.used
+
+    override def next(): A = {
+      val value: A = node.value(offset)
+      offset = offset + 1
+      value
+    }
+
+  }
+
+  /**
+    * Immutable snapshot of an [[ArrayBuilder]].
+    * Because of the way this is stored, things can technically be added to the array within [[current]],
+    * but because it has take a snapshot of its [[ArrayBuilder.currentUsed]], it doesn't matter.
+    */
+  private final case class Snapshot[A](overflowHead: OverflowNode[A], overflowTail: OverflowNode[A], current: OverflowNode[A]) extends Iterable[A] {
+
+    def nodeIterator: Iterator[OverflowNode[A]] = {
+      val overflowIter: Iterator[OverflowNode[A]] = new OverflowNodeIterator[A](overflowHead, overflowTail)
+      if current eq null then overflowIter
+      else overflowIter ++ Iterator.single(current)
+    }
+
+    def iterator: Iterator[A] = nodeIterator.flatMap(new OverflowNodeElementIterator[A](_))
+
+  }
+
+  private final class ArrayBuilderIterator[A](snapshot: Snapshot[A]) extends Iterator[A] {
+
+    var consumingOverflow: Boolean = snapshot.overflowHead != null
+    var node: OverflowNode[A] = if consumingOverflow then snapshot.overflowHead else snapshot.current
+    var offset: Int = 0
+
+    override def hasNext: Boolean = node != null
+
+    override def next(): A = {
+      val value: A = node.value(offset)
+
+      offset = offset + 1
+      if offset >= node.used then {
+        if consumingOverflow then
+          if node.next eq snapshot.overflowTail then {
+            node = snapshot.current
+            consumingOverflow = false
+          } else
+            node = node.next
+        else
+          node = null
+      }
+
+      value
+    }
+
   }
 
 }
