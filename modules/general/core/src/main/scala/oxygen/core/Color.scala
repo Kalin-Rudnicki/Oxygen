@@ -5,6 +5,15 @@ import oxygen.core.typeclass.*
 import scala.quoted.*
 import scala.util.Try
 
+/**
+  * Color:
+  *   - Concrete:
+  *     - Simple:
+  *       - Default
+  *       - Named
+  *     - RGB
+  *   - Cased
+  */
 sealed trait Color
 object Color {
 
@@ -35,7 +44,14 @@ object Color {
     final lazy val bgANSI: String = s"$ANSIEscapeString${bgMod}m"
   }
 
+  final case class Cased(extended: Color.RGB, simple: Color.Simple) extends Color
+
   sealed trait Simple extends Color.Concrete
+
+  case object Default extends Color.Simple {
+    override val fgMod: String = "39"
+    override val bgMod: String = "49"
+  }
 
   sealed abstract class Named(n: Char) extends Color.Simple {
 
@@ -191,12 +207,5 @@ object Color {
     }
 
   }
-
-  case object Default extends Color.Simple {
-    override val fgMod: String = "39"
-    override val bgMod: String = "49"
-  }
-
-  final case class Cased(extended: Color.RGB, simple: Color.Simple) extends Color
 
 }
