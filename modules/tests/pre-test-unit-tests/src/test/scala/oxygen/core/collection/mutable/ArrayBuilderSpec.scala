@@ -6,7 +6,7 @@ import zio.test.TestResult
 
 object ArrayBuilderSpec extends OxygenSpecDefault {
 
-  override def defaultLogLevel: LogLevel = LogLevel.Debug
+  // override def defaultLogLevel: LogLevel = LogLevel.Debug
 
   private enum Insert[A] {
     case GenArray(value: Array[A])
@@ -162,11 +162,10 @@ object ArrayBuilderSpec extends OxygenSpecDefault {
   override def testSpec: TestSpec =
     suite("ArrayBuilderSpec")(
       suite("randomized")(
-        makeSuite[Int](Random.nextInt, 8, 16, 1, 4, 10, 1),
-        // makeSuite[Int](Random.nextInt, 8, 16, 1, 4, 10, 4),
-        // makeSuite[Int](Random.nextInt, 16, 32, 2, 128, 10, 4),
-        // makeSuite[String](RandomGen.lowerCaseString(), 1, 2, 32, 64, 10, 4),
-      ), // FIX-PRE-MERGE (KR) :
+        makeSuite[Int](Random.nextInt, 8, 16, 1, 4, 10, 4),
+        makeSuite[Int](Random.nextInt, 16, 32, 2, 128, 10, 4),
+        makeSuite[String](RandomGen.lowerCaseString(), 1, 2, 32, 64, 10, 4),
+      ),
     )
 
   override def testAspects: Chunk[TestSpecAspect] = Chunk(TestAspect.nondeterministic)
