@@ -6,7 +6,7 @@ import oxygen.core.typeclass.SeqRead
 sealed trait LazyString {
 
   final def ++(that: LazyString.Auto): LazyString = LazyString.impl.Concat._2(this, that)
-  final def |>(that: LazyString.Auto): LazyString = this ++ (LazyString.impl.Newline ++ that).indented
+  final def |>(that: LazyString.Auto): LazyString = this ++ that.indented
 
   final def indented(idt: LazyString.Auto): LazyString = LazyString.impl.CustomIndented(this, idt)
   final def indented: LazyString = LazyString.impl.DefaultIndented(this)
@@ -170,11 +170,25 @@ object LazyString {
 
     final case class CustomIndented(underlying: LazyString, indent: LazyString) extends LazyString {
 
-      override def showableStringBuilderWriteSimple(cfg: LazyString.Config, builder: StringBuilder): Unit =
-        underlying.showableStringBuilderWriteComplex(cfg, builder, indent.buildNowSimple(cfg), ColorStateV2.Empty)
+      override def showableStringBuilderWriteSimple(cfg: LazyString.Config, builder: StringBuilder): Unit = {
+        val newIdt = indent.buildNowSimple(cfg)
+        builder.withCommit {
+          Newline.showableStringBuilderWriteComplex(cfg, builder, newIdt, ColorStateV2.Empty)
+          val snap = builder.snapshot()
+          underlying.showableStringBuilderWriteComplex(cfg, builder, newIdt, ColorStateV2.Empty)
+          snap.underlyingChanged()
+        }
+      }
 
-      override def showableStringBuilderWriteComplex(cfg: LazyString.Config, builder: StringBuilder, currentIndent: String, colorState: ColorStateV2): Unit =
-        underlying.showableStringBuilderWriteComplex(cfg, builder, currentIndent + indent.buildNowComplex(cfg, currentIndent, colorState), colorState)
+      override def showableStringBuilderWriteComplex(cfg: LazyString.Config, builder: StringBuilder, currentIndent: String, colorState: ColorStateV2): Unit = {
+        val newIdt = currentIndent + indent.buildNowComplex(cfg, currentIndent, colorState)
+        builder.withCommit {
+          Newline.showableStringBuilderWriteComplex(cfg, builder, newIdt, colorState)
+          val snap = builder.snapshot()
+          underlying.showableStringBuilderWriteComplex(cfg, builder, newIdt, colorState)
+          snap.underlyingChanged()
+        }
+      }
 
     }
 
@@ -182,12 +196,24 @@ object LazyString {
 
       override def showableStringBuilderWriteSimple(cfg: LazyString.Config, builder: StringBuilder): Unit = {
         val (indent, newCfg) = cfg.popIndent
-        underlying.showableStringBuilderWriteComplex(newCfg, builder, indent.buildNowSimple(cfg), ColorStateV2.Empty)
+        val newIdt = indent.buildNowSimple(cfg)
+        builder.withCommit {
+          Newline.showableStringBuilderWriteComplex(newCfg, builder, newIdt, ColorStateV2.Empty)
+          val snap = builder.snapshot()
+          underlying.showableStringBuilderWriteComplex(newCfg, builder, newIdt, ColorStateV2.Empty)
+          snap.underlyingChanged()
+        }
       }
 
       override def showableStringBuilderWriteComplex(cfg: LazyString.Config, builder: StringBuilder, currentIndent: String, colorState: ColorStateV2): Unit = {
         val (indent, newCfg) = cfg.popIndent
-        underlying.showableStringBuilderWriteComplex(newCfg, builder, currentIndent + indent.buildNowComplex(cfg, currentIndent, colorState), colorState)
+        val newIdt = currentIndent + indent.buildNowComplex(cfg, currentIndent, colorState)
+        builder.withCommit {
+          Newline.showableStringBuilderWriteComplex(newCfg, builder, newIdt, colorState)
+          val snap = builder.snapshot()
+          underlying.showableStringBuilderWriteComplex(newCfg, builder, newIdt, colorState)
+          snap.underlyingChanged()
+        }
       }
 
     }

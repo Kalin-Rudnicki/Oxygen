@@ -60,7 +60,7 @@ final class ArrayBuilder[A] private (private val threadUnsafe: Boolean)(using pr
 
   def iterator(): Iterator[A] = snapshot().iterator
 
-  def snapshot(): Seq[A] =
+  def snapshot(): Seq[A] & ArrayBuilder.Report =
     if threadUnsafe then snapshotInternal()
     else this.synchronized { snapshotInternal() }
 
@@ -84,6 +84,22 @@ final class ArrayBuilder[A] private (private val threadUnsafe: Boolean)(using pr
     if total > jdk.internal.util.ArraysSupport.SOFT_MAX_ARRAY_LENGTH then
       throw new RuntimeException(s"Unable to build array of length $total, maxArraySize=${jdk.internal.util.ArraysSupport.SOFT_MAX_ARRAY_LENGTH}")
     total.toInt
+  }
+
+  def withCommit(f: => Boolean): Unit =
+    if threadUnsafe then withCommitInternal(f)
+    else this.synchronized { withCommitInternal(f) }
+
+  private def withCommitInternal(f: => Boolean): Unit = {
+    val initial: ArrayBuilder.Snapshot[A] = this.snapshotInternal()
+    val doCommit: Boolean = f
+    if !doCommit then {
+      this._overflowUsed = initial.overflowUsed
+      this._overflowAllocatedElems = initial.overflowAllocatedElems
+      this._overflowTotalUsedElems = initial.overflowTotalUsedElems
+      this._currentUsed = initial.currentUsed
+      this._currentAvailable = initial.currentAvailable
+    }
   }
 
   def showInternalState(): String = {
@@ -300,7 +316,7 @@ final class ArrayBuilder[A] private (private val threadUnsafe: Boolean)(using pr
   }
 
   private inline def snapshotInternal(): ArrayBuilder.Snapshot[A] =
-    ArrayBuilder.Snapshot[A](this, _overflowBuffer, _overflowTotalUsedElems, _overflowAllocatedElems, _overflowUsed, _currentArray, _currentUsed)
+    ArrayBuilder.Snapshot[A](this, _overflowBuffer, _overflowTotalUsedElems, _overflowAllocatedElems, _overflowUsed, _currentArray, _currentUsed, _currentAvailable)
 
   // TODO (KR) :
   /*
@@ -333,6 +349,22 @@ object ArrayBuilder {
 
   }
 
+  trait Report {
+    val overflowTotalUsedElems: Long
+    val overflowAllocatedElems: Long
+    val overflowUsed: Int
+    val currentUsed: Int
+    val currentAvailable: Int
+    lazy val totalSize: Int
+
+    def isStillValid(): Boolean
+    def underlyingChanged(): Boolean
+
+    final def sameState(that: Report): Boolean =
+      this.overflowUsed == that.overflowUsed && this.currentUsed == that.currentUsed
+
+  }
+
   private final case class Snapshot[A](
       origin: ArrayBuilder[A],
       overflowBuffer: Array[PotentiallyPartialArray[A]],
@@ -341,16 +373,23 @@ object ArrayBuilder {
       overflowUsed: Int,
       currentArray: Array[A],
       currentUsed: Int,
-  ) extends Seq[A] {
+      currentAvailable: Int,
+  ) extends Seq[A], Report {
 
     private given aCt: ClassTag[A] = origin.ct
 
-    private lazy val totalSize: Int = {
+    lazy val totalSize: Int = {
       val total: Long = overflowTotalUsedElems + currentUsed
       if total > jdk.internal.util.ArraysSupport.SOFT_MAX_ARRAY_LENGTH then
         throw new RuntimeException(s"Unable to build array of length $total, maxArraySize=${jdk.internal.util.ArraysSupport.SOFT_MAX_ARRAY_LENGTH}")
       total.toInt
     }
+
+    override def isStillValid(): Boolean =
+      origin._overflowUsed == overflowUsed && origin._currentUsed == currentUsed
+
+    override def underlyingChanged(): Boolean =
+      origin._overflowUsed != overflowUsed || origin._currentUsed != currentUsed
 
     override def apply(i: Int): A = arrayOfA(i)
 

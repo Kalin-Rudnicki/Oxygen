@@ -42,9 +42,12 @@ final class StringBuilder private (threadSafe: Boolean) {
     if any != null then chars.addStringChars(any.toString)
     else chars.addAllArrayElements(StringBuilder.nullChars)
 
+  def snapshot(): Seq[Char] & ArrayBuilder.Report = chars.snapshot()
   def isEmpty(): Boolean = chars.isEmpty()
   def nonEmpty(): Boolean = chars.nonEmpty()
   def size(): Int = chars.size()
+
+  def withCommit(f: => Boolean): Unit = chars.withCommit(f)
 
   def build(): String = new String(chars.buildArray())
 
