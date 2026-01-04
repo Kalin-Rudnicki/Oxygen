@@ -1,7 +1,7 @@
 package oxygen.core
 
 import oxygen.core.collection.NonEmptyList
-import oxygen.core.typeclass.SeqOps
+import oxygen.core.typeclass.SeqRead
 
 sealed trait LazyString {
 
@@ -59,6 +59,13 @@ object LazyString {
     case value: String if value.isEmpty => LazyString.impl.Empty
     case value: String                  => LazyString.impl.Str(value)
     case _                              => LazyString.impl.Str(value.toString)
+
+  def foreach[S[_]: SeqRead as seqRead, A](in: S[A])(f: A => LazyString): LazyString = ???
+
+  def mkString[S[_]: SeqRead as seqRead](in: S[LazyString]): LazyString = LazyString.impl.Concat.ManyLazyStrings(seqRead, in)
+  def mkString[S[_]: SeqRead as seqRead](in: S[LazyString], join: LazyString.Auto): LazyString = mkString(in, empty, join, empty)
+  def mkString[S[_]: SeqRead as seqRead](in: S[LazyString], prefix: LazyString.Auto, join: LazyString.Auto, suffix: LazyString.Auto): LazyString =
+    LazyString.impl.Concat.SurroundLazyStrings(seqRead, in, prefix, join, suffix)
 
   //////////////////////////////////////////////////////////////////////////////////////////////////////
   //      Config / State
@@ -227,6 +234,14 @@ object LazyString {
 
     }
 
+    final case class FlatMap[S[_], A](seqOps: SeqRead[S], underlying: S[A], f: A => LazyString) extends LazyString {
+
+      override def showableStringBuilderWriteSimple(cfg: Config, builder: StringBuilder): Unit = ???
+
+      override def showableStringBuilderWriteComplex(cfg: Config, builder: StringBuilder, currentIndent: String, colorState: ColorStateV2): Unit = ???
+
+    }
+
     object Concat {
 
       final case class _2(first: LazyString, second: LazyString) extends LazyString {
@@ -243,7 +258,7 @@ object LazyString {
 
       }
 
-      final case class ManyLazyStrings[S[_]](seqOps: SeqOps[S], underlying: S[LazyString]) extends LazyString {
+      final case class ManyLazyStrings[S[_]](seqOps: SeqRead[S], underlying: S[LazyString]) extends LazyString {
 
         override def showableStringBuilderWriteSimple(cfg: LazyString.Config, builder: StringBuilder): Unit = {
           val iter = seqOps.newIterator(underlying)
@@ -257,7 +272,7 @@ object LazyString {
 
       }
 
-      final case class SurroundLazyStrings[S[_]](seqOps: SeqOps[S], underlying: S[LazyString], prefix: LazyString, join: LazyString, suffix: LazyString) extends LazyString {
+      final case class SurroundLazyStrings[S[_]](seqOps: SeqRead[S], underlying: S[LazyString], prefix: LazyString, join: LazyString, suffix: LazyString) extends LazyString {
 
         override def showableStringBuilderWriteSimple(cfg: LazyString.Config, builder: StringBuilder): Unit = {
           val iter = seqOps.newIterator(underlying)
