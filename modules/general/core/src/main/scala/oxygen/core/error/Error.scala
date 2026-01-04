@@ -101,11 +101,25 @@ object Error {
     case Tagged(errorTypeTag: TypeTag[?])
     case Named(errorTypeName: String)
     case Unknown
+
+    final def limit(lim: ErrorType.Limit): ErrorType =
+      lim match
+        case ErrorType.Limit.Tagged  => this
+        case ErrorType.Limit.Unknown => ErrorType.Unknown
+        case ErrorType.Limit.Named   =>
+          this match
+            case ErrorType.Tagged(tag) => ErrorType.Named(tag.prefixAllNoGenerics)
+            case _                     => this
+
   }
   object ErrorType {
+
+    enum Limit { case Tagged, Named, Unknown }
+
     def extract(value: Any): ErrorType =
       if value == null then ErrorType.Unknown
       else ErrorType.Tagged(TypeTag.fromClass(value.getClass))
+
   }
 
   sealed trait Trace
@@ -162,55 +176,41 @@ object Error {
   }
 
   final case class Raw(
-      `type`: String | TypeTag[?],
+      override val errorType: ErrorType,
       errorMessage: String,
       causes: ArraySeq[Error.Raw],
       override val traces: ArraySeq[StackTrace],
-  ) extends Error.NoStackTrace {
-    override def tag: TypeTag[?] = typeTag.getOrElse(TypeTag.any)
-  }
+  ) extends Error.NoStackTrace
   object Raw {
 
     private def fromInternal(
         error: Error,
-        tt: => TypeTag[?],
-        typeName: Boolean,
-        typeTag: Boolean,
+        limit: ErrorType.Limit,
         causeDepth: Int,
         traceDepth: Int,
     ): Error.Raw =
-      error match {
-        case encoded: Error.Raw => encoded
-        case _                  =>
-          lazy val tag: TypeTag[?] = tt
-          Error.Raw(
-            typeName = Option.when(typeName)(tag.prefixAllNoGenerics),
-            typeTag = Option.when(typeTag)(tag),
-            errorMessage = error.errorMessage,
-            causes = if causeDepth > 0 then error.causes.map(e => fromInternal(e, e.tag, typeName, typeTag, causeDepth - 1, traceDepth - 1)) else ArraySeq.empty,
-            traces = if traceDepth > 0 then error.traces else ArraySeq.empty,
-          )
-      }
-
-    def fromError(error: Error, typeName: Boolean = true, typeTag: Boolean = false, causes: Boolean = true, traces: Boolean = true): Error.Raw =
-      fromInternal(
-        error = error,
-        tt = error.tag,
-        typeName = typeName,
-        typeTag = typeTag,
-        causes = causes,
-        traces = traces,
+      Error.Raw(
+        errorType = error.errorType.limit(limit),
+        errorMessage = error.errorMessage,
+        causes = if causeDepth > 0 then error.causes.map(e => fromInternal(e, e.tag, typeName, typeTag, causeDepth - 1, traceDepth - 1)) else ArraySeq.empty,
+        traces = if traceDepth > 0 then error.traces else ArraySeq.empty,
       )
 
-    def fromThrowable(throwable: Throwable, typeName: Boolean = true, typeTag: Boolean = false, causes: Boolean = true, traces: Boolean = true): Error.Raw = {
+    def fromError(error: Error, limit: ErrorType.Limit, causeDepth: Int = Int.MaxValue, traceDepth: Int = Int.MaxValue): Error.Raw =
+      fromInternal(
+        error = error,
+        limit = limit,
+        causeDepth = causeDepth,
+        traces = traceDepth,
+      )
+
+    def fromThrowable(throwable: Throwable, limit: ErrorType.Limit, causeDepth: Int = Int.MaxValue, traceDepth: Int = Int.MaxValue): Error.Raw = {
       val error = Error.fromThrowable(throwable)
       fromInternal(
         error = error,
-        tt = error.tag,
-        typeName = typeName,
-        typeTag = typeTag,
-        causes = causes,
-        traces = traces,
+        limit = limit,
+        causeDepth = causeDepth,
+        traces = traceDepth,
       )
     }
 

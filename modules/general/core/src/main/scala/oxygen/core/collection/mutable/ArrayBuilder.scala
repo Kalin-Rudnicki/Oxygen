@@ -240,13 +240,13 @@ object ArrayBuilder {
 
   private final case class PotentiallyPartialArray[A](array: Array[A], used: Int) extends Iterable[A] {
 
-    override def iterator: Iterator[A] = PotentiallyPartialArrayIterator(array, used)
+    override def iterator: Iterator[A] = new PotentiallyPartialArrayIterator(array, used)
 
     // TODO (KR) : known size
 
   }
 
-  private final case class PotentiallyPartialArrayIterator[A](array: Array[A], used: Int) extends Iterator[A] {
+  private final class PotentiallyPartialArrayIterator[A](array: Array[A], used: Int) extends Iterator[A] {
 
     private var _offset: Int = 0
 
