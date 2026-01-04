@@ -71,6 +71,21 @@ final class ArrayBuilder[A] private (private val threadUnsafe: Boolean)(using pr
   def buildArray(): Array[A] =
     safeSnapshot().arrayOfA
 
+  def isEmpty(): Boolean =
+    if threadUnsafe then _currentUsed == 0 && _overflowUsed == 0
+    else this.synchronized { _currentUsed == 0 && _overflowUsed == 0 }
+  def nonEmpty(): Boolean =
+    if threadUnsafe then _currentUsed > 0 || _overflowUsed > 0
+    else this.synchronized { _currentUsed > 0 || _overflowUsed > 0 }
+  def size(): Int = {
+    val total: Long =
+      if threadUnsafe then _overflowTotalUsedElems + _currentUsed
+      else this.synchronized { _overflowTotalUsedElems + _currentUsed }
+    if total > jdk.internal.util.ArraysSupport.SOFT_MAX_ARRAY_LENGTH then
+      throw new RuntimeException(s"Unable to build array of length $total, maxArraySize=${jdk.internal.util.ArraysSupport.SOFT_MAX_ARRAY_LENGTH}")
+    total.toInt
+  }
+
   def showInternalState(): String = {
     val sb = new scala.collection.mutable.StringBuilder()
 

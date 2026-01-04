@@ -42,6 +42,10 @@ final class StringBuilder private (threadSafe: Boolean) {
     if any != null then chars.addStringChars(any.toString)
     else chars.addAllArrayElements(StringBuilder.nullChars)
 
+  def isEmpty(): Boolean = chars.isEmpty()
+  def nonEmpty(): Boolean = chars.nonEmpty()
+  def size(): Int = chars.size()
+
   def build(): String = new String(chars.buildArray())
 
   override def toString: String = build()

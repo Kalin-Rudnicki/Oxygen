@@ -236,7 +236,7 @@ object LazyString {
 
     final case class FlatMap[S[_], A](seqOps: SeqRead[S], underlying: S[A], f: A => LazyString) extends LazyString {
 
-      override def showableStringBuilderWriteSimple(cfg: Config, builder: StringBuilder): Unit = ???
+      override def showableStringBuilderWriteSimple(cfg: Config, builder: StringBuilder): Unit = ??? // FIX-PRE-MERGE (KR) :
 
       override def showableStringBuilderWriteComplex(cfg: Config, builder: StringBuilder, currentIndent: String, colorState: ColorStateV2): Unit = ???
 
