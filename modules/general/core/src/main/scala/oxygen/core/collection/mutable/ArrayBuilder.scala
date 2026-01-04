@@ -98,17 +98,9 @@ final class ArrayBuilder[A: ClassTag as ct] private (initialSize: Int, growthFac
   //////////////////////////////////////////////////////////////////////////////////////////////////////
 
   private var overflowTotalLength: Long = 0
-  private var overflowHead: ArrayBuilder.OverflowNode[A] = null
-  private var overflowTail: ArrayBuilder.OverflowNode[A] = null
+  private val overflow: LinkedList[ArrayBuilder.PotentiallyPartialArray[A]] = LinkedList.empty[ArrayBuilder.PotentiallyPartialArray[A]](!threadUnsafe)
   private def overflowAppend(array: Array[A], used: Int): Unit = {
-    val newNode = new ArrayBuilder.OverflowNode[A](array, used)
-    if overflowTail eq null then {
-      overflowHead = newNode
-      overflowTail = newNode
-    } else {
-      overflowTail.next = newNode
-      overflowTail = newNode
-    }
+    overflow.append(ArrayBuilder.PotentiallyPartialArray[A](array, used))
     overflowTotalLength = overflowTotalLength + used
   }
 
@@ -208,8 +200,12 @@ final class ArrayBuilder[A: ClassTag as ct] private (initialSize: Int, growthFac
       currentUsed = 1
     }
 
-  private inline def snapshotInternal(): ArrayBuilder.Snapshot[A] =
-    ArrayBuilder.Snapshot[A](overflowHead, overflowTail, if currentArray eq null then null else new ArrayBuilder.OverflowNode[A](currentArray, currentUsed))
+  private inline def nodeIterableInternal(): Iterable[ArrayBuilder.PotentiallyPartialArray[A]] =
+    if currentArray eq null then overflow.snapshot()
+    else overflow.snapshot() ++ Iterable.single(ArrayBuilder.PotentiallyPartialArray[A](currentArray, currentUsed))
+
+  private inline def snapshotInternal(): Iterable[A] =
+    nodeIterableInternal().flatMap(_.iterator)
 
   private inline def buildArrayInternal(): Array[A] = {
     val finalSize: Long = overflowTotalLength + currentUsed
@@ -219,19 +215,12 @@ final class ArrayBuilder[A: ClassTag as ct] private (initialSize: Int, growthFac
 
     var offset: Int = 0
 
-    inline def addToOutput(inline part: Array[A], inline partSize: Int): Unit = {
-      System.arraycopy(part, 0, output, offset, partSize)
-      offset = offset + partSize
+    val nodeIter: Iterator[ArrayBuilder.PotentiallyPartialArray[A]] = nodeIterableInternal()
+    while nodeIter.hasNext do {
+      val node = nodeIter.next()
+      System.arraycopy(node.array, 0, output, offset, node.used)
+      offset = offset + node.used
     }
-
-    var tmpNode: ArrayBuilder.OverflowNode[A] = overflowHead
-    while tmpNode != null do {
-      addToOutput(tmpNode.value, tmpNode.used)
-      tmpNode = tmpNode.next
-    }
-
-    if currentArray != null then
-      addToOutput(currentArray, currentUsed)
 
     output
   }
@@ -249,85 +238,27 @@ object ArrayBuilder {
 
   def make[A: ClassTag](initialSize: Int, growthFactor: Double, threadSafe: Boolean): ArrayBuilder = new ArrayBuilder[A](initialSize.max(8), growthFactor.max(1), !threadSafe)
 
-  private final class OverflowNode[A](val value: Array[A], val used: Int) {
-    var next: OverflowNode[A] = null
-  }
+  private final case class PotentiallyPartialArray[A](array: Array[A], used: Int) extends Iterable[A] {
 
-  private final class OverflowNodeIterator[A](head: OverflowNode[A], tail: OverflowNode[A]) extends Iterator[OverflowNode[A]] {
+    override def iterator: Iterator[A] = PotentiallyPartialArrayIterator(array, used)
 
-    private var node: OverflowNode[A] = head
-
-    override def hasNext: Boolean = node != null
-
-    override def next(): OverflowNode[A] = {
-      val value: OverflowNode[A] = node
-
-      if value eq tail then
-        node = null
-      else
-        node = node.next
-
-      value
-    }
+    // TODO (KR) : known size
 
   }
 
-  private final class OverflowNodeElementIterator[A](node: OverflowNode[A]) extends Iterator[A] {
+  private final case class PotentiallyPartialArrayIterator[A](array: Array[A], used: Int) extends Iterator[A] {
 
-    private var offset: Int = 0
+    private var _offset: Int = 0
 
-    override def hasNext: Boolean = offset < node.used
+    override def hasNext: Boolean = _offset < used
 
     override def next(): A = {
-      val value: A = node.value(offset)
-      offset = offset + 1
+      val value: A = array(_offset)
+      _offset = _offset + 1
       value
     }
 
-  }
-
-  /**
-    * Immutable snapshot of an [[ArrayBuilder]].
-    * Because of the way this is stored, things can technically be added to the array within [[current]],
-    * but because it has take a snapshot of its [[ArrayBuilder.currentUsed]], it doesn't matter.
-    */
-  private final case class Snapshot[A](overflowHead: OverflowNode[A], overflowTail: OverflowNode[A], current: OverflowNode[A]) extends Iterable[A] {
-
-    def nodeIterator: Iterator[OverflowNode[A]] = {
-      val overflowIter: Iterator[OverflowNode[A]] = new OverflowNodeIterator[A](overflowHead, overflowTail)
-      if current eq null then overflowIter
-      else overflowIter ++ Iterator.single(current)
-    }
-
-    def iterator: Iterator[A] = nodeIterator.flatMap(new OverflowNodeElementIterator[A](_))
-
-  }
-
-  private final class ArrayBuilderIterator[A](snapshot: Snapshot[A]) extends Iterator[A] {
-
-    var consumingOverflow: Boolean = snapshot.overflowHead != null
-    var node: OverflowNode[A] = if consumingOverflow then snapshot.overflowHead else snapshot.current
-    var offset: Int = 0
-
-    override def hasNext: Boolean = node != null
-
-    override def next(): A = {
-      val value: A = node.value(offset)
-
-      offset = offset + 1
-      if offset >= node.used then {
-        if consumingOverflow then
-          if node.next eq snapshot.overflowTail then {
-            node = snapshot.current
-            consumingOverflow = false
-          } else
-            node = node.next
-        else
-          node = null
-      }
-
-      value
-    }
+    // TODO (KR) : known size
 
   }
 

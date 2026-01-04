@@ -89,6 +89,9 @@ final class LinkedList[A] private (threadUnsafe: Boolean) {
 }
 object LinkedList {
 
+  def empty[A]: LinkedList[A] = new LinkedList[A](true)
+  def empty[A](threadSafe: Boolean): LinkedList[A] = new LinkedList[A](!threadSafe)
+
   final class Node[A] private[LinkedList] (val value: A) {
 
     private[LinkedList] var _prev: Node[A] = null
