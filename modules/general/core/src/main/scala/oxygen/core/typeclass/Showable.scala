@@ -6,10 +6,10 @@ trait Showable extends LazyString.UnsafeCustom {
 
   def show: LazyString
 
-  override def showableStringBuilderWriteSimple(cfg: LazyString.Config, builder: StringBuilder): Unit =
-    show.showableStringBuilderWriteSimple(cfg, builder)
+  override def lazyStringWriteSimple(cfg: LazyString.Config, builder: StringBuilder): Unit =
+    show.lazyStringWriteSimple(cfg, builder)
 
-  override def showableStringBuilderWriteComplex(cfg: LazyString.Config, builder: StringBuilder, currentIndent: String, colorState: ColorStateV2): Unit =
-    show.showableStringBuilderWriteComplex(cfg, builder, currentIndent, colorState)
+  override def lazyStringWriteComplex(cfg: LazyString.Config, builder: StringBuilder, currentIndent: String, colorState: ColorStateV2): Unit =
+    show.lazyStringWriteComplex(cfg, builder, currentIndent, colorState)
 
 }

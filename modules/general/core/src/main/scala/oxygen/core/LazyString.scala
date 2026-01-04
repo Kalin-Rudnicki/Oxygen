@@ -23,16 +23,15 @@ sealed trait LazyString {
     case (Specified.WasNotSpecified, Specified.WasNotSpecified)   => this
 
   /////// Internal ///////////////////////////////////////////////////////////////
-  def showableStringBuilderWriteSimple(cfg: LazyString.Config, builder: StringBuilder): Unit
-  def showableStringBuilderWriteComplex(cfg: LazyString.Config, builder: StringBuilder, currentIndent: String, colorState: ColorStateV2): Unit
+  def lazyStringWriteSimple(cfg: LazyString.Config, builder: StringBuilder): Unit
+  def lazyStringWriteComplex(cfg: LazyString.Config, builder: StringBuilder, currentIndent: String, colorState: ColorStateV2): Unit
 
-  // FIX-PRE-MERGE (KR) : rename
-  final def buildNowSimple(cfg: LazyString.Config): String =
-    StringBuilder.makeString(this.showableStringBuilderWriteSimple(cfg, _))
-  final def buildNowComplex(cfg: LazyString.Config, currentIndent: String, colorState: ColorStateV2): String =
-    StringBuilder.makeString(this.showableStringBuilderWriteComplex(cfg, _, currentIndent, colorState))
+  final def lazyStringBuildRootSimple(cfg: LazyString.Config): String =
+    StringBuilder.makeString(this.lazyStringWriteSimple(cfg, _))
+  final def lazyStringBuildRootComplex(cfg: LazyString.Config, currentIndent: String, colorState: ColorStateV2): String =
+    StringBuilder.makeString(this.lazyStringWriteComplex(cfg, _, currentIndent, colorState))
 
-  override final def toString: String = buildNowSimple(LazyString.Config.default)
+  override final def toString: String = lazyStringBuildRootSimple(LazyString.Config.default)
 
 }
 object LazyString {
@@ -111,16 +110,16 @@ object LazyString {
   private object impl {
 
     case object Empty extends LazyString {
-      override def showableStringBuilderWriteSimple(cfg: LazyString.Config, builder: StringBuilder): Unit = ()
-      override def showableStringBuilderWriteComplex(cfg: LazyString.Config, builder: StringBuilder, currentIndent: String, colorState: ColorStateV2): Unit = ()
+      override def lazyStringWriteSimple(cfg: LazyString.Config, builder: StringBuilder): Unit = ()
+      override def lazyStringWriteComplex(cfg: LazyString.Config, builder: StringBuilder, currentIndent: String, colorState: ColorStateV2): Unit = ()
     }
 
     case object Newline extends LazyString {
 
-      override def showableStringBuilderWriteSimple(cfg: LazyString.Config, builder: StringBuilder): Unit =
+      override def lazyStringWriteSimple(cfg: LazyString.Config, builder: StringBuilder): Unit =
         builder.append('\n')
 
-      override def showableStringBuilderWriteComplex(cfg: LazyString.Config, builder: StringBuilder, currentIndent: String, colorState: ColorStateV2): Unit = {
+      override def lazyStringWriteComplex(cfg: LazyString.Config, builder: StringBuilder, currentIndent: String, colorState: ColorStateV2): Unit = {
         builder.append(colorState.revert)
         builder.append('\n')
         builder.append(currentIndent)
@@ -131,13 +130,13 @@ object LazyString {
 
     final case class Str(value: String) extends LazyString {
 
-      override def showableStringBuilderWriteSimple(cfg: LazyString.Config, builder: StringBuilder): Unit =
+      override def lazyStringWriteSimple(cfg: LazyString.Config, builder: StringBuilder): Unit =
         builder.append(value)
 
-      override def showableStringBuilderWriteComplex(cfg: LazyString.Config, builder: StringBuilder, currentIndent: String, colorState: ColorStateV2): Unit =
+      override def lazyStringWriteComplex(cfg: LazyString.Config, builder: StringBuilder, currentIndent: String, colorState: ColorStateV2): Unit =
         if value.contains('\n') then
           value.foreach {
-            case '\n' => Newline.showableStringBuilderWriteComplex(cfg, builder, currentIndent, colorState)
+            case '\n' => Newline.lazyStringWriteComplex(cfg, builder, currentIndent, colorState)
             case c    => builder.append(c)
           }
         else
@@ -147,57 +146,57 @@ object LazyString {
 
     final case class When(underlying: LazyString, cond: Boolean) extends LazyString {
 
-      override def showableStringBuilderWriteSimple(cfg: Config, builder: StringBuilder): Unit =
-        if cond then underlying.showableStringBuilderWriteSimple(cfg, builder)
+      override def lazyStringWriteSimple(cfg: Config, builder: StringBuilder): Unit =
+        if cond then underlying.lazyStringWriteSimple(cfg, builder)
 
-      override def showableStringBuilderWriteComplex(cfg: Config, builder: StringBuilder, currentIndent: String, colorState: ColorStateV2): Unit =
-        if cond then underlying.showableStringBuilderWriteComplex(cfg, builder, currentIndent, colorState)
+      override def lazyStringWriteComplex(cfg: Config, builder: StringBuilder, currentIndent: String, colorState: ColorStateV2): Unit =
+        if cond then underlying.lazyStringWriteComplex(cfg, builder, currentIndent, colorState)
     }
 
     final case class Interpolated(strings: IArray[String], args: IArray[LazyString]) extends LazyString {
 
-      override def showableStringBuilderWriteSimple(cfg: LazyString.Config, builder: StringBuilder): Unit = {
+      override def lazyStringWriteSimple(cfg: LazyString.Config, builder: StringBuilder): Unit = {
         val size: Int = args.length
         var _idx: Int = 0
         while _idx < size do {
           builder.append(strings(_idx))
-          args(_idx).showableStringBuilderWriteSimple(cfg, builder)
+          args(_idx).lazyStringWriteSimple(cfg, builder)
           _idx = _idx + 1
         }
         builder.append(strings(_idx))
       }
 
-      override def showableStringBuilderWriteComplex(cfg: LazyString.Config, builder: StringBuilder, currentIndent: String, colorState: ColorStateV2): Unit = {
+      override def lazyStringWriteComplex(cfg: LazyString.Config, builder: StringBuilder, currentIndent: String, colorState: ColorStateV2): Unit = {
         val size: Int = args.length
         var _idx: Int = 0
         while _idx < size do {
-          Str(strings(_idx)).showableStringBuilderWriteComplex(cfg, builder, currentIndent, colorState)
-          args(_idx).showableStringBuilderWriteComplex(cfg, builder, currentIndent, colorState)
+          Str(strings(_idx)).lazyStringWriteComplex(cfg, builder, currentIndent, colorState)
+          args(_idx).lazyStringWriteComplex(cfg, builder, currentIndent, colorState)
           _idx = _idx + 1
         }
-        Str(strings(_idx)).showableStringBuilderWriteComplex(cfg, builder, currentIndent, colorState)
+        Str(strings(_idx)).lazyStringWriteComplex(cfg, builder, currentIndent, colorState)
       }
 
     }
 
     final case class CustomIndented(underlying: LazyString, indent: LazyString) extends LazyString {
 
-      override def showableStringBuilderWriteSimple(cfg: LazyString.Config, builder: StringBuilder): Unit = {
-        val newIdt = indent.buildNowSimple(cfg)
+      override def lazyStringWriteSimple(cfg: LazyString.Config, builder: StringBuilder): Unit = {
+        val newIdt = indent.lazyStringBuildRootSimple(cfg)
         builder.withCommit {
-          Newline.showableStringBuilderWriteComplex(cfg, builder, newIdt, ColorStateV2.Empty)
+          Newline.lazyStringWriteComplex(cfg, builder, newIdt, ColorStateV2.Empty)
           val snap = builder.snapshot()
-          underlying.showableStringBuilderWriteComplex(cfg, builder, newIdt, ColorStateV2.Empty)
+          underlying.lazyStringWriteComplex(cfg, builder, newIdt, ColorStateV2.Empty)
           snap.underlyingChanged()
         }
       }
 
-      override def showableStringBuilderWriteComplex(cfg: LazyString.Config, builder: StringBuilder, currentIndent: String, colorState: ColorStateV2): Unit = {
-        val newIdt = currentIndent + indent.buildNowComplex(cfg, currentIndent, colorState)
+      override def lazyStringWriteComplex(cfg: LazyString.Config, builder: StringBuilder, currentIndent: String, colorState: ColorStateV2): Unit = {
+        val newIdt = currentIndent + indent.lazyStringBuildRootComplex(cfg, currentIndent, colorState)
         builder.withCommit {
-          Newline.showableStringBuilderWriteComplex(cfg, builder, newIdt, colorState)
+          Newline.lazyStringWriteComplex(cfg, builder, newIdt, colorState)
           val snap = builder.snapshot()
-          underlying.showableStringBuilderWriteComplex(cfg, builder, newIdt, colorState)
+          underlying.lazyStringWriteComplex(cfg, builder, newIdt, colorState)
           snap.underlyingChanged()
         }
       }
@@ -206,24 +205,24 @@ object LazyString {
 
     final case class DefaultIndented(underlying: LazyString) extends LazyString {
 
-      override def showableStringBuilderWriteSimple(cfg: LazyString.Config, builder: StringBuilder): Unit = {
+      override def lazyStringWriteSimple(cfg: LazyString.Config, builder: StringBuilder): Unit = {
         val (indent, newCfg) = cfg.popIndent
-        val newIdt = indent.buildNowSimple(cfg)
+        val newIdt = indent.lazyStringBuildRootSimple(cfg)
         builder.withCommit {
-          Newline.showableStringBuilderWriteComplex(newCfg, builder, newIdt, ColorStateV2.Empty)
+          Newline.lazyStringWriteComplex(newCfg, builder, newIdt, ColorStateV2.Empty)
           val snap = builder.snapshot()
-          underlying.showableStringBuilderWriteComplex(newCfg, builder, newIdt, ColorStateV2.Empty)
+          underlying.lazyStringWriteComplex(newCfg, builder, newIdt, ColorStateV2.Empty)
           snap.underlyingChanged()
         }
       }
 
-      override def showableStringBuilderWriteComplex(cfg: LazyString.Config, builder: StringBuilder, currentIndent: String, colorState: ColorStateV2): Unit = {
+      override def lazyStringWriteComplex(cfg: LazyString.Config, builder: StringBuilder, currentIndent: String, colorState: ColorStateV2): Unit = {
         val (indent, newCfg) = cfg.popIndent
-        val newIdt = currentIndent + indent.buildNowComplex(cfg, currentIndent, colorState)
+        val newIdt = currentIndent + indent.lazyStringBuildRootComplex(cfg, currentIndent, colorState)
         builder.withCommit {
-          Newline.showableStringBuilderWriteComplex(newCfg, builder, newIdt, colorState)
+          Newline.lazyStringWriteComplex(newCfg, builder, newIdt, colorState)
           val snap = builder.snapshot()
-          underlying.showableStringBuilderWriteComplex(newCfg, builder, newIdt, colorState)
+          underlying.lazyStringWriteComplex(newCfg, builder, newIdt, colorState)
           snap.underlyingChanged()
         }
       }
@@ -235,24 +234,24 @@ object LazyString {
       protected val underlying: LazyString
       protected def patch(colorMode: ColorMode, current: ColorStateV2): Option[ColorStateV2.Patch]
 
-      override final def showableStringBuilderWriteSimple(cfg: LazyString.Config, builder: StringBuilder): Unit =
+      override final def lazyStringWriteSimple(cfg: LazyString.Config, builder: StringBuilder): Unit =
         patch(cfg.colorMode, ColorStateV2.Empty) match {
           case Some(patch) =>
             builder.append(patch.apply)
-            underlying.showableStringBuilderWriteComplex(cfg, builder, "", patch.newState)
+            underlying.lazyStringWriteComplex(cfg, builder, "", patch.newState)
             builder.append(patch.revert)
           case None =>
-            underlying.showableStringBuilderWriteSimple(cfg, builder)
+            underlying.lazyStringWriteSimple(cfg, builder)
         }
 
-      override final def showableStringBuilderWriteComplex(cfg: LazyString.Config, builder: StringBuilder, currentIndent: String, colorState: ColorStateV2): Unit =
+      override final def lazyStringWriteComplex(cfg: LazyString.Config, builder: StringBuilder, currentIndent: String, colorState: ColorStateV2): Unit =
         patch(cfg.colorMode, colorState) match {
           case Some(patch) =>
             builder.append(patch.apply)
-            underlying.showableStringBuilderWriteComplex(cfg, builder, currentIndent, patch.newState)
+            underlying.lazyStringWriteComplex(cfg, builder, currentIndent, patch.newState)
             builder.append(patch.revert)
           case None =>
-            underlying.showableStringBuilderWriteComplex(cfg, builder, currentIndent, colorState)
+            underlying.lazyStringWriteComplex(cfg, builder, currentIndent, colorState)
         }
 
     }
@@ -274,9 +273,15 @@ object LazyString {
 
     final case class FlatMap[S[_], A](seqOps: SeqRead[S], underlying: S[A], f: A => LazyString) extends LazyString {
 
-      override def showableStringBuilderWriteSimple(cfg: Config, builder: StringBuilder): Unit = ??? // FIX-PRE-MERGE (KR) :
+      override def lazyStringWriteSimple(cfg: Config, builder: StringBuilder): Unit = {
+        val iter = seqOps.newIterator(underlying)
+        while iter.hasNext do f(iter.next()).lazyStringWriteSimple(cfg, builder)
+      }
 
-      override def showableStringBuilderWriteComplex(cfg: Config, builder: StringBuilder, currentIndent: String, colorState: ColorStateV2): Unit = ???
+      override def lazyStringWriteComplex(cfg: Config, builder: StringBuilder, currentIndent: String, colorState: ColorStateV2): Unit = {
+        val iter = seqOps.newIterator(underlying)
+        while iter.hasNext do f(iter.next()).lazyStringWriteComplex(cfg, builder, currentIndent, colorState)
+      }
 
     }
 
@@ -284,66 +289,66 @@ object LazyString {
 
       final case class _2(first: LazyString, second: LazyString) extends LazyString {
 
-        override def showableStringBuilderWriteSimple(cfg: LazyString.Config, builder: StringBuilder): Unit = {
-          first.showableStringBuilderWriteSimple(cfg, builder)
-          second.showableStringBuilderWriteSimple(cfg, builder)
+        override def lazyStringWriteSimple(cfg: LazyString.Config, builder: StringBuilder): Unit = {
+          first.lazyStringWriteSimple(cfg, builder)
+          second.lazyStringWriteSimple(cfg, builder)
         }
 
-        override def showableStringBuilderWriteComplex(cfg: LazyString.Config, builder: StringBuilder, currentIndent: String, colorState: ColorStateV2): Unit = {
-          first.showableStringBuilderWriteComplex(cfg, builder, currentIndent, colorState)
-          second.showableStringBuilderWriteComplex(cfg, builder, currentIndent, colorState)
+        override def lazyStringWriteComplex(cfg: LazyString.Config, builder: StringBuilder, currentIndent: String, colorState: ColorStateV2): Unit = {
+          first.lazyStringWriteComplex(cfg, builder, currentIndent, colorState)
+          second.lazyStringWriteComplex(cfg, builder, currentIndent, colorState)
         }
 
       }
 
       final case class ManyLazyStrings[S[_]](seqOps: SeqRead[S], underlying: S[LazyString]) extends LazyString {
 
-        override def showableStringBuilderWriteSimple(cfg: LazyString.Config, builder: StringBuilder): Unit = {
+        override def lazyStringWriteSimple(cfg: LazyString.Config, builder: StringBuilder): Unit = {
           val iter = seqOps.newIterator(underlying)
-          while iter.hasNext do iter.next().showableStringBuilderWriteSimple(cfg, builder)
+          while iter.hasNext do iter.next().lazyStringWriteSimple(cfg, builder)
         }
 
-        override def showableStringBuilderWriteComplex(cfg: LazyString.Config, builder: StringBuilder, currentIndent: String, colorState: ColorStateV2): Unit = {
+        override def lazyStringWriteComplex(cfg: LazyString.Config, builder: StringBuilder, currentIndent: String, colorState: ColorStateV2): Unit = {
           val iter = seqOps.newIterator(underlying)
-          while iter.hasNext do iter.next().showableStringBuilderWriteComplex(cfg, builder, currentIndent, colorState)
+          while iter.hasNext do iter.next().lazyStringWriteComplex(cfg, builder, currentIndent, colorState)
         }
 
       }
 
       final case class SurroundLazyStrings[S[_]](seqOps: SeqRead[S], underlying: S[LazyString], prefix: LazyString, join: LazyString, suffix: LazyString) extends LazyString {
 
-        override def showableStringBuilderWriteSimple(cfg: LazyString.Config, builder: StringBuilder): Unit = {
+        override def lazyStringWriteSimple(cfg: LazyString.Config, builder: StringBuilder): Unit = {
           val iter = seqOps.newIterator(underlying)
-          val renderedJoin = join.buildNowSimple(cfg)
+          val renderedJoin = join.lazyStringBuildRootSimple(cfg)
 
-          prefix.showableStringBuilderWriteSimple(cfg, builder)
+          prefix.lazyStringWriteSimple(cfg, builder)
 
           if iter.hasNext then
-            iter.next().showableStringBuilderWriteSimple(cfg, builder)
+            iter.next().lazyStringWriteSimple(cfg, builder)
 
           while iter.hasNext do {
             builder.append(renderedJoin)
-            iter.next().showableStringBuilderWriteSimple(cfg, builder)
+            iter.next().lazyStringWriteSimple(cfg, builder)
           }
 
-          suffix.showableStringBuilderWriteSimple(cfg, builder)
+          suffix.lazyStringWriteSimple(cfg, builder)
         }
 
-        override def showableStringBuilderWriteComplex(cfg: LazyString.Config, builder: StringBuilder, currentIndent: String, colorState: ColorStateV2): Unit = {
-          val renderedJoin = join.buildNowComplex(cfg, currentIndent, colorState)
+        override def lazyStringWriteComplex(cfg: LazyString.Config, builder: StringBuilder, currentIndent: String, colorState: ColorStateV2): Unit = {
+          val renderedJoin = join.lazyStringBuildRootComplex(cfg, currentIndent, colorState)
 
-          prefix.showableStringBuilderWriteComplex(cfg, builder, currentIndent, colorState)
+          prefix.lazyStringWriteComplex(cfg, builder, currentIndent, colorState)
 
           val iter = seqOps.newIterator(underlying)
           if iter.hasNext then
-            iter.next().showableStringBuilderWriteComplex(cfg, builder, currentIndent, colorState)
+            iter.next().lazyStringWriteComplex(cfg, builder, currentIndent, colorState)
 
           while iter.hasNext do {
             builder.append(renderedJoin)
-            iter.next().showableStringBuilderWriteComplex(cfg, builder, currentIndent, colorState)
+            iter.next().lazyStringWriteComplex(cfg, builder, currentIndent, colorState)
           }
 
-          suffix.showableStringBuilderWriteComplex(cfg, builder, currentIndent, colorState)
+          suffix.lazyStringWriteComplex(cfg, builder, currentIndent, colorState)
 
         }
 

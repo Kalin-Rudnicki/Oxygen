@@ -6,7 +6,7 @@ object LazyStringSpec extends OxygenSpecDefault {
 
   private def makeTest(exp: String, cfg: => LazyString.Config)(in: LazyString)(using Trace, SourceLocation): TestSpec =
     test(exp.unesc) {
-      simpleEqual(in.buildNowSimple(cfg), exp)
+      simpleEqual(in.lazyStringBuildRootSimple(cfg), exp)
     }
 
   private val showColor: LazyString.Config = LazyString.Config.make(ColorMode.ShowColorName, ">> ")

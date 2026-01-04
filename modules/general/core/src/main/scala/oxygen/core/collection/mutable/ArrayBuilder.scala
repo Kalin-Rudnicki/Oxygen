@@ -3,9 +3,6 @@ package oxygen.core.collection.mutable
 import scala.collection.immutable.ArraySeq
 import scala.reflect.ClassTag
 
-/**
-  * FIX-PRE-MERGE (KR) : Add description
-  */
 final class ArrayBuilder[A] private (private val threadUnsafe: Boolean)(using private val ct: ClassTag[A]) {
 
   def addStringChars(string: String)(using ev: A =:= Char): Unit = {
