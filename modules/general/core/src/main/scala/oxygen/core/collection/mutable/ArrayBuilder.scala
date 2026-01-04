@@ -69,10 +69,10 @@ final class ArrayBuilder[A: ClassTag as ct] private (initialSize: Int, growthFac
 
     sb.append("ArrayBuilder[")
     sb.append(ct.runtimeClass.getName)
-    sb.append(s"]:\n  overflow (total = $overflowTotalLength):")
+    sb.append(s"]:\n  overflow ( size = $_numOverflowElems, used = $_overflowUsedLength, total = $_overflowAllocatedLength ):")
 
     overflow.iterator().foreach { node =>
-      sb.append("\n    - ( size = ")
+      sb.append("\n    - ( allocated = ")
       sb.append(node.array.length)
       sb.append(", used = ")
       sb.append(node.used)
@@ -80,13 +80,13 @@ final class ArrayBuilder[A: ClassTag as ct] private (initialSize: Int, growthFac
       node.array.addString(sb, "[", ", ", "]")
     }
 
-    sb.append("\n  current:\n    ( used = ")
-    sb.append(currentUsed)
+    sb.append(s"\n  current:\n    ( allocated = ${if _currentArray eq null then "<N/A>" else _currentArray.length}, used = ")
+    sb.append(_currentUsed)
     sb.append(", available = ")
-    sb.append(currentAvailable)
+    sb.append(_currentAvailable)
     sb.append("):\n    ")
-    if currentArray eq null then sb.append("<empty-buffer>")
-    else currentArray.addString(sb, "[", ", ", "]")
+    if _currentArray eq null then sb.append("<empty-buffer>")
+    else _currentArray.addString(sb, "[", ", ", "]")
 
     sb.result()
   }
@@ -95,16 +95,20 @@ final class ArrayBuilder[A: ClassTag as ct] private (initialSize: Int, growthFac
   //      Internal
   //////////////////////////////////////////////////////////////////////////////////////////////////////
 
-  private var overflowTotalLength: Long = 0
+  private var _overflowUsedLength: Long = 0
+  private var _overflowAllocatedLength: Long = 0
+  private var _numOverflowElems: Int = 0
   private val overflow: LinkedList[ArrayBuilder.PotentiallyPartialArray[A]] = LinkedList.empty[ArrayBuilder.PotentiallyPartialArray[A]](!threadUnsafe)
   private def overflowAppend(array: Array[A], used: Int): Unit = {
     overflow.append(ArrayBuilder.PotentiallyPartialArray[A](array, used))
-    overflowTotalLength = overflowTotalLength + used
+    _overflowUsedLength = _overflowUsedLength + used
+    _overflowAllocatedLength = _overflowAllocatedLength + array.length
+    _numOverflowElems = _numOverflowElems + 1
   }
 
-  private var currentArray: Array[A] = null
-  private var currentUsed: Int = 0
-  private var currentAvailable: Int = initialSize
+  private var _currentArray: Array[A] = null
+  private var _currentUsed: Int = 0
+  private var _currentAvailable: Int = initialSize
 
   private inline def newSize(inline base: Int): Int = {
     val newSizeDouble: Double = base.toLong * growthFactor
@@ -113,62 +117,62 @@ final class ArrayBuilder[A: ClassTag as ct] private (initialSize: Int, growthFac
   }
 
   private inline def addAllArrayElementsNoOverflow(inline elementsToAdd: Array[A], inline newElemsLength: Int, inline newAvailable: Int): Unit = {
-    System.arraycopy(elementsToAdd, 0, currentArray, currentUsed, newElemsLength)
-    currentUsed = currentUsed + newElemsLength
-    currentAvailable = newAvailable
+    System.arraycopy(elementsToAdd, 0, _currentArray, _currentUsed, newElemsLength)
+    _currentUsed = _currentUsed + newElemsLength
+    _currentAvailable = newAvailable
   }
 
   private inline def addAllIterableElementsNoOverflow(inline elementsToAdd: Iterable[A], inline newElemsLength: Int, inline newAvailable: Int): Unit = {
-    elementsToAdd.copyToArray(currentArray, currentUsed, newElemsLength)
-    currentUsed = currentUsed + newElemsLength
-    currentAvailable = newAvailable
+    elementsToAdd.copyToArray(_currentArray, _currentUsed, newElemsLength)
+    _currentUsed = _currentUsed + newElemsLength
+    _currentAvailable = newAvailable
   }
 
   private inline def addAllArrayElementsInternal(inline elementsToAdd: Array[A], inline newElemsLength: Int): Unit = {
-    val newAvailable: Int = currentAvailable - newElemsLength
-    if currentArray eq null then
-      if newElemsLength >= (currentAvailable >> 1) then {
+    val newAvailable: Int = _currentAvailable - newElemsLength
+    if _currentArray eq null then
+      if newElemsLength >= (_currentAvailable >> 1) then {
         // at this point, you have not even allocated [[currentArray]]
         // the first thing you tried to add already took up more than half your buffer
         // just add it to overflow and increase size
         overflowAppend(elementsToAdd, newElemsLength)
-        currentAvailable = newSize(currentAvailable.max(newElemsLength))
+        _currentAvailable = newSize(_currentAvailable.max(newElemsLength))
       } else {
-        currentArray = new Array[A](currentAvailable)
+        _currentArray = new Array[A](_currentAvailable)
         addAllIterableElementsNoOverflow(elementsToAdd, newElemsLength, newAvailable)
       }
     else
       if newAvailable >= 0 then addAllArrayElementsNoOverflow(elementsToAdd, newElemsLength, newAvailable)
       else {
-        overflowAppend(currentArray, currentUsed)
+        overflowAppend(_currentArray, _currentUsed)
         overflowAppend(elementsToAdd, newElemsLength)
-        currentAvailable = newSize(currentArray.length.max(newElemsLength))
-        currentArray = null
-        currentUsed = 0
+        _currentAvailable = newSize(_currentArray.length.max(newElemsLength))
+        _currentArray = null
+        _currentUsed = 0
       }
   }
 
   private inline def addAllIterableInternal(inline elementsToAdd: Iterable[A], inline newElemsLength: Int): Unit = {
-    val newAvailable: Int = currentAvailable - newElemsLength
-    if currentArray eq null then
-      if newElemsLength >= (currentAvailable >> 1) then {
+    val newAvailable: Int = _currentAvailable - newElemsLength
+    if _currentArray eq null then
+      if newElemsLength >= (_currentAvailable >> 1) then {
         // at this point, you have not even allocated [[currentArray]]
         // the first thing you tried to add already took up more than half your buffer
         // just add it to overflow and increase size
         val array: Array[A] = elementsToAdd.toArray[A]
         overflowAppend(array, array.length)
       } else {
-        currentArray = new Array[A](currentAvailable)
+        _currentArray = new Array[A](_currentAvailable)
         addAllIterableElementsNoOverflow(elementsToAdd, newElemsLength, newAvailable)
       }
     else
       if newAvailable >= 0 then addAllIterableElementsNoOverflow(elementsToAdd, newElemsLength, newAvailable)
       else {
-        overflowAppend(currentArray, currentUsed)
+        overflowAppend(_currentArray, _currentUsed)
         overflowAppend(elementsToAdd.toArray[A], newElemsLength)
-        currentAvailable = newSize(currentArray.length.max(newElemsLength))
-        currentArray = null
-        currentUsed = 0
+        _currentAvailable = newSize(_currentArray.length.max(newElemsLength))
+        _currentArray = null
+        _currentUsed = 0
       }
   }
 
@@ -179,31 +183,30 @@ final class ArrayBuilder[A: ClassTag as ct] private (initialSize: Int, growthFac
     }
 
   private inline def addSingleInternal(inline element: A): Unit =
-    if currentAvailable > 0 then {
-      if currentArray eq null then
-        currentArray = new Array[A](currentAvailable)
+    if _currentAvailable > 0 then {
+      if _currentArray eq null then
+        _currentArray = new Array[A](_currentAvailable)
 
-      currentArray(currentUsed) = element
-      currentAvailable = currentAvailable - 1
-      currentUsed = currentUsed + 1
+      _currentArray(_currentUsed) = element
+      _currentAvailable = _currentAvailable - 1
+      _currentUsed = _currentUsed + 1
     } else {
-      overflowAppend(currentArray, currentUsed)
-      currentAvailable = newSize(currentUsed)
-      currentArray = new Array[A](currentAvailable)
-      currentArray(0) = element
-      currentAvailable = currentAvailable - 1
-      currentUsed = currentUsed + 1
+      _currentAvailable = newSize(_currentUsed)
+      _currentArray = new Array[A](_currentAvailable)
+      _currentArray(0) = element
+      _currentAvailable = _currentAvailable - 1
+      _currentUsed = 1
     }
 
   private inline def nodeIterableInternal(): Iterable[ArrayBuilder.PotentiallyPartialArray[A]] =
-    if currentArray eq null then overflow.snapshot()
-    else overflow.snapshot() ++ Iterable.single(ArrayBuilder.PotentiallyPartialArray[A](currentArray, currentUsed))
+    if _currentArray eq null then overflow.snapshot()
+    else overflow.snapshot() ++ Iterable.single(ArrayBuilder.PotentiallyPartialArray[A](_currentArray, _currentUsed))
 
   private inline def snapshotInternal(): Iterable[A] =
     nodeIterableInternal().flatMap(_.iterator)
 
   private inline def buildArrayInternal(): Array[A] = {
-    val finalSize: Long = overflowTotalLength + currentUsed
+    val finalSize: Long = _overflowUsedLength + _currentUsed
     if finalSize > Int.MaxValue then
       throw new RuntimeException(s"Unable to build array of length $finalSize, maxArraySize=Int.MaxValue=${Int.MaxValue}")
     val output: Array[A] = new Array[A](finalSize.toInt)

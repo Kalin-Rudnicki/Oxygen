@@ -125,15 +125,19 @@ object LinkedListSpec extends OxygenSpecDefault {
       genSizeMax: Int,
       numInserts: Int,
   )(using Trace, SourceLocation): TestSpec =
-    test(s"[$idx] ${ct.runtimeClass.getName}, $genSizeMin, $genSizeMax, $numInserts") {
+    test(s"[$idx] ${ct.runtimeClass.getName} : $genSizeMin, $genSizeMax, $numInserts") {
       for {
         inserts: Seq[Insert[A]] <- genCase[A](gen, genSizeMin, genSizeMax).replicateZIO(numInserts).map(_.toSeq)
         builder <- ZIO.attempt { LinkedList.empty[A] }
         (rAcc, _) <- ZIO.foldLeft(inserts.zipWithIndex)((List.empty[Snapshots[A]], List.empty[A])) { case ((rAcc, golden), (insert, idx)) =>
           Snapshots.make(builder, golden, insert, idx).map { snap => (snap :: rAcc, snap.afterGolden) }
         }
-        asserts <- ZIO.foreach(rAcc)(_.runAssertions)
-      } yield TestResult.allSuccesses(asserts)
+        asserts <- ZIO.foreach(rAcc.reverse)(_.runAssertions)
+        result = asserts.foldLeft(assertCompletes) { (acc, elem) =>
+          if acc.isSuccess then acc && elem
+          else acc
+        }
+      } yield result
     }
 
   private def makeSuite[A: ClassTag as ct](
@@ -153,5 +157,7 @@ object LinkedListSpec extends OxygenSpecDefault {
       makeSuite[Int](Random.nextInt, 16, 128, 10, 4),
       makeSuite[String](RandomGen.lowerCaseString(), 1, 64, 10, 4),
     )
+
+  override def testAspects: Chunk[TestSpecAspect] = Chunk(TestAspect.nondeterministic)
 
 }

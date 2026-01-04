@@ -69,6 +69,7 @@ object ArrayBuilderSpec extends OxygenSpecDefault {
 
     def make[A](builder: ArrayBuilder[A], beforeGolden: List[A], insert: Insert[A], insertIdx: Int): Task[Snapshots[A]] =
       for {
+        _ <- ZIO.logDebug(s"Insert #$insertIdx : $insert")
         beforeInternalState <- ZIO.attempt { builder.showInternalState() }
         beforeSnapshot <- ZIO.attempt { builder.snapshot() }
         beforeEvaluated <- ZIO.attempt { beforeSnapshot.toList }
@@ -129,7 +130,7 @@ object ArrayBuilderSpec extends OxygenSpecDefault {
       genSizeMax: Int,
       numInserts: Int,
   )(using Trace, SourceLocation): TestSpec =
-    test(s"[$idx] ${ct.runtimeClass.getName}, $initialSizeMin, $initialSizeMax, $genSizeMin, $genSizeMax, $numInserts") {
+    test(s"[$idx] ${ct.runtimeClass.getName} : $initialSizeMin, $initialSizeMax, $genSizeMin, $genSizeMax, $numInserts") {
       for {
         inserts: Seq[Insert[A]] <- genCase[A](gen, genSizeMin, genSizeMax).replicateZIO(numInserts).map(_.toSeq)
         initialSize <- Random.nextIntBetween(initialSizeMin, initialSizeMax)
@@ -137,8 +138,12 @@ object ArrayBuilderSpec extends OxygenSpecDefault {
         (rAcc, _) <- ZIO.foldLeft(inserts.zipWithIndex)((List.empty[Snapshots[A]], List.empty[A])) { case ((rAcc, golden), (insert, idx)) =>
           Snapshots.make(builder, golden, insert, idx).map { snap => (snap :: rAcc, snap.afterGolden) }
         }
-        asserts <- ZIO.foreach(rAcc)(_.runAssertions)
-      } yield TestResult.allSuccesses(asserts)
+        asserts <- ZIO.foreach(rAcc.reverse)(_.runAssertions)
+        result = asserts.foldLeft(assertCompletes) { (acc, elem) =>
+          if acc.isSuccess then acc && elem
+          else acc
+        }
+      } yield result
     }
 
   private def makeSuite[A: ClassTag as ct](
@@ -150,15 +155,20 @@ object ArrayBuilderSpec extends OxygenSpecDefault {
       numInserts: Int,
       numTests: Int,
   )(using Trace, SourceLocation): TestSpec =
-    suite(s"${ct.runtimeClass.getName}, $initialSizeMin, $initialSizeMax, $genSizeMin, $genSizeMax, $numInserts")(
+    suite(s"${ct.runtimeClass.getName} : $initialSizeMin, $initialSizeMax, $genSizeMin, $genSizeMax, $numInserts")(
       1.to(numTests).map(makeTest(_, gen, initialSizeMin, initialSizeMax, genSizeMin, genSizeMax, numInserts))*,
     )
 
   override def testSpec: TestSpec =
-    suite("ArrayBuilderSpec")( // FIX-PRE-MERGE (KR) :
-      makeSuite[Int](Random.nextInt, 8, 16, 1, 4, 1, 3),
-      // makeSuite[Int](Random.nextInt, 16, 32, 2, 128, 4, 4),
-      // makeSuite[String](RandomGen.lowerCaseString(), 1, 1, 32, 64, 4, 4),
+    suite("ArrayBuilderSpec")(
+      suite("randomized")(
+        makeSuite[Int](Random.nextInt, 8, 16, 1, 4, 10, 1),
+        // makeSuite[Int](Random.nextInt, 8, 16, 1, 4, 10, 4),
+        // makeSuite[Int](Random.nextInt, 16, 32, 2, 128, 10, 4),
+        // makeSuite[String](RandomGen.lowerCaseString(), 1, 2, 32, 64, 10, 4),
+      ), // FIX-PRE-MERGE (KR) :
     )
+
+  override def testAspects: Chunk[TestSpecAspect] = Chunk(TestAspect.nondeterministic)
 
 }
