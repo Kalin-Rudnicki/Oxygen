@@ -14,53 +14,76 @@ final class LinkedList[A] private (threadUnsafe: Boolean) {
   def headNode: Option[LinkedList.Node[A]] = Option(_head)
   def tailNode: Option[LinkedList.Node[A]] = Option(_tail)
 
-  private inline def safely(inline eff: => Unit): Unit =
-    if threadUnsafe then eff
-    else this.synchronized { eff }
-
   def prepend(value: A): Unit =
-    safely { // FIX-PRE-MERGE (KR) : locking on every iter insert...
-      val node: LinkedList.Node[A] = new LinkedList.Node[A](value)
-      if _head eq null then {
-        _head = node
-        _tail = node
-        _size = 1
-      } else {
-        node._next = _head
-        _head._prev = node
-        _head = node
-      }
-    }
+    if threadUnsafe then prependInternal(value)
+    else this.synchronized { prependInternal(value) }
 
   def append(value: A): Unit =
-    safely { // FIX-PRE-MERGE (KR) :
-      val node: LinkedList.Node[A] = new LinkedList.Node[A](value)
-      if _head eq null then {
-        _head = node
-        _tail = node
-        _size = 1
-      } else {
-        _tail._next = node
-        node._prev = _tail
-        _tail = node
-      }
-    }
+    if threadUnsafe then appendInternal(value)
+    else this.synchronized { appendInternal(value) }
 
   // [A, B, C].prependAllInReverse([D, E, F]) -> [D, E, F, A, B, C]
-  def prependAll(values: Seq[A]): Unit = {
-    val it = values.reverseIterator
-    while it.hasNext do prepend(it.next())
-  }
+  def prependAll(values: Seq[A]): Unit =
+    if threadUnsafe then {
+      val it = values.reverseIterator
+      while it.hasNext do prepend(it.next())
+    } else
+      this.synchronized {
+        val it = values.reverseIterator
+        while it.hasNext do prepend(it.next())
+      }
 
   // [A, B, C].prependAllInReverse([D, E, F]) -> [F, E, D, A, B, C]
-  def prependAllInReverse(values: IterableOnce[A]): Unit = {
-    val it = values.iterator
-    while it.hasNext do prepend(it.next())
+  def prependAllInReverse(values: IterableOnce[A]): Unit =
+    if threadUnsafe then {
+      val it = values.iterator
+      while it.hasNext do prepend(it.next())
+    } else
+      this.synchronized {
+        val it = values.iterator
+        while it.hasNext do prepend(it.next())
+      }
+
+  def appendAll(values: IterableOnce[A]): Unit =
+    if threadUnsafe then {
+      val it = values.iterator
+      while it.hasNext do append(it.next())
+    } else
+      this.synchronized {
+        val it = values.iterator
+        while it.hasNext do append(it.next())
+      }
+
+  def iterator(): Iterator[A] = snapshot().iterator
+
+  def snapshot(): Iterable[A] =
+    if threadUnsafe then LinkedList.Snapshot[A](false, _head, _tail)
+    else this.synchronized { LinkedList.Snapshot[A](false, _head, _tail) }
+
+  private inline def prependInternal(inline value: A): Unit = {
+    val node: LinkedList.Node[A] = new LinkedList.Node[A](value)
+    if _head eq null then {
+      _head = node
+      _tail = node
+      _size = 1
+    } else {
+      node._next = _head
+      _head._prev = node
+      _head = node
+    }
   }
 
-  def appendAll(values: IterableOnce[A]): Unit = {
-    val it = values.iterator
-    while it.hasNext do append(it.next())
+  private inline def appendInternal(inline value: A): Unit = {
+    val node: LinkedList.Node[A] = new LinkedList.Node[A](value)
+    if _head eq null then {
+      _head = node
+      _tail = node
+      _size = 1
+    } else {
+      _tail._next = node
+      node._prev = _tail
+      _tail = node
+    }
   }
 
 }
