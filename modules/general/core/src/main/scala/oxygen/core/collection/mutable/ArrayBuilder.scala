@@ -407,7 +407,7 @@ object ArrayBuilder {
         true
       } else if (currentArray ne null) && !_usedCurrent then {
         _usedCurrent = true
-        new PartialArrayIterator[A](currentArray, currentArrayUsed)
+        _current = new PartialArrayIterator[A](currentArray, currentArrayUsed)
         true
       } else {
         _current = null
