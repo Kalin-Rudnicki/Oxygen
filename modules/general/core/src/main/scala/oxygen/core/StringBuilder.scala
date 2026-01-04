@@ -8,7 +8,14 @@ final class StringBuilder private (threadSafe: Boolean) {
     if threadSafe then ArrayBuilder.emptyThreadSafe[Char]
     else ArrayBuilder.emptyThreadUnsafe[Char]
 
-  def append(string: String): Unit = chars.addStringChars(string)
+  def append(string: String): Unit = {
+    println()
+    println(s"\n\n${scala.io.AnsiColor.CYAN}----- before -----${scala.io.AnsiColor.RESET}\n" + chars.showInternalState() + "\n")
+    chars.addStringChars(string)
+    println(s"\n\n${scala.io.AnsiColor.MAGENTA}----- after -----${scala.io.AnsiColor.RESET}\n" + chars.showInternalState() + "\n")
+    println()
+  }
+
   def <<(value: Char): StringBuilder = {
     chars.addSingle(value)
     this

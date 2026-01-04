@@ -4,27 +4,28 @@ import oxygen.predef.test.*
 
 object LazyStringSpec extends OxygenSpecDefault {
 
-  private val strs: Seq[LazyString] =
-    Seq(
-      LazyString.fromString(""),
-      LazyString.fromString("hello"),
-      LazyString.fromString("hello\nthere"),
-      LazyString.fromString("hello\nthere") |> "my child" |> "and grandchild",
-    )
+  private def makeTest(exp: String, cfg: => LazyString.Config)(in: LazyString)(using Trace, SourceLocation): TestSpec =
+    test(exp) {
+      simpleEqual(in.buildNowSimple(cfg), exp)
+    }
 
-  strs.foreach { str =>
-    println()
-    println("... ... ...")
-    println(str.buildNowSimple(LazyString.Config.make(ColorMode.Extended, "|   ")))
-    println("...")
-    println(str.buildNowSimple(LazyString.Config.make(ColorMode.Extended, ">   ", Color.Named.Red, Color.RGB.hex("#ff64a0"))))
-    println("...")
-    println(str.buildNowSimple(LazyString.Config.make(ColorMode.Colorless, ">   ", Color.Named.Red, Color.RGB.hex("#ff64a0"))))
-  }
+  private val showColor: LazyString.Config = LazyString.Config.make(ColorMode.ShowColorName, ">> ")
 
   override def testSpec: TestSpec =
     suite("LazyStringSpec")(
-      // FIX-PRE-MERGE (KR) :
+      // makeTest("abc", showColor) { LazyString.fromString("abc") },
+      // makeTest("abc+def", showColor) { LazyString.fromString("abc") ++ LazyString.fromString("+") ++ LazyString.fromString("def") },
+      // makeTest("abc\ndef", showColor) { LazyString.fromString("abc") ++ LazyString.newLine ++ LazyString.fromString("def") },
+      // makeTest("abc+def", showColor) { LazyString.fromString("abc") ++ LazyString.fromString("+") ++ LazyString.fromString("def").indented(">> ") },
+      // makeTest("abc+\n>> def", showColor) { LazyString.fromString("abc") ++ LazyString.fromString("+") ++ LazyString.fromString("\ndef").indented(">> ") },
+      // makeTest("[[fg:red]]abc[[fg:default]]", showColor) { LazyString.fromString("abc").colorizeFg(Color.Named.Red) },
+      makeTest("[[fg:red]]abc[[bg:blue]]def[[bg:default]]ghi[[fg:default]]", showColor) {
+        (
+          LazyString.fromString("abc") ++
+            LazyString.fromString("def").colorizeBg(Color.Named.Blue) ++
+            LazyString.fromString("ghi")
+        ).colorizeFg(Color.Named.Red)
+      },
     )
 
 }

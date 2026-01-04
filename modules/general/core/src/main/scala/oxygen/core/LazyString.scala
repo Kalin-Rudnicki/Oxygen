@@ -47,6 +47,7 @@ object LazyString {
   // =====|  |=====
 
   val empty: LazyString = LazyString.impl.Empty
+  val newLine: LazyString = LazyString.impl.Newline
 
   def fromString(value: String): LazyString = value match
     case null => LazyString.impl.Str("null")
@@ -166,7 +167,7 @@ object LazyString {
         underlying.showableStringBuilderWriteComplex(cfg, builder, indent.buildNowSimple(cfg), ColorStateV2.Empty)
 
       override def showableStringBuilderWriteComplex(cfg: LazyString.Config, builder: StringBuilder, currentIndent: String, colorState: ColorStateV2): Unit =
-        underlying.showableStringBuilderWriteComplex(cfg, builder, currentIndent + indent.buildNowComplex(cfg, currentIndent, colorState), ColorStateV2.Empty)
+        underlying.showableStringBuilderWriteComplex(cfg, builder, currentIndent + indent.buildNowComplex(cfg, currentIndent, colorState), colorState)
 
     }
 
@@ -179,7 +180,7 @@ object LazyString {
 
       override def showableStringBuilderWriteComplex(cfg: LazyString.Config, builder: StringBuilder, currentIndent: String, colorState: ColorStateV2): Unit = {
         val (indent, newCfg) = cfg.popIndent
-        underlying.showableStringBuilderWriteComplex(newCfg, builder, currentIndent + indent.buildNowComplex(cfg, currentIndent, colorState), ColorStateV2.Empty)
+        underlying.showableStringBuilderWriteComplex(newCfg, builder, currentIndent + indent.buildNowComplex(cfg, currentIndent, colorState), colorState)
       }
 
     }
