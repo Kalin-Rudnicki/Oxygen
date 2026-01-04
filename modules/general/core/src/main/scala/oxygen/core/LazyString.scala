@@ -1,8 +1,7 @@
 package oxygen.core
 
 import oxygen.core.collection.NonEmptyList
-import oxygen.core.syntax.option.*
-import oxygen.core.typeclass.{SeqOps, Showable}
+import oxygen.core.typeclass.SeqOps
 
 sealed trait LazyString {
 
@@ -12,12 +11,12 @@ sealed trait LazyString {
   final def indented(idt: LazyString.Auto): LazyString = LazyString.impl.CustomIndented(this, idt)
   final def indented: LazyString = LazyString.impl.DefaultIndented(this)
 
-  final def colorizeFg(fg: Specified[Color] = ___): LazyString = fg.fold(this)(LazyString.impl.ColorizeFg(this, _))
-  final def colorizeBg(bg: Specified[Color] = ___): LazyString = bg.fold(this)(LazyString.impl.ColorizeBg(this, _))
+  final def colorizeFg(fg: Specified[Color] = ___): LazyString = fg.fold(this)(LazyString.impl.Colorize.ColorizeFg(this, _))
+  final def colorizeBg(bg: Specified[Color] = ___): LazyString = bg.fold(this)(LazyString.impl.Colorize.ColorizeBg(this, _))
   final def colorizeFgBg(fg: Specified[Color] = ___, bg: Specified[Color] = ___): LazyString = (fg, bg) match
-    case (Specified.WasSpecified(fg), Specified.WasSpecified(bg)) => LazyString.impl.ColorizeFgBg(this, fg, bg)
-    case (Specified.WasSpecified(fg), Specified.WasNotSpecified)  => LazyString.impl.ColorizeFg(this, fg)
-    case (Specified.WasNotSpecified, Specified.WasSpecified(bg))  => LazyString.impl.ColorizeBg(this, bg)
+    case (Specified.WasSpecified(fg), Specified.WasSpecified(bg)) => LazyString.impl.Colorize.ColorizeFgBg(this, fg, bg)
+    case (Specified.WasSpecified(fg), Specified.WasNotSpecified)  => LazyString.impl.Colorize.ColorizeFg(this, fg)
+    case (Specified.WasNotSpecified, Specified.WasSpecified(bg))  => LazyString.impl.Colorize.ColorizeBg(this, bg)
     case (Specified.WasNotSpecified, Specified.WasNotSpecified)   => this
 
   /////// Internal ///////////////////////////////////////////////////////////////
@@ -56,7 +55,6 @@ object LazyString {
   def fromAny(value: Any): LazyString = value.asInstanceOf[Matchable] match
     case null                           => LazyString.impl.Str("null")
     case value: LazyString              => value
-    case value: Showable                => value.show
     case value: String if value.isEmpty => LazyString.impl.Empty
     case value: String                  => LazyString.impl.Str(value)
     case _                              => LazyString.impl.Str(value.toString)
@@ -112,10 +110,10 @@ object LazyString {
         builder.append('\n')
 
       override def showableStringBuilderWriteComplex(cfg: LazyString.Config, builder: StringBuilder, currentIndent: String, colorState: ColorStateV2): Unit = {
-        builder.append(colorState.decolorize)
+        builder.append(colorState.revert)
         builder.append('\n')
         builder.append(currentIndent)
-        builder.append(colorState.colorize)
+        builder.append(colorState.apply)
       }
 
     }
@@ -126,7 +124,7 @@ object LazyString {
         builder.append(value)
 
       override def showableStringBuilderWriteComplex(cfg: LazyString.Config, builder: StringBuilder, currentIndent: String, colorState: ColorStateV2): Unit =
-        if (currentIndent ne Empty) && value.contains('\n') then
+        if value.contains('\n') then
           value.foreach {
             case '\n' => Newline.showableStringBuilderWriteComplex(cfg, builder, currentIndent, colorState)
             case c    => builder.append(c)
@@ -143,7 +141,7 @@ object LazyString {
         var _idx: Int = 0
         while _idx < size do {
           builder.append(strings(_idx))
-          args(_idx).writeSimple(cfg, builder)
+          args(_idx).showableStringBuilderWriteSimple(cfg, builder)
           _idx = _idx + 1
         }
         builder.append(strings(_idx))
@@ -154,7 +152,7 @@ object LazyString {
         var _idx: Int = 0
         while _idx < size do {
           Str(strings(_idx)).showableStringBuilderWriteComplex(cfg, builder, currentIndent, colorState)
-          args(_idx).writeComplex(cfg, builder, currentIndent, colorState)
+          args(_idx).showableStringBuilderWriteComplex(cfg, builder, currentIndent, colorState)
           _idx = _idx + 1
         }
         Str(strings(_idx)).showableStringBuilderWriteComplex(cfg, builder, currentIndent, colorState)
@@ -165,10 +163,10 @@ object LazyString {
     final case class CustomIndented(underlying: LazyString, indent: LazyString) extends LazyString {
 
       override def showableStringBuilderWriteSimple(cfg: LazyString.Config, builder: StringBuilder): Unit =
-        underlying.showableStringBuilderWriteComplex(cfg, builder, indent.buildNowSimple(cfg), ColorState.empty)
+        underlying.showableStringBuilderWriteComplex(cfg, builder, indent.buildNowSimple(cfg), ColorStateV2.Empty)
 
       override def showableStringBuilderWriteComplex(cfg: LazyString.Config, builder: StringBuilder, currentIndent: String, colorState: ColorStateV2): Unit =
-        underlying.showableStringBuilderWriteComplex(cfg, builder, currentIndent + indent.buildNowComplex(cfg, currentIndent, colorState), ColorState.empty)
+        underlying.showableStringBuilderWriteComplex(cfg, builder, currentIndent + indent.buildNowComplex(cfg, currentIndent, colorState), ColorStateV2.Empty)
 
     }
 
@@ -176,17 +174,17 @@ object LazyString {
 
       override def showableStringBuilderWriteSimple(cfg: LazyString.Config, builder: StringBuilder): Unit = {
         val (indent, newCfg) = cfg.popIndent
-        underlying.showableStringBuilderWriteComplex(newCfg, builder, indent.buildNowSimple(cfg), ColorState.empty)
+        underlying.showableStringBuilderWriteComplex(newCfg, builder, indent.buildNowSimple(cfg), ColorStateV2.Empty)
       }
 
       override def showableStringBuilderWriteComplex(cfg: LazyString.Config, builder: StringBuilder, currentIndent: String, colorState: ColorStateV2): Unit = {
         val (indent, newCfg) = cfg.popIndent
-        underlying.showableStringBuilderWriteComplex(newCfg, builder, currentIndent + indent.buildNowComplex(cfg, currentIndent, colorState), ColorState.empty)
+        underlying.showableStringBuilderWriteComplex(newCfg, builder, currentIndent + indent.buildNowComplex(cfg, currentIndent, colorState), ColorStateV2.Empty)
       }
 
     }
 
-    sealed trait Colorize {
+    sealed trait Colorize extends LazyString {
 
       protected val underlying: LazyString
       protected def patch(colorMode: ColorMode, current: ColorStateV2): Option[ColorStateV2.Patch]

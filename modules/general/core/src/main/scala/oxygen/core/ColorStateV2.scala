@@ -86,7 +86,7 @@ object ColorStateV2 {
     override protected def fgChanged(newFg: Color.Concrete): Boolean = newFg != Color.Default
     override protected def bgChanged(newBg: Color.Concrete): Boolean = newBg != bg
     override def patchFg(colorMode: ColorMode.NonColorless, newFg: Color.Concrete): Option[Patch] =
-      Patch(ColorizedFgGb(colorMode, newFg, bg), applyFg(colorMode, newFg), applyFg(colorMode, Color.Default)).some
+      Patch(ColorizedFgBg(colorMode, newFg, bg), applyFg(colorMode, newFg), applyFg(colorMode, Color.Default)).some
     override def patchBg(colorMode: ColorMode.NonColorless, newBg: Color.Concrete): Option[Patch] =
       Patch(ColorizedBg(colorMode, newBg), applyBg(colorMode, newBg), applyBg(colorMode, Color.Default)).some
     override def patchFgBg(colorMode: ColorMode.NonColorless, newFg: Color.Concrete, newBg: Color.Concrete): Option[Patch] =

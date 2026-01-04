@@ -1,6 +1,6 @@
 package oxygen.core.typeclass
 
-import oxygen.core.{LazyString, StringBuilder}
+import oxygen.core.{ColorStateV2, LazyString, StringBuilder}
 
 trait Showable extends LazyString.UnsafeCustom {
 
@@ -9,9 +9,7 @@ trait Showable extends LazyString.UnsafeCustom {
   override def showableStringBuilderWriteSimple(cfg: LazyString.Config, builder: StringBuilder): Unit =
     show.showableStringBuilderWriteSimple(cfg, builder)
 
-  override def showableStringBuilderWriteComplex(cfg: LazyString.Config, builder: StringBuilder, currentIndent: String, colorState: LazyString.ColorState): Unit =
+  override def showableStringBuilderWriteComplex(cfg: LazyString.Config, builder: StringBuilder, currentIndent: String, colorState: ColorStateV2): Unit =
     show.showableStringBuilderWriteComplex(cfg, builder, currentIndent, colorState)
-
-  override final def toString: String = show.toString
 
 }
