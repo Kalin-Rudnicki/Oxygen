@@ -1,12 +1,11 @@
 package oxygen.core.error
 
-import oxygen.core.TypeTag
 import scala.collection.immutable.ArraySeq
 import zio.*
 
 // TODO (KR) : also grab things like annotations?
 final case class FromZioCause private (underlying: Error, zioTrace: StackTrace) extends Error.NoStackTrace {
-  override def tag: TypeTag[?] = underlying.tag
+  override lazy val errorType: Error.ErrorType = underlying.errorType
   override def errorMessage: String = underlying.errorMessage
   override def causes: ArraySeq[Error] = underlying.causes
   override lazy val traces: ArraySeq[Error.StackTrace] = underlying.traces :+ FromZioCause.convertZioTrace(zioTrace)
