@@ -36,6 +36,10 @@ final class StringBuilder(threadSafe: Boolean) {
     if any != null then chars.addStringChars(any.toString)
     else chars.addAllArrayElements(StringBuilder.nullChars)
 
+  def build(): String = new String(chars.buildArray())
+
+  override def toString: String = build()
+
 }
 object StringBuilder {
 
