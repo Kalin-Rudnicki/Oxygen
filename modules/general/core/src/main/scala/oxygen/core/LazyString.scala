@@ -11,6 +11,9 @@ sealed trait LazyString {
   final def indented(idt: LazyString.Auto): LazyString = LazyString.impl.CustomIndented(this, idt)
   final def indented: LazyString = LazyString.impl.DefaultIndented(this)
 
+  final def when(cond: Boolean): LazyString = LazyString.impl.When(this, cond)
+  final def unless(cond: Boolean): LazyString = LazyString.impl.When(this, !cond)
+
   final def colorizeFg(fg: Specified[Color] = ___): LazyString = fg.fold(this)(LazyString.impl.Colorize.ColorizeFg(this, _))
   final def colorizeBg(bg: Specified[Color] = ___): LazyString = bg.fold(this)(LazyString.impl.Colorize.ColorizeBg(this, _))
   final def colorizeFgBg(fg: Specified[Color] = ___, bg: Specified[Color] = ___): LazyString = (fg, bg) match
@@ -140,6 +143,15 @@ object LazyString {
         else
           builder.append(value)
 
+    }
+
+    final case class When(underlying: LazyString, cond: Boolean) extends LazyString {
+
+      override def showableStringBuilderWriteSimple(cfg: Config, builder: StringBuilder): Unit =
+        if cond then underlying.showableStringBuilderWriteSimple(cfg, builder)
+
+      override def showableStringBuilderWriteComplex(cfg: Config, builder: StringBuilder, currentIndent: String, colorState: ColorStateV2): Unit =
+        if cond then underlying.showableStringBuilderWriteComplex(cfg, builder, currentIndent, colorState)
     }
 
     final case class Interpolated(strings: IArray[String], args: IArray[LazyString]) extends LazyString {

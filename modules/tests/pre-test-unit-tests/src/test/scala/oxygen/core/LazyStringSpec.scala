@@ -16,8 +16,8 @@ object LazyStringSpec extends OxygenSpecDefault {
       makeTest("abc", showColor) { LazyString.fromString("abc") },
       makeTest("abc+def", showColor) { LazyString.fromString("abc") ++ LazyString.fromString("+") ++ LazyString.fromString("def") },
       makeTest("abc\ndef", showColor) { LazyString.fromString("abc") ++ LazyString.newLine ++ LazyString.fromString("def") },
-      makeTest("abc+def", showColor) { LazyString.fromString("abc") ++ LazyString.fromString("+") ++ LazyString.fromString("def").indented(">> ") },
-      makeTest("abc+\n>> def", showColor) { LazyString.fromString("abc") ++ LazyString.fromString("+") ++ LazyString.fromString("\ndef").indented(">> ") },
+      makeTest("abc+", showColor) { LazyString.fromString("abc") ++ LazyString.fromString("+") ++ LazyString.fromString("def").when(false).indented(">> ") },
+      makeTest("abc+\n>> def", showColor) { LazyString.fromString("abc") ++ LazyString.fromString("+") ++ LazyString.fromString("def").indented(">> ") },
       makeTest("[[fg:red]]abc[[fg:default]]", showColor) { LazyString.fromString("abc").colorizeFg(Color.Named.Red) },
       makeTest("[[fg:red]]abc[[bg:blue]]def[[bg:default]]ghi[[fg:default]]", showColor) {
         (
