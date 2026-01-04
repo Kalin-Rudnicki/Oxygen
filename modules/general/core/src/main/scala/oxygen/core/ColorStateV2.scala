@@ -4,6 +4,9 @@ import oxygen.core.syntax.option.*
 
 sealed trait ColorStateV2 {
 
+  val apply: String
+  val revert: String
+
   final def patchFg(colorMode: ColorMode, newFg: Color): Option[ColorStateV2.Patch] =
     colorMode match
       case ColorMode.Colorless               => None
@@ -45,6 +48,8 @@ object ColorStateV2 {
   )
 
   case object Empty extends ColorStateV2 {
+    override val apply: String = ""
+    override val revert: String = ""
     override protected def fgChanged(newFg: Color.Concrete): Boolean = newFg != Color.Default
     override protected def bgChanged(newBg: Color.Concrete): Boolean = newBg != Color.Default
     override def patchFg(colorMode: ColorMode.NonColorless, newFg: Color.Concrete): Option[Patch] =
@@ -63,6 +68,8 @@ object ColorStateV2 {
   }
 
   final case class ColorizedFg(colorMode: ColorMode.NonColorless, fg: Color.Concrete) extends ColorStateV2.NonEmpty {
+    override val apply: String = applyFg(colorMode, fg)
+    override val revert: String = applyFg(colorMode, Color.Default)
     override protected def fgChanged(newFg: Color.Concrete): Boolean = newFg != fg
     override protected def bgChanged(newBg: Color.Concrete): Boolean = newBg != Color.Default
     override def patchFg(colorMode: ColorMode.NonColorless, newFg: Color.Concrete): Option[Patch] =
@@ -74,6 +81,8 @@ object ColorStateV2 {
   }
 
   final case class ColorizedBg(colorMode: ColorMode.NonColorless, bg: Color.Concrete) extends ColorStateV2.NonEmpty {
+    override val apply: String = applyBg(colorMode, bg)
+    override val revert: String = applyBg(colorMode, Color.Default)
     override protected def fgChanged(newFg: Color.Concrete): Boolean = newFg != Color.Default
     override protected def bgChanged(newBg: Color.Concrete): Boolean = newBg != bg
     override def patchFg(colorMode: ColorMode.NonColorless, newFg: Color.Concrete): Option[Patch] =
@@ -85,6 +94,8 @@ object ColorStateV2 {
   }
 
   final case class ColorizedFgBg(colorMode: ColorMode.NonColorless, fg: Color.Concrete, bg: Color.Concrete) extends ColorStateV2.NonEmpty {
+    override val apply: String = applyFgBg(colorMode, fg, bg)
+    override val revert: String = applyFgBg(colorMode, Color.Default, Color.Default)
     override protected def fgChanged(newFg: Color.Concrete): Boolean = newFg != fg
     override protected def bgChanged(newBg: Color.Concrete): Boolean = newBg != bg
     override def patchFg(colorMode: ColorMode.NonColorless, newFg: Color.Concrete): Option[Patch] =
@@ -95,8 +106,9 @@ object ColorStateV2 {
       Patch(ColorizedFgBg(colorMode, newFg, newBg), applyFgBg(colorMode, newFg, newBg), applyFgBg(colorMode, fg, bg)).some
   }
 
-  private def applyFg(colorMode: ColorMode.NonColorless, fg: Color.Concrete): String = ???
-  private def applyBg(colorMode: ColorMode.NonColorless, bg: Color.Concrete): String = ???
-  private def applyFgBg(colorMode: ColorMode.NonColorless, fg: Color.Concrete, bg: Color.Concrete): String = ???
+  // TODO (KR) : be more efficient
+  private def applyFg(colorMode: ColorMode.NonColorless, fg: Color.Concrete): String = colorMode.prefix + colorMode.fgMod(fg) + colorMode.suffix
+  private def applyBg(colorMode: ColorMode.NonColorless, bg: Color.Concrete): String = colorMode.prefix + colorMode.bgMod(bg) + colorMode.suffix
+  private def applyFgBg(colorMode: ColorMode.NonColorless, fg: Color.Concrete, bg: Color.Concrete): String = colorMode.prefix + colorMode.fgMod(fg) + ";" + colorMode.bgMod(bg) + colorMode.suffix
 
 }
