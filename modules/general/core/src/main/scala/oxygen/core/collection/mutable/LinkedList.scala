@@ -9,11 +9,6 @@ final class LinkedList[A] private (threadUnsafe: Boolean) {
   private var _head: LinkedList.Node[A] = null
   private var _tail: LinkedList.Node[A] = null
 
-  def unsafeHeadNode: LinkedList.Node[A] = _head
-  def unsafeTailNode: LinkedList.Node[A] = _tail
-  def headNode: Option[LinkedList.Node[A]] = Option(_head)
-  def tailNode: Option[LinkedList.Node[A]] = Option(_tail)
-
   def prepend(value: A): Unit =
     if threadUnsafe then prependInternal(value)
     else this.synchronized { prependInternal(value) }
@@ -92,33 +87,33 @@ object LinkedList {
   def empty[A]: LinkedList[A] = new LinkedList[A](true)
   def empty[A](threadSafe: Boolean): LinkedList[A] = new LinkedList[A](!threadSafe)
 
-  final class Node[A] private[LinkedList] (val value: A) {
+  private final class Node[A](val value: A) {
 
     private[LinkedList] var _prev: Node[A] = null
     private[LinkedList] var _next: Node[A] = null
 
   }
 
-  private final case class Snapshot[A](isReversed: Boolean, head: Node[A], tail: Node[A]) extends Iterable[A] {
+  private final case class Snapshot[A](isReversed: Boolean, headNode: Node[A], tailNode: Node[A]) extends Iterable[A] {
 
     override def iterator: Iterator[A] =
       if isReversed then ReversedSnapshotIterator(this)
       else SnapshotIterator(this)
 
-    override protected def reversed: Iterable[A] = Snapshot(!isReversed, head, tail)
+    override protected def reversed: Iterable[A] = Snapshot(!isReversed, headNode, tailNode)
 
   }
 
   private final case class SnapshotIterator[A](snapshot: Snapshot[A]) extends Iterator[A] {
 
-    private var _node: Node[A] = snapshot.head
+    private var _node: Node[A] = snapshot.headNode
 
     override def hasNext: Boolean = _node != null
 
     override def next(): A = {
       val value: A = _node.value
 
-      if _node eq snapshot.tail then
+      if _node eq snapshot.tailNode then
         _node = null
       else
         _node = _node._next
@@ -130,14 +125,14 @@ object LinkedList {
 
   private final case class ReversedSnapshotIterator[A](snapshot: Snapshot[A]) extends Iterator[A] {
 
-    private var _node: Node[A] = snapshot.tail
+    private var _node: Node[A] = snapshot.tailNode
 
     override def hasNext: Boolean = _node != null
 
     override def next(): A = {
       val value: A = _node.value
 
-      if _node eq snapshot.head then
+      if _node eq snapshot.headNode then
         _node = null
       else
         _node = _node._prev

@@ -66,20 +66,18 @@ final class ArrayBuilder[A: ClassTag as ct] private (initialSize: Int, growthFac
 
   def showInternalState(): String = {
     val sb = new scala.collection.mutable.StringBuilder()
-    var tmpNode: ArrayBuilder.OverflowNode[A] = overflowHead
 
     sb.append("ArrayBuilder[")
     sb.append(ct.runtimeClass.getName)
     sb.append(s"]:\n  overflow (total = $overflowTotalLength):")
 
-    while tmpNode != null do {
+    overflow.iterator().foreach { node =>
       sb.append("\n    - ( size = ")
-      sb.append(tmpNode.value.length)
+      sb.append(node.array.length)
       sb.append(", used = ")
-      sb.append(tmpNode.used)
+      sb.append(node.used)
       sb.append(" ): \n      ")
-      sb.append(tmpNode.value.mkString("[", ", ", "]"))
-      tmpNode = tmpNode.next
+      node.array.addString(sb, "[", ", ", "]")
     }
 
     sb.append("\n  current:\n    ( used = ")
@@ -88,7 +86,7 @@ final class ArrayBuilder[A: ClassTag as ct] private (initialSize: Int, growthFac
     sb.append(currentAvailable)
     sb.append("):\n    ")
     if currentArray eq null then sb.append("<empty-buffer>")
-    else sb.append(currentArray.mkString("[", ", ", "]"))
+    else currentArray.addString(sb, "[", ", ", "]")
 
     sb.result()
   }
@@ -161,14 +159,13 @@ final class ArrayBuilder[A: ClassTag as ct] private (initialSize: Int, growthFac
         overflowAppend(array, array.length)
       } else {
         currentArray = new Array[A](currentAvailable)
-        elementsToAdd.copyToArray[A](currentAvailable, 0, newElemsLength)
-        currentAvailable = currentAvailable - newElemsLength
+        addAllIterableElementsNoOverflow(elementsToAdd, newElemsLength, newAvailable)
       }
     else
-      if newAvailable >= 0 then addAllArrayElementsNoOverflow(elementsToAdd, newElemsLength, newAvailable)
+      if newAvailable >= 0 then addAllIterableElementsNoOverflow(elementsToAdd, newElemsLength, newAvailable)
       else {
         overflowAppend(currentArray, currentUsed)
-        overflowAppend(elementsToAdd, newElemsLength)
+        overflowAppend(elementsToAdd.toArray[A], newElemsLength)
         currentAvailable = newSize(currentArray.length.max(newElemsLength))
         currentArray = null
         currentUsed = 0
@@ -215,7 +212,7 @@ final class ArrayBuilder[A: ClassTag as ct] private (initialSize: Int, growthFac
 
     var offset: Int = 0
 
-    val nodeIter: Iterator[ArrayBuilder.PotentiallyPartialArray[A]] = nodeIterableInternal()
+    val nodeIter: Iterator[ArrayBuilder.PotentiallyPartialArray[A]] = nodeIterableInternal().iterator
     while nodeIter.hasNext do {
       val node = nodeIter.next()
       System.arraycopy(node.array, 0, output, offset, node.used)
@@ -228,15 +225,15 @@ final class ArrayBuilder[A: ClassTag as ct] private (initialSize: Int, growthFac
 }
 object ArrayBuilder {
 
-  def empty[A: ClassTag]: ArrayBuilder = emptyThreadUnsafe[A]
-  def emptyThreadUnsafe[A: ClassTag]: ArrayBuilder = new ArrayBuilder[A](32, 2, true)
-  def emptyThreadSafe[A: ClassTag]: ArrayBuilder = new ArrayBuilder[A](32, 2, false)
+  def empty[A: ClassTag]: ArrayBuilder[A] = emptyThreadUnsafe[A]
+  def emptyThreadUnsafe[A: ClassTag]: ArrayBuilder[A] = new ArrayBuilder[A](32, 2, true)
+  def emptyThreadSafe[A: ClassTag]: ArrayBuilder[A] = new ArrayBuilder[A](32, 2, false)
 
-  def empty[A: ClassTag](initialSize: Int): ArrayBuilder = emptyThreadUnsafe[A](initialSize)
-  def emptyThreadUnsafe[A: ClassTag](initialSize: Int): ArrayBuilder = new ArrayBuilder[A](initialSize, 2, true)
-  def emptyThreadSafe[A: ClassTag](initialSize: Int): ArrayBuilder = new ArrayBuilder[A](initialSize, 2, false)
+  def empty[A: ClassTag](initialSize: Int): ArrayBuilder[A] = emptyThreadUnsafe[A](initialSize)
+  def emptyThreadUnsafe[A: ClassTag](initialSize: Int): ArrayBuilder[A] = new ArrayBuilder[A](initialSize, 2, true)
+  def emptyThreadSafe[A: ClassTag](initialSize: Int): ArrayBuilder[A] = new ArrayBuilder[A](initialSize, 2, false)
 
-  def make[A: ClassTag](initialSize: Int, growthFactor: Double, threadSafe: Boolean): ArrayBuilder = new ArrayBuilder[A](initialSize.max(8), growthFactor.max(1), !threadSafe)
+  def make[A: ClassTag](initialSize: Int, growthFactor: Double, threadSafe: Boolean): ArrayBuilder[A] = new ArrayBuilder[A](initialSize.max(8), growthFactor.max(1), !threadSafe)
 
   private final case class PotentiallyPartialArray[A](array: Array[A], used: Int) extends Iterable[A] {
 

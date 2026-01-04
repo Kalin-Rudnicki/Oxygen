@@ -23,7 +23,7 @@ trait Error extends Throwable {
     ??? // FIX-PRE-MERGE (KR) :
 
   // format: off
-  final def showOnlyMessage: String = this.show()
+  final def showOnlyMessage: String = ??? // FIX-PRE-MERGE (KR) :  
   // format: on
 
   override final def getMessage: String = errorMessage
@@ -144,19 +144,19 @@ object Error {
   final case class ErrorMessage private[Error] (errorMessage: String, causes: ArraySeq[Error]) extends Error
 
   final case class ShowableErrorMessage[A] private[Error] (value: A, show: Show[A], causes: ArraySeq[Error]) extends Error {
-    override def tag: TypeTag[?] = TypeTag.fromClass(value.getClass)
+    override lazy val errorType: ErrorType = ErrorType.extract(value)
     override lazy val errorMessage: String = show.show(value)
   }
 
   final case class WrappedAny private[Error] (value: Any) extends Error.NoStackTrace {
-    override def tag: TypeTag[?] = TypeTag.fromClass(value.getClass)
+    override lazy val errorType: ErrorType = ErrorType.extract(value)
     override def errorMessage: String = value.toString
     override def causes: ArraySeq[Error] = ArraySeq.empty
     override def traces: ArraySeq[StackTrace] = ArraySeq.empty
   }
 
   final class WrappedThrowable private[Error] (underlying: Throwable) extends Error.NoStackTrace {
-    override def tag: TypeTag[?] = TypeTag.fromClass(underlying.getClass)
+    override lazy val errorType: ErrorType = ErrorType.extract(underlying)
     override lazy val getStackTrace: Array[StackTraceElement] = underlying.getStackTrace
     override lazy val errorMessage: String = underlying.safeGetMessage
     override lazy val causes: ArraySeq[Error] = Error.extractCauses(underlying.getCause)
@@ -192,7 +192,7 @@ object Error {
       Error.Raw(
         errorType = error.errorType.limit(limit),
         errorMessage = error.errorMessage,
-        causes = if causeDepth > 0 then error.causes.map(e => fromInternal(e, e.tag, typeName, typeTag, causeDepth - 1, traceDepth - 1)) else ArraySeq.empty,
+        causes = if causeDepth > 0 then error.causes.map(e => fromInternal(e, limit, causeDepth - 1, traceDepth - 1)) else ArraySeq.empty,
         traces = if traceDepth > 0 then error.traces else ArraySeq.empty,
       )
 
@@ -201,18 +201,16 @@ object Error {
         error = error,
         limit = limit,
         causeDepth = causeDepth,
-        traces = traceDepth,
+        traceDepth = traceDepth,
       )
 
-    def fromThrowable(throwable: Throwable, limit: ErrorType.Limit, causeDepth: Int = Int.MaxValue, traceDepth: Int = Int.MaxValue): Error.Raw = {
-      val error = Error.fromThrowable(throwable)
+    def fromThrowable(throwable: Throwable, limit: ErrorType.Limit, causeDepth: Int = Int.MaxValue, traceDepth: Int = Int.MaxValue): Error.Raw =
       fromInternal(
-        error = error,
+        error = Error.fromThrowable(throwable),
         limit = limit,
         causeDepth = causeDepth,
-        traces = traceDepth,
+        traceDepth = traceDepth,
       )
-    }
 
   }
 

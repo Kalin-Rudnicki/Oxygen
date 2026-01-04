@@ -11,7 +11,7 @@ object LazyString {
 
   val empty: LazyString = LazyString.impl.Empty
 
-  def fromAny(value: Any): LazyString =
+  def fromString(value: Any): LazyString =
     ??? // FIX-PRE-MERGE (KR) :
 
   def fromAny(value: Any): LazyString = value.asInstanceOf[Matchable] match
