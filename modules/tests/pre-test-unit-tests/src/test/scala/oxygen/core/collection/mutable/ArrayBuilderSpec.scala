@@ -155,7 +155,7 @@ object ArrayBuilderSpec extends OxygenSpecDefault {
     )
 
   override def testSpec: TestSpec =
-    suite("ArrayBuilderSpec")(
+    suite("ArrayBuilderSpec")( // FIX-PRE-MERGE (KR) :
       makeSuite[Int](Random.nextInt, 8, 16, 1, 4, 1, 3),
       // makeSuite[Int](Random.nextInt, 16, 32, 2, 128, 4, 4),
       // makeSuite[String](RandomGen.lowerCaseString(), 1, 1, 32, 64, 4, 4),
