@@ -4,7 +4,10 @@ import oxygen.core.typeclass.SeqOps
 
 sealed trait LazyString {
 
-  // protected def writeSimple(builder: StringBuilder)
+  protected def writeSimple(builder: StringBuilder): Unit = ??? // FIX-PRE-MERGE (KR) :
+  protected def writeWithIndent(builder: StringBuilder, currentIndent: String): Unit = ??? // FIX-PRE-MERGE (KR) :
+  protected def writeWithColor(builder: StringBuilder, currentFg: Option[String], currentBg: Option[String]): Unit = ??? // FIX-PRE-MERGE (KR) :
+  protected def writeWithIndentAndColor(builder: StringBuilder, currentIndent: String, currentFg: Option[String], currentBg: Option[String]): Unit = ??? // FIX-PRE-MERGE (KR) :
 
 }
 object LazyString {
@@ -37,7 +40,7 @@ object LazyString {
 
     final case class Interpolated(strings: IArray[String], args: IArray[LazyString]) extends LazyString
 
-    final case class CustomIndented(underlying: LazyString, indent: LazyString) extends LazyString
+    final case class CustomIndented(underlying: LazyString, indent: String) extends LazyString
 
     final case class DefaultIndented(underlying: LazyString) extends LazyString
 
