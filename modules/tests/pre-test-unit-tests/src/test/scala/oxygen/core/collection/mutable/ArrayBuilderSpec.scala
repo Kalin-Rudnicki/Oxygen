@@ -175,6 +175,7 @@ object ArrayBuilderSpec extends OxygenSpecDefault {
           val t4 = builder.snapshot()
           builder.addAllArrayElements(Array(-1, 0, 1))
           val t5 = builder.snapshot()
+
           assertTrue(
             t1.toList == List(1, 2, 3),
             t2.toList == List(1, 2, 3, 4, 5, 6, 7, 8, 9),

@@ -6,7 +6,7 @@ import scala.reflect.ClassTag
 /**
   * FIX-PRE-MERGE (KR) : Add description
   */
-final class ArrayBuilder[A: ClassTag as ct] private (private val threadUnsafe: Boolean) {
+final class ArrayBuilder[A] private (private val threadUnsafe: Boolean)(using private val ct: ClassTag[A]) {
 
   def addStringChars(string: String)(using ev: A =:= Char): Unit = {
     val string0: String = if string ne null then string else "null"
@@ -60,7 +60,7 @@ final class ArrayBuilder[A: ClassTag as ct] private (private val threadUnsafe: B
 
   def iterator(): Iterator[A] = snapshot().iterator
 
-  def snapshot(): Iterable[A] =
+  def snapshot(): Seq[A] =
     if threadUnsafe then snapshotInternal()
     else this.synchronized { snapshotInternal() }
 
@@ -284,7 +284,23 @@ final class ArrayBuilder[A: ClassTag as ct] private (private val threadUnsafe: B
   }
 
   private inline def snapshotInternal(): ArrayBuilder.Snapshot[A] =
-    ArrayBuilder.Snapshot[A](_overflowBuffer, _overflowTotalUsedElems, _overflowAllocatedElems, _overflowUsed, _currentArray, _currentUsed)
+    ArrayBuilder.Snapshot[A](this, _overflowBuffer, _overflowTotalUsedElems, _overflowAllocatedElems, _overflowUsed, _currentArray, _currentUsed)
+
+  // TODO (KR) :
+  /*
+  private def snapshotFromSelfOrCopyInternal(expOverflowUsed: Int, expCurrentUsed: Int)(f: ArrayBuilder[A] => Unit): ArrayBuilder.Snapshot[A] = {
+    val target: ArrayBuilder[A] =
+      if this._overflowUsed == expOverflowUsed && this._currentUsed == expCurrentUsed then this
+      else {
+        val copied = new ArrayBuilder[A](threadUnsafe)
+        copied.addAllBuilder(this)
+        copied
+      }
+
+    f(target)
+    target.safeSnapshot()
+  }
+   */
 
 }
 object ArrayBuilder {
@@ -301,14 +317,17 @@ object ArrayBuilder {
 
   }
 
-  private final case class Snapshot[A: ClassTag as aCt](
+  private final case class Snapshot[A](
+      origin: ArrayBuilder[A],
       overflowBuffer: Array[PotentiallyPartialArray[A]],
       overflowTotalUsedElems: Long,
       overflowAllocatedElems: Long,
       overflowUsed: Int,
       currentArray: Array[A],
       currentUsed: Int,
-  ) extends Iterable[A] {
+  ) extends Seq[A] {
+
+    private given aCt: ClassTag[A] = origin.ct
 
     private lazy val totalSize: Int = {
       val total: Long = overflowTotalUsedElems + currentUsed
@@ -316,6 +335,12 @@ object ArrayBuilder {
         throw new RuntimeException(s"Unable to build array of length $total, maxArraySize=${jdk.internal.util.ArraysSupport.SOFT_MAX_ARRAY_LENGTH}")
       total.toInt
     }
+
+    override def apply(i: Int): A = arrayOfA(i)
+
+    override def productPrefix: String = super.productPrefix
+
+    override protected def className: String = "ArrayBuilder.Snapshot"
 
     lazy val arrayOfA: Array[A] = {
       val output: Array[A] = new Array[A](totalSize)
@@ -362,13 +387,11 @@ object ArrayBuilder {
 
     override def knownSize: Int = totalSize
 
-    override def size: Int = totalSize
+    override def length: Int = totalSize
 
     override def toVector: Vector[A] = toArraySeq.toVector
 
     def toArraySeq: ArraySeq[A] = ArraySeq.unsafeWrapArray(arrayOfA)
-
-    override def toSeq: Seq[A] = toArraySeq
 
     override def toIndexedSeq: IndexedSeq[A] = toArraySeq
 
