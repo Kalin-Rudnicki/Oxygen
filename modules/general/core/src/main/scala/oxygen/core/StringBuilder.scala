@@ -14,6 +14,10 @@ final class StringBuilder(threadSafe: Boolean) {
     this
   }
 
+  def append(that: StringBuilder): Unit =
+    if that ne null then this.chars.addAllBuilder(that.chars)
+    else chars.addAllArrayElements(StringBuilder.nullChars)
+
   def append(value: Boolean): Unit =
     if value then chars.addAllArrayElements(StringBuilder.trueChars)
     else chars.addAllArrayElements(StringBuilder.falseChars)

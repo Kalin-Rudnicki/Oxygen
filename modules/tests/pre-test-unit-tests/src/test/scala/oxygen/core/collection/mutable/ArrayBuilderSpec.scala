@@ -161,6 +161,29 @@ object ArrayBuilderSpec extends OxygenSpecDefault {
         makeSuite[Int](Random.nextInt, 2, 128, 10, 4),
         makeSuite[String](RandomGen.lowerCaseString(), 32, 64, 10, 4),
       ),
+      suite("manual")(
+        test("manual 1") {
+          val builder = ArrayBuilder.emptyThreadUnsafe[Int]
+          builder.addAllArrayElements(Array(1, 2, 3))
+          val t1 = builder.snapshot()
+          builder.addAllIterable(ArraySeq(4, 5, 6, 7, 8, 9))
+          val t2 = builder.snapshot()
+          builder.addSingle(10)
+          builder.addSingle(11)
+          val t3 = builder.snapshot()
+          builder.addAllBuilder(builder)
+          val t4 = builder.snapshot()
+          builder.addAllArrayElements(Array(-1, 0, 1))
+          val t5 = builder.snapshot()
+          assertTrue(
+            t1.toList == List(1, 2, 3),
+            t2.toList == List(1, 2, 3, 4, 5, 6, 7, 8, 9),
+            t3.toList == List(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11),
+            t4.toList == List(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11),
+            t5.toList == List(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, -1, 0, 1),
+          )
+        },
+      ),
     )
 
   override def testAspects: Chunk[TestSpecAspect] = Chunk(TestAspect.nondeterministic)

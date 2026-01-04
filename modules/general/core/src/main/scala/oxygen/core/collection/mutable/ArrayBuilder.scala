@@ -45,19 +45,13 @@ final class ArrayBuilder[A: ClassTag as ct] private (private val threadUnsafe: B
     if threadUnsafe then addSingleInternal(element)
     else this.synchronized { addSingleInternal(element) }
 
-  // FIX-PRE-MERGE (KR) :
   def addAllBuilder(that: ArrayBuilder[A]): Unit =
     if that eq null then ()
-    else if this eq that then {
-      if this.threadUnsafe then ???
-      else this.synchronized { ??? }
-    } else
-      if this.threadUnsafe then
-        if that.threadUnsafe then ???
-        else that.synchronized { ??? }
-      else
-        if that.threadUnsafe then this.synchronized { ??? } //
-        else this.synchronized { that.synchronized { ??? } }
+    else {
+      val thatSnapshot: ArrayBuilder.Snapshot[A] = that.safeSnapshot()
+      if threadUnsafe then addAllBuilderInternal(thatSnapshot)
+      else this.synchronized { addAllBuilderInternal(thatSnapshot) }
+    }
 
   def <<(array: Array[A]): ArrayBuilder[A] = {
     this.addAllArrayElements(array)
@@ -70,18 +64,22 @@ final class ArrayBuilder[A: ClassTag as ct] private (private val threadUnsafe: B
     if threadUnsafe then snapshotInternal()
     else this.synchronized { snapshotInternal() }
 
+  private def safeSnapshot(): ArrayBuilder.Snapshot[A] =
+    if threadUnsafe then snapshotInternal()
+    else this.synchronized { snapshotInternal() }
+
   def buildArray(): Array[A] =
-    this.snapshot().toArray[A]
+    safeSnapshot().arrayOfA
 
   def showInternalState(): String = {
     val sb = new scala.collection.mutable.StringBuilder()
 
     sb.append("ArrayBuilder[")
     sb.append(ct.runtimeClass.getName)
-    sb.append(s"]:\n  overflow ( size = $_numOverflowElems, used = $_overflowTotalUsedElems, total = $_overflowAllocatedElems ):")
+    sb.append(s"]:\n  overflow ( size = $_overflowUsed, used = $_overflowTotalUsedElems, total = $_overflowAllocatedElems ):")
 
     var _tmpIdx: Int = 0
-    while _tmpIdx < _numOverflowElems do {
+    while _tmpIdx < _overflowUsed do {
       val node = _overflowBuffer(_tmpIdx)
       sb.append("\n    - ( allocated = ")
       sb.append(node.array.length)
@@ -120,19 +118,19 @@ final class ArrayBuilder[A: ClassTag as ct] private (private val threadUnsafe: B
    */
   private var _overflowTotalUsedElems: Long = 0
   private var _overflowAllocatedElems: Long = 0
-  private var _numOverflowElems: Int = 0
+  private var _overflowUsed: Int = 0
   private var _overflowBuffer: Array[ArrayBuilder.PotentiallyPartialArray[A]] = new Array[ArrayBuilder.PotentiallyPartialArray[A]](32)
 
   private def overflowAppend(array: Array[A], used: Int): Unit = {
-    if _numOverflowElems >= _overflowBuffer.length then {
+    if _overflowUsed >= _overflowBuffer.length then {
       val newOverflowBuffer: Array[ArrayBuilder.PotentiallyPartialArray[A]] = new Array[ArrayBuilder.PotentiallyPartialArray[A]](array.length + 32)
       System.arraycopy(_overflowBuffer, 0, newOverflowBuffer, 0, _overflowBuffer.length)
       _overflowBuffer = newOverflowBuffer
     }
-    _overflowBuffer(_numOverflowElems) = ArrayBuilder.PotentiallyPartialArray[A](array, used)
+    _overflowBuffer(_overflowUsed) = ArrayBuilder.PotentiallyPartialArray[A](array, used)
     _overflowTotalUsedElems = _overflowTotalUsedElems + used
     _overflowAllocatedElems = _overflowAllocatedElems + array.length
-    _numOverflowElems = _numOverflowElems + 1
+    _overflowUsed = _overflowUsed + 1
   }
 
   private var _currentArray: Array[A] = null
@@ -259,8 +257,34 @@ final class ArrayBuilder[A: ClassTag as ct] private (private val threadUnsafe: B
       _currentUsed = 1
     }
 
-  private inline def snapshotInternal(): Iterable[A] =
-    ArrayBuilder.Snapshot[A](_overflowBuffer, _overflowTotalUsedElems, _overflowAllocatedElems, _numOverflowElems, _currentArray, _currentUsed)
+  private def addAllBuilderInternal(that: ArrayBuilder.Snapshot[A]): Unit = {
+    if _currentArray ne null then
+      overflowAppend(_currentArray, _currentUsed)
+    _currentArray = null
+    _currentAvailable = _currentAvailable + _currentUsed
+    _currentUsed = 0
+
+    val extra: Int = if that.currentArray ne null then 1 else 0
+
+    if this._overflowUsed + that.overflowUsed + extra > this._overflowBuffer.length then {
+      val newBuffer: Array[ArrayBuilder.PotentiallyPartialArray[A]] = new Array[ArrayBuilder.PotentiallyPartialArray[A]](this._overflowBuffer.length + that.overflowBuffer.length + 32)
+      if this._overflowUsed > 0 then
+        System.arraycopy(this._overflowBuffer, 0, newBuffer, 0, this._overflowUsed)
+    }
+
+    if that.overflowUsed > 0 then {
+      System.arraycopy(that.overflowBuffer, 0, this._overflowBuffer, this._overflowUsed, that.overflowUsed)
+      this._overflowUsed = this._overflowUsed + 1
+    }
+
+    if that.currentArray ne null then {
+      this._overflowBuffer(this._overflowUsed) = new ArrayBuilder.PotentiallyPartialArray[A](that.currentArray, that.currentUsed)
+      this._overflowUsed = this._overflowUsed + 1
+    }
+  }
+
+  private inline def snapshotInternal(): ArrayBuilder.Snapshot[A] =
+    ArrayBuilder.Snapshot[A](_overflowBuffer, _overflowTotalUsedElems, _overflowAllocatedElems, _overflowUsed, _currentArray, _currentUsed)
 
 }
 object ArrayBuilder {
@@ -278,16 +302,16 @@ object ArrayBuilder {
   }
 
   private final case class Snapshot[A: ClassTag as aCt](
-      overflow: Array[PotentiallyPartialArray[A]],
+      overflowBuffer: Array[PotentiallyPartialArray[A]],
       overflowTotalUsedElems: Long,
       overflowAllocatedElems: Long,
       overflowUsed: Int,
       currentArray: Array[A],
-      currentArrayUsed: Int,
+      currentUsed: Int,
   ) extends Iterable[A] {
 
     private lazy val totalSize: Int = {
-      val total: Long = overflowTotalUsedElems + currentArrayUsed
+      val total: Long = overflowTotalUsedElems + currentUsed
       if total > jdk.internal.util.ArraysSupport.SOFT_MAX_ARRAY_LENGTH then
         throw new RuntimeException(s"Unable to build array of length $total, maxArraySize=${jdk.internal.util.ArraysSupport.SOFT_MAX_ARRAY_LENGTH}")
       total.toInt
@@ -300,14 +324,14 @@ object ArrayBuilder {
       var _offset: Int = 0
 
       while _idx < overflowUsed do {
-        val tmp = overflow(_idx)
+        val tmp = overflowBuffer(_idx)
         System.arraycopy(tmp.array, 0, output, _offset, tmp.used)
         _idx = _idx + 1
         _offset = _offset + 1
       }
 
       if currentArray ne null then
-        System.arraycopy(currentArray, 0, output, _idx, currentArrayUsed)
+        System.arraycopy(currentArray, 0, output, _idx, currentUsed)
 
       output
     }
@@ -324,14 +348,14 @@ object ArrayBuilder {
         var _offset: Int = 0
 
         while _idx < overflowUsed do {
-          val tmp = overflow(_idx)
+          val tmp = overflowBuffer(_idx)
           Array.copy(tmp.array, 0, output, _offset, tmp.used)
           _idx = _idx + 1
           _offset = _offset + 1
         }
 
         if currentArray ne null then
-          Array.copy(currentArray, 0, output, _idx, currentArrayUsed)
+          Array.copy(currentArray, 0, output, _idx, currentUsed)
 
         output
       }
@@ -358,10 +382,10 @@ object ArrayBuilder {
 
     override def iterator: Iterator[A] =
       new SnapshotIterator(
-        overflow = overflow,
+        overflow = overflowBuffer,
         overflowUsed = overflowUsed,
         currentArray = currentArray,
-        currentArrayUsed = currentArrayUsed,
+        currentArrayUsed = currentUsed,
       )
 
   }
