@@ -1,5 +1,6 @@
 package oxygen.core.collection.mutable
 
+import scala.collection.immutable.ArraySeq
 import scala.reflect.ClassTag
 
 /**
@@ -292,7 +293,7 @@ object ArrayBuilder {
       total.toInt
     }
 
-    def makeArrayOfA: Array[A] = {
+    lazy val arrayOfA: Array[A] = {
       val output: Array[A] = new Array[A](totalSize)
 
       var _idx: Int = 0
@@ -311,9 +312,11 @@ object ArrayBuilder {
       output
     }
 
+    lazy val reversedArrayOfA: Array[A] = arrayOfA.reverse
+
     override def toArray[B >: A: ClassTag as bCt]: Array[B] =
       if bCt.runtimeClass.isAssignableFrom(aCt.runtimeClass) then
-        makeArrayOfA.asInstanceOf[Array[B]]
+        arrayOfA.asInstanceOf[Array[B]]
       else {
         val output: Array[B] = new Array[B](totalSize)
 
@@ -332,6 +335,26 @@ object ArrayBuilder {
 
         output
       }
+
+    override def knownSize: Int = totalSize
+
+    override def size: Int = totalSize
+
+    override def toVector: Vector[A] = toArraySeq.toVector
+
+    def toArraySeq: ArraySeq[A] = ArraySeq.unsafeWrapArray(arrayOfA)
+
+    override def toSeq: Seq[A] = toArraySeq
+
+    override def toIndexedSeq: IndexedSeq[A] = toArraySeq
+
+    override protected def reversed: Iterable[A] = ArraySeq.unsafeWrapArray(reversedArrayOfA)
+
+    override def copyToArray[B >: A](xs: Array[B], start: Int, len: Int): Int = {
+      val toMove: Int = len min totalSize
+      Array.copy(arrayOfA, 0, xs, start, toMove)
+      toMove
+    }
 
     override def iterator: Iterator[A] =
       new SnapshotIterator(

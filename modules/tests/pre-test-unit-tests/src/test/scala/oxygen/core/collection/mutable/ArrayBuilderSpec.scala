@@ -124,17 +124,14 @@ object ArrayBuilderSpec extends OxygenSpecDefault {
   private def makeTest[A: ClassTag as ct](
       idx: Int,
       gen: UIO[A],
-      initialSizeMin: Int,
-      initialSizeMax: Int,
       genSizeMin: Int,
       genSizeMax: Int,
       numInserts: Int,
   )(using Trace, SourceLocation): TestSpec =
-    test(s"[$idx] ${ct.runtimeClass.getName} : $initialSizeMin, $initialSizeMax, $genSizeMin, $genSizeMax, $numInserts") {
+    test(s"[$idx] ${ct.runtimeClass.getName} : $genSizeMin, $genSizeMax, $numInserts") {
       for {
         inserts: Seq[Insert[A]] <- genCase[A](gen, genSizeMin, genSizeMax).replicateZIO(numInserts).map(_.toSeq)
-        initialSize <- Random.nextIntBetween(initialSizeMin, initialSizeMax)
-        builder <- ZIO.attempt { ArrayBuilder.emptyThreadUnsafe[A](initialSize) }
+        builder <- ZIO.attempt { ArrayBuilder.emptyThreadUnsafe[A] }
         (acc, _) <- ZIO.foldLeft(inserts.zipWithIndex)((assertCompletes, List.empty[A])) {
           case (res @ (acc, _), _) if acc.isFailure => ZIO.succeed(res)
           case ((acc, golden), (insert, idx))       =>
@@ -148,23 +145,21 @@ object ArrayBuilderSpec extends OxygenSpecDefault {
 
   private def makeSuite[A: ClassTag as ct](
       gen: UIO[A],
-      initialSizeMin: Int,
-      initialSizeMax: Int,
       genSizeMin: Int,
       genSizeMax: Int,
       numInserts: Int,
       numTests: Int,
   )(using Trace, SourceLocation): TestSpec =
-    suite(s"${ct.runtimeClass.getName} : $initialSizeMin, $initialSizeMax, $genSizeMin, $genSizeMax, $numInserts")(
-      1.to(numTests).map(makeTest(_, gen, initialSizeMin, initialSizeMax, genSizeMin, genSizeMax, numInserts))*,
+    suite(s"${ct.runtimeClass.getName} : $genSizeMin, $genSizeMax, $numInserts")(
+      1.to(numTests).map(makeTest(_, gen, genSizeMin, genSizeMax, numInserts))*,
     )
 
   override def testSpec: TestSpec =
     suite("ArrayBuilderSpec")(
       suite("randomized")(
-        makeSuite[Int](Random.nextInt, 8, 16, 1, 4, 10, 4),
-        makeSuite[Int](Random.nextInt, 16, 32, 2, 128, 10, 4),
-        makeSuite[String](RandomGen.lowerCaseString(), 1, 2, 32, 64, 10, 4),
+        makeSuite[Int](Random.nextInt, 1, 4, 10, 4),
+        makeSuite[Int](Random.nextInt, 2, 128, 10, 4),
+        makeSuite[String](RandomGen.lowerCaseString(), 32, 64, 10, 4),
       ),
     )
 
