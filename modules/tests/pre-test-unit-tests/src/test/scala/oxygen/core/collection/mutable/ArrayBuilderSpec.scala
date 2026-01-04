@@ -56,11 +56,11 @@ object ArrayBuilderSpec extends OxygenSpecDefault {
 
     def runAssertions: Task[TestResult] =
       ZIO.attempt {
-        assertTrue(
-          beforeSnapshot == beforeGolden,
-          beforeEvaluated == beforeGolden,
-          afterSnapshot == afterGolden,
-          afterEvaluated == afterGolden,
+        (
+          simpleEqual(beforeSnapshot.toList, beforeGolden) &&
+            simpleEqual(beforeEvaluated, beforeGolden) &&
+            simpleEqual(afterSnapshot.toList, afterGolden) &&
+            simpleEqual(afterEvaluated, afterGolden)
         ).label(s"idx=$insertIdx")
       }
 
