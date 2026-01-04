@@ -7,6 +7,14 @@ import scala.reflect.ClassTag
   */
 final class ArrayBuilder[A: ClassTag as ct] private (initialSize: Int, growthFactor: Double, private val threadUnsafe: Boolean) {
 
+  def addStringChars(string: String)(using ev: A =:= Char): Unit = {
+    val string0: String = if string ne null then string else "null"
+    val strLen: Int = string0.length
+    if strLen == 0 then ()
+    else if threadUnsafe then addStringCharsInternal(string0, strLen)
+    else this.synchronized { addStringCharsInternal(string0, strLen) }
+  }
+
   def addAllArrayElements(elementsToAdd: Array[A]): Unit =
     if elementsToAdd eq null then ()
     else {
@@ -36,7 +44,8 @@ final class ArrayBuilder[A: ClassTag as ct] private (initialSize: Int, growthFac
     if threadUnsafe then addSingleInternal(element)
     else this.synchronized { addSingleInternal(element) }
 
-  def addAllBuilder(that: ArrayBuilder[A]): Unit = // FIX-PRE-MERGE (KR) :
+  // FIX-PRE-MERGE (KR) :
+  def addAllBuilder(that: ArrayBuilder[A]): Unit =
     if that eq null then ()
     else if this eq that then {
       if this.threadUnsafe then ???
@@ -112,8 +121,15 @@ final class ArrayBuilder[A: ClassTag as ct] private (initialSize: Int, growthFac
 
   private inline def newSize(inline base: Int): Int = {
     val newSizeDouble: Double = base.toLong * growthFactor
-    if newSizeDouble <= Int.MaxValue then newSizeDouble.toInt
-    else Int.MaxValue
+    if newSizeDouble <= jdk.internal.util.ArraysSupport.SOFT_MAX_ARRAY_LENGTH then newSizeDouble.toInt
+    else jdk.internal.util.ArraysSupport.SOFT_MAX_ARRAY_LENGTH
+  }
+
+  private inline def addStringCharsNoOverflow(inline string: String, inline newElemsLength: Int, inline newAvailable: Int): Unit = {
+    val castCurrentArray: Array[Char] = _currentArray.asInstanceOf[Array[Char]]
+    string.getChars(0, newElemsLength, castCurrentArray, _currentUsed)
+    _currentUsed = _currentUsed + newElemsLength
+    _currentAvailable = newAvailable
   }
 
   private inline def addAllArrayElementsNoOverflow(inline elementsToAdd: Array[A], inline newElemsLength: Int, inline newAvailable: Int): Unit = {
@@ -126,6 +142,30 @@ final class ArrayBuilder[A: ClassTag as ct] private (initialSize: Int, growthFac
     elementsToAdd.copyToArray(_currentArray, _currentUsed, newElemsLength)
     _currentUsed = _currentUsed + newElemsLength
     _currentAvailable = newAvailable
+  }
+
+  private inline def addStringCharsInternal(inline string: String, inline newElemsLength: Int): Unit = {
+    val newAvailable: Int = _currentAvailable - newElemsLength
+    if _currentArray eq null then
+      if newElemsLength >= (_currentAvailable >> 1) then {
+        // at this point, you have not even allocated [[currentArray]]
+        // the first thing you tried to add already took up more than half your buffer
+        // just add it to overflow and increase size
+        overflowAppend(string.toCharArray.asInstanceOf[Array[A]], newElemsLength)
+        _currentAvailable = newSize(_currentAvailable.max(newElemsLength))
+      } else {
+        _currentArray = new Array[A](_currentAvailable)
+        addStringCharsNoOverflow(string, newElemsLength, newAvailable)
+      }
+    else
+      if newAvailable >= 0 then addStringCharsNoOverflow(string, newElemsLength, newAvailable)
+      else {
+        overflowAppend(_currentArray, _currentUsed)
+        overflowAppend(string.toCharArray.asInstanceOf[Array[A]], newElemsLength)
+        _currentAvailable = newSize(_currentArray.length.max(newElemsLength))
+        _currentArray = null
+        _currentUsed = 0
+      }
   }
 
   private inline def addAllArrayElementsInternal(inline elementsToAdd: Array[A], inline newElemsLength: Int): Unit = {
@@ -208,8 +248,8 @@ final class ArrayBuilder[A: ClassTag as ct] private (initialSize: Int, growthFac
 
   private inline def buildArrayInternal(): Array[A] = {
     val finalSize: Long = _overflowUsedLength + _currentUsed
-    if finalSize > Int.MaxValue then
-      throw new RuntimeException(s"Unable to build array of length $finalSize, maxArraySize=Int.MaxValue=${Int.MaxValue}")
+    if finalSize > jdk.internal.util.ArraysSupport.SOFT_MAX_ARRAY_LENGTH then
+      throw new RuntimeException(s"Unable to build array of length $finalSize, maxArraySize=${jdk.internal.util.ArraysSupport.SOFT_MAX_ARRAY_LENGTH}")
     val output: Array[A] = new Array[A](finalSize.toInt)
 
     var offset: Int = 0
