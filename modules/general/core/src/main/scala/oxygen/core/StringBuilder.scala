@@ -2,13 +2,17 @@ package oxygen.core
 
 import oxygen.core.collection.mutable.ArrayBuilder
 
-final class StringBuilder(threadSafe: Boolean) {
+final class StringBuilder private (threadSafe: Boolean) {
 
   private val chars: ArrayBuilder[Char] =
     if threadSafe then ArrayBuilder.emptyThreadSafe[Char]
     else ArrayBuilder.emptyThreadUnsafe[Char]
 
   def append(string: String): Unit = chars.addStringChars(string)
+  def <<(value: Char): StringBuilder = {
+    chars.addSingle(value)
+    this
+  }
   def <<(string: String): StringBuilder = {
     chars.addStringChars(string)
     this
@@ -42,6 +46,16 @@ final class StringBuilder(threadSafe: Boolean) {
 
 }
 object StringBuilder {
+
+  def empty: StringBuilder = new StringBuilder(false)
+  def emptyThreadUnsafe: StringBuilder = new StringBuilder(false)
+  def emptyThreadSafe: StringBuilder = new StringBuilder(true)
+
+  def makeString(f: StringBuilder => Unit): String = {
+    val builder = StringBuilder.emptyThreadUnsafe
+    f(builder)
+    builder.build()
+  }
 
   private val nullChars: Array[Char] = Array('n', 'u', 'l', 'l')
   private val trueChars: Array[Char] = Array('t', 'r', 'u', 'e')
