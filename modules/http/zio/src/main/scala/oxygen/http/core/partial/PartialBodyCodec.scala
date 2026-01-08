@@ -1,6 +1,6 @@
 package oxygen.http.core.partial
 
-import oxygen.http.core.{BodyUtil, DecodingFailureCause, ZioHttpCompat}
+import oxygen.http.core.{BodyUtil, DecodingFailureCause, ReadOnlyCachedHttpBody, ZioHttpCompat}
 import oxygen.http.schema.partial.PartialBodySchema
 import oxygen.predef.core.*
 import oxygen.schema.*
@@ -12,7 +12,7 @@ sealed trait PartialBodyCodec[A] {
 
   val partialBodySchema: PartialBodySchema
 
-  def decode(body: Body): ZIO[Scope, DecodingFailureCause, A]
+  def decode(body: ReadOnlyCachedHttpBody): ZIO[Scope, DecodingFailureCause, A]
   def encode(value: A): Body
 
 }
@@ -34,7 +34,7 @@ object PartialBodyCodec extends PartialBodyCodecLowPriority.LowPriority1 {
 
     override val partialBodySchema: PartialBodySchema = PartialBodySchema.Empty
 
-    override def decode(body: Body): ZIO[Scope, DecodingFailureCause, Unit] = ZIO.unit
+    override def decode(body: ReadOnlyCachedHttpBody): ZIO[Scope, DecodingFailureCause, Unit] = ZIO.unit
 
     override def encode(value: Unit): Body = Body.empty
 
@@ -48,10 +48,12 @@ object PartialBodyCodec extends PartialBodyCodecLowPriority.LowPriority1 {
 
     override val partialBodySchema: PartialBodySchema.Single = PartialBodySchema.Single(schema)
 
-    override def decode(body: Body): ZIO[Scope, DecodingFailureCause, A] =
+    override def decode(body: ReadOnlyCachedHttpBody): ZIO[Scope, DecodingFailureCause, A] =
       body.asString
         .mapError(DecodingFailureCause.ExecutionFailure(_))
-        .flatMap { stringBody => ZIO.fromEither(schema.decode(stringBody)).mapError(DecodingFailureCause.DecodeError(_)) }
+        .flatMap { stringBody =>
+          ZIO.fromEither(schema.decode(stringBody)).mapError(DecodingFailureCause.DecodeError(_, DecodingFailureCause.DecodeInput.Body(stringBody)))
+        }
 
     override def encode(value: A): Body =
       BodyUtil.fromString(schema.encode(value), MediaType.text.plain)
@@ -65,10 +67,10 @@ object PartialBodyCodec extends PartialBodyCodecLowPriority.LowPriority1 {
 
     override val partialBodySchema: PartialBodySchema.Single = PartialBodySchema.Single(schema)
 
-    override def decode(body: Body): ZIO[Scope, DecodingFailureCause, A] =
+    override def decode(body: ReadOnlyCachedHttpBody): ZIO[Scope, DecodingFailureCause, A] =
       body.asString
         .mapError(DecodingFailureCause.ExecutionFailure(_))
-        .flatMap { stringBody => ZIO.fromEither(schema.decode(stringBody).leftMap(DecodingFailureCause.DecodeError(_))) }
+        .flatMap { stringBody => ZIO.fromEither(schema.decode(stringBody).leftMap(DecodingFailureCause.DecodeError(_, DecodingFailureCause.DecodeInput.Body(stringBody)))) }
 
     override def encode(value: A): Body =
       BodyUtil.fromString(schema.encode(value), MediaType.application.json)
@@ -82,7 +84,7 @@ object PartialBodyCodec extends PartialBodyCodecLowPriority.LowPriority1 {
 
     override val partialBodySchema: PartialBodySchema.ServerSentEvents = PartialBodySchema.ServerSentEvents(schema)
 
-    override def decode(body: Body): ZIO[Scope, DecodingFailureCause, Stream[DecodingFailureCause, ServerSentEvent[A]]] =
+    override def decode(body: ReadOnlyCachedHttpBody): ZIO[Scope, DecodingFailureCause, Stream[DecodingFailureCause, ServerSentEvent[A]]] =
       ZIO.succeed {
         val rawSSE: Stream[Throwable, ServerSentEvent[String]] =
           body.asStream >>> ZioHttpCompat.rawEventBinaryCodec.streamDecoder
@@ -90,7 +92,7 @@ object PartialBodyCodec extends PartialBodyCodecLowPriority.LowPriority1 {
           rawSSE.mapError { e => DecodingFailureCause.ExecutionFailure(e) }.mapZIO { event =>
             schema.decode(event.data) match {
               case Right(value) => ZIO.succeed(event.copy(data = value))
-              case Left(error)  => ZIO.fail(DecodingFailureCause.DecodeError(error))
+              case Left(error)  => ZIO.fail(DecodingFailureCause.DecodeError(error, DecodingFailureCause.DecodeInput.BodySSE(event.data)))
             }
           }
 

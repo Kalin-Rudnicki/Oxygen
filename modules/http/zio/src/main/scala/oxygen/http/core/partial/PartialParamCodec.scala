@@ -38,7 +38,7 @@ object PartialParamCodec extends PartialParamCodecLowPriority.LowPriority1 {
       override def decode(params: List[String]): Either[DecodingFailureCause, A] =
         params match
           case Nil          => DecodingFailureCause.MissingRequired.asLeft
-          case param :: Nil => schema.decode(param).leftMap(DecodingFailureCause.DecodeError(_))
+          case param :: Nil => schema.decode(param).leftMap(DecodingFailureCause.DecodeError(_, DecodingFailureCause.DecodeInput.InputValues(params)))
           case _            => DecodingFailureCause.ManyNotSupported(params.size).asLeft
 
       override def encode(value: A): List[String] =
@@ -53,7 +53,7 @@ object PartialParamCodec extends PartialParamCodecLowPriority.LowPriority1 {
       override def decode(params: List[String]): Either[DecodingFailureCause, Option[A]] =
         params match
           case Nil          => None.asRight
-          case param :: Nil => schema.decode(param).bimap(DecodingFailureCause.DecodeError(_), _.some)
+          case param :: Nil => schema.decode(param).bimap(DecodingFailureCause.DecodeError(_, DecodingFailureCause.DecodeInput.InputValues(params)), _.some)
           case _            => DecodingFailureCause.ManyNotSupported(params.size).asLeft
 
       override def encode(value: Option[A]): List[String] =
@@ -66,7 +66,7 @@ object PartialParamCodec extends PartialParamCodecLowPriority.LowPriority1 {
       override val partialParamSchema: PartialParamSchema = PartialParamSchema(schema, ParamType.Param.ManyOptional)
 
       override def decode(params: List[String]): Either[DecodingFailureCause, S[A]] =
-        params.into[S].traverse(schema.decode).leftMap(DecodingFailureCause.DecodeError(_))
+        params.into[S].traverse(schema.decode).leftMap(DecodingFailureCause.DecodeError(_, DecodingFailureCause.DecodeInput.InputValues(params)))
 
       override def encode(value: S[A]): List[String] =
         value.map(schema.encode).into[List]
@@ -81,7 +81,7 @@ object PartialParamCodec extends PartialParamCodecLowPriority.LowPriority1 {
         NonEmptyList
           .fromList(params)
           .toRight(DecodingFailureCause.MissingRequired)
-          .flatMap(_.traverse(schema.decode).leftMap(DecodingFailureCause.DecodeError(_)))
+          .flatMap(_.traverse(schema.decode).leftMap(DecodingFailureCause.DecodeError(_, DecodingFailureCause.DecodeInput.InputValues(params))))
 
       override def encode(value: NonEmptyList[A]): List[String] =
         value.toList.map(schema.encode)
@@ -111,7 +111,7 @@ object PartialParamCodec extends PartialParamCodecLowPriority.LowPriority1 {
       override def decode(params: List[String]): Either[DecodingFailureCause, A] =
         params match
           case Nil          => DecodingFailureCause.MissingRequired.asLeft
-          case param :: Nil => schema.decode(param).leftMap(DecodingFailureCause.DecodeError(_))
+          case param :: Nil => schema.decode(param).leftMap(DecodingFailureCause.DecodeError(_, DecodingFailureCause.DecodeInput.InputValues(params)))
           case _            => DecodingFailureCause.ManyNotSupported(params.size).asLeft
 
       override def encode(value: A): List[String] =
@@ -126,7 +126,7 @@ object PartialParamCodec extends PartialParamCodecLowPriority.LowPriority1 {
       override def decode(params: List[String]): Either[DecodingFailureCause, Option[A]] =
         params match
           case Nil          => None.asRight
-          case param :: Nil => schema.decode(param).bimap(DecodingFailureCause.DecodeError(_), _.some)
+          case param :: Nil => schema.decode(param).bimap(DecodingFailureCause.DecodeError(_, DecodingFailureCause.DecodeInput.InputValues(params)), _.some)
           case _            => DecodingFailureCause.ManyNotSupported(params.size).asLeft
 
       override def encode(value: Option[A]): List[String] =
@@ -139,7 +139,7 @@ object PartialParamCodec extends PartialParamCodecLowPriority.LowPriority1 {
       override val partialParamSchema: PartialParamSchema = PartialParamSchema(schema, ParamType.Param.ManyOptional)
 
       override def decode(params: List[String]): Either[DecodingFailureCause, S[A]] =
-        params.into[S].traverse(schema.decode).leftMap(DecodingFailureCause.DecodeError(_))
+        params.into[S].traverse(schema.decode).leftMap(DecodingFailureCause.DecodeError(_, DecodingFailureCause.DecodeInput.InputValues(params)))
 
       override def encode(value: S[A]): List[String] =
         value.map(schema.encode).into[List]
@@ -154,7 +154,7 @@ object PartialParamCodec extends PartialParamCodecLowPriority.LowPriority1 {
         NonEmptyList
           .fromList(params)
           .toRight(DecodingFailureCause.MissingRequired)
-          .flatMap(_.traverse(schema.decode).leftMap(DecodingFailureCause.DecodeError(_)))
+          .flatMap(_.traverse(schema.decode).leftMap(DecodingFailureCause.DecodeError(_, DecodingFailureCause.DecodeInput.InputValues(params))))
 
       override def encode(value: NonEmptyList[A]): List[String] =
         value.toList.map(schema.encode)

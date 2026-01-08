@@ -20,7 +20,13 @@ sealed trait RequestCodec[A] {
   lazy val schemaAggregator: RequestSchemaAggregator
 
   protected final def makeDecodingFailure(cause: DecodingFailureCause): RequestDecodingFailure = RequestDecodingFailure(sources, cause)
-  protected final def makeDecodingFailure(error: String): RequestDecodingFailure = RequestDecodingFailure(sources, DecodingFailureCause.DecodeError(error))
+  protected final def makeDecodingFailureInputs(error: String, inputs: List[String]): RequestDecodingFailure =
+    RequestDecodingFailure(sources, DecodingFailureCause.DecodeError(error, DecodingFailureCause.DecodeInput.InputValues(inputs)))
+  protected final def makeDecodingFailureBody(error: String, body: Option[String]): RequestDecodingFailure = body match
+    case Some(body) => RequestDecodingFailure(sources, DecodingFailureCause.DecodeError(error, DecodingFailureCause.DecodeInput.Body(body)))
+    case None       => RequestDecodingFailure(sources, DecodingFailureCause.DecodeError(error, DecodingFailureCause.DecodeInput.BodyNoValue))
+  protected final def makeDecodingFailurePreviousValue(error: String, previous: Any): RequestDecodingFailure =
+    RequestDecodingFailure(sources, DecodingFailureCause.DecodeError(error, DecodingFailureCause.DecodeInput.PreviousValue(previous.toString)))
 
   def matchesPathPatternInternal(path: List[String]): Option[List[String]]
   final def matchesPathPattern(path: List[String]): Boolean = matchesPathPatternInternal(path) match
@@ -450,7 +456,7 @@ object RequestCodec {
           ab(value) match {
             case Right(Some(value)) => IntermediateRequestParseResult.Success(value, rest)
             case Right(None)        => IntermediateRequestParseResult.NotFound
-            case Left(error)        => IntermediateRequestParseResult.Error(makeDecodingFailure(error))
+            case Left(error)        => IntermediateRequestParseResult.Error(makeDecodingFailurePreviousValue(error, value))
           }
         }
 
@@ -662,7 +668,7 @@ object RequestCodec {
         a.decodeInternal(remainingPaths, request).flatMap { (value, rest) =>
           ab(value) match {
             case Right(value) => IntermediateRequestParseResult.Success(value, rest)
-            case Left(error)  => IntermediateRequestParseResult.Error(makeDecodingFailure(error))
+            case Left(error)  => IntermediateRequestParseResult.Error(makeDecodingFailurePreviousValue(error, value))
           }
         }
 
