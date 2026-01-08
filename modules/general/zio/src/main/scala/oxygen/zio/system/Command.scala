@@ -45,7 +45,7 @@ final class Command private (isSudo: Boolean, command: String, args: Growable[St
   )(using trace: Trace): Task[Unit] =
     execute(outLevel = outLevel, errorLevel = errorLevel).flatMap {
       case 0    => ZIO.unit
-      case code => ZIO.fail(new RuntimeException(s"Command exited with non-zero code: $code"))
+      case code => ZIO.fail(new RuntimeException(s"Command '$command' exited with non-zero code: $code"))
     }
 
   def executeString(
@@ -55,6 +55,14 @@ final class Command private (isSudo: Boolean, command: String, args: Growable[St
       logger <- ZProcessLogger.make(errorLevel = errorLevel)
       output <- ZIO.attempt { toProcess.!!(logger) }
     } yield output) @@ ZIOAspect.annotated("command", command)
+
+  def executeNoLogger: Task[Int] = ZIO.attempt { toProcess.! }
+
+  def executeNoLoggerSuccess: Task[Unit] =
+    executeNoLogger.flatMap {
+      case 0    => ZIO.unit
+      case code => ZIO.fail(new RuntimeException(s"Command '$command' exited with non-zero code: $code"))
+    }
 
 }
 object Command {
