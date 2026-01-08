@@ -1,6 +1,6 @@
 package oxygen.http.core.partial
 
-import oxygen.http.core.{DecodingFailureCause, ResponseDecodingFailure}
+import oxygen.http.core.{DecodingFailureCause, ReadOnlyCachedHttpBody, ResponseDecodingFailure}
 import oxygen.http.core.partial.{PartialBodyCodec, PartialParamCodec}
 import oxygen.http.schema.{ResponseBodySchema, ResponseHeaderSchema}
 import oxygen.http.schema.partial.ResponseSchemaAggregator
@@ -16,7 +16,7 @@ sealed trait ResponseCodecNoStatus[A] {
   val sources: List[ResponseDecodingFailure.Source]
   val schemaAggregator: ResponseSchemaAggregator
 
-  def decode(headers: Headers, body: Body): ZIO[Scope, ResponseDecodingFailure, A]
+  def decode(headers: Headers, body: ReadOnlyCachedHttpBody): ZIO[Scope, ResponseDecodingFailure, A]
 
   private[ResponseCodecNoStatus] def encodeInternal(value: A, acc: ResponseCodecNoStatus.Builder): ResponseCodecNoStatus.Builder
   final def encode(value: A): (Headers, Body) = encodeInternal(value, ResponseCodecNoStatus.Builder.empty).build
@@ -110,14 +110,14 @@ object ResponseCodecNoStatus {
   case object DNE extends ResponseCodecNoStatus[Nothing] {
     override val sources: List[ResponseDecodingFailure.Source] = Nil
     override val schemaAggregator: ResponseSchemaAggregator = ResponseSchemaAggregator.empty
-    override def decode(headers: Headers, body: Body): ZIO[Scope, ResponseDecodingFailure, Nothing] = throw new RuntimeException("This is supposed to be DNE!")
+    override def decode(headers: Headers, body: ReadOnlyCachedHttpBody): ZIO[Scope, ResponseDecodingFailure, Nothing] = throw new RuntimeException("This is supposed to be DNE!")
     override private[ResponseCodecNoStatus] def encodeInternal(value: Nothing, acc: Builder): Builder = throw new RuntimeException("This is supposed to be DNE!")
   }
 
   case object Empty extends ResponseCodecNoStatus[Unit] {
     override val sources: List[ResponseDecodingFailure.Source] = Nil
     override val schemaAggregator: ResponseSchemaAggregator = ResponseSchemaAggregator.empty
-    override def decode(headers: Headers, body: Body): ZIO[Scope, ResponseDecodingFailure, Unit] = ZIO.unit
+    override def decode(headers: Headers, body: ReadOnlyCachedHttpBody): ZIO[Scope, ResponseDecodingFailure, Unit] = ZIO.unit
     override private[ResponseCodecNoStatus] def encodeInternal(value: Unit, acc: Builder): Builder = acc
   }
 
@@ -126,7 +126,7 @@ object ResponseCodecNoStatus {
     override val sources: List[ResponseDecodingFailure.Source] = ResponseDecodingFailure.Source.Header(name) :: Nil
     override val schemaAggregator: ResponseSchemaAggregator = ResponseSchemaAggregator.header(ResponseHeaderSchema(name, partial.partialParamSchema.tpe, partial.partialParamSchema.schema, doc))
 
-    override def decode(headers: Headers, body: Body): ZIO[Scope, ResponseDecodingFailure, A] =
+    override def decode(headers: Headers, body: ReadOnlyCachedHttpBody): ZIO[Scope, ResponseDecodingFailure, A] =
       ZIO.fromEither { partial.decode(headers.rawHeaders(name).toList).leftMap(ResponseDecodingFailure(sources, _)) }
 
     override private[ResponseCodecNoStatus] def encodeInternal(value: A, acc: Builder): Builder = {
@@ -140,14 +140,14 @@ object ResponseCodecNoStatus {
   final case class SetHeader(name: String, value: String) extends ResponseCodecNoStatus[Unit] {
     override val sources: List[ResponseDecodingFailure.Source] = Nil
     override val schemaAggregator: ResponseSchemaAggregator = ResponseSchemaAggregator.empty
-    override def decode(headers: Headers, body: Body): ZIO[Scope, ResponseDecodingFailure, Unit] = ZIO.unit
+    override def decode(headers: Headers, body: ReadOnlyCachedHttpBody): ZIO[Scope, ResponseDecodingFailure, Unit] = ZIO.unit
     override private[ResponseCodecNoStatus] def encodeInternal(value: Unit, acc: Builder): Builder = acc.copy(headers = acc.headers :+ Header.Custom(this.name, this.value))
   }
 
   final case class SetContentType(contentType: MediaType) extends ResponseCodecNoStatus[Unit] {
     override val sources: List[ResponseDecodingFailure.Source] = Nil
     override val schemaAggregator: ResponseSchemaAggregator = ResponseSchemaAggregator.empty
-    override def decode(headers: Headers, body: Body): ZIO[Scope, ResponseDecodingFailure, Unit] = ZIO.unit
+    override def decode(headers: Headers, body: ReadOnlyCachedHttpBody): ZIO[Scope, ResponseDecodingFailure, Unit] = ZIO.unit
     override private[ResponseCodecNoStatus] def encodeInternal(value: Unit, acc: Builder): Builder = acc.copy(body = acc.body.contentType(contentType))
   }
 
@@ -167,7 +167,7 @@ object ResponseCodecNoStatus {
     override val sources: List[ResponseDecodingFailure.Source] = ResponseDecodingFailure.Source.Body :: Nil
     override val schemaAggregator: ResponseSchemaAggregator = ResponseSchemaAggregator.body(ResponseBodySchema.Empty)
 
-    override def decode(headers: Headers, body: Body): ZIO[Scope, ResponseDecodingFailure, Unit] =
+    override def decode(headers: Headers, body: ReadOnlyCachedHttpBody): ZIO[Scope, ResponseDecodingFailure, Unit] =
       ZIO.unit
 
     override private[ResponseCodecNoStatus] def encodeInternal(value: Unit, acc: Builder): Builder =
@@ -180,7 +180,7 @@ object ResponseCodecNoStatus {
     override val sources: List[ResponseDecodingFailure.Source] = ResponseDecodingFailure.Source.Body :: Nil
     override val schemaAggregator: ResponseSchemaAggregator = ResponseSchemaAggregator.body(ResponseBodySchema.Single(partial.partialBodySchema.schema))
 
-    override def decode(headers: Headers, body: Body): ZIO[Scope, ResponseDecodingFailure, A] =
+    override def decode(headers: Headers, body: ReadOnlyCachedHttpBody): ZIO[Scope, ResponseDecodingFailure, A] =
       partial.decode(body).mapError(ResponseDecodingFailure(sources, _))
 
     override private[ResponseCodecNoStatus] def encodeInternal(value: A, acc: Builder): Builder =
@@ -193,7 +193,7 @@ object ResponseCodecNoStatus {
     override val sources: List[ResponseDecodingFailure.Source] = ResponseDecodingFailure.Source.Body :: Nil
     override val schemaAggregator: ResponseSchemaAggregator = ResponseSchemaAggregator.body(ResponseBodySchema.ServerSentEvents(partial.partialBodySchema.schema))
 
-    override def decode(headers: Headers, body: Body): ZIO[Scope, ResponseDecodingFailure, Stream[ResponseDecodingFailure, ServerSentEvent[A]]] =
+    override def decode(headers: Headers, body: ReadOnlyCachedHttpBody): ZIO[Scope, ResponseDecodingFailure, Stream[ResponseDecodingFailure, ServerSentEvent[A]]] =
       partial.decode(body).mapBoth(ResponseDecodingFailure(sources, _), _.mapError(ResponseDecodingFailure(sources, _)))
 
     override private[ResponseCodecNoStatus] def encodeInternal(value: Stream[ResponseDecodingFailure, ServerSentEvent[A]], acc: Builder): Builder =
@@ -206,7 +206,7 @@ object ResponseCodecNoStatus {
     override val sources: List[ResponseDecodingFailure.Source] = a.sources ++ b.sources
     override val schemaAggregator: ResponseSchemaAggregator = a.schemaAggregator >>> b.schemaAggregator
 
-    override def decode(headers: Headers, body: Body): ZIO[Scope, ResponseDecodingFailure, C] =
+    override def decode(headers: Headers, body: ReadOnlyCachedHttpBody): ZIO[Scope, ResponseDecodingFailure, C] =
       for {
         aValue <- a.decode(headers, body)
         bValue <- b.decode(headers, body)
@@ -224,7 +224,7 @@ object ResponseCodecNoStatus {
     override val sources: List[ResponseDecodingFailure.Source] = a.sources
     override val schemaAggregator: ResponseSchemaAggregator = a.schemaAggregator
 
-    override def decode(headers: Headers, body: Body): ZIO[Scope, ResponseDecodingFailure, B] =
+    override def decode(headers: Headers, body: ReadOnlyCachedHttpBody): ZIO[Scope, ResponseDecodingFailure, B] =
       a.decode(headers, body).map(ab)
 
     override private[ResponseCodecNoStatus] def encodeInternal(value: B, acc: Builder): Builder =
@@ -237,9 +237,9 @@ object ResponseCodecNoStatus {
     override val sources: List[ResponseDecodingFailure.Source] = a.sources
     override val schemaAggregator: ResponseSchemaAggregator = a.schemaAggregator
 
-    override def decode(headers: Headers, body: Body): ZIO[Scope, ResponseDecodingFailure, B] =
+    override def decode(headers: Headers, body: ReadOnlyCachedHttpBody): ZIO[Scope, ResponseDecodingFailure, B] =
       a.decode(headers, body).flatMap { aValue =>
-        ZIO.fromEither { ab(aValue).leftMap { error => ResponseDecodingFailure(sources, DecodingFailureCause.DecodeError(error)) } }
+        ZIO.fromEither { ab(aValue).leftMap { error => ResponseDecodingFailure(sources, DecodingFailureCause.DecodeError(error, DecodingFailureCause.DecodeInput.PreviousValue(aValue.toString))) } }
       }
 
     override private[ResponseCodecNoStatus] def encodeInternal(value: B, acc: Builder): Builder =

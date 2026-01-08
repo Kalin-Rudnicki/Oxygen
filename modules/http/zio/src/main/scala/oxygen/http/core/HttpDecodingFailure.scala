@@ -18,14 +18,37 @@ enum DecodingFailureCause derives JsonSchema {
 
   case MissingRequired
   case ManyNotSupported(received: Int)
-  case DecodeError(error: String)
+  case DecodeError(error: String, input: DecodingFailureCause.DecodeInput)
   case ExecutionFailure(cause: Throwable)
 
   override final def toString: String = this match
     case DecodingFailureCause.MissingRequired            => "Missing required parameter"
     case DecodingFailureCause.ManyNotSupported(received) => s"Providing many parameters is not allowed (received $received)"
-    case DecodingFailureCause.DecodeError(error)         => s"[failed to decode] $error"
-    case DecodingFailureCause.ExecutionFailure(cause)    => s"[failed to execute]: ${cause.safeGetMessage}"
+    case DecodingFailureCause.DecodeError(error, input)  => s"[failed to decode] $error${input.showSuffix}"
+    case DecodingFailureCause.ExecutionFailure(cause)    => s"[failed to execute] ${cause.safeGetMessage}"
+
+}
+object DecodingFailureCause {
+
+  enum DecodeInput derives JsonSchema {
+    case InputValues(values: List[String])
+    case Body(body: String)
+    case BodySSE(eventData: String)
+    case BodyNoValue
+    case PreviousValue(valueToString: String)
+    case NotApplicable
+
+    final def showSuffix: String = this match
+      case DecodeInput.InputValues(Nil)    => "\n\n< no inputs >"
+      case DecodeInput.InputValues(values) => values.zipWithIndex.map { case (v, i) => s"  - [$i] : $v" }.mkString("\n\n", "\n", "")
+      case DecodeInput.Body("")            => "\n\n< empty body >"
+      case DecodeInput.Body(body)          => "\n\n< body >\n" + body
+      case DecodeInput.BodySSE(body)       => "\n\n< body : SSE event data >\n" + body
+      case DecodeInput.BodyNoValue         => ""
+      case DecodeInput.PreviousValue(_)    => ""
+      case DecodeInput.NotApplicable       => ""
+
+  }
 
 }
 

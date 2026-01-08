@@ -96,7 +96,7 @@ object ResponseCodec {
     override def decode(response: ReceivedResponse): ZIO[Scope, ResponseDecodingFailure, A] =
       cases.find(_.canLikelyDecode(response.status)) match {
         case Some(kase) => kase.decode(response)
-        case None       => ZIO.fail(ResponseDecodingFailure(Nil, DecodingFailureCause.DecodeError(s"No case can handle status: ${response.status}")))
+        case None       => ZIO.fail(ResponseDecodingFailure(Nil, DecodingFailureCause.DecodeError(s"No case can handle status: ${response.status}", DecodingFailureCause.DecodeInput.NotApplicable)))
       }
 
     override def encode(value: A): (Status, Headers, Body) =
