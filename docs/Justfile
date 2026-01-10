@@ -2,6 +2,7 @@ build:
   docker build . -t mkdocs-oxygen-docs
 
 serve: build
+  git describe --tags
   docker run --rm -it -p 8000:8000 -v ${PWD}:/docs --env "CI_LATEST_TAG=$(git describe --tags)" mkdocs-oxygen-docs
 
 test-snippets:
