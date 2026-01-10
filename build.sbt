@@ -11,7 +11,7 @@ import scala.sys.process._
 
 ThisBuild / watchBeforeCommand := Watch.clearScreen
 ThisBuild / resolvers ++= Seq(Resolver.sonatypeCentralSnapshots, Resolver.mavenLocal)
-ThisBuild / updateOptions := updateOptions.value.withLatestSnapshots(false)
+ThisBuild / updateOptions ~= (_.withLatestSnapshots(false))
 
 enablePlugins(GitVersioning)
 git.gitTagToVersionNumber := { tag =>
