@@ -101,7 +101,7 @@ final case class NonEmptyList[+A](head: A, tail: List[A]) extends PartialFunctio
         case Nil    => done(acc.reverse)
         case h :: t =>
           tailcall(f(h)).flatMap { nel =>
-            loop(t, nel.toList.reverse_:::(acc))
+            loop(t, acc.reverse_:::(nel.toList))
           }
 
     loop(this.toList, Nil).map { result =>
