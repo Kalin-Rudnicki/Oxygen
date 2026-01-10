@@ -7,6 +7,7 @@ import oxygen.core.typeclass.SeqRead
 import scala.collection.mutable
 import scala.quoted.*
 import scala.reflect.ClassTag
+import scala.util.control.TailCalls.*
 
 final case class NonEmptyList[+A](head: A, tail: List[A]) extends PartialFunction[Int, A] {
 
@@ -74,7 +75,40 @@ final case class NonEmptyList[+A](head: A, tail: List[A]) extends PartialFunctio
   def sortWith(lt: (A, A) => Boolean): NonEmptyList[A] = unsafeTransformList(_.sortWith(lt))
 
   def map[B](f: A => B): NonEmptyList[B] = NonEmptyList(f(head), tail.map(f))
-  def flatMap[B](f: A => NonEmptyList[B]): NonEmptyList[B] = unsafeTransformList(_.flatMap(f(_).toList))
+
+  /**
+    * NOTE: For Kalin
+    *  It's stack safe for iteration, but we can still overflow with really deep nested monadic compositions.
+    *  I've added a trampoline version below for those cases.
+    */
+  def flatMap[B](f: A => NonEmptyList[B]): NonEmptyList[B] = {
+    // NOTE: For Kalin, I know this isn't idiomatic Scala, but it's stack safe for iteration,
+    // and I can't think of a better way to do it.
+    val builder = List.newBuilder[B]
+    var remaining: List[A] = this.toList
+
+    while remaining.nonEmpty do
+      builder ++= f(remaining.head).toList
+      remaining = remaining.tail
+
+    val result = builder.result()
+    NonEmptyList(result.head, result.tail)
+  }
+
+  def flatMapTrampoline[B](f: A => TailRec[NonEmptyList[B]]): TailRec[NonEmptyList[B]] = {
+    def loop(remaining: List[A], acc: List[B]): TailRec[List[B]] =
+      remaining match
+        case Nil    => done(acc.reverse)
+        case h :: t =>
+          tailcall(f(h)).flatMap { nel =>
+            loop(t, nel.toList.reverse_:::(acc))
+          }
+
+    loop(this.toList, Nil).map { result =>
+      NonEmptyList(result.head, result.tail)
+    }
+  }
+
   def flatten[B](using ev: A <:< NonEmptyList[B]): NonEmptyList[B] = flatMap(ev(_))
 
   def reverse: NonEmptyList[A] = unsafeTransformList(_.reverse)
