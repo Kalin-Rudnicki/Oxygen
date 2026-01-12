@@ -64,6 +64,7 @@ object JsonDecoder extends Derivable[JsonDecoder.ObjectDecoder], JsonDecoderLowP
   given jsonNull: JsonDecoder[Json.Null.type] = JsonSubtypeDecoder(_.toJsonNull, Json.Type.Null)
 
   given string: JsonDecoder[String] = StrDecoder
+  given text: JsonDecoder[Text] = StrDecoder.map(Text.fromString)
   given boolean: JsonDecoder[Boolean] = BooleanDecoder
   given uuid: JsonDecoder[UUID] = StrDecoder.mapAttempt(UUID.fromString)
 

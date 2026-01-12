@@ -83,22 +83,6 @@ final class ArrayBuilder[A] private (private val threadUnsafe: Boolean)(using pr
     total.toInt
   }
 
-  def withCommit(f: => Boolean): Unit =
-    if threadUnsafe then withCommitInternal(f)
-    else this.synchronized { withCommitInternal(f) }
-
-  private def withCommitInternal(f: => Boolean): Unit = {
-    val initial: ArrayBuilder.Snapshot[A] = this.snapshotInternal()
-    val doCommit: Boolean = f
-    if !doCommit then {
-      this._overflowUsed = initial.overflowUsed
-      this._overflowAllocatedElems = initial.overflowAllocatedElems
-      this._overflowTotalUsedElems = initial.overflowTotalUsedElems
-      this._currentUsed = initial.currentUsed
-      this._currentAvailable = initial.currentAvailable
-    }
-  }
-
   def showInternalState(): String = {
     val sb = new scala.collection.mutable.StringBuilder()
 
@@ -303,12 +287,16 @@ final class ArrayBuilder[A] private (private val threadUnsafe: Boolean)(using pr
 
     if that.overflowUsed > 0 then {
       System.arraycopy(that.overflowBuffer, 0, this._overflowBuffer, this._overflowUsed, that.overflowUsed)
-      this._overflowUsed = this._overflowUsed + 1
+      this._overflowUsed = this._overflowUsed + that.overflowUsed
+      this._overflowAllocatedElems = this._overflowAllocatedElems + that.overflowAllocatedElems
+      this._overflowTotalUsedElems = this._overflowTotalUsedElems + that.overflowTotalUsedElems
     }
 
     if that.currentArray ne null then {
       this._overflowBuffer(this._overflowUsed) = new ArrayBuilder.PotentiallyPartialArray[A](that.currentArray, that.currentUsed)
       this._overflowUsed = this._overflowUsed + 1
+      this._overflowAllocatedElems = this._overflowAllocatedElems + that.currentArray.length
+      this._overflowTotalUsedElems = this._overflowTotalUsedElems + that.currentUsed
     }
   }
 

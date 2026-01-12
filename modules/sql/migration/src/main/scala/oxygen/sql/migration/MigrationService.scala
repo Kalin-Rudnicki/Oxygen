@@ -7,6 +7,7 @@ import oxygen.sql.migration.delta.MigrationPlanner
 import oxygen.sql.migration.model.*
 import oxygen.sql.migration.model.MigrationError.*
 import oxygen.sql.migration.persistence.*
+import zio.*
 
 final class MigrationService(
     atomically: Atomically,

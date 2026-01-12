@@ -1,6 +1,7 @@
 package oxygen.storage
 
 import oxygen.predef.zio.*
+import zio.*
 
 trait Atomically extends ZIOAspectPoly.Impl {
 

@@ -55,6 +55,7 @@ object JsonEncoder extends Derivable[JsonEncoder.ObjectEncoder], JsonEncoderLowP
   given json: [A <: Json] => JsonEncoder[A] = new AnyJsonEncoder[A]
 
   given string: JsonEncoder[String] = StringEncoder
+  given text: JsonEncoder[Text] = usingToString
   given boolean: JsonEncoder[Boolean] = BooleanEncoder
   given uuid: JsonEncoder[UUID] = usingToString
 
