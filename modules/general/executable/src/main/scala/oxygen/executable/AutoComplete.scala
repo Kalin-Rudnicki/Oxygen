@@ -10,6 +10,7 @@ import oxygen.predef.zio.*
 import oxygen.zio.JarUtils
 import oxygen.zio.logging.*
 import scala.annotation.tailrec
+import zio.*
 
 object AutoComplete {
 

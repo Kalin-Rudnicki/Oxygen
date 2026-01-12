@@ -5,7 +5,7 @@ import oxygen.predef.zio.*
 import oxygen.sql.error.*
 import oxygen.sql.query.*
 import oxygen.sql.schema.*
-import zio.Semaphore
+import zio.*
 import zio.stream.*
 
 final class Database(

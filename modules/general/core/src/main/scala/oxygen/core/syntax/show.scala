@@ -8,6 +8,7 @@ object show {
   extension [A](self: A)
     def show(using s: Show[A]): String = s.show(self)
     def toShown(using s: Show[A]): Show.Shown = Show.Shown.show(self)
+    def toText: oxygen.core.Text = oxygen.core.Text.fromAny(self)
 
   extension (self: String)
     def wrapShown: Show.Shown =

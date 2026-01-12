@@ -6,9 +6,8 @@ import oxygen.executable.error.ExecuteError
 import oxygen.predef.color.*
 import oxygen.predef.core.*
 import oxygen.predef.json.*
-import oxygen.predef.zio.*
 import oxygen.zio.logging.*
-import zio.LogSpan
+import zio.*
 
 sealed trait Executable {
 

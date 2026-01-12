@@ -2,7 +2,7 @@ package oxygen.sql
 
 import oxygen.predef.zio.*
 import oxygen.sql.query.{Query, QueryContext}
-import zio.Exit
+import zio.*
 
 type Atomically = oxygen.storage.Atomically
 object Atomically {

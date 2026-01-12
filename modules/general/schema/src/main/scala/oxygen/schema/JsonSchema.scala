@@ -49,6 +49,7 @@ object JsonSchema extends Derivable[JsonSchema.ObjectLike], JsonSchemaLowPriorit
   given jsonNull: JsonSchema[Json.Null.type] = ASTSchema(TypeTag[Json.Null.type], Json.Type.Null.some, JsonEncoder.json, JsonDecoder.jsonNull)
 
   given string: JsonSchema[String] = fromPlainText
+  given text: JsonSchema[Text] = fromPlainText
   given boolean: JsonSchema[Boolean] = BooleanSchema
   given uuid: JsonSchema[UUID] = fromPlainText
 

@@ -4,6 +4,7 @@ import oxygen.predef.core.*
 import oxygen.predef.zio.*
 import oxygen.sql.DbConfig
 import oxygen.test.container.*
+import zio.*
 
 object PostgresTestContainer {
 

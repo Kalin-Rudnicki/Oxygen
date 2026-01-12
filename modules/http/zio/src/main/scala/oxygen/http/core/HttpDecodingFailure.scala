@@ -3,7 +3,7 @@ package oxygen.http.core
 import oxygen.json.*
 import oxygen.predef.core.*
 import oxygen.schema.JsonSchema
-import oxygen.schema.instances.throwable.encoded
+import oxygen.schema.instances.given
 
 // TODO (KR) : have the ability to include the original attempted value
 //           : it can be very hard to trace down errors with that missing, especially in the body

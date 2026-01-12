@@ -18,11 +18,9 @@ object instances {
   given stringCodecFromSchema: [A: PlainTextSchema as schema] => StringCodec[A] = StringCodec(schema.encode(_), StringDecoder.string.mapOrFail(schema.decode)(using schema.typeTag))
   given jsonCodecFromSchema: [A: JsonSchema as schema] => JsonCodec[A] = JsonCodec(schema.jsonEncoder, schema.jsonDecoder)
 
-  object throwable {
-
-    given encoded: JsonSchema[Throwable] = throwableReprSchema.transform(_.toThrowable, ThrowableRepr.fromThrowable)
-    given string: JsonSchema[Throwable] = JsonSchema.string.transform[Throwable](new RuntimeException(_), _.safeGetMessage)
-
-  }
+  private given encodedErrorTraceSchema: JsonSchema[Error.EncodedError.Trace] = JsonSchema.derived
+  private given encodedErrorSchema: JsonSchema[Error.EncodedError] = JsonSchema.derived
+  given errorSchema: JsonSchema[Error] = encodedErrorSchema.transform(_.toError, Error.EncodedError.fromError)
+  given throwableSchema: JsonSchema[Throwable] = errorSchema.transform[Throwable](identity, Error.fromThrowable)
 
 }

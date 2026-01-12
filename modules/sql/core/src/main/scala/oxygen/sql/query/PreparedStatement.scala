@@ -1,11 +1,11 @@
 package oxygen.sql.query
 
 import oxygen.predef.core.*
-import oxygen.predef.zio.*
 import oxygen.sql.{Database, DbConfig}
 import oxygen.sql.error.{ConnectionError, QueryError}
 import oxygen.sql.schema.{InputEncoder, ResultDecoder}
 import scala.annotation.tailrec
+import zio.*
 import zio.stream.*
 
 private[sql] final class PreparedStatement private (

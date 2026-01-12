@@ -32,6 +32,7 @@ object PlainTextSchema extends PlainTextSchemaLowPriority.LowPriority1 {
   //////////////////////////////////////////////////////////////////////////////////////////////////////
 
   given string: PlainTextSchema[String] = StringSchema
+  given text: PlainTextSchema[Text] = StringSchema.transform(Text.fromString, _.toString)
   given uuid: PlainTextSchema[UUID] = PlainTextSchema.fromStringCodecWithFormat("UUID", "RFC 4122")
   given boolean: PlainTextSchema[Boolean] = PlainTextSchema.fromStringCodecWithFormat("boolean")
 

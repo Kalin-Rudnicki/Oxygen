@@ -47,8 +47,11 @@ final class StringBuilder private (threadSafe: Boolean) {
   def nonEmpty(): Boolean = chars.nonEmpty()
   def size(): Int = chars.size()
 
-  def withCommit(f: => Boolean): Unit = chars.withCommit(f)
-
+  // TODO (KR) : when building a string, java will force you to copy the array
+  //           : therefor, the array returned by `chars.buildArray()` is essentially "throw-away".
+  //           : we can take advantage of this by feeding that array back into the ArrayBuilder
+  //           : as a sort of "use this array if someone calls `reset()`".
+  //           : That way, you get the largest possible starting array for "free" when using the builder again.
   def build(): String = new String(chars.buildArray())
 
   override def toString: String = build()

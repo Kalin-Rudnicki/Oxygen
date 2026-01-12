@@ -2,7 +2,7 @@ package oxygen.executable
 
 import oxygen.cli.*
 import oxygen.executable.error.ExecuteError
-import oxygen.predef.zio.*
+import zio.*
 
 object Parsing {
 
