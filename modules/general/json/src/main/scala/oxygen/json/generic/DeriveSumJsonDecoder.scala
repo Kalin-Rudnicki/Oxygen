@@ -4,6 +4,7 @@ import oxygen.json.*
 import oxygen.meta.{*, given}
 import oxygen.meta.k0.*
 import oxygen.predef.core.*
+import oxygen.quoted.*
 import scala.quoted.*
 
 final class DeriveSumJsonDecoder[A](
@@ -22,9 +23,9 @@ final class DeriveSumJsonDecoder[A](
     )
 
   private def makeDecodeJsonAST(key: Expr[String], value: Expr[Json]): Expr[Either[JsonError, A]] =
-    generic.matcher.value[String, Either[JsonError, A]](key) { [b <: A] => (_, _) ?=> (kase: generic.Case[b]) =>
+    generic.matcher.value[String, Either[JsonError, A]]('{ $key.toLowerCase }) { [b <: A] => (_, _) ?=> (kase: generic.Case[b]) =>
 
-      val caseNameExpr = Expr(kase.annotations.optionalOfValue[jsonType].fold(kase.name)(_.name))
+      val caseNameExpr = Expr(kase.annotations.optionalOfValue[jsonType].fold(kase.name)(_.name).toLowerCase)
 
       CaseExtractor.const[String](caseNameExpr).withRHS { _ =>
         '{
@@ -40,18 +41,24 @@ final class DeriveSumJsonDecoder[A](
   private def deriveNoDiscriminator: Expr[JsonDecoder.ObjectDecoder[A]] =
     '{
       new JsonDecoder.ObjectDecoder[A] {
+
+        // TODO (KR) : support `@jsonStrict` for sum types
+        override val keys: Set[String] = Set.empty
+        override val strict: Boolean = false
+
         override def decodeJsonObjectAST(obj: Json.Obj, fieldMap: Map[String, Json]): Either[JsonError, A] =
           obj.value.toList match {
             case (key, value) :: Nil => ${ makeDecodeJsonAST('key, 'value) }
             case _                   => JsonError(Nil, JsonError.Cause.DecodingFailed("Expected single object key, expected one of: " + $validKeysExpr)).asLeft // TODO (KR) : include keys?
           }
+
       }
     }
 
   private def matchOnStr(key: Expr[String], obj: Expr[Json.Obj]): Expr[Either[JsonError, A]] =
-    generic.matcher.value[String, Either[JsonError, A]](key) { [b <: A] => (_, _) ?=> (kase: generic.Case[b]) =>
+    generic.matcher.value[String, Either[JsonError, A]]('{ $key.toLowerCase }) { [b <: A] => (_, _) ?=> (kase: generic.Case[b]) =>
 
-      val caseNameExpr = Expr(kase.annotations.optionalOfValue[jsonType].fold(kase.name)(_.name))
+      val caseNameExpr = Expr(kase.annotations.optionalOfValue[jsonType].fold(kase.name)(_.name).toLowerCase)
 
       CaseExtractor.const[String](caseNameExpr).withRHS { _ =>
         '{
@@ -68,20 +75,38 @@ final class DeriveSumJsonDecoder[A](
     val discrimExpr = Expr(discrim)
     '{
       new JsonDecoder.ObjectDecoder[A] {
+
+        // TODO (KR) : support `@jsonStrict` for sum types
+        override val keys: Set[String] = Set.empty
+        override val strict: Boolean = false
+
+        private val defaultDescrim: Option[String] =
+          ${ Expr(generic.annotations.optionalOfValue[defaultJsonDiscriminator].map(_.name)) }
+
         override def decodeJsonObjectAST(obj: Json.Obj, fieldMap: Map[String, Json]): Either[JsonError, A] =
           obj.valueMap.get($discrimExpr) match {
             case Some(Json.Str(parsedDiscrim)) => ${ matchOnStr('parsedDiscrim, 'obj) }
             case Some(json)                    => JsonError(JsonError.Path.Field($discrimExpr) :: Nil, JsonError.Cause.InvalidType(Json.Type.String, json.tpe)).asLeft
-            case None                          => JsonError(JsonError.Path.Field($discrimExpr) :: Nil, JsonError.Cause.MissingRequired).asLeft
+            case None                          =>
+              defaultDescrim match {
+                case Some(defaultDescrim) => ${ matchOnStr('defaultDescrim, 'obj) }
+                case None                 => JsonError(JsonError.Path.Field($discrimExpr) :: Nil, JsonError.Cause.MissingRequired).asLeft
+              }
           }
+
       }
     }
   }
 
-  override def derive: Expr[JsonDecoder.ObjectDecoder[A]] =
+  override def derive: Expr[JsonDecoder.ObjectDecoder[A]] = {
+    // TODO (KR) : support `@jsonStrict` for sum types
+    if generic.annotations.optionalOf[jsonStrict].nonEmpty then
+      report.warning("`@jsonStrict` is not supported for sum types")
+
     generic.annotations.optionalOfValue[jsonDiscriminator] match {
       case Some(discrim) => deriveWithDiscriminator(discrim.name)
       case None          => deriveNoDiscriminator
     }
+  }
 
 }
