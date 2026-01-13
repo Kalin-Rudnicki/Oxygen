@@ -127,6 +127,9 @@ object JsonDecoder extends Derivable[JsonDecoder.ObjectDecoder], JsonDecoderLowP
 
   trait ObjectDecoder[A] extends JsonDecoder[A] {
 
+    val keys: Set[String]
+    val strict: Boolean
+
     def decodeJsonObjectAST(ast: Json.Obj, fieldMap: Map[String, Json]): Either[JsonError, A]
 
     override def map[B](f: A => B): JsonDecoder.ObjectDecoder[B] =
@@ -135,9 +138,16 @@ object JsonDecoder extends Derivable[JsonDecoder.ObjectDecoder], JsonDecoderLowP
     override def mapOrFail[B](f: A => Either[String, B]): JsonDecoder.ObjectDecoder[B] =
       JsonDecoder.MappedOrFailObject(this, f)
 
-    override final def decodeJsonAST(ast: Json): Either[JsonError, A] = ast match
-      case ast: Json.Obj => decodeJsonObjectAST(ast, ast.valueMap)
-      case _             => JsonError(Nil, JsonError.Cause.InvalidType(Json.Type.Object, ast.tpe)).asLeft
+    override final def decodeJsonAST(ast: Json): Either[JsonError, A] =
+      ast match {
+        case ast: Json.Obj if strict =>
+          val provided: Set[String] = ast.value.iterator.map(_._1).toSet
+          val extra: Set[String] = provided &~ keys
+          if extra.nonEmpty then JsonError(Nil, JsonError.Cause.DecodingFailed(s"Extra keys not allowed: ${extra.toSeq.sorted.map(_.unesc).mkString(", ")}")).asLeft
+          else decodeJsonObjectAST(ast, ast.valueMap)
+        case ast: Json.Obj => decodeJsonObjectAST(ast, ast.valueMap)
+        case _             => JsonError(Nil, JsonError.Cause.InvalidType(Json.Type.Object, ast.tpe)).asLeft
+      }
 
   }
 
@@ -306,6 +316,8 @@ object JsonDecoder extends Derivable[JsonDecoder.ObjectDecoder], JsonDecoderLowP
   }
 
   final case class MappedObject[A, B](decoder: JsonDecoder.ObjectDecoder[A], f: A => B) extends JsonDecoder.ObjectDecoder[B] {
+    override val keys: Set[String] = decoder.keys
+    override val strict: Boolean = decoder.strict
     override def decodeJsonObjectAST(ast: Json.Obj, fieldMap: Map[String, Json]): Either[JsonError, B] =
       decoder.decodeJsonObjectAST(ast, fieldMap).map(f)
     override val onMissingFromObject: Option[B] =
@@ -313,6 +325,8 @@ object JsonDecoder extends Derivable[JsonDecoder.ObjectDecoder], JsonDecoderLowP
   }
 
   final case class MappedOrFailObject[A, B](decoder: JsonDecoder.ObjectDecoder[A], f: A => Either[String, B]) extends JsonDecoder.ObjectDecoder[B] {
+    override val keys: Set[String] = decoder.keys
+    override val strict: Boolean = decoder.strict
     override def decodeJsonObjectAST(ast: Json.Obj, fieldMap: Map[String, Json]): Either[JsonError, B] =
       decoder.decodeJsonObjectAST(ast, fieldMap).flatMap(f(_).leftMap(e => JsonError(Nil, JsonError.Cause.DecodingFailed(e))))
     override val onMissingFromObject: Option[B] =

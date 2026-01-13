@@ -12,6 +12,11 @@ object JsonSpec extends OxygenSpecDefault {
       assert(JsonCodec[A].encoder.encodeJsonStringCompact(encoded))(equalTo(json))
     }
 
+  private def successfulDecodeTest[A: JsonCodec](json: String)(encoded: A)(using tt: TypeTag[A], loc: SourceLocation): TestSpec =
+    test(s"$tt -> $json") {
+      assert(JsonCodec[A].decoder.decodeJsonString(json))(isRight(equalTo_filteredDiff(encoded)))
+    }
+
   private def failedDecodeTest[A: JsonDecoder](json: String)(using tt: TypeTag[A], loc: SourceLocation): TestSpec =
     test(s"<fails> $tt -> $json") {
       assert(JsonDecoder[A].decodeJsonString(json))(isLeft)
@@ -114,10 +119,12 @@ object JsonSpec extends OxygenSpecDefault {
 
     @overrideAllUnrollStrategy(SumGeneric.UnrollStrategy.Nested)
     @jsonDiscriminator("type1")
+    @defaultJsonDiscriminator("Case1")
     sealed trait NestedWithDiscriminator derives JsonCodec
     object NestedWithDiscriminator {
 
       @jsonDiscriminator("type2")
+      @defaultJsonDiscriminator("a")
       sealed trait Case1 extends NestedWithDiscriminator
       @jsonDiscriminator("type3")
       sealed trait Case2 extends NestedWithDiscriminator
@@ -141,6 +148,14 @@ object JsonSpec extends OxygenSpecDefault {
       inner1: Int,
       inner2: Option[String],
   ) derives JsonCodec
+
+  @jsonStrict
+  final case class Strict1(i: Int, s: Option[String]) derives JsonCodec
+
+  @jsonStrict
+  final case class Strict2(b: Boolean, @jsonFlatten s1: Strict1) derives JsonCodec
+
+  final case class NonStrict2(b: Boolean, @jsonFlatten s1: Strict1) derives JsonCodec
 
   override def testSpec: TestSpec =
     suite("JsonSpec")(
@@ -217,11 +232,23 @@ object JsonSpec extends OxygenSpecDefault {
             directRoundTripTest[NestedSums.NestedWithDiscriminator]("""{"type1":"Case1","type2":"B"}""")(NestedSums.NestedWithDiscriminator.B),
             directRoundTripTest[NestedSums.NestedWithDiscriminator]("""{"type1":"Case2","type3":"C"}""")(NestedSums.NestedWithDiscriminator.C),
             directRoundTripTest[NestedSums.NestedWithDiscriminator]("""{"type1":"Case2","type3":"D"}""")(NestedSums.NestedWithDiscriminator.D),
+            successfulDecodeTest[NestedSums.NestedWithDiscriminator]("""{}""")(NestedSums.NestedWithDiscriminator.A),
           ),
         ),
         suite("FlattenOuterRequired")(
           directRoundTripTest("""{"outer1":1,"inner1":2}""")(FlattenOuterRequired(1, None, FlattenInner(2, None))),
           directRoundTripTest("""{"outer1":1,"outer2":"O","inner1":2,"inner2":"I"}""")(FlattenOuterRequired(1, "O".some, FlattenInner(2, "I".some))),
+        ),
+        suite("strict")(
+          directRoundTripTest[Strict1]("""{"i":1,"s":"here"}""")(Strict1(1, "here".some)),
+          directRoundTripTest[Strict1]("""{"i":1}""")(Strict1(1, None)),
+          failedDecodeTest[Strict1]("""{"i":1,"s":"here","extra":true}"""),
+          directRoundTripTest[Strict2]("""{"b":true,"i":1,"s":"here"}""")(Strict2(true, Strict1(1, "here".some))),
+          directRoundTripTest[Strict2]("""{"b":true,"i":1}""")(Strict2(true, Strict1(1, None))),
+          failedDecodeTest[Strict2]("""{"b":true,"i":1,"s":"here","extra":true}"""),
+          directRoundTripTest[NonStrict2]("""{"b":true,"i":1,"s":"here"}""")(NonStrict2(true, Strict1(1, "here".some))),
+          directRoundTripTest[NonStrict2]("""{"b":true,"i":1}""")(NonStrict2(true, Strict1(1, None))),
+          successfulDecodeTest[NonStrict2]("""{"b":true,"i":1,"s":"here","extra":true}""")(NonStrict2(true, Strict1(1, "here".some))),
         ),
       ),
       suite("string transform")(
