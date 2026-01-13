@@ -284,13 +284,13 @@ object JsonSchema extends Derivable[JsonSchema.ObjectLike], JsonSchemaLowPriorit
 
   }
 
-  private[schema] trait ProductSchema[A] extends ObjectLike.Root[A] {
+  trait ProductSchema[A] extends ObjectLike.Root[A] {
     lazy val fields: ArraySeq[ProductField[?]]
     override protected final def __internalReferenceOf(builder: SchemaLike.ReferenceBuilder): String =
       withHeader("JsonProduct", "fields" -> fields.map { f => s"${f.name}=${builder.referenceOf(f.schema)}" }.mkString("{", ",", "}"))
   }
 
-  private[schema] trait SumSchema[A] extends ObjectLike.Root[A] {
+  trait SumSchema[A] extends ObjectLike.Root[A] {
     val discriminator: Option[String]
 
     lazy val children: ArraySeq[SumCase[? <: A]]
@@ -300,7 +300,7 @@ object JsonSchema extends Derivable[JsonSchema.ObjectLike], JsonSchemaLowPriorit
       case None                => withHeader("JsonSum", "children" -> children.map { c => s"${c.name}=${builder.referenceOf(c.schema)}" }.mkString("{", ",", "}"))
   }
 
-  private[schema] final case class TransformObject[A, B] private[JsonSchema] (
+  final case class TransformObject[A, B] private[JsonSchema] (
       underlying: ObjectLike[A],
       typeTag: TypeTag[B],
       ab: A => B,
@@ -313,7 +313,7 @@ object JsonSchema extends Derivable[JsonSchema.ObjectLike], JsonSchemaLowPriorit
     override val jsonDecoder: JsonDecoder.ObjectDecoder[B] = underlying.jsonDecoder.map(ab)
   }
 
-  private[schema] final case class TransformOrFailObject[A, B] private[JsonSchema] (
+  final case class TransformOrFailObject[A, B] private[JsonSchema] (
       underlying: ObjectLike[A],
       typeTag: TypeTag[B],
       ab: A => Either[String, B],
