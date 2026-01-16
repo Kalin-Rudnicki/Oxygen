@@ -62,7 +62,7 @@ object QueryError {
   sealed trait Cause extends Throwable {
 
     final def optPosition: Option[Int] = this match
-      case PSQL(e) => Option(e.e.getServerErrorMessage.getPosition).filterNot(_ == 0)
+      case PSQL(e) => scala.util.Try { Option(e.e.getServerErrorMessage.getPosition) }.toOption.flatten.filterNot(_ == 0)
       case _       => None
 
     final def toIndentedString: IndentedString =
