@@ -269,7 +269,17 @@ object SingleBuilders {
             Params.toggle.prefixFalse("no", "ignore-stackless", hints = List("Ignore when a cause denotes itself as `stackless`")).withDefault(defaults.ignoreStackless)
         ).bracketed("oxygen-params")
           .map { Logger.oxygen }
-          .withDefault { Logger.oxygenDefault }
+          .withDefault {
+            Logger.oxygen(
+              colorMode = defaults.colorMode,
+              logTrace = defaults.logTrace,
+              logFiberId = defaults.logFiberId,
+              logAnnotations = defaults.logAnnotations,
+              logSpans = defaults.logSpans,
+              logTimestamp = defaults.logTimestamp,
+              ignoreStackless = defaults.ignoreStackless,
+            )
+          }
       }
 
     private val jsonLoggerParser: Params[Logger] =
