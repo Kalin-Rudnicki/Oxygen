@@ -1,6 +1,7 @@
 package oxygen.zio.system
 
 import java.time.Instant
+import oxygen.json.JsonDecoder
 import oxygen.predef.core.*
 import oxygen.zio.error.FileSystemError
 import zio.*
@@ -127,6 +128,26 @@ trait Path {
 
   final def recursiveFileStream(maxDepth: Int, extensions: Set[String]): Stream[FileSystemError, Path] =
     recursiveFileStream(maxDepth).filter(_.fileName.hasExtension(extensions))
+
+  final def readDecodeMessage[A](decode: String => Either[String, A]): IO[FileSystemError, A] =
+    this.read.flatMap { contents =>
+      decode(contents) match
+        case Right(value) => ZIO.succeed(value)
+        case Left(error)  => ZIO.fail(FileSystemError.UnableToDecodeFileContents(pathName, Error.fromAny(error)))
+    }
+
+  final def readDecodeError[A](decode: String => Either[Error, A]): IO[FileSystemError, A] =
+    this.read.flatMap { contents =>
+      decode(contents) match
+        case Right(value) => ZIO.succeed(value)
+        case Left(error)  => ZIO.fail(FileSystemError.UnableToDecodeFileContents(pathName, error))
+    }
+
+  final def readDecodeString[A: StringDecoder as dec]: IO[FileSystemError, A] =
+    this.readDecodeMessage(dec.decodeDetailed)
+
+  final def readDecodeJson[A: JsonDecoder as dec]: IO[FileSystemError, A] =
+    this.readDecodeError(dec.decodeJsonString(_).leftMap(Error.fromThrowable))
 
   override final def toString: String = pathName.unwrap
 

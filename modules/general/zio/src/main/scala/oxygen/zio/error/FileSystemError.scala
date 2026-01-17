@@ -4,7 +4,9 @@ import oxygen.predef.core.*
 import oxygen.zio.ZioCauses
 import oxygen.zio.system.Path.{PathName, Type as FileType}
 
-sealed trait FileSystemError extends Error
+sealed trait FileSystemError extends Error {
+  val path: PathName
+}
 object FileSystemError {
 
   final case class PathDoesNotExist(path: PathName) extends FileSystemError {
@@ -17,6 +19,11 @@ object FileSystemError {
 
   final case class InvalidFileType(path: PathName, expected: FileType, actual: FileType) extends FileSystemError {
     override def errorMessage: Text = str"Path ($path) references an invalid file type [expected=${expected.toText}, actual=${actual.toText}]"
+  }
+
+  final case class UnableToDecodeFileContents(path: PathName, cause: Error) extends FileSystemError {
+    override def errorMessage: Text = str"Error decoding "
+    override def causes: ArraySeq[Error] = ArraySeq(cause)
   }
 
   final case class Unimplemented(path: PathName, operation: String) extends FileSystemError {
