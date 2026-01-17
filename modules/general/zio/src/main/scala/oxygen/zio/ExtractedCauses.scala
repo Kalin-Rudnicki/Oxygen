@@ -23,6 +23,8 @@ import zio.*
   */
 sealed trait ExtractedCauses[+E] {
 
+  val causeType: ZioCauses.CauseType
+
   final def foldPriority[T](
       fail: NonEmptyList[Cause.Fail[E]] => T,
       die: NonEmptyList[Cause.Die] => T,
@@ -79,13 +81,20 @@ sealed trait ExtractedCauses[+E] {
       case ExtractedCauses.Empty                                   => Nil
     }
 
-  final def toErrors: List[Error] = this match
-    case ExtractedCauses.Failures(failures, Nil, Nil)            => failures.toList.map(FromZioCause.fromFail)
-    case ExtractedCauses.Failures(failures, defects, interrupts) => failures.toList.map(FromZioCause.fromFail) ++ defects.map(FromZioCause.fromDie) ++ interrupts.map(FromZioCause.fromInterrupt)
-    case ExtractedCauses.Defects(defects, Nil)                   => defects.toList.map(FromZioCause.fromDie)
-    case ExtractedCauses.Defects(defects, interrupts)            => defects.toList.map(FromZioCause.fromDie) ++ interrupts.map(FromZioCause.fromInterrupt)
-    case ExtractedCauses.Interrupts(interrupts)                  => interrupts.toList.map(FromZioCause.fromInterrupt)
-    case ExtractedCauses.Empty                                   => Nil
+  final def toErrors: Growable[Error] =
+    this match {
+      case ExtractedCauses.Failures(failures, defects, interrupts) =>
+        Growable.many(failures).map(FromZioCause.fromFail) ++
+          Growable.many(defects).map(FromZioCause.fromDie) ++
+          Growable.many(interrupts).map(FromZioCause.fromInterrupt)
+      case ExtractedCauses.Defects(defects, interrupts) =>
+        Growable.many(defects).map(FromZioCause.fromDie) ++
+          Growable.many(interrupts).map(FromZioCause.fromInterrupt)
+      case ExtractedCauses.Interrupts(interrupts) =>
+        Growable.many(interrupts).map(FromZioCause.fromInterrupt)
+      case ExtractedCauses.Empty =>
+        Growable.empty
+    }
 
   final def toCause: Cause[E] =
     this.toCauses match
@@ -127,6 +136,8 @@ object ExtractedCauses {
   }
 
   final case class Failures[+E](failures: NonEmptyList[Cause.Fail[E]], defects: List[Cause.Die], interrupts: List[Cause.Interrupt]) extends ExtractedCauses[E] {
+
+    override val causeType: ZioCauses.CauseType = ZioCauses.CauseType.Failure
 
     override def map[E2](f: E => E2): ExtractedCauses.Failures[E2] =
       ExtractedCauses.Failures(
@@ -229,6 +240,8 @@ object ExtractedCauses {
 
   final case class Defects(defects: NonEmptyList[Cause.Die], interrupts: List[Cause.Interrupt]) extends ExtractedCauses.NoFailures {
 
+    override val causeType: ZioCauses.CauseType = ZioCauses.CauseType.Defect
+
     override def recoverSome[E2 >: Nothing](f: Throwable => Option[E2]): ExtractedCauses[E2] =
       defects.partitionMap { die =>
         f(die.value) match {
@@ -258,8 +271,12 @@ object ExtractedCauses {
 
   }
 
-  final case class Interrupts(interrupts: NonEmptyList[Cause.Interrupt]) extends ExtractedCauses.NoDefects
-  case object Empty extends ExtractedCauses.NoDefects
+  final case class Interrupts(interrupts: NonEmptyList[Cause.Interrupt]) extends ExtractedCauses.NoDefects {
+    override val causeType: ZioCauses.CauseType = ZioCauses.CauseType.Interrupt
+  }
+  case object Empty extends ExtractedCauses.NoDefects {
+    override val causeType: ZioCauses.CauseType = ZioCauses.CauseType.Empty
+  }
 
   def fromRootCauses[E](
       failures: List[Cause.Fail[E]],

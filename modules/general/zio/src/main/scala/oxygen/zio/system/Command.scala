@@ -4,7 +4,7 @@ import oxygen.predef.core.*
 import scala.sys.process.*
 import zio.*
 
-final class Command private (isSudo: Boolean, command: String, args: Growable[String], env: Growable[(String, String)]) {
+final class Command private (isSudo: Boolean, command: String, args: Growable[String], file: Option[java.io.File | java.nio.file.Path], env: Growable[(String, String)]) {
 
   lazy val fullCommand: Growable[String] =
     if isSudo then "sudo" +: command +: args
@@ -15,14 +15,17 @@ final class Command private (isSudo: Boolean, command: String, args: Growable[St
   //////////////////////////////////////////////////////////////////////////////////////////////////////
 
   def sudo: Command = sudoIf(true)
-  def sudoIf(cond: Boolean): Command = new Command(cond, command, args, env)
+  def sudoIf(cond: Boolean): Command = new Command(cond, command, args, file, env)
 
   def apply(args: Command.Args*): Command =
-    new Command(isSudo, command, this.args ++ Growable.many(args).flatMap(_.args), env)
+    new Command(isSudo, command, this.args ++ Growable.many(args).flatMap(_.args), file, env)
 
-  def addEnv(env: Growable[(String, String)]): Command = new Command(isSudo, command, args, this.env ++ env)
-  def envVar(key: String, value: String): Command = new Command(isSudo, command, args, this.env :+ (key, value))
+  def addEnv(env: Growable[(String, String)]): Command = new Command(isSudo, command, args, file, this.env ++ env)
+  def envVar(key: String, value: String): Command = new Command(isSudo, command, args, file, this.env :+ (key, value))
   def envVar(key: String, value: Option[String]): Command = value.fold(this)(this.envVar(key, _))
+
+  def cwd(file: java.io.File): Command = new Command(isSudo, command, args, file.some, env)
+  def cwd(file: Option[java.io.File]): Command = new Command(isSudo, command, args, file, env)
 
   //////////////////////////////////////////////////////////////////////////////////////////////////////
   //      Execute
@@ -67,7 +70,7 @@ final class Command private (isSudo: Boolean, command: String, args: Growable[St
 }
 object Command {
 
-  def apply(command: String): Command = new Command(false, command, Growable.Empty, Growable.empty)
+  def apply(command: String): Command = new Command(false, command, Growable.Empty, None, Growable.empty)
 
   final case class Args(args: Growable[String])
   object Args {

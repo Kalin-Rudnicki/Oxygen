@@ -259,11 +259,14 @@ object TypeTag {
 
   def fromName[A](name: String): TypeTag.Single[A] = TypeTag(TypeRef.Single.parse(name), classOf[Any])
 
-  def fromClass[A](klass: Class[?]): TypeTag.Single[A] =
+  def fromClass[A](klass: Class[?]): TypeTag.Single[A] = {
+    val (className, classArgs) = PlatformCompat.typeNameAndArgs(klass)
     TypeTag(
-      TypeRef.Single.parse(klass.getName).withTypeArgs(klass.getTypeParameters.toList.map { a => TypeRef.Single(a.getName, Nil, Nil.asRight) }),
+      TypeRef.Single.parse(className).withTypeArgs(classArgs.map { a => TypeRef.Single(a, Nil, Nil.asRight) }),
       klass,
     )
+  }
+
   def usingClassTag[A](using ct: ClassTag[A]): TypeTag.Single[A] =
     fromClass(ct.runtimeClass)
 

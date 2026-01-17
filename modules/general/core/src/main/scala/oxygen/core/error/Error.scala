@@ -8,6 +8,8 @@ import oxygen.core.typeclass.Showable
 import scala.annotation.tailrec
 import scala.collection.immutable.ArraySeq
 
+// TODO (KR) : Have a concept of `cause importance`, an enum along the lines of `NiceToHave`, `Critical`, and potentially things in between.
+//           : Then, errors can specify this, and it will guide whether or not to include causes in the default case.
 trait Error extends Throwable, Showable {
 
   protected[Error] final lazy val javaStackTrace: Error.StackTrace = Error.StackTrace.fromJava(this.getStackTrace)

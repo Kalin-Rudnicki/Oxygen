@@ -29,8 +29,11 @@ object FromZioCause {
   def fromDie(cause: Cause.Die): Error = FromZioCause(Error.fromThrowable(cause.value), cause.trace)
   def fromInterrupt(cause: Cause.Interrupt): Error = FromZioCause(Error(s"Interrupted by ${cause.fiberId}"), cause.trace)
 
+  def toCauses(cause: Cause[?]): ArraySeq[Error] =
+    oxygen.zio.ExtractedCauses.fromCause(cause).toErrors.toArraySeq
+
   def errorWithCause(message: Text.Auto, cause: Cause[?]): Error =
-    Error(message, oxygen.zio.ExtractedCauses.fromCause(cause).toErrors)
+    Error(message, toCauses(cause))
 
   def addErrorContext(message: Text.Auto, cause: Cause[?])(using trace: Trace): Cause[Error] = {
     cause match {
@@ -40,8 +43,8 @@ object FromZioCause {
         val extracted = oxygen.zio.ExtractedCauses.fromCause(cause)
         val stack = StackTrace(FiberId.None, Chunk.single(trace)) // TODO (KR) : is there value in trying to get the actual FiberId?
         extracted match
-          case _: oxygen.zio.ExtractedCauses.Failures[?] => Cause.fail(Error(message, extracted.toErrors), stack)
-          case _                                         => Cause.die(Error(message, extracted.toErrors), stack)
+          case _: oxygen.zio.ExtractedCauses.Failures[?] => Cause.fail(Error(message, extracted.toErrors.toArraySeq), stack)
+          case _                                         => Cause.die(Error(message, extracted.toErrors.toArraySeq), stack)
     }
   }
 
