@@ -1,6 +1,6 @@
 package oxygen.core.error
 
-import oxygen.core.{str, Text, TypeTag}
+import oxygen.core.{str, Specified, Text, TypeTag}
 import oxygen.core.syntax.option.*
 import oxygen.core.syntax.throwable.*
 import oxygen.core.typeclass.Show
@@ -19,6 +19,8 @@ trait Error extends Throwable, Showable {
   def contextTrace: List[Text] = Nil
   def causes: ArraySeq[Error] = ArraySeq.empty
   def traces: ArraySeq[Error.StackTrace] = ArraySeq(javaStackTrace)
+  def causeInclusionPreference: Error.InclusionPreference = Error.InclusionPreference.PreferInclude
+  def traceInclusionPreference: Error.InclusionPreference = Error.InclusionPreference.PreferDisclude
 
   final def addContext(context: Text.Auto): Error = Error.WithContextTrace.fromError(this, context)
 
@@ -30,12 +32,16 @@ trait Error extends Throwable, Showable {
     * @param traceDepth How deep to show traces.
     * @param typeDepth How deep to include [[errorType]] name in the message.
     */
-  final def show(causeDepth: Int, traceDepth: Int, typeDepth: Int): Text =
+  final def show(causeDepth: Int, traceDepth: Int, typeDepth: Int, causePreferenceLevel: Error.PreferenceLevel, tracePreferenceLevel: Error.PreferenceLevel): Text =
     Text.when(typeDepth > 0) { errorType.showHeaderLine } ++
       errorMessage ++
       Text.foreach(contextTrace)(_.indentedInitial("  - ")) ++
-      Text.when(traceDepth > 0) { showTraces.indented } ++
-      Text.when(causeDepth > 0) { showCauses(causeDepth - 1, traceDepth - 1, typeDepth - 1).indented }
+      Text.when(this.causeInclusionPreference ?? Error.InclusionPreference(causePreferenceLevel, causeDepth)) {
+        showCauses(causeDepth - 1, traceDepth - 1, typeDepth - 1, causePreferenceLevel, tracePreferenceLevel).indented
+      } ++
+      Text.when(this.traceInclusionPreference ?? Error.InclusionPreference(tracePreferenceLevel, traceDepth)) {
+        showTraces.indented
+      }
 
   private final def showTraces: Text = {
     val _traces = traces
@@ -45,26 +51,33 @@ trait Error extends Throwable, Showable {
       case _ => str"Stack Traces:" ++ Text.foreach(_traces) { _.show { source => str"Stack Trace ($source):" }.indentedInitial("  - ") }
   }
 
-  private final def showCauses(causeDepth: Int, traceDepth: Int, typeDepth: Int): Text = {
+  private final def showCauses(causeDepth: Int, traceDepth: Int, typeDepth: Int, causePreferenceLevel: Error.PreferenceLevel, tracePreferenceLevel: Error.PreferenceLevel): Text = {
     val _causes = causes
     _causes.length match {
       case 0 => Text.empty
-      case 1 => Text.fromString("Cause:") ++ _causes.head.show(causeDepth, traceDepth, typeDepth).indented
+      case 1 => Text.fromString("Cause:") ++ _causes.head.show(causeDepth, traceDepth, typeDepth, causePreferenceLevel, tracePreferenceLevel).indented
       case _ =>
         Text.fromString("Causes:") ++
-          Text.foreachJoinedWithIndex(_causes, Text.newLine) { (cause, idx) => str"Cause [${idx.toString}]:" ++ cause.show(causeDepth, traceDepth, typeDepth).indented }
+          Text.foreachJoinedWithIndex(_causes, Text.newLine) { (cause, idx) =>
+            str"Cause [${idx.toString}]:" ++ cause.show(causeDepth, traceDepth, typeDepth, causePreferenceLevel, tracePreferenceLevel).indented
+          }
     }
   }
 
-  final def showRootMessage: Text = show(0, 0, 0)
-  final def showRootSimple: Text = show(0, 0, 1)
-  final def showRootTraced: Text = show(0, 1, 1)
+  final def showRootMessage: Text = show(0, 0, 0, Error.PreferenceLevel.StronglyPrefer, Error.PreferenceLevel.StronglyPrefer)
+  final def showRootSimple: Text = show(0, 0, 1, Error.PreferenceLevel.StronglyPrefer, Error.PreferenceLevel.StronglyPrefer)
+  final def showRootTraced: Text = show(0, 1, 1, Error.PreferenceLevel.StronglyPrefer, Error.PreferenceLevel.StronglyPrefer)
 
-  final def showAllMessage: Text = show(Int.MaxValue, 0, 0)
-  final def showAllSimple: Text = show(Int.MaxValue, 0, Int.MaxValue)
-  final def showAllTraced: Text = show(Int.MaxValue, Int.MaxValue, Int.MaxValue)
+  final def showAllMessage: Text = show(Int.MaxValue, 0, 0, Error.PreferenceLevel.StronglyPrefer, Error.PreferenceLevel.StronglyPrefer)
+  final def showAllSimple: Text = show(Int.MaxValue, 0, Int.MaxValue, Error.PreferenceLevel.StronglyPrefer, Error.PreferenceLevel.StronglyPrefer)
+  final def showAllTraced: Text = show(Int.MaxValue, Int.MaxValue, Int.MaxValue, Error.PreferenceLevel.StronglyPrefer, Error.PreferenceLevel.StronglyPrefer)
 
-  final def showCore(rootTrace: Boolean): Text = show(Int.MaxValue, if rootTrace then 1 else 0, 0)
+  final def showCore(
+      rootTrace: Boolean,
+      causePreferenceLevel: Error.PreferenceLevel = Error.PreferenceLevel.StronglyPrefer,
+      tracePreferenceLevel: Error.PreferenceLevel = Error.PreferenceLevel.StronglyPrefer,
+  ): Text =
+    show(Int.MaxValue, if rootTrace then 1 else 0, 0, causePreferenceLevel, tracePreferenceLevel)
 
   override final def show: Text = showCore(false)
 
@@ -108,6 +121,42 @@ object Error {
   //////////////////////////////////////////////////////////////////////////////////////////////////////
   //      Models
   //////////////////////////////////////////////////////////////////////////////////////////////////////
+
+  enum PreferenceLevel(final val level: Int) {
+    case Force extends PreferenceLevel(2)
+    case StronglyPrefer extends PreferenceLevel(1)
+    case Prefer extends PreferenceLevel(0)
+  }
+
+  enum InclusionPreference(final val preferenceLevel: PreferenceLevel, final val include: Boolean) {
+    case ForceInclude extends InclusionPreference(PreferenceLevel.Force, true)
+    case StronglyPreferInclude extends InclusionPreference(PreferenceLevel.StronglyPrefer, true)
+    case PreferInclude extends InclusionPreference(PreferenceLevel.Prefer, true)
+    case PreferDisclude extends InclusionPreference(PreferenceLevel.Prefer, false)
+    case StronglyPreferDisclude extends InclusionPreference(PreferenceLevel.StronglyPrefer, false)
+    case ForceDisclude extends InclusionPreference(PreferenceLevel.Force, false)
+
+    final def >>(that: Specified[InclusionPreference]): InclusionPreference =
+      that match {
+        case Specified.WasNotSpecified    => this
+        case Specified.WasSpecified(that) =>
+          if this.preferenceLevel.level >= that.preferenceLevel.level then this
+          else that
+      }
+
+    final def ??(that: Specified[InclusionPreference]): Boolean = (this >> that).include
+
+  }
+  object InclusionPreference {
+
+    def apply(level: PreferenceLevel, include: Boolean): InclusionPreference = level match
+      case PreferenceLevel.Force          => if include then InclusionPreference.ForceInclude else InclusionPreference.ForceDisclude
+      case PreferenceLevel.StronglyPrefer => if include then InclusionPreference.StronglyPreferInclude else InclusionPreference.StronglyPreferDisclude
+      case PreferenceLevel.Prefer         => if include then InclusionPreference.PreferInclude else InclusionPreference.PreferDisclude
+
+    def apply(level: PreferenceLevel, depth: Int): InclusionPreference = InclusionPreference(level, depth > 0)
+
+  }
 
   final case class StackTrace(
       source: String,
@@ -278,6 +327,8 @@ object Error {
       override val contextTrace: List[Text],
       override val causes: ArraySeq[Error.Raw],
       override val traces: ArraySeq[StackTrace],
+      override val causeInclusionPreference: InclusionPreference,
+      override val traceInclusionPreference: InclusionPreference,
   ) extends Error.NoStackTrace
   object Raw {
 
@@ -286,29 +337,56 @@ object Error {
         limit: ErrorType.Limit,
         causeDepth: Int,
         traceDepth: Int,
+        causePreferenceLevel: PreferenceLevel,
+        tracePreferenceLevel: PreferenceLevel,
     ): Error.Raw =
       Error.Raw(
         errorType = error.errorType.limit(limit),
         errorMessage = error.errorMessage,
         contextTrace = error.contextTrace,
-        causes = if causeDepth > 0 then error.causes.map(e => fromInternal(e, limit, causeDepth - 1, traceDepth - 1)) else ArraySeq.empty,
-        traces = if traceDepth > 0 then error.traces else ArraySeq.empty,
+        causes =
+          if error.causeInclusionPreference ?? InclusionPreference(causePreferenceLevel, causeDepth) then
+            error.causes.map(e => fromInternal(e, limit, causeDepth - 1, traceDepth - 1, causePreferenceLevel, tracePreferenceLevel))
+          else ArraySeq.empty,
+        traces =
+          if error.traceInclusionPreference ?? InclusionPreference(tracePreferenceLevel, traceDepth) then error.traces
+          else ArraySeq.empty,
+        causeInclusionPreference = error.causeInclusionPreference,
+        traceInclusionPreference = error.traceInclusionPreference,
       )
 
-    def fromError(error: Error, limit: ErrorType.Limit, causeDepth: Int = Int.MaxValue, traceDepth: Int = Int.MaxValue): Error.Raw =
+    def fromError(
+        error: Error,
+        limit: ErrorType.Limit,
+        causeDepth: Int = Int.MaxValue,
+        traceDepth: Int = Int.MaxValue,
+        causePreferenceLevel: PreferenceLevel = PreferenceLevel.StronglyPrefer,
+        tracePreferenceLevel: PreferenceLevel = PreferenceLevel.StronglyPrefer,
+    ): Error.Raw =
       fromInternal(
         error = error,
         limit = limit,
         causeDepth = causeDepth,
         traceDepth = traceDepth,
+        causePreferenceLevel = causePreferenceLevel,
+        tracePreferenceLevel = tracePreferenceLevel,
       )
 
-    def fromThrowable(throwable: Throwable, limit: ErrorType.Limit, causeDepth: Int = Int.MaxValue, traceDepth: Int = Int.MaxValue): Error.Raw =
+    def fromThrowable(
+        throwable: Throwable,
+        limit: ErrorType.Limit,
+        causeDepth: Int = Int.MaxValue,
+        traceDepth: Int = Int.MaxValue,
+        causePreferenceLevel: PreferenceLevel = PreferenceLevel.StronglyPrefer,
+        tracePreferenceLevel: PreferenceLevel = PreferenceLevel.StronglyPrefer,
+    ): Error.Raw =
       fromInternal(
         error = Error.fromThrowable(throwable),
         limit = limit,
         causeDepth = causeDepth,
         traceDepth = traceDepth,
+        causePreferenceLevel = causePreferenceLevel,
+        tracePreferenceLevel = tracePreferenceLevel,
       )
 
   }
@@ -360,6 +438,8 @@ object Error {
         contextTrace = contextTrace.getOrElse(Nil).map(Text.fromString),
         causes = causes.getOrElse(ArraySeq.empty[EncodedError]).map(_.toError),
         traces = ArraySeq.from(traces.getOrElse(Map.empty)).map { case (source, traces) => Error.StackTrace(source, traces.map(_.toErrorTrace)) },
+        causeInclusionPreference = InclusionPreference.StronglyPreferInclude,
+        traceInclusionPreference = InclusionPreference.PreferDisclude,
       )
 
   }

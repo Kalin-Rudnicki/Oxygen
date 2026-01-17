@@ -10,6 +10,8 @@ import zio.stream.*
 
 final case class JavaPath(javaPath: J.Path) extends Path {
 
+  private lazy val absoluteJavaPath: J.Path = javaPath.toAbsolutePath
+
   override lazy val pathName: Path.PathName = Path.PathName(javaPath.toString)
   override lazy val fileName: Path.FileName = Path.FileName.of(javaPath.getFileName.toString)
 
@@ -20,7 +22,7 @@ final case class JavaPath(javaPath: J.Path) extends Path {
 
   override def real: IO[FileSystemError, Path] = FileSystem.attempt(pathName, "resolve 'real' path") { JavaPath(javaPath.toRealPath()) }
 
-  override def absolute: Path = JavaPath(javaPath.toAbsolutePath)
+  override def absolute: Path = JavaPath(absoluteJavaPath)
 
   override def normalized: Path = JavaPath(javaPath.normalize)
 
@@ -46,7 +48,7 @@ final case class JavaPath(javaPath: J.Path) extends Path {
   override def isParentOf(that: Path): Boolean =
     try {
       val _that: JavaPath = JavaPath.unsafeJava(that)
-      this.javaPath.toAbsolutePath.startsWith(_that.javaPath.toAbsolutePath)
+      _that.absoluteJavaPath.startsWith(this.absoluteJavaPath)
     } catch {
       case _ => false
     }
@@ -94,9 +96,9 @@ final case class JavaPath(javaPath: J.Path) extends Path {
 
   override def createEmptyFile: IO[FileSystemError, Unit] = FileSystem.attempt(pathName, "create empty file") { J.Files.createFile(javaPath) }
 
-  override def createDirectory: IO[FileSystemError, Unit] = FileSystem.attempt(pathName, "create empty file") { J.Files.createFile(javaPath) }
+  override def createDirectory: IO[FileSystemError, Unit] = FileSystem.attempt(pathName, "create directory") { J.Files.createDirectory(javaPath) }
 
-  override def createDirectories: IO[FileSystemError, Unit] = FileSystem.attempt(pathName, "create empty file") { J.Files.createFile(javaPath) }
+  override def createDirectories: IO[FileSystemError, Unit] = FileSystem.attempt(pathName, "create directories") { J.Files.createDirectories(javaPath) }
 
   override def copyTo(destination: Path): IO[FileSystemError, Unit] =
     JavaPath.safeJava(destination).flatMap { destination =>
