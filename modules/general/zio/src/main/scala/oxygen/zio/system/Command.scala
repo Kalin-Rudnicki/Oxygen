@@ -4,7 +4,7 @@ import oxygen.predef.core.*
 import scala.sys.process.*
 import zio.*
 
-final class Command private (isSudo: Boolean, command: String, args: Growable[String], file: Option[java.io.File | java.nio.file.Path], env: Growable[(String, String)]) {
+final class Command private (isSudo: Boolean, command: String, args: Growable[String], file: Option[Path], env: Growable[(String, String)]) {
 
   lazy val fullCommand: Growable[String] =
     if isSudo then "sudo" +: command +: args
@@ -24,14 +24,15 @@ final class Command private (isSudo: Boolean, command: String, args: Growable[St
   def envVar(key: String, value: String): Command = new Command(isSudo, command, args, file, this.env :+ (key, value))
   def envVar(key: String, value: Option[String]): Command = value.fold(this)(this.envVar(key, _))
 
-  def cwd(file: java.io.File): Command = new Command(isSudo, command, args, file.some, env)
-  def cwd(file: Option[java.io.File]): Command = new Command(isSudo, command, args, file, env)
+  def cwd(file: Path): Command = new Command(isSudo, command, args, file.some, env)
+  def cwd(file: Option[Path]): Command = new Command(isSudo, command, args, file, env)
 
   //////////////////////////////////////////////////////////////////////////////////////////////////////
   //      Execute
   //////////////////////////////////////////////////////////////////////////////////////////////////////
 
-  private def toProcess: ProcessBuilder = Process(fullCommand.to[Seq], None, env.to[Seq]*)
+  private def toProcess: Task[ProcessBuilder] =
+    ZIO.foreach(file)(_.toJavaFile).flatMap { file => ZIO.attempt { Process(fullCommand.to[Seq], file, env.to[Seq]*) } }
 
   def execute(
       outLevel: LogLevel = LogLevel.Info,
@@ -39,7 +40,8 @@ final class Command private (isSudo: Boolean, command: String, args: Growable[St
   )(using trace: Trace): Task[Int] =
     (for {
       logger <- ZProcessLogger.make(outLevel = outLevel, errorLevel = errorLevel)
-      code <- ZIO.attempt { toProcess.!(logger) }
+      process <- toProcess
+      code <- ZIO.attempt { process.!(logger) }
     } yield code) @@ ZIOAspect.annotated("command", command)
 
   def executeSuccess(
@@ -56,10 +58,11 @@ final class Command private (isSudo: Boolean, command: String, args: Growable[St
   )(using trace: Trace): Task[String] =
     (for {
       logger <- ZProcessLogger.make(errorLevel = errorLevel)
-      output <- ZIO.attempt { toProcess.!!(logger) }
+      process <- toProcess
+      output <- ZIO.attempt { process.!!(logger) }
     } yield output) @@ ZIOAspect.annotated("command", command)
 
-  def executeNoLogger: Task[Int] = ZIO.attempt { toProcess.! }
+  def executeNoLogger: Task[Int] = toProcess.flatMap { process => ZIO.attempt { process.! } }
 
   def executeNoLoggerSuccess: Task[Unit] =
     executeNoLogger.flatMap {
