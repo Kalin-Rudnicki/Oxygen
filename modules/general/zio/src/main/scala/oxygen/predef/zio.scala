@@ -1,7 +1,7 @@
 package oxygen.predef
 
 object zio {
-  export oxygen.zio.{GlobalLayer, GlobalMemoizedEffect, ZIOAspectAtLeastR, ZIOAspectPoly}
+  export oxygen.zio.{GlobalLayer, GlobalMemoizedEffect, ZIOAspectAtLeastR, ZIOAspectPoly, ZioCauses}
   export oxygen.zio.instances.given
   export oxygen.zio.logging.LogLevels
   export oxygen.zio.syntax.error.*

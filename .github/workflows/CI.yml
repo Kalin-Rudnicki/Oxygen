@@ -59,6 +59,8 @@ jobs:
         uses: ./.github/actions/sbt-cache
       - name: Compile
         run: sbt example/test:compile
+      - name: WebComp
+        run: sbt example-ui/webComp
 
   test-jvm:
     needs: warm-cache
