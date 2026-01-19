@@ -69,6 +69,7 @@ object JsonEncoder extends Derivable[JsonEncoder.ObjectEncoder], JsonEncoderLowP
   given byte: JsonEncoder[Byte] = BigDecimalEncoder.contramap(BigDecimal.exact)
 
   given option: [A] => (encoder: JsonEncoder[A]) => JsonEncoder[Option[A]] = OptionEncoder(encoder)
+  given nullable: [A] => (encoder: JsonEncoder[A]) => JsonEncoder[Nullable[A]] = NullableEncoder(encoder)
   given specified: [A] => (encoder: JsonEncoder[A]) => JsonEncoder[Specified[A]] = SpecifiedEncoder(encoder)
 
   given arraySeq: [A] => (encoder: JsonEncoder[A]) => JsonEncoder[ArraySeq[A]] = ArraySeqEncoder(encoder)
@@ -149,6 +150,12 @@ object JsonEncoder extends Derivable[JsonEncoder.ObjectEncoder], JsonEncoderLowP
       case None        => Json.Null
     override def addToObject(value: Option[A]): Boolean =
       value.nonEmpty
+  }
+
+  final case class NullableEncoder[A](encoder: JsonEncoder[A]) extends JsonEncoder[Nullable[A]] {
+    override def encodeJsonAST(value: Nullable[A]): Json = value.unwrap match
+      case Some(value) => encoder.encodeJsonAST(value)
+      case None        => Json.Null
   }
 
   final case class SpecifiedEncoder[A](encoder: JsonEncoder[A]) extends JsonEncoder[Specified[A]] {

@@ -78,6 +78,7 @@ object JsonDecoder extends Derivable[JsonDecoder.ObjectDecoder], JsonDecoderLowP
   given byte: JsonDecoder[Byte] = BigDecimalDecoder.narrow(_.toByte, BigDecimal.exact)
 
   given option: [A] => (decoder: JsonDecoder[A]) => JsonDecoder[Option[A]] = OptionDecoder(decoder)
+  given nullable: [A] => (decoder: JsonDecoder[A]) => JsonDecoder[Nullable[A]] = NullableDecoder(decoder)
   given specified: [A] => (decoder: JsonDecoder[A]) => JsonDecoder[Specified[A]] = SpecifiedDecoder(decoder)
 
   given arraySeq: [A] => (decoder: JsonDecoder[A]) => JsonDecoder[ArraySeq[A]] = ArraySeqDecoder(decoder)
@@ -217,6 +218,12 @@ object JsonDecoder extends Derivable[JsonDecoder.ObjectDecoder], JsonDecoderLowP
       case _         => decoder.decodeJsonAST(ast).map(_.some)
     override val onMissingFromObject: Option[Option[A]] =
       None.some
+  }
+
+  final case class NullableDecoder[A](decoder: JsonDecoder[A]) extends JsonDecoder[Nullable[A]] {
+    override def decodeJsonAST(ast: Json): Either[JsonError, Nullable[A]] = ast match
+      case Json.Null => Nullable.none.asRight
+      case _         => decoder.decodeJsonAST(ast).map(Nullable.some)
   }
 
   final case class SpecifiedDecoder[A](decoder: JsonDecoder[A]) extends JsonDecoder[Specified[A]] {

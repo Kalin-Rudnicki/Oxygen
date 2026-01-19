@@ -211,6 +211,7 @@ object RawCompiledJsonSchema {
       case I.IntermediateRepr.JsonNumber(numberFormat)           => (typeIdentifier, Lazy(RawCompiledJsonSchema.JsonNumber(numberFormat))).asRight
       case I.IntermediateRepr.JsonAST(specificType)              => (typeIdentifier, Lazy(RawCompiledJsonSchema.JsonAST(specificType))).asRight
       case I.IntermediateRepr.JsonOption(jsonRef)                => CompiledSchemaRef.JsonOption(CompiledSchemaRef.resolveJson(jsonRef, reprs)).asLeft
+      case I.IntermediateRepr.JsonNullable(jsonRef)              => CompiledSchemaRef.JsonNullable(CompiledSchemaRef.resolveJson(jsonRef, reprs)).asLeft
       case I.IntermediateRepr.JsonSpecified(jsonRef)             => CompiledSchemaRef.JsonSpecified(CompiledSchemaRef.resolveJson(jsonRef, reprs)).asLeft
       case I.IntermediateRepr.JsonArray(jsonRef)                 => CompiledSchemaRef.JsonArray(CompiledSchemaRef.resolveJson(jsonRef, reprs)).asLeft
       case I.IntermediateRepr.JsonMap(keyPlainRef, valueJsonRef) =>

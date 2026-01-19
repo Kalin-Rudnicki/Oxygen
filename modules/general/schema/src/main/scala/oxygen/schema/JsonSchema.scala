@@ -64,6 +64,7 @@ object JsonSchema extends Derivable[JsonSchema.ObjectLike], JsonSchemaLowPriorit
   given bigDecimal: JsonSchema[BigDecimal] = NumberSchema(TypeTag[BigDecimal], NumberFormat.BigDecimal, JsonEncoder.bigDecimal, JsonDecoder.bigDecimal)
 
   given option: [A: JsonSchema as underlying] => JsonSchema[Option[A]] = OptionSchema(underlying)
+  given nullable: [A: JsonSchema as underlying] => JsonSchema[Nullable[A]] = NullableSchema(underlying)
   given specified: [A: JsonSchema as underlying] => JsonSchema[Specified[A]] = SpecifiedSchema(underlying)
   given arraySeq: [A: {JsonSchema as underlying, TypeTag}] => JsonSchema[ArraySeq[A]] =
     ArraySchema(underlying, TypeTag.derived, JsonEncoder.arraySeq[A](using underlying.jsonEncoder), JsonDecoder.arraySeq[A](using underlying.jsonDecoder))
@@ -173,6 +174,22 @@ object JsonSchema extends Derivable[JsonSchema.ObjectLike], JsonSchemaLowPriorit
 
     override val jsonEncoder: JsonEncoder[Option[A]] = JsonEncoder.option(using underlying.jsonEncoder)
     override val jsonDecoder: JsonDecoder[Option[A]] = JsonDecoder.option(using underlying.jsonDecoder)
+
+  }
+
+  private[schema] final case class NullableSchema[A] private[JsonSchema] (
+      underlying: JsonSchema[A],
+  ) extends JsonSchema.NonProductLike[Nullable[A]] {
+
+    override val typeTag: TypeTag[Nullable[A]] = {
+      given TypeTag[A] = underlying.typeTag
+      TypeTag.derived
+    }
+
+    override protected def __internalReferenceOf(builder: SchemaLike.ReferenceBuilder): String = s"JsonOption(${builder.referenceOf(underlying)})"
+
+    override val jsonEncoder: JsonEncoder[Nullable[A]] = JsonEncoder.nullable(using underlying.jsonEncoder)
+    override val jsonDecoder: JsonDecoder[Nullable[A]] = JsonDecoder.nullable(using underlying.jsonDecoder)
 
   }
 

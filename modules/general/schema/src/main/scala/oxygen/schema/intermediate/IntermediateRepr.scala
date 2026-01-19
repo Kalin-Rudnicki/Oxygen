@@ -34,6 +34,7 @@ object IntermediateRepr {
   final case class JsonNumber(numberFormat: NumberFormat) extends JsonRepr
   final case class JsonAST(specificType: Option[Json.Type]) extends JsonRepr
   final case class JsonOption(jsonRef: IntermediateTypeRef.Json) extends JsonRepr
+  final case class JsonNullable(jsonRef: IntermediateTypeRef.Json) extends JsonRepr
   final case class JsonSpecified(jsonRef: IntermediateTypeRef.Json) extends JsonRepr
   final case class JsonArray(jsonRef: IntermediateTypeRef.Json) extends JsonRepr
   final case class JsonMap(keyPlainRef: IntermediateTypeRef.Plain, valueJsonRef: IntermediateTypeRef.Json) extends JsonRepr
@@ -116,6 +117,9 @@ object IntermediateRepr {
         case schema: JsonSchema.OptionSchema[?] =>
           val gen = compileJson(schema.underlying, input)
           gen.withJson(schema, JsonOption(gen.ref))
+        case schema: JsonSchema.NullableSchema[?] =>
+          val gen = compileJson(schema.underlying, input)
+          gen.withJson(schema, JsonNullable(gen.ref))
         case schema: JsonSchema.SpecifiedSchema[?] =>
           val gen = compileJson(schema.underlying, input)
           gen.withJson(schema, JsonSpecified(gen.ref))
