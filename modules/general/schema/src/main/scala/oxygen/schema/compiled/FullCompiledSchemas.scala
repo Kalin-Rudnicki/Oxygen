@@ -78,6 +78,8 @@ final case class FullCompiledSchemas(rawSchemas: RawCompiledSchemas) {
           FullCompiledJsonSchema.JsonString(ref, mutableInternalState.resolvePlain(plainRef))
         case CompiledSchemaRef.JsonOption(elemType) =>
           mutableInternalState.resolveJson(elemType).value // TODO (KR) : might need to keep some representation of nullable
+        case CompiledSchemaRef.JsonNullable(elemType) =>
+          mutableInternalState.resolveJson(elemType).value // TODO (KR) : might need to keep some representation of nullable
         case CompiledSchemaRef.JsonSpecified(elemType) =>
           mutableInternalState.resolveJson(elemType).value
         case ref @ CompiledSchemaRef.JsonArray(elemType) =>

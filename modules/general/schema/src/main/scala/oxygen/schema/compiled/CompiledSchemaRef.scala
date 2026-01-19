@@ -16,6 +16,7 @@ sealed trait CompiledSchemaRef derives JsonCodec {
     case CompiledSchemaRef.FormattedText(ref, _)    => ref.primaryReference
     case CompiledSchemaRef.BearerToken(payloadType) => payloadType.primaryReference
     case CompiledSchemaRef.JsonOption(elemType)     => elemType.primaryReference
+    case CompiledSchemaRef.JsonNullable(elemType)   => elemType.primaryReference
     case CompiledSchemaRef.JsonSpecified(elemType)  => elemType.primaryReference
     case CompiledSchemaRef.JsonArray(elemType)      => elemType.primaryReference
     case CompiledSchemaRef.JsonMap(_, valueType)    => valueType.primaryReference
@@ -31,6 +32,7 @@ sealed trait CompiledSchemaRef derives JsonCodec {
     case CompiledSchemaRef.JsonArray(elemType)         => s"Array<${elemType.showBase}>"
     case CompiledSchemaRef.JsonMap(keyType, valueType) => s"Map<key=${keyType.showBase},value=${valueType.showBase}>"
     case CompiledSchemaRef.JsonOption(elemType)        => s"Option<${elemType.showBase}>"
+    case CompiledSchemaRef.JsonNullable(elemType)      => s"Nullable<${elemType.showBase}>"
     case CompiledSchemaRef.JsonSpecified(elemType)     => s"Specified<${elemType.showBase}>"
 
   final lazy val coreType: String = this match
@@ -98,6 +100,7 @@ object CompiledSchemaRef {
     final def toConcrete: CompiledSchemaRef.JsonConcrete = this match
       case concrete: JsonConcrete  => concrete
       case JsonOption(elemType)    => elemType.toConcrete
+      case JsonNullable(elemType)  => elemType.toConcrete
       case JsonSpecified(elemType) => elemType.toConcrete
 
     override def mapTypeIdentifier(f: TypeIdentifier.MapFunction): CompiledSchemaRef.JsonLike
@@ -129,6 +132,9 @@ object CompiledSchemaRef {
   final case class JsonOption(elemType: JsonLike) extends JsonLike {
     override def mapTypeIdentifier(f: TypeIdentifier.MapFunction): CompiledSchemaRef.JsonOption = JsonOption(elemType.mapTypeIdentifier(f))
   }
+  final case class JsonNullable(elemType: JsonLike) extends JsonLike {
+    override def mapTypeIdentifier(f: TypeIdentifier.MapFunction): CompiledSchemaRef.JsonNullable = JsonNullable(elemType.mapTypeIdentifier(f))
+  }
   final case class JsonSpecified(elemType: JsonLike) extends JsonLike {
     override def mapTypeIdentifier(f: TypeIdentifier.MapFunction): CompiledSchemaRef.JsonSpecified = JsonSpecified(elemType.mapTypeIdentifier(f))
   }
@@ -155,6 +161,9 @@ object CompiledSchemaRef {
         case I.IntermediateRepr.JsonOption(elemType)                 =>
           val (resolvedUnderlying, _, _) = rec(elemType)
           (resolvedUnderlying, true, RawCompiledJsonSchema.ProductField.DecodeMissingAs.Null.some)
+        case I.IntermediateRepr.JsonNullable(elemType) =>
+          val (resolvedUnderlying, _, _) = rec(elemType)
+          (resolvedUnderlying, true, None)
         case I.IntermediateRepr.JsonSpecified(elemType) =>
           val (resolvedUnderlying, underlyingNullable, _) = rec(elemType)
           (resolvedUnderlying, underlyingNullable, RawCompiledJsonSchema.ProductField.DecodeMissingAs.Undefined.some)

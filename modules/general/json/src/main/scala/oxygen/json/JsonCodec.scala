@@ -59,6 +59,7 @@ object JsonCodec extends JsonCodecLowPriority.LowPriority1 {
   given byte: JsonCodec[Byte] = fromEncoderAndDecoder
 
   given option: [A: JsonCodec] => JsonCodec[Option[A]] = fromEncoderAndDecoder
+  given nullable: [A: JsonCodec] => JsonCodec[Nullable[A]] = fromEncoderAndDecoder
   given specified: [A: JsonCodec] => JsonCodec[Specified[A]] = fromEncoderAndDecoder
 
   given arraySeq: [A] => (encoder: JsonCodec[A]) => JsonCodec[ArraySeq[A]] = fromEncoderAndDecoder
