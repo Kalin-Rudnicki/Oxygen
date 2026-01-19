@@ -670,8 +670,9 @@ lazy val `example-web-server`: Project =
       mainClass := Some("oxygen.example.webServer.WebServerMain"),
       assemblyJarName := "../../../../../target/artifacts/jars/example-web-server.jar",
       assemblyMergeStrategy := {
-        case PathList("META-INF", _*) => MergeStrategy.discard
-        case _                        => MergeStrategy.first // Use default for other files
+        case PathList("META-INF", "native-image", _*) => MergeStrategy.concat
+        case PathList("META-INF", _*)                 => MergeStrategy.discard
+        case _                                        => MergeStrategy.first // Use default for other files
       },
     )
     .dependsOn(
