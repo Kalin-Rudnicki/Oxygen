@@ -4,7 +4,7 @@ import java.nio.charset.StandardCharsets
 import java.security.*
 import javax.crypto.{Mac, SecretKey}
 import javax.crypto.spec.SecretKeySpec
-import oxygen.crypto.model.*
+import oxygen.crypto.model.{Signature as _, *}
 import oxygen.json.jsonDiscriminator
 import oxygen.predef.core.*
 import oxygen.predef.json.*
