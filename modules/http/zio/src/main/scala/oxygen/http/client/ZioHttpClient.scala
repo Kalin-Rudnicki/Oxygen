@@ -5,25 +5,23 @@ import zio.http.{Request, Response, URL}
 
 final case class ZioHttpClient(
     rawClient: RawClient,
-    config: oxygen.http.client.Client.Config,
 ) extends Client {
+
+  override def config: Client.Config = Client.Config(rawClient.client.url.kind, rawClient.client.url.path)
 
   override def send(request: SendRequest, extras: Client.RequestExtras): RIO[Scope, Response] = {
     val baseEffect: RIO[Scope, Response] =
       for {
-        fullRequest <- ZIO.succeed {
+        rawRequest <- ZIO.succeed {
           Request(
-            version = rawClient.client.version,
             method = request.method,
-            url = URL(path = (config.path ++ request.path).addLeadingSlash, kind = config.kind, queryParams = request.queryParams),
+            url = URL(path = request.path.addLeadingSlash, queryParams = request.queryParams),
             headers = request.headers,
             body = request.body,
-            remoteAddress = None,
-            remoteCertificate = None,
           )
         }
-        _ <- ZIO.logDebug(s"Sending request [${fullRequest.method}] ${fullRequest.url.encode}")
-        response <- rawClient.client.request(fullRequest)
+        _ <- ZIO.logDebug(s"Sending request [${rawRequest.method}] ${rawRequest.url.encode}")
+        response <- rawClient.client.request(rawRequest)
         _ <- ZIO.logDebug(s"Response status: ${response.status}")
       } yield response
 

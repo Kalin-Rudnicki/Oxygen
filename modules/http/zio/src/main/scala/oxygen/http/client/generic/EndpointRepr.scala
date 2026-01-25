@@ -133,12 +133,36 @@ object EndpointRepr {
   }
 
   //////////////////////////////////////////////////////////////////////////////////////////////////////
+  //      FromLines
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
+
+  final class FromLines[Api](val route: RouteRepr.ReturningLines[Api], val classSym: Symbol) extends EndpointRepr[Api] {
+    import route.given
+
+    override type Out = LineStream[route.ErrorOut, route.SuccessOut]
+    override val outTpe: Type[Out] = Type.of[Out]
+
+    override protected def makeImpl(using Quotes): Expr[DerivedClientEndpointImpl[In, LineStream[route.ErrorOut, route.SuccessOut]]] =
+      '{
+        DerivedClientEndpointImpl.FromLines[route.In, route.ErrorOut, route.SuccessOut](
+          extras = $extrasExpr,
+          requestCodec = ${ route.requestCodec },
+          errorResponseCodec = ${ route.errorResponseCodec },
+          schema = ${ route.successSchema },
+          clientErrorHandler = $clientErrorHandlerExpr,
+        )
+      }
+
+  }
+
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
   //      Entry/Helpers
   //////////////////////////////////////////////////////////////////////////////////////////////////////
 
   def apply[Api](route: RouteRepr[Api], classSym: Symbol): EndpointRepr[Api] =
     route match
-      case route: RouteRepr.ReturningZIO[Api] => EndpointRepr.FromZIO[Api](route, classSym)
-      case route: RouteRepr.ReturningSSE[Api] => EndpointRepr.FromSSE[Api](route, classSym)
+      case route: RouteRepr.ReturningZIO[Api]   => EndpointRepr.FromZIO[Api](route, classSym)
+      case route: RouteRepr.ReturningSSE[Api]   => EndpointRepr.FromSSE[Api](route, classSym)
+      case route: RouteRepr.ReturningLines[Api] => EndpointRepr.FromLines[Api](route, classSym)
 
 }

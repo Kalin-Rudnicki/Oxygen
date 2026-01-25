@@ -100,12 +100,44 @@ object EndpointRepr {
   }
 
   //////////////////////////////////////////////////////////////////////////////////////////////////////
+  //      FromLines
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
+
+  final class FromLines[Api](val route: RouteRepr.ReturningLines[Api]) extends EndpointRepr[Api] {
+    import route.given
+
+    override protected def makeImpl(using Quotes): Expr[DerivedServerEndpointImpl[Api, In]] =
+      '{
+        DerivedServerEndpointImpl.FromSSE[Api, route.In, route.ErrorOut, route.SuccessOut](
+          apiName = ${ Expr(route.derivedApiName) },
+          endpointName = ${ Expr(route.derivedEndpointName) },
+          doc = ${ Expr(route.defDefDoc) },
+          requestCodec = ${ route.requestCodec },
+          errorResponseCodec = ${ route.errorResponseCodec },
+          schema = ${ route.successSchema },
+          serverErrorHandler = $serverErrorHandlerExpr,
+          impl = { (api: Api, in: route.In) =>
+            ${
+              val apiTerm: Term = 'api.toTerm
+              val inExpr: Expr[route.In] = 'in
+              val paramTerms: List[Term] = route.inExprToParamOrderTerms(inExpr)
+              val appliedTerm: Term = apiTerm.select(route.defDef.symbol).appliedToArgs(paramTerms)
+              appliedTerm.asExprOf[ServerSentEvents[route.ErrorOut, route.SuccessOut]]
+            }
+          },
+        )
+      }
+
+  }
+
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
   //      Entry/Helpers
   //////////////////////////////////////////////////////////////////////////////////////////////////////
 
   def apply[Api](route: RouteRepr[Api]): EndpointRepr[Api] =
     route match
-      case route: RouteRepr.ReturningZIO[Api] => EndpointRepr.FromZIO[Api](route)
-      case route: RouteRepr.ReturningSSE[Api] => EndpointRepr.FromSSE[Api](route)
+      case route: RouteRepr.ReturningZIO[Api]   => EndpointRepr.FromZIO[Api](route)
+      case route: RouteRepr.ReturningSSE[Api]   => EndpointRepr.FromSSE[Api](route)
+      case route: RouteRepr.ReturningLines[Api] => EndpointRepr.FromLines[Api](route)
 
 }

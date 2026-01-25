@@ -5,7 +5,7 @@ import zio.http.*
 
 trait Client {
 
-  val config: Client.Config
+  def config: Client.Config
 
   def send(request: SendRequest, extras: Client.RequestExtras): RIO[Scope, Response]
 
@@ -18,7 +18,12 @@ object Client {
   final case class Config(
       kind: URL.Location,
       path: Path,
-  )
+  ) {
+
+    def >>(client: RawClient): RawClient =
+      RawClient(client.client.url(URL(kind = kind, path = path)))
+
+  }
   object Config {
 
     val relativeUrl: Config =
@@ -33,6 +38,9 @@ object Client {
         } yield Config(url.kind, url.path)
       }
 
+    def fromClient(client: RawClient): Config =
+      Config(client.client.url.kind, client.client.url.path)
+
   }
 
   final case class RequestExtras(
@@ -42,8 +50,12 @@ object Client {
 
   object layer {
 
+    // I hate this `.fresh` so much, but ZLayer is being stupid: https://github.com/zio/zio/issues/10185
     val live: URLayer[RawClient & oxygen.http.client.Client.Config, oxygen.http.client.Client] =
-      ZLayer.fromFunction { ZioHttpClient(_, _) }.fresh // I hate this `.fresh` so much, but ZLayer is being stupid: https://github.com/zio/zio/issues/10185
+      ZLayer.fromFunction { (client: RawClient, cfg: oxygen.http.client.Client.Config) => ZioHttpClient(cfg >> client) }.fresh
+
+    val raw: URLayer[RawClient, oxygen.http.client.Client] =
+      ZLayer.fromFunction { ZioHttpClient.apply }.fresh
 
     val default: RLayer[oxygen.http.client.Client.Config, oxygen.http.client.Client] =
       RawClient.default >>> live

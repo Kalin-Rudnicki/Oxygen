@@ -125,6 +125,45 @@ object DerivedServerEndpointImpl {
   }
 
   //////////////////////////////////////////////////////////////////////////////////////////////////////
+  //      FromLines
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
+
+  final case class FromLines[Api, In, E, A](
+      apiName: String,
+      endpointName: String,
+      doc: Option[String],
+      requestCodec: RequestCodec[In],
+      errorResponseCodec: ResponseCodec[E],
+      schema: AnySchemaT[A],
+      serverErrorHandler: ServerErrorHandler[E],
+      impl: (Api, In) => LineStream[E, A],
+  ) extends DerivedServerEndpointImpl[Api, In] {
+
+    private val linesResponseCodec: ResponseCodec[Stream[ResponseDecodingFailure, A]] =
+      ResponseCodec.Standard(StatusCodes.Exact(Status.Ok), ResponseCodecNoStatus.lineStreamBody(schema))
+
+    override protected def convertError(cause: Cause[RequestDecodingFailure], errorConfig: ServerErrorConfig): URIO[Scope, Response] =
+      decodingFailureCauseToResponse(cause, errorConfig, serverErrorHandler, errorResponseCodec)
+
+    override protected def convertSuccess(api: Api)(in: In, errorConfig: ServerErrorConfig): URIO[Scope, Response] =
+      impl(api, in).raw.foldCauseZIO(
+        typedFailureCauseToResponse(_, errorConfig, serverErrorHandler, errorResponseCodec),
+        value => ZIO.succeed(linesResponseCodec.encodeResponse(value)),
+      )
+
+    override protected def makeSchema: EndpointSchema =
+      EndpointSchema(
+        apiName = apiName.some,
+        endpointName = endpointName,
+        requestSchema = requestCodec.schemaAggregator.unsafeBuild(apiName, endpointName),
+        successResponseSchema = linesResponseCodec.unsafeBuild(apiName, endpointName),
+        errorResponseSchema = errorResponseCodec.unsafeBuild(apiName, endpointName),
+        doc = doc,
+      )
+
+  }
+
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
   //      Helpers
   //////////////////////////////////////////////////////////////////////////////////////////////////////
 

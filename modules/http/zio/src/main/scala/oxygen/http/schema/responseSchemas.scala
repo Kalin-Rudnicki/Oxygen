@@ -23,4 +23,8 @@ object ResponseBodySchema {
       schema: AnySchema,
   ) extends NonEmpty
 
+  final case class LineStream(
+      schema: AnySchema,
+  ) extends NonEmpty
+
 }
