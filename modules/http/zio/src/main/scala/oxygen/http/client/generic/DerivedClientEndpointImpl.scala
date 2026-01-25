@@ -94,6 +94,31 @@ object DerivedClientEndpointImpl {
   }
 
   //////////////////////////////////////////////////////////////////////////////////////////////////////
+  //      FromLines
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
+
+  final case class FromLines[In, E, A](
+      extras: Client.RequestExtras,
+      requestCodec: RequestCodec[In],
+      errorResponseCodec: ResponseCodec[E],
+      schema: AnySchemaT[A],
+      clientErrorHandler: ClientErrorHandler[E],
+  ) extends DerivedClientEndpointImpl[In, LineStream[E, A]] {
+
+    private val linesResponseCodec: ResponseCodec[Stream[ResponseDecodingFailure, A]] =
+      ResponseCodec.Standard(StatusCodes.Exact(Status.Ok), ResponseCodecNoStatus.lineStreamBody(schema))
+
+    override protected def makeOut(responseEffect: RIO[Scope, ReceivedResponse]): LineStream[E, A] =
+      LineStream.makeRaw {
+        for {
+          response <- responseEffect.convertErrors(clientErrorHandler)
+          stream <- handleResponse(response, errorResponseCodec, linesResponseCodec, clientErrorHandler)
+        } yield stream.orDie // TODO (KR) : can we do better than dying here?
+      }
+
+  }
+
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
   //      Helpers
   //////////////////////////////////////////////////////////////////////////////////////////////////////
 

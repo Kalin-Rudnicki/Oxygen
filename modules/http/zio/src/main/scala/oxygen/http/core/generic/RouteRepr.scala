@@ -9,10 +9,11 @@ import oxygen.meta.k0.*
 import oxygen.predef.core.*
 import oxygen.quoted.*
 import oxygen.schema.*
+import oxygen.zio.instances.given
 import scala.annotation.tailrec
 import scala.quoted.*
 import zio.*
-import zio.http.{Method, Status}
+import zio.http.{Method, QueryParams, Status}
 
 sealed abstract class RouteRepr[Api](
     final val defDef: DefDef,
@@ -75,7 +76,12 @@ sealed abstract class RouteRepr[Api](
     case _                             => fail("Function must have single parameter group with no type params")
 
   private val valDefs: List[ValDef] = termParamClause.params
-  private val pathList: List[String] = routeAnnotValue.url.split('/').toList.map(_.trim).filter(_.nonEmpty)
+  private val (rawPath, rawQueryParams): (String, String) = routeAnnotValue.url.split('?').toList match
+    case path :: Nil       => (path, "")
+    case path :: qp :: Nil => (path, qp.trim)
+    case _                 => report.errorAndAbort("multiple '?' in path..?")
+  private val pathList: List[String] = rawPath.split('/').toList.map(_.trim).filter(_.nonEmpty)
+  val queryParams: Option[QueryParams] = Option.when(rawQueryParams.nonEmpty)(QueryParams.decode(rawQueryParams))
 
   if pathList.contains("..") then report.errorAndAbort("path contains \"..\"")
 
@@ -186,7 +192,7 @@ sealed abstract class RouteRepr[Api](
       case None => baseRequestCodec
 
   private def baseRequestCodec(using Quotes): Expr[RequestCodec[In]] =
-    requestCodecRec(allParamsInParseOrder.toList, Nil)
+    requestCodecRec(allParamsInParseOrder.toList, Nil, queryParams)
 
   /////// Abstract ///////////////////////////////////////////////////////////////
 
@@ -197,10 +203,11 @@ sealed abstract class RouteRepr[Api](
   private def requestCodecRec(
       queue: List[ParamRepr[?]],
       rParamStack: List[ParamRepr.WithCodec[?]],
+      queryParams: Option[QueryParams],
   )(using Quotes): Expr[RequestCodec[In]] =
     queue match {
       case head :: tail =>
-        head.usingCodec[RequestCodec[In]] { wc => requestCodecRec(tail, wc :: rParamStack) }
+        head.usingCodec[RequestCodec[In]] { wc => requestCodecRec(tail, wc :: rParamStack, queryParams) }
       case Nil =>
         val params: List[ParamRepr.WithCodec[?]] = rParamStack.reverse
         '{
@@ -233,8 +240,15 @@ sealed abstract class RouteRepr[Api](
             override def decodeInternal(remainingPaths: List[String], request: ReceivedRequest): IntermediateRequestParseResult[In] =
               ${ decodeRec('remainingPaths, 'request, params, Nil) }
 
-            override def encodeInternal(value: In, acc: RequestBuilder): RequestBuilder =
-              ${ encodeRec(inExprToParseOrderTerms('value), 'acc, params) }
+            override def encodeInternal(value: In, acc: RequestBuilder): RequestBuilder = {
+              val tmpBuilder: RequestBuilder = ${ encodeRec(inExprToParseOrderTerms('value), 'acc, params) }
+              ${
+                queryParams match {
+                  case Some(queryParams) => '{ tmpBuilder.addQueryParams(${ Growable.many(queryParams.map.toSeq).map(Expr(_)).seqToExpr }) }
+                  case None              => 'tmpBuilder
+                }
+              }
+            }
 
           }
         }
@@ -479,6 +493,44 @@ object RouteRepr {
   }
 
   //////////////////////////////////////////////////////////////////////////////////////////////////////
+  //      ReturningLines
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
+
+  final class ReturningLines[Api](
+      defDef: DefDef,
+      _apiType: Type[Api],
+      _errorOutTypeRepr: TypeRepr,
+      _successOutTypeRepr: TypeRepr,
+      _quotes: Quotes,
+  ) extends RouteRepr[Api](defDef, _apiType, _errorOutTypeRepr, _successOutTypeRepr, _quotes) {
+
+    def errorResponseCodec(using Quotes): Expr[ResponseCodec[ErrorOut]] =
+      deriveResponseCodec[ErrorOut]("error", Status.BadRequest)
+    def successSchema(using Quotes): Expr[AnySchemaT[SuccessOut]] = // TODO (KR) : have the ability to prefer json schema over plain-text schema
+      Implicits.searchOption[PlainTextSchema[SuccessOut]].getOrElse {
+        Implicits.searchOption[JsonSchema[SuccessOut]].getOrElse {
+          this.fail(
+            s"""Unable to derive ResponseCodec for LineStream success type: ${TypeRepr.of[SuccessOut].showAnsiCode}.
+              |
+               |Oxygen looks for typeclass instances in the following order:
+               |1. ${TypeRepr.of[oxygen.schema.PlainTextSchema[SuccessOut]].showAnsiCode}
+               |2. ${TypeRepr.of[oxygen.schema.JsonSchema[SuccessOut]].showAnsiCode}
+              |""".stripMargin,
+          )
+        }
+      }
+
+    override def toIndentedString: IndentedString =
+      IndentedString.section(
+        s"[LineStream Endpoint] < error = ${errorOutType.toTypeRepr.showAnsiCode}, success = ${successOutType.toTypeRepr.showAnsiCode}> ${defDef.name}:",
+      )(
+        IndentedString.section("params:")(allParamsInParseOrder.map(_.toIndentedString)*),
+        IndentedString.section("function params:")(functionParamsInParamOrder.map(_.toIndentedString)*),
+      )
+
+  }
+
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
   //      derive
   //////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -507,6 +559,7 @@ object RouteRepr {
       case '[ZIO[Any, e, a]]         => ReturningZIO(defDef, apiTpe, TypeRepr.of[e], TypeRepr.of[a], quotes)(false, TypeRepr.of[Any])
       case '[ZIO[Scope, e, a]]       => ReturningZIO(defDef, apiTpe, TypeRepr.of[e], TypeRepr.of[a], quotes)(true, TypeRepr.of[Scope])
       case '[ServerSentEvents[e, a]] => ReturningSSE(defDef, apiTpe, TypeRepr.of[e], TypeRepr.of[a], quotes)
+      case '[LineStream[e, a]]       => ReturningLines(defDef, apiTpe, TypeRepr.of[e], TypeRepr.of[a], quotes)
       case '[ZIO[r, _, _]]           => fail[Api](defDef)(s"Function returns a ZIO, but R type is not `Scope` or `Any`: ${TypeRepr.of[r].showAnsiCode}")
       case _ => fail[Api](defDef)(s"Function returns unknown type.\nExpected one of:${supportedTypeString.map { s => s"\n  - $s" }.mkString}\nGot: ${apiTpe.toTypeRepr.showAnsiCode}")
 

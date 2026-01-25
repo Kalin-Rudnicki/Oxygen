@@ -15,6 +15,8 @@ sealed trait PartialBodyCodec[A] {
   def decode(body: ReadOnlyCachedHttpBody): ZIO[Scope, DecodingFailureCause, A]
   def encode(value: A): Body
 
+  final def withMediaType(mediaType: MediaType): PartialBodyCodec[A] = PartialBodyCodec.WithMediaType(this, mediaType)
+
 }
 object PartialBodyCodec extends PartialBodyCodecLowPriority.LowPriority1 {
 
@@ -38,6 +40,15 @@ object PartialBodyCodec extends PartialBodyCodecLowPriority.LowPriority1 {
 
     override def encode(value: Unit): Body = Body.empty
 
+  }
+
+  final case class WithMediaType[A](
+      underlying: PartialBodyCodec[A],
+      mediaType: MediaType,
+  ) extends PartialBodyCodec[A] {
+    override val partialBodySchema: PartialBodySchema = underlying.partialBodySchema
+    override def decode(body: ReadOnlyCachedHttpBody): ZIO[Scope, DecodingFailureCause, A] = underlying.decode(body)
+    override def encode(value: A): Body = underlying.encode(value).contentType(mediaType)
   }
 
   sealed trait Single[A] extends PartialBodyCodec[A] {
@@ -106,6 +117,38 @@ object PartialBodyCodec extends PartialBodyCodecLowPriority.LowPriority1 {
           .map { event => event.copy(data = schema.encode(event.data)) }
       val rawBytes: Stream[Throwable, Byte] =
         encodedSSE >>> ZioHttpCompat.rawEventBinaryCodec.streamEncoder
+
+      Body.fromStreamChunked(rawBytes).contentType(MediaType.text.`event-stream`)
+    }
+
+  }
+
+  final case class LineStream[A](schema: AnySchemaT[A]) extends PartialBodyCodec[Stream[DecodingFailureCause, A]] {
+
+    override val partialBodySchema: PartialBodySchema.ServerSentEvents = PartialBodySchema.ServerSentEvents(schema)
+
+    override def decode(body: ReadOnlyCachedHttpBody): ZIO[Scope, DecodingFailureCause, Stream[DecodingFailureCause, A]] =
+      ZIO.succeed {
+        val rawLines: Stream[Throwable, String] =
+          body.asStream >>> ZPipeline.utf8Decode >>> ZPipeline.splitLines
+        val decodedSSE: Stream[DecodingFailureCause, A] =
+          rawLines.mapError { e => DecodingFailureCause.ExecutionFailure(e) }.mapZIO { event =>
+            schema.decode(event) match {
+              case Right(value) => ZIO.succeed(value)
+              case Left(error)  => ZIO.fail(DecodingFailureCause.DecodeError(error, DecodingFailureCause.DecodeInput.BodySSE(event)))
+            }
+          }
+
+        decodedSSE
+      }
+
+    override def encode(value: Stream[DecodingFailureCause, A]): Body = {
+      val encodedLines: Stream[Throwable, String] =
+        value
+          .orDieWith { c => new RuntimeException(c.toString) } // really its only the responses that can fail
+          .map { event => schema.encode(event) }
+      val rawBytes: Stream[Throwable, Byte] =
+        (encodedLines >>> ZPipeline.intersperse("\n")) >>> ZPipeline.utf8Encode
 
       Body.fromStreamChunked(rawBytes).contentType(MediaType.text.`event-stream`)
     }

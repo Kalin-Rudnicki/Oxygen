@@ -51,6 +51,8 @@ sealed trait RequestCodec[A] {
     )
   }
 
+  final def applied(value: A): RequestCodec[Unit] = RequestCodec.internal.Applied(this, value)
+
 }
 object RequestCodec {
 
@@ -348,6 +350,15 @@ object RequestCodec {
   }
 
   private[http] object internal {
+
+    final case class Applied[A](underlying: RequestCodec[A], value: A) extends RequestCodec.Custom[Unit] {
+      override lazy val sources: List[RequestDecodingFailure.Source] = underlying.sources
+      override lazy val schemaAggregator: RequestSchemaAggregator = underlying.schemaAggregator
+      override def matchesPathPatternInternal(path: List[String]): Option[List[String]] = underlying.matchesPathPatternInternal(path)
+      override def decodeInternal(remainingPaths: List[String], request: ReceivedRequest): IntermediateRequestParseResult[Unit] = // TODO (KR) : better way to do this?
+        IntermediateRequestParseResult.Success((), remainingPaths) // TODO (KR) : note, this wont work with paths
+      override def encodeInternal(value: Unit, acc: RequestBuilder): RequestBuilder = underlying.encodeInternal(this.value, acc)
+    }
 
     //////////////////////////////////////////////////////////////////////////////////////////////////////
     //      Shared
