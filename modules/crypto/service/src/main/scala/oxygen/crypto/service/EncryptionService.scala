@@ -1,79 +1,104 @@
 package oxygen.crypto.service
 
-import java.nio.charset.StandardCharsets
-import javax.crypto.Cipher
-import javax.crypto.spec.GCMParameterSpec
-import oxygen.crypto.model.{EncryptedValue, EncryptionError}
+import oxygen.crypto.model.*
+import oxygen.predef.core.*
+import scala.reflect.TypeTest
 import zio.*
 
-trait EncryptionService {
-
-  def encrypt(value: String): IO[EncryptionError, EncryptedValue]
-
-  def decrypt(value: EncryptedValue): IO[EncryptionError, String]
-
-}
 object EncryptionService {
 
-  def layer: URLayer[EncryptionKey, EncryptionService] = ZLayer.fromFunction { Live.apply }
-  def noOpLayer: ULayer[EncryptionService] = ZLayer.succeed { EncryptionService.Live(EncryptionKey.none) }
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
+  //      Encryptor
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
 
-  final class Live(key: EncryptionKey) extends EncryptionService {
+  trait Encryptor {
 
-    override def encrypt(value: String): IO[EncryptionError, EncryptedValue] =
-      key match {
-        case key: EncryptionKey.AES =>
-          for {
-            iv <- aes.genIV
-            cypher <- aes.encrypt(iv, key, value).mapError(EncryptionError.duringEncryption)
-          } yield EncryptedValue.IVCipher(iv, cypher).toEncryptedValue
-        case EncryptionKey.none =>
-          ZIO.succeed(EncryptedValue(value))
-      }
+    def encrypt(value: String): UIO[EncryptedValue]
 
-    override def decrypt(value: EncryptedValue): IO[EncryptionError, String] =
-      key match {
-        case key: EncryptionKey.AES =>
-          for {
-            ivCypher <- ZIO.fromTry { value.toIVCipher }.mapError(EncryptionError.duringDecryption)
-            decrypted <- aes.decrypt(ivCypher.iv, key, ivCypher.cypher).mapError(EncryptionError.duringDecryption)
-          } yield decrypted
-        case EncryptionKey.none =>
-          ZIO.succeed(value.value)
-      }
+    final def encryptFormatted(value: String): UIO[EncryptedValue.Formatted] = encrypt(value).map(_.format)
 
-    //////////////////////////////////////////////////////////////////////////////////////////////////////
-    //      AES
-    //////////////////////////////////////////////////////////////////////////////////////////////////////
+  }
+  object Encryptor {
 
-    private object aes {
+    final class SymmetricLive(key: EncryptionKey.Symmetric) extends Encryptor {
 
-      val genIV: UIO[EncryptedValue.IV] =
-        Random.nextBytes(12).map { bytes => EncryptedValue.IV(bytes.toArray) }
-
-      def initCypher(iv: EncryptedValue.IV, key: EncryptionKey.AES, mode: Int): Task[Cipher] =
-        for {
-          cipher <- ZIO.attempt { Cipher.getInstance("AES/GCM/NoPadding") }
-          gcmSpec <- ZIO.attempt { new GCMParameterSpec(128, iv.bytes) }
-          _ <- ZIO.attempt { cipher.init(mode, key.secretKey, gcmSpec) }
-        } yield cipher
-
-      def encrypt(iv: EncryptedValue.IV, key: EncryptionKey.AES, plainText: String): Task[EncryptedValue.Cypher] =
-        for {
-          cipher <- initCypher(iv, key, Cipher.ENCRYPT_MODE)
-          decrypted: Array[Byte] = plainText.getBytes(StandardCharsets.UTF_8)
-          encrypted: Array[Byte] <- ZIO.attempt { cipher.doFinal(decrypted) }
-        } yield EncryptedValue.Cypher(encrypted)
-
-      def decrypt(iv: EncryptedValue.IV, key: EncryptionKey.AES, cypher: EncryptedValue.Cypher): Task[String] =
-        for {
-          cipher <- initCypher(iv, key, Cipher.DECRYPT_MODE)
-          encrypted: Array[Byte] = cypher.bytes
-          decrypted: Array[Byte] <- ZIO.attempt { cipher.doFinal(encrypted) }
-        } yield new String(decrypted, StandardCharsets.UTF_8)
+      override def encrypt(value: String): UIO[SymmetricEncryptedValue] = attemptEncrypt { key.encrypt(value) }
 
     }
 
+    final class AsymmetricLive(key: EncryptionKey.CanEncrypt.Asymmetric) extends Encryptor {
+
+      override def encrypt(value: String): UIO[AsymmetricEncryptedValue] = attemptEncrypt { key.encrypt(value) }
+
+    }
+
+    def fromKey(key: EncryptionKey.CanEncrypt): Encryptor = key match
+      case key: EncryptionKey.Symmetric             => Encryptor.SymmetricLive(key)
+      case key: EncryptionKey.CanEncrypt.Asymmetric => Encryptor.AsymmetricLive(key)
+
+    def live: URLayer[EncryptionKey.CanEncrypt, EncryptionService.Encryptor] = ZLayer.fromFunction { EncryptionService.Encryptor.fromKey }
+    def untypedLive: URLayer[EncryptionKey, EncryptionService.Encryptor] = EncryptionService.narrowKeyLayer[EncryptionKey.CanEncrypt] >>> live
+
   }
+
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
+  //      Decryptor
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
+
+  trait Decryptor {
+
+    def decrypt(value: EncryptedValue): UIO[String]
+
+    final def decryptFormatted(formattedValue: EncryptedValue.Formatted): UIO[String] =
+      ZIO.attempt { formattedValue.unsafeParse }.catchAllCause { _ => ZIO.die(EncryptionError.MalformedEncryptedValue) }.flatMap(decrypt)
+
+  }
+  object Decryptor {
+
+    final class SymmetricLive(key: EncryptionKey.Symmetric) extends Decryptor {
+
+      override def decrypt(value: EncryptedValue): UIO[String] = value match
+        case value: SymmetricEncryptedValue => attemptDecrypt { key.decryptSymmetric(value) }
+        case _: AsymmetricEncryptedValue    => ZIO.die(EncryptionError.InvalidEncryptedValueType("symmetric", "asymmetric"))
+
+    }
+
+    final class AsymmetricLive(key: EncryptionKey.CanDecrypt.Asymmetric) extends Decryptor {
+
+      override def decrypt(value: EncryptedValue): UIO[String] = value match
+        case value: AsymmetricEncryptedValue => attemptDecrypt { key.decryptAsymmetric(value) }
+        case _: SymmetricEncryptedValue      => ZIO.die(EncryptionError.InvalidEncryptedValueType("asymmetric", "symmetric"))
+
+    }
+
+    def fromKey(key: EncryptionKey.CanDecrypt): Decryptor = key match
+      case key: EncryptionKey.Symmetric             => Decryptor.SymmetricLive(key)
+      case key: EncryptionKey.CanDecrypt.Asymmetric => Decryptor.AsymmetricLive(key)
+
+    def live: URLayer[EncryptionKey.CanDecrypt, EncryptionService.Decryptor] = ZLayer.fromFunction { EncryptionService.Decryptor.fromKey }
+    def untypedLive: URLayer[EncryptionKey, EncryptionService.Decryptor] = EncryptionService.narrowKeyLayer[EncryptionKey.CanDecrypt] >>> live
+
+  }
+
+  def live: URLayer[EncryptionKey.CanEncrypt & EncryptionKey.CanDecrypt, EncryptionService.Encryptor & EncryptionService.Decryptor] = Encryptor.live ++ Decryptor.live
+  def untypedLive: URLayer[EncryptionKey, EncryptionService.Encryptor & EncryptionService.Decryptor] = Encryptor.untypedLive ++ Decryptor.untypedLive
+
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
+  //      Helpers
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
+
+  private def attemptEncrypt[A](thunk: => A)(using Trace): UIO[A] =
+    ZIO.attempt { thunk }.mapError(EncryptionError.GenericEncryptionFailure(_)).!
+
+  private def attemptDecrypt[A](thunk: => A)(using Trace): UIO[A] =
+    ZIO.attempt { thunk }.mapError(EncryptionError.GenericDecryptionFailure(_)).!
+
+  private def narrowKeyLayer[A <: EncryptionKey: {TypeTag as tt, Tag}](using typeTest: TypeTest[EncryptionKey, A]): URLayer[EncryptionKey, A] =
+    ZLayer {
+      ZIO.serviceWithZIO[EncryptionKey] {
+        case typeTest(key) => ZIO.succeed(key)
+        case key           => ZIO.dieMessage(s"Invalid key type, [expected=${tt.prefixObject}] but got [actual=${TypeTag.fromClass(key.getClass).prefixObject}]")
+      }
+    }
 
 }

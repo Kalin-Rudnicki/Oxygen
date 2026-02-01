@@ -2,17 +2,23 @@ package oxygen.crypto.model
 
 import oxygen.predef.core.*
 
-enum EncryptionError extends Throwable {
+enum EncryptionError extends Error {
 
-  case MalformedEncryptedValue(value: String)
+  case MalformedEncryptedValue
+  case InvalidEncryptedValueType(expected: String, actual: String)
   case GenericEncryptionFailure(cause: Throwable)
   case GenericDecryptionFailure(cause: Throwable)
 
-  override final def toString: String = getMessage
-  override final def getMessage: String = this match
-    case EncryptionError.MalformedEncryptedValue(_)      => "Attempted to decrypt malformed encrypted value"
-    case EncryptionError.GenericEncryptionFailure(cause) => s"Error during encryption: ${cause.safeGetMessage}"
-    case EncryptionError.GenericDecryptionFailure(cause) => s"Error during decryption: ${cause.safeGetMessage}"
+  override final def errorMessage: Text = this match
+    case EncryptionError.MalformedEncryptedValue                     => str"Attempted to decrypt malformed encrypted value"
+    case EncryptionError.InvalidEncryptedValueType(expected, actual) => str"Invalid encrypted value type: [expected=$expected], but got [actual=$actual]"
+    case EncryptionError.GenericEncryptionFailure(cause)             => str"Error during encryption"
+    case EncryptionError.GenericDecryptionFailure(cause)             => str"Error during decryption"
+
+  override final def causes: ArraySeq[Error] = this match
+    case EncryptionError.GenericEncryptionFailure(cause) => ArraySeq(Error.fromThrowable(cause))
+    case EncryptionError.GenericDecryptionFailure(cause) => ArraySeq(Error.fromThrowable(cause))
+    case _                                               => ArraySeq.empty
 
 }
 object EncryptionError {
