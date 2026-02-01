@@ -32,7 +32,7 @@ object WebServerMain extends ExecutableApp {
     ) derives JsonCodec
 
     final case class Token(
-        key: HashKey.CanIssue.Config,
+        key: HashKey,
         timeToLive: Duration,
     ) derives JsonCodec
 
@@ -68,8 +68,8 @@ object WebServerMain extends ExecutableApp {
         MigrationConfig.defaultLayer,
         // token
         ZLayer.succeed(config.token.key),
-        ZLayer.succeed(JWTService.Issuer.Config(config.token.timeToLive)),
-        JWTService.Issuer.configLayer[User],
+        ZLayer.succeed(JWTService.Issuer.Config(JWTService.Issuer.ValidAfter.Empty, JWTService.Issuer.Expiry.IssueDelay(config.token.timeToLive))),
+        JWTService.Issuer.untypedKeyLayer[User],
         TokenService.layer,
         // repo
         PostgresUserRepo.layer,

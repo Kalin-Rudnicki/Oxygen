@@ -1,6 +1,6 @@
 package oxygen.example.api.service
 
-import oxygen.crypto.model.JWTError
+import oxygen.crypto.model.SignatureError
 import oxygen.crypto.service.*
 import oxygen.example.api.model.error.ApiError
 import oxygen.example.api.model.user.{User, UserToken}
@@ -30,10 +30,10 @@ object TokenService {
       jwtService
         .validateToken(token.jwt)
         .flatMapError {
-          case _: JWTError.InvalidAlgorithm => ZIO.succeed(ApiError.InvalidToken(None))
-          case JWTError.InvalidSignature    => ZIO.succeed(ApiError.InvalidToken(None))
-          case _: JWTError.Expired          => ZIO.succeed(ApiError.InvalidToken("Expired".some))
-          case e: JWTError.CryptoFailure    => ZIO.die(e)
+          case _: SignatureError.InvalidAlgorithm => ZIO.succeed(ApiError.InvalidToken(None))
+          case SignatureError.InvalidSignature    => ZIO.succeed(ApiError.InvalidToken(None))
+          case _: SignatureError.Expired          => ZIO.succeed(ApiError.InvalidToken("Expired".some))
+          case e                                  => ZIO.die(e)
         }
         .as(token.user.toDomain)
         .tap { user => ZIO.logAnnotateScoped("userId", user.id.id.toString) }

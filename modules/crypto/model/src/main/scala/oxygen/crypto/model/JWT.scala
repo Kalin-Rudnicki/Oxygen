@@ -2,8 +2,9 @@ package oxygen.crypto.model
 
 import java.time.Instant
 import java.util.UUID
+import oxygen.json.*
+import oxygen.json.syntax.json.*
 import oxygen.predef.core.*
-import oxygen.predef.json.*
 
 final case class JWT[A](
     payload: A,
@@ -14,10 +15,11 @@ object JWT {
   type Std[P] = JWT[StandardPayload[P]]
 
   final case class StandardPayload[P](
-      tokenId: UUID,
-      issuedAt: Instant,
-      expiresAt: Instant,
-      payload: P,
+      @jsonField("jti") tokenId: UUID,
+      @jsonField("iat") issuedAt: Instant,
+      @jsonField("nbf") validAfter: Option[Instant],
+      @jsonField("exp") expiresAt: Option[Instant],
+      @jsonFlatten payload: P,
   ) derives JsonCodec
 
   def decode[A: JsonDecoder](bearerToken: BearerToken): Either[String, JWT[A]] =

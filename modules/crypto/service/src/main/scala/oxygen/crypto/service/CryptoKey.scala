@@ -38,6 +38,9 @@ object CryptoKey {
     def fromDER(key: KeyFormat.DER): HS256 =
       HS256(new SecretKeySpec(key.bytes, "HmacSHA256"))
 
+    def fromPlain(key: String): HS256 =
+      HS256.fromDER(KeyFormat.DER(key.getBytes(StandardCharsets.UTF_8)))
+
     def fromBase64(key: KeyFormat.Base64): HS256 =
       HS256.fromDER(key.toDER)
 

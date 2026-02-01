@@ -19,6 +19,9 @@ final case class JsonCodec[A](
   def transformOrFail[B](ab: A => Either[String, B], ba: B => A): JsonCodec[B] =
     JsonCodec(encoder.contramap(ba), decoder.mapOrFail(ab))
 
+  def transformAttempt[B: TypeTag](ab: A => B, ba: B => A): JsonCodec[B] =
+    JsonCodec(encoder.contramap(ba), decoder.mapAttempt(ab))
+
   inline def autoTransform[B]: JsonCodec[B] = {
     val (ab, ba) = ProductGeneric.deriveTransform[A, B]
     transform(ab, ba)
