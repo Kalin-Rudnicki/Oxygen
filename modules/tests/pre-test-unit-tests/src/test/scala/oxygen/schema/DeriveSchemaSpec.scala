@@ -2,6 +2,7 @@ package oxygen.schema
 
 import java.time.*
 import oxygen.json.*
+import oxygen.json.syntax.build.*
 import oxygen.json.syntax.json.*
 import oxygen.predef.test.*
 import oxygen.schema.compiled.*
@@ -95,6 +96,10 @@ object DeriveSchemaSpec extends OxygenSpecDefault {
       wrapped3: Specified[Updated],
       wrapped4: Specified[Option[Updated]],
       wrapped5: Option[Specified[Updated]],
+  ) derives JsonSchema
+
+  final case class RawJsonField(
+      field: Json,
   ) derives JsonSchema
 
   override def testSpec: TestSpec =
@@ -211,6 +216,21 @@ object DeriveSchemaSpec extends OxygenSpecDefault {
         doExport.whenDiscard(exportFiles) *>
           assertCompletesZIO
       },
+      suite("misc")(
+        test("misc json obj") {
+          val init: RawJsonField = RawJsonField(Json.empty.addField("outer")(Json.empty.addFieldEncoded("inner", "line-1\nline-2")))
+          val initStr: String = JsonSchema[RawJsonField].encode(init)
+          val wrappedJson: Json = Json.string(initStr)
+          val finalString: String = wrappedJson.showCompact
+
+          val parsed: Either[String, RawJsonField] =
+            JsonSchema[String].decode(finalString).flatMap { str1 =>
+              JsonSchema[RawJsonField].decode(str1)
+            }
+
+          assert(parsed)(isRight(equalTo_filteredDiff(init)))
+        },
+      ),
     )
 
 }

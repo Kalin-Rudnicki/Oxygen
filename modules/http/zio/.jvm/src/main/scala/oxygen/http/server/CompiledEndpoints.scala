@@ -34,12 +34,17 @@ trait CompiledEndpoints {
         Handler.fromFunctionHandler[Request] { request =>
           Handler.fromZIO[Scope, Response, Response] {
             ZIO.scope.flatMap { scope =>
-              ReceivedRequest.fromRequest(request).flatMap { request =>
-                CurrentRequest.ref.locallyScoped(CurrentRequest(request, scope).some) *>
-                  ZIO.logInfoAnnotated("Handling http request", "method" -> request.method.name, "path" -> request.url.path.encode) *>
-                  handle(EndpointInput(request, config.errorConfig))
-                    .tapDefect { ZIO.logErrorCause("Unhandled defect", _) }
-              }
+              ReceivedRequest.fromRequest(request)
+                .flatMap { request =>
+                  CurrentRequest.ref.locallyScoped(CurrentRequest(request, scope).some) *>
+                    ZIO.logInfoAnnotated("Handling http request", "method" -> request.method.name, "path" -> request.url.path.encode) *>
+                    handle(EndpointInput(request, config.errorConfig))
+                      .tapDefect { ZIO.logErrorCause("Unhandled defect", _) }
+                }
+                .tapBoth(
+                  response => ZIO.logInfoAnnotated("Returning http response", "method" -> request.method.name, "path" -> request.url.path.encode, "code" -> response.status.code.toString),
+                  response => ZIO.logInfoAnnotated("Returning http response", "method" -> request.method.name, "path" -> request.url.path.encode, "code" -> response.status.code.toString),
+                )
             }
           }
         }
