@@ -1,6 +1,7 @@
 package oxygen.json
 
 import java.time.*
+import oxygen.json.syntax.build.*
 import oxygen.meta.k0.*
 import oxygen.predef.test.*
 
@@ -157,6 +158,10 @@ object JsonSpec extends OxygenSpecDefault {
 
   final case class NonStrict2(b: Boolean, @jsonFlatten s1: Strict1) derives JsonCodec
 
+  final case class RawJsonField(
+      field: Json,
+  ) derives JsonCodec
+
   override def testSpec: TestSpec =
     suite("JsonSpec")(
       suite("provided instances")(
@@ -253,6 +258,44 @@ object JsonSpec extends OxygenSpecDefault {
       ),
       suite("string transform")(
         directRoundTripTest("""{"field":"eyJ0eXBlIjoiYmFzZTY0IiwidmFsdWUiOiJTdHJpbmcifQ"}""")(MyClass2(MyClass1("base64", "String"))),
+      ),
+      suite("misc")(
+        test("nested json string") {
+          val init: Product1 = Product1("ABC\nDEF", true, None)
+          val initJson: Json = JsonEncoder[Product1].encodeJsonAST(init)
+          val str1: String = initJson.showCompact
+          val wrappedJson1: Json = Json.string(str1)
+          val str2: String = wrappedJson1.showCompact
+          val wrappedJson2: Json = Json.string(str2)
+          val str3: String = wrappedJson2.showCompact
+
+          val parsed: Either[JsonError, Product1] =
+            JsonDecoder[String].decodeJsonString(str3).flatMap { parsedStr2 =>
+              JsonDecoder[String].decodeJsonString(parsedStr2).flatMap { parsedStr1 =>
+                JsonDecoder[Product1].decodeJsonString(parsedStr1)
+              }
+            }
+
+          assert(parsed)(isRight(equalTo_filteredDiff(init)))
+        },
+        test("misc json obj") {
+          val init: RawJsonField = RawJsonField(Json.empty.addField("outer")(Json.empty.addFieldEncoded("inner", "line-1\nline-2")))
+          val initJson: Json = JsonEncoder[RawJsonField].encodeJsonAST(init)
+          val str1: String = initJson.showCompact
+          val wrappedJson1: Json = Json.string(str1)
+          val str2: String = wrappedJson1.showCompact
+          val wrappedJson2: Json = Json.string(str2)
+          val str3: String = wrappedJson2.showCompact
+
+          val parsed: Either[JsonError, RawJsonField] =
+            JsonDecoder[String].decodeJsonString(str3).flatMap { parsedStr2 =>
+              JsonDecoder[String].decodeJsonString(parsedStr2).flatMap { parsedStr1 =>
+                JsonDecoder[RawJsonField].decodeJsonString(parsedStr1)
+              }
+            }
+
+          assert(parsed)(isRight(equalTo_filteredDiff(init)))
+        },
       ),
     )
 
