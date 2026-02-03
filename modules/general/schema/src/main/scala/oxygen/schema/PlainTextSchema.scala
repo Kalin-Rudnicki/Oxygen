@@ -3,6 +3,7 @@ package oxygen.schema
 import java.time.*
 import java.util.{TimeZone, UUID}
 import oxygen.core.{SourcePosition, TypeTag}
+import oxygen.core.model.Email
 import oxygen.crypto.model.{BearerToken, JWT, Password}
 import oxygen.meta.k0.*
 import oxygen.predef.core.*
@@ -66,6 +67,8 @@ object PlainTextSchema extends PlainTextSchemaLowPriority.LowPriority1 {
     given JsonSchema[JWT.StandardPayload[A]] = instances.standardJWTPayloadSchema[A]
     PlainTextSchema.jwt[JWT.StandardPayload[A]]
   }
+
+  given email: PlainTextSchema[Email] = PlainTextSchema.string.transformOption(Email.fromString, _.toString)
 
   given password: PlainTextSchema[Password.PlainText] =
     PlainTextSchema.fromStringCodec

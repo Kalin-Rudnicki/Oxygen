@@ -3,6 +3,7 @@ package oxygen.json
 import java.time.*
 import java.util.{TimeZone, UUID}
 import oxygen.core.javaEnums.given
+import oxygen.core.model.Email
 import oxygen.core.typeclass.{NonEmpty, SeqOps}
 import oxygen.json.generic.*
 import oxygen.meta.k0.*
@@ -107,6 +108,8 @@ object JsonDecoder extends Derivable[JsonDecoder.ObjectDecoder], JsonDecoderLowP
   given year: JsonDecoder[Year] = StrDecoder.mapAttempt(Year.parse)
   given yearMonth: JsonDecoder[YearMonth] = StrDecoder.mapAttempt(YearMonth.parse)
   given month: JsonDecoder[Month] = strictEnum[Month]
+
+  given email: JsonDecoder[Email] = StrDecoder.mapOrFail(e => Email.fromString(e).toRight(s"Invalid Email : $e"))
 
   //////////////////////////////////////////////////////////////////////////////////////////////////////
   //      Builders

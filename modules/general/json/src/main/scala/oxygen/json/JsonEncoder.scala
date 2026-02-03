@@ -3,6 +3,7 @@ package oxygen.json
 import java.time.*
 import java.util.{TimeZone, UUID}
 import oxygen.core.javaEnums.given
+import oxygen.core.model.Email
 import oxygen.core.typeclass.{NonEmpty, SeqOps}
 import oxygen.json.generic.*
 import oxygen.meta.k0.*
@@ -98,6 +99,8 @@ object JsonEncoder extends Derivable[JsonEncoder.ObjectEncoder], JsonEncoderLowP
   given year: JsonEncoder[Year] = usingToString
   given yearMonth: JsonEncoder[YearMonth] = usingToString
   given month: JsonEncoder[Month] = `enum`[Month]
+
+  given email: JsonEncoder[Email] = usingToString
 
   //////////////////////////////////////////////////////////////////////////////////////////////////////
   //      Builders

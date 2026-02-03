@@ -3,6 +3,7 @@ package oxygen.schema
 import java.time.*
 import java.util.{TimeZone, UUID}
 import oxygen.core.SourcePosition
+import oxygen.core.model.Email
 import oxygen.json.*
 import oxygen.json.generic.*
 import oxygen.meta.{*, given}
@@ -70,6 +71,8 @@ object JsonSchema extends Derivable[JsonSchema.ObjectLike], JsonSchemaLowPriorit
     ArraySchema(underlying, TypeTag.derived, JsonEncoder.arraySeq[A](using underlying.jsonEncoder), JsonDecoder.arraySeq[A](using underlying.jsonDecoder))
   given map: [K: {PlainTextSchema as keySchema, TypeTag}, V: {JsonSchema as valueSchema, TypeTag}] => JsonSchema[Map[K, V]] =
     MapSchema(TypeTag.derived, keySchema, valueSchema)
+
+  given email: JsonSchema[Email] = JsonSchema.fromPlainText
 
   given period: JsonSchema[Period] = standardJavaTime.period
   given instant: JsonSchema[Instant] = standardJavaTime.instant
