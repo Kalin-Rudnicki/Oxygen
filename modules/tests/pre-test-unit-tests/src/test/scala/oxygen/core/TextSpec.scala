@@ -6,7 +6,7 @@ object TextSpec extends OxygenSpecDefault {
 
   private def makeTest(exp: String, cfg: => Text.Config)(in: Text)(using Trace, SourceLocation): TestSpec =
     test(exp.unesc) {
-      simpleEqual(in.lazyStringBuildRootSimple(cfg), exp)
+      simpleEqual(in.textBuildRootSimple(cfg), exp)
     }
 
   private val showColor: Text.Config = Text.Config.make(ColorMode.ShowColorName, ">> ")
@@ -28,10 +28,10 @@ object TextSpec extends OxygenSpecDefault {
       },
       makeTest("[[fg:red]]abc[[fg:default]]\n[[fg:red]]def[[fg:default]]", showColor)(Text.fromString("abc\ndef").colorizeFg(Color.Named.Red)),
       makeTest("(A)\n>> (B)\n>> >> (C)", showColor) {
-        Text.fromString("(A)") |> { Text.fromString("(B)") |> Text.fromString("(C)") }
+        Text.fromString("(A)") |/> { Text.fromString("(B)") |/> Text.fromString("(C)") }
       },
       makeTest("(A)", showColor) {
-        Text.fromString("(A)") |> { Text.empty }
+        Text.fromString("(A)") |/> { Text.empty }
       },
       makeTest("abc\n defghi\nghi1", showColor) {
         str"""abc
@@ -53,6 +53,21 @@ object TextSpec extends OxygenSpecDefault {
         str"""abc
              | def\nghi
              |ghi5"""
+      }, {
+        def mkText(prefix: Text.IndentPrefixMode, idt: Text.IndentType): Text =
+          (str"abc\n" ++ str"def\nghi".indentCustom(prefix, idt)).indentCustom(Text.IndentPrefixMode.IndentOnly, Text.IndentType.Default)
+
+        suite("custom indentation")(
+          makeTest(">> abc\n>> \n>> >> def\n>> >> ghi", showColor)(mkText(Text.IndentPrefixMode.NewlineAndIndent, Text.IndentType.Default)),
+          makeTest(">> abc\n>> \n>> |> def\n>> |> ghi", showColor)(mkText(Text.IndentPrefixMode.NewlineAndIndent, Text.IndentType.Custom("|> ".toText))),
+          makeTest(">> abc\n>> \n>> |> def\n>>    ghi", showColor)(mkText(Text.IndentPrefixMode.NewlineAndIndent, Text.IndentType.CustomInitial("|> ".toText))),
+          makeTest(">> abc\n>> >> >> def\n>> >> ghi", showColor)(mkText(Text.IndentPrefixMode.IndentOnly, Text.IndentType.Default)),
+          makeTest(">> abc\n>> >> |> def\n>> |> ghi", showColor)(mkText(Text.IndentPrefixMode.IndentOnly, Text.IndentType.Custom("|> ".toText))),
+          makeTest(">> abc\n>> >> |> def\n>>    ghi", showColor)(mkText(Text.IndentPrefixMode.IndentOnly, Text.IndentType.CustomInitial("|> ".toText))),
+          makeTest(">> abc\n>> def\n>> >> ghi", showColor)(mkText(Text.IndentPrefixMode.Empty, Text.IndentType.Default)),
+          makeTest(">> abc\n>> def\n>> |> ghi", showColor)(mkText(Text.IndentPrefixMode.Empty, Text.IndentType.Custom("|> ".toText))),
+          makeTest(">> abc\n>> def\n>>    ghi", showColor)(mkText(Text.IndentPrefixMode.Empty, Text.IndentType.CustomInitial("|> ".toText))), // this one seems kinda pointless...
+        )
       },
     )
 

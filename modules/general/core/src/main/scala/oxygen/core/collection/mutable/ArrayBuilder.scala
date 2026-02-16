@@ -9,18 +9,13 @@ final class ArrayBuilder[A] private (private val threadUnsafe: Boolean)(using pr
     val string0: String = if string ne null then string else "null"
     val strLen: Int = string0.length
     if strLen == 0 then ()
-    else if threadUnsafe then addStringCharsInternal(string0, strLen)
-    else this.synchronized { addStringCharsInternal(string0, strLen) }
+    else if threadUnsafe then this.current.addStringChars(string0, strLen)
+    else this.synchronized { this.current.addStringChars(string0, strLen) }
   }
 
   def addAllArrayElements(elementsToAdd: Array[A]): Unit =
-    if elementsToAdd eq null then ()
-    else {
-      val newElemsLength: Int = elementsToAdd.length
-      if newElemsLength == 0 then ()
-      else if threadUnsafe then addAllArrayElementsInternal(elementsToAdd, newElemsLength) //
-      else this.synchronized { addAllArrayElementsInternal(elementsToAdd, newElemsLength) }
-    }
+    if threadUnsafe then this.current.append(elementsToAdd)
+    else this.synchronized { this.current.append(elementsToAdd) }
 
   def addAllIterable(elementsToAdd: Iterable[A]): Unit =
     if elementsToAdd eq null then ()
@@ -29,18 +24,18 @@ final class ArrayBuilder[A] private (private val threadUnsafe: Boolean)(using pr
       if knownSize == 0 then ()
       else if knownSize == -1 then addAllIterator(elementsToAdd.iterator)
       else
-        if threadUnsafe then addAllIterableInternal(elementsToAdd, knownSize)
-        else this.synchronized { addAllIterableInternal(elementsToAdd, knownSize) }
+        if threadUnsafe then this.current.addIterable(elementsToAdd, knownSize)
+        else this.synchronized { this.current.addIterable(elementsToAdd, knownSize) }
     }
 
   def addAllIterator(elementsToAdd: Iterator[A]): Unit =
     if elementsToAdd eq null then ()
-    else if threadUnsafe then addAllIteratorInternal(elementsToAdd)
-    else this.synchronized { addAllIteratorInternal(elementsToAdd) }
+    else if threadUnsafe then this.current.addAllIteratorInternal(elementsToAdd)
+    else this.synchronized { this.current.addAllIteratorInternal(elementsToAdd) }
 
   def addSingle(element: A): Unit =
-    if threadUnsafe then addSingleInternal(element)
-    else this.synchronized { addSingleInternal(element) }
+    if threadUnsafe then this.current.appendOne(element)
+    else this.synchronized { this.current.appendOne(element) }
 
   def addAllBuilder(that: ArrayBuilder[A]): Unit =
     if that eq null then ()
@@ -69,15 +64,15 @@ final class ArrayBuilder[A] private (private val threadUnsafe: Boolean)(using pr
     safeSnapshot().arrayOfA
 
   def isEmpty(): Boolean =
-    if threadUnsafe then _currentUsed == 0 && _overflowUsed == 0
-    else this.synchronized { _currentUsed == 0 && _overflowUsed == 0 }
+    if threadUnsafe then current._used == 0 && overflow._totalUsedElems == 0
+    else this.synchronized { current._used == 0 && overflow._totalUsedElems == 0 }
   def nonEmpty(): Boolean =
-    if threadUnsafe then _currentUsed > 0 || _overflowUsed > 0
-    else this.synchronized { _currentUsed > 0 || _overflowUsed > 0 }
+    if threadUnsafe then current._used > 0 || overflow._totalUsedElems > 0
+    else this.synchronized { current._used > 0 || overflow._totalUsedElems > 0 }
   def size(): Int = {
     val total: Long =
-      if threadUnsafe then _overflowTotalUsedElems + _currentUsed
-      else this.synchronized { _overflowTotalUsedElems + _currentUsed }
+      if threadUnsafe then overflow._totalUsedElems + current._used
+      else this.synchronized { overflow._totalUsedElems + current._used }
     if total > jdk.internal.util.ArraysSupport.SOFT_MAX_ARRAY_LENGTH then
       throw new RuntimeException(s"Unable to build array of length $total, maxArraySize=${jdk.internal.util.ArraysSupport.SOFT_MAX_ARRAY_LENGTH}")
     total.toInt
@@ -88,11 +83,11 @@ final class ArrayBuilder[A] private (private val threadUnsafe: Boolean)(using pr
 
     sb.append("ArrayBuilder[")
     sb.append(ct.runtimeClass.getName)
-    sb.append(s"]:\n  overflow ( size = $_overflowUsed, used = $_overflowTotalUsedElems, total = $_overflowAllocatedElems ):")
+    sb.append(s"]:\n  overflow ( bufferSize = ${overflow._used}, total.used = ${overflow._totalUsedElems}, total.allocated = ${overflow._totalAllocatedElems} ):")
 
     var _tmpIdx: Int = 0
-    while _tmpIdx < _overflowUsed do {
-      val node = _overflowBuffer(_tmpIdx)
+    while _tmpIdx < overflow._used do {
+      val node = overflow._array(_tmpIdx)
       sb.append("\n    - ( allocated = ")
       sb.append(node.array.length)
       sb.append(", used = ")
@@ -102,13 +97,13 @@ final class ArrayBuilder[A] private (private val threadUnsafe: Boolean)(using pr
       _tmpIdx = _tmpIdx + 1
     }
 
-    sb.append(s"\n  current:\n    ( allocated = ${if _currentArray eq null then "<N/A>" else _currentArray.length}, used = ")
-    sb.append(_currentUsed)
+    sb.append(s"\n  current:\n    ( allocated = ${if current._array eq null then "<N/A>" else current._array.length}, used = ")
+    sb.append(current._used)
     sb.append(", available = ")
-    sb.append(_currentAvailable)
+    sb.append(current._available)
     sb.append("):\n    ")
-    if _currentArray eq null then sb.append("<empty-buffer>")
-    else _currentArray.addString(sb, "[", ", ", "]")
+    if current._array eq null then sb.append("<empty-buffer>")
+    else current._array.addString(sb, "[", ", ", "]")
 
     sb.result()
   }
@@ -117,191 +112,17 @@ final class ArrayBuilder[A] private (private val threadUnsafe: Boolean)(using pr
   //      Internal
   //////////////////////////////////////////////////////////////////////////////////////////////////////
 
-  /*
-      overflow buffer elements:
-        - ["A", "B", "C", null] # 3 / 4
-        - ["D", "E", null x 6] # 2 / 8
-        - ["F", "G", "H", "I", "J", "K", "L", "M", "N", "O"] # 10 / 10
-        - null
-
-      _overflowTotalUsedElems = 3 + 2 + 10 = 15
-      _overflowAllocatedElems = 4 + 8 + 10 = 22
-      _numOverflowElems = 3
-   */
-  private var _overflowTotalUsedElems: Long = 0
-  private var _overflowAllocatedElems: Long = 0
-  private var _overflowUsed: Int = 0
-  private var _overflowBuffer: Array[ArrayBuilder.PotentiallyPartialArray[A]] = new Array[ArrayBuilder.PotentiallyPartialArray[A]](32)
-
-  private def overflowAppend(array: Array[A], used: Int): Unit = {
-    if _overflowUsed >= _overflowBuffer.length then {
-      val newOverflowBuffer: Array[ArrayBuilder.PotentiallyPartialArray[A]] = new Array[ArrayBuilder.PotentiallyPartialArray[A]](array.length + 32)
-      System.arraycopy(_overflowBuffer, 0, newOverflowBuffer, 0, _overflowBuffer.length)
-      _overflowBuffer = newOverflowBuffer
-    }
-    _overflowBuffer(_overflowUsed) = ArrayBuilder.PotentiallyPartialArray[A](array, used)
-    _overflowTotalUsedElems = _overflowTotalUsedElems + used
-    _overflowAllocatedElems = _overflowAllocatedElems + array.length
-    _overflowUsed = _overflowUsed + 1
-  }
-
-  private var _currentArray: Array[A] = null
-  private var _currentUsed: Int = 0
-  private var _currentAvailable: Int = 32
-
-  private inline def newSize(inline base: Int): Int = {
-    val newSizeLong: Long = base.toLong * 2
-    if newSizeLong <= jdk.internal.util.ArraysSupport.SOFT_MAX_ARRAY_LENGTH then newSizeLong.toInt
-    else jdk.internal.util.ArraysSupport.SOFT_MAX_ARRAY_LENGTH
-  }
-
-  private inline def addStringCharsNoOverflow(inline string: String, inline newElemsLength: Int, inline newAvailable: Int): Unit = {
-    val castCurrentArray: Array[Char] = _currentArray.asInstanceOf[Array[Char]]
-    string.getChars(0, newElemsLength, castCurrentArray, _currentUsed)
-    _currentUsed = _currentUsed + newElemsLength
-    _currentAvailable = newAvailable
-  }
-
-  private inline def addAllArrayElementsNoOverflow(inline elementsToAdd: Array[A], inline newElemsLength: Int, inline newAvailable: Int): Unit = {
-    System.arraycopy(elementsToAdd, 0, _currentArray, _currentUsed, newElemsLength)
-    _currentUsed = _currentUsed + newElemsLength
-    _currentAvailable = newAvailable
-  }
-
-  private inline def addAllIterableElementsNoOverflow(inline elementsToAdd: Iterable[A], inline newElemsLength: Int, inline newAvailable: Int): Unit = {
-    elementsToAdd.copyToArray(_currentArray, _currentUsed, newElemsLength)
-    _currentUsed = _currentUsed + newElemsLength
-    _currentAvailable = newAvailable
-  }
-
-  private inline def addStringCharsInternal(inline string: String, inline newElemsLength: Int): Unit = {
-    val newAvailable: Int = _currentAvailable - newElemsLength
-    if _currentArray eq null then
-      if newElemsLength >= (_currentAvailable >> 1) then {
-        // at this point, you have not even allocated [[currentArray]]
-        // the first thing you tried to add already took up more than half your buffer
-        // just add it to overflow and increase size
-        overflowAppend(string.toCharArray.asInstanceOf[Array[A]], newElemsLength)
-        _currentAvailable = newSize(_currentAvailable.max(newElemsLength))
-      } else {
-        _currentArray = new Array[A](_currentAvailable)
-        addStringCharsNoOverflow(string, newElemsLength, newAvailable)
-      }
-    else
-      if newAvailable >= 0 then {
-        addStringCharsNoOverflow(string, newElemsLength, newAvailable)
-      } else {
-        overflowAppend(_currentArray, _currentUsed)
-        overflowAppend(string.toCharArray.asInstanceOf[Array[A]], newElemsLength)
-        _currentAvailable = newSize(_currentArray.length.max(newElemsLength))
-        _currentArray = null
-        _currentUsed = 0
-      }
-  }
-
-  private inline def addAllArrayElementsInternal(inline elementsToAdd: Array[A], inline newElemsLength: Int): Unit = {
-    val newAvailable: Int = _currentAvailable - newElemsLength
-    if _currentArray eq null then
-      if newElemsLength >= (_currentAvailable >> 1) then {
-        // at this point, you have not even allocated [[currentArray]]
-        // the first thing you tried to add already took up more than half your buffer
-        // just add it to overflow and increase size
-        overflowAppend(elementsToAdd, newElemsLength)
-        _currentAvailable = newSize(_currentAvailable.max(newElemsLength))
-      } else {
-        _currentArray = new Array[A](_currentAvailable)
-        addAllIterableElementsNoOverflow(elementsToAdd, newElemsLength, newAvailable)
-      }
-    else
-      if newAvailable >= 0 then addAllArrayElementsNoOverflow(elementsToAdd, newElemsLength, newAvailable)
-      else {
-        overflowAppend(_currentArray, _currentUsed)
-        overflowAppend(elementsToAdd, newElemsLength)
-        _currentAvailable = newSize(_currentArray.length.max(newElemsLength))
-        _currentArray = null
-        _currentUsed = 0
-      }
-  }
-
-  private inline def addAllIterableInternal(inline elementsToAdd: Iterable[A], inline newElemsLength: Int): Unit = {
-    val newAvailable: Int = _currentAvailable - newElemsLength
-    if _currentArray eq null then
-      if newElemsLength >= (_currentAvailable >> 1) then {
-        // at this point, you have not even allocated [[currentArray]]
-        // the first thing you tried to add already took up more than half your buffer
-        // just add it to overflow and increase size
-        val array: Array[A] = elementsToAdd.toArray[A]
-        overflowAppend(array, array.length)
-      } else {
-        _currentArray = new Array[A](_currentAvailable)
-        addAllIterableElementsNoOverflow(elementsToAdd, newElemsLength, newAvailable)
-      }
-    else
-      if newAvailable >= 0 then addAllIterableElementsNoOverflow(elementsToAdd, newElemsLength, newAvailable)
-      else {
-        overflowAppend(_currentArray, _currentUsed)
-        overflowAppend(elementsToAdd.toArray[A], newElemsLength)
-        _currentAvailable = newSize(_currentArray.length.max(newElemsLength))
-        _currentArray = null
-        _currentUsed = 0
-      }
-  }
-
-  private inline def addAllIteratorInternal(inline elementsToAdd: Iterator[A]): Unit =
-    while elementsToAdd.hasNext do {
-      val next: A = elementsToAdd.next()
-      addSingleInternal(next)
-    }
-
-  private inline def addSingleInternal(inline element: A): Unit =
-    if _currentAvailable > 0 then {
-      if _currentArray eq null then
-        _currentArray = new Array[A](_currentAvailable)
-
-      _currentArray(_currentUsed) = element
-      _currentAvailable = _currentAvailable - 1
-      _currentUsed = _currentUsed + 1
-    } else {
-      overflowAppend(_currentArray, _currentUsed)
-      _currentAvailable = newSize(_currentUsed)
-      _currentArray = new Array[A](_currentAvailable)
-      _currentArray(0) = element
-      _currentAvailable = _currentAvailable - 1
-      _currentUsed = 1
-    }
+  private val overflow: ArrayBuilder.OverflowBuffer[A] = ArrayBuilder.OverflowBuffer.empty[A](32)
+  private val current: ArrayBuilder.CurrentBuffer[A] = ArrayBuilder.CurrentBuffer.empty[A](overflow, 32)
 
   private def addAllBuilderInternal(that: ArrayBuilder.Snapshot[A]): Unit = {
-    if _currentArray ne null then
-      overflowAppend(_currentArray, _currentUsed)
-    _currentArray = null
-    _currentAvailable = _currentAvailable + _currentUsed
-    _currentUsed = 0
-
-    val extra: Int = if that.currentArray ne null then 1 else 0
-
-    if this._overflowUsed + that.overflowUsed + extra > this._overflowBuffer.length then {
-      val newBuffer: Array[ArrayBuilder.PotentiallyPartialArray[A]] = new Array[ArrayBuilder.PotentiallyPartialArray[A]](this._overflowBuffer.length + that.overflowBuffer.length + 32)
-      if this._overflowUsed > 0 then
-        System.arraycopy(this._overflowBuffer, 0, newBuffer, 0, this._overflowUsed)
-    }
-
-    if that.overflowUsed > 0 then {
-      System.arraycopy(that.overflowBuffer, 0, this._overflowBuffer, this._overflowUsed, that.overflowUsed)
-      this._overflowUsed = this._overflowUsed + that.overflowUsed
-      this._overflowAllocatedElems = this._overflowAllocatedElems + that.overflowAllocatedElems
-      this._overflowTotalUsedElems = this._overflowTotalUsedElems + that.overflowTotalUsedElems
-    }
-
-    if that.currentArray ne null then {
-      this._overflowBuffer(this._overflowUsed) = new ArrayBuilder.PotentiallyPartialArray[A](that.currentArray, that.currentUsed)
-      this._overflowUsed = this._overflowUsed + 1
-      this._overflowAllocatedElems = this._overflowAllocatedElems + that.currentArray.length
-      this._overflowTotalUsedElems = this._overflowTotalUsedElems + that.currentUsed
-    }
+    this.current.addToOverflowIfNonEmpty()
+    this.overflow.append(that.overflow)
+    this.overflow.append(that.current)
   }
 
   private inline def snapshotInternal(): ArrayBuilder.Snapshot[A] =
-    ArrayBuilder.Snapshot[A](this, _overflowBuffer, _overflowTotalUsedElems, _overflowAllocatedElems, _overflowUsed, _currentArray, _currentUsed, _currentAvailable)
+    ArrayBuilder.Snapshot[A](this, ArrayBuilder.Snapshot.Overflow.from(overflow), ArrayBuilder.Snapshot.Current.from(current))
 
   // TODO (KR) :
   /*
@@ -334,6 +155,216 @@ object ArrayBuilder {
 
   }
 
+  private final class OverflowBuffer[A](
+      var _array: Array[PotentiallyPartialArray[A]],
+      var _used: Int,
+      var _totalUsedElems: Long,
+      var _totalAllocatedElems: Long,
+  ) {
+
+    private inline def ensureSize(newSize: Int): Unit =
+      if newSize < _array.length then {
+        val newArray: Array[PotentiallyPartialArray[A]] = new Array[PotentiallyPartialArray[A]](newSize + 32)
+        System.arraycopy(this._array, 0, newArray, 0, _used)
+        this._array = newArray
+      }
+
+    inline def append(that: Array[A]): Unit = {
+      val newSize: Int = this._used + 1
+      this.ensureSize(newSize)
+      this._array(this._used) = PotentiallyPartialArray(that, that.length)
+      this._used = newSize
+      this._totalUsedElems = this._totalUsedElems + that.length
+      this._totalAllocatedElems = this._totalAllocatedElems + that.length
+    }
+
+    inline def append(that: Snapshot.Current[A]): Unit =
+      if that.used > 0 then {
+        val newSize: Int = this._used + 1
+        this.ensureSize(newSize)
+        this._array(this._used) = PotentiallyPartialArray(that.array, that.used)
+        this._used = newSize
+        this._totalUsedElems = this._totalUsedElems + that.used
+        this._totalAllocatedElems = this._totalAllocatedElems + that.array.length
+      }
+
+    inline def append(that: CurrentBuffer[A]): Unit =
+      if that._used > 0 then {
+        val newSize: Int = this._used + 1
+        this.ensureSize(newSize)
+        this._array(this._used) = PotentiallyPartialArray(that._array, that._used)
+        this._used = newSize
+        this._totalUsedElems = this._totalUsedElems + that._used
+        this._totalAllocatedElems = this._totalAllocatedElems + that._array.length
+      }
+
+    inline def append(that: Snapshot.Overflow[A]): Unit =
+      if that.used > 0 then {
+        val newSize: Int = this._used + that.used
+        this.ensureSize(newSize)
+        System.arraycopy(that.array, 0, this._array, this._used, that.used)
+        this._used = newSize
+        this._totalUsedElems = this._totalUsedElems + that.totalUsedElems
+        this._totalAllocatedElems = this._totalAllocatedElems + that.totalAllocatedElems
+      }
+
+    inline def append(that: OverflowBuffer[A]): Unit =
+      if that._used > 0 then {
+        val newSize: Int = this._used + that._used
+        this.ensureSize(newSize)
+        System.arraycopy(that._array, 0, this._array, this._used, that._used)
+        this._used = newSize
+        this._totalUsedElems = this._totalUsedElems + that._totalUsedElems
+        this._totalAllocatedElems = this._totalAllocatedElems + that._totalAllocatedElems
+      }
+
+  }
+  private object OverflowBuffer {
+
+    def empty[A](size: Int): OverflowBuffer[A] = new OverflowBuffer[A](new Array[PotentiallyPartialArray[A]](size), 0, 0, 0)
+
+  }
+
+  private final class CurrentBuffer[A: ClassTag](
+      overflow: OverflowBuffer[A],
+      var _array: Array[A],
+      var _used: Int,
+      var _available: Int,
+  ) {
+
+    // TODO (KR) :
+    /*
+  private inline def newSize(inline base: Int): Int = {
+    val newSizeLong: Long = base.toLong * 2
+    if newSizeLong <= jdk.internal.util.ArraysSupport.SOFT_MAX_ARRAY_LENGTH then newSizeLong.toInt
+    else jdk.internal.util.ArraysSupport.SOFT_MAX_ARRAY_LENGTH
+  }
+     */
+
+    private inline def growTo(size: Int): Unit = {
+      overflow.append(this)
+      this._array = null
+      this._used = 0
+      this._available = size
+    }
+    private inline def doubleSize(): Unit =
+      if this._array ne null then growTo(this._array.length * 2)
+      else this._available = this._available * 2
+
+    private inline def safeAddValues(values: Array[A]): Unit = {
+      System.arraycopy(values, 0, this._array, this._used, values.length)
+      this._used = this._used + values.length
+      this._available = this._available - values.length
+    }
+
+    def append(values: Array[A]): Unit =
+      if (values ne null) && values.length > 0 then {
+        val combinedSize: Int = this._used + values.length
+        if _array ne null then
+          if combinedSize > this._array.length then {
+            this.doubleSize()
+            this.append(values)
+          } else
+            this.safeAddValues(values)
+        else
+          if values.length >= this._available / 2 then {
+            this.overflow.append(values)
+            this._available = this._available * 2
+          } else {
+            this._array = new Array[A](_available)
+            this.safeAddValues(values)
+          }
+      }
+
+    inline def addAllIteratorInternal(inline elementsToAdd: Iterator[A]): Unit =
+      while elementsToAdd.hasNext do {
+        val next: A = elementsToAdd.next()
+        this.appendOne(next)
+      }
+
+    private inline def addAllIterableElementsNoOverflow(inline elementsToAdd: Iterable[A], inline newElemsLength: Int, inline newAvailable: Int): Unit = {
+      elementsToAdd.copyToArray(this._array, this._used, newElemsLength)
+      this._used = this._used + newElemsLength
+      this._available = newAvailable
+    }
+
+    private inline def addStringCharsNoOverflow(inline string: String, inline newElemsLength: Int, inline newAvailable: Int): Unit = {
+      val castCurrentArray: Array[Char] = this._array.asInstanceOf[Array[Char]]
+      string.getChars(0, newElemsLength, castCurrentArray, this._used)
+      this._used = this._used + newElemsLength
+      this._available = newAvailable
+    }
+
+    inline def addStringChars(string: String, newElemsLength: Int): Unit = {
+      val newAvailable: Int = this._available - newElemsLength
+      if this._array eq null then
+        if newElemsLength >= (this._available / 2) then {
+          // at this point, you have not even allocated [[currentArray]]
+          // the first thing you tried to add already took up more than half your buffer
+          // just add it to overflow and increase size
+          this.overflow.append(string.toCharArray.asInstanceOf[Array[A]])
+          this._available = this._available * 2
+        } else {
+          this._array = new Array[A](this._available)
+          addStringCharsNoOverflow(string, newElemsLength, newAvailable)
+        }
+      else
+        if newAvailable >= 0 then {
+          addStringCharsNoOverflow(string, newElemsLength, newAvailable)
+        } else {
+          this.doubleSize()
+          this.overflow.append(string.toCharArray.asInstanceOf[Array[A]])
+        }
+    }
+
+    inline def addIterable(elementsToAdd: Iterable[A], newElemsLength: Int): Unit = {
+      val newAvailable: Int = _available - newElemsLength
+      if this._array eq null then
+        if newElemsLength >= (_available / 2) then {
+          // at this point, you have not even allocated [[currentArray]]
+          // the first thing you tried to add already took up more than half your buffer
+          // just add it to overflow and increase size
+          val array: Array[A] = elementsToAdd.toArray[A]
+          this.overflow.append(array)
+        } else {
+          this._array = new Array[A](_available)
+          this.addAllIterableElementsNoOverflow(elementsToAdd, newElemsLength, newAvailable)
+        }
+      else
+        if newAvailable >= 0 then this.addAllIterableElementsNoOverflow(elementsToAdd, newElemsLength, newAvailable)
+        else {
+          this.doubleSize()
+          this.overflow.append(elementsToAdd.toArray[A])
+        }
+    }
+
+    inline def appendOne(value: A): Unit = {
+      if this._available <= 0 then {
+        if this._array eq null then
+          throw new RuntimeException(s"WTF: ${this._used}, ${this._available}")
+
+        this.doubleSize()
+      }
+
+      if this._array eq null then
+        this._array = new Array[A](this._available)
+
+      this._array(this._used) = value
+      this._used = this._used + 1
+      this._available = this._available - 1
+    }
+
+    inline def addToOverflowIfNonEmpty(): Unit =
+      if this._used > 0 then
+        this.growTo(this._array.length)
+
+  }
+  private object CurrentBuffer {
+
+    def empty[A: ClassTag](overflow: OverflowBuffer[A], size: Int): CurrentBuffer[A] = new CurrentBuffer[A](overflow, null, 0, size)
+
+  }
+
   trait Report {
     val overflowTotalUsedElems: Long
     val overflowAllocatedElems: Long
@@ -352,14 +383,18 @@ object ArrayBuilder {
 
   private final case class Snapshot[A](
       origin: ArrayBuilder[A],
-      overflowBuffer: Array[PotentiallyPartialArray[A]],
-      overflowTotalUsedElems: Long,
-      overflowAllocatedElems: Long,
-      overflowUsed: Int,
-      currentArray: Array[A],
-      currentUsed: Int,
-      currentAvailable: Int,
+      overflow: Snapshot.Overflow[A],
+      current: Snapshot.Current[A],
   ) extends Seq[A], Report {
+
+    val overflowBuffer: Array[PotentiallyPartialArray[A]] = overflow.array
+    override val overflowUsed: Int = overflow.used
+    override val overflowTotalUsedElems: Long = overflow.totalUsedElems
+    override val overflowAllocatedElems: Long = overflow.totalAllocatedElems
+
+    val currentArray: Array[A] = current.array
+    override val currentUsed: Int = current.used
+    override val currentAvailable: Int = current.available
 
     private given aCt: ClassTag[A] = origin.ct
 
@@ -371,10 +406,10 @@ object ArrayBuilder {
     }
 
     override def isStillValid(): Boolean =
-      origin._overflowUsed == overflowUsed && origin._currentUsed == currentUsed
+      origin.overflow._used == overflowUsed && origin.current._used == currentUsed
 
     override def underlyingChanged(): Boolean =
-      origin._overflowUsed != overflowUsed || origin._currentUsed != currentUsed
+      origin.overflow._used != overflowUsed || origin.current._used != currentUsed
 
     override def apply(i: Int): A = arrayOfA(i)
 
@@ -452,8 +487,48 @@ object ArrayBuilder {
       )
 
   }
+  private object Snapshot {
+
+    final case class Overflow[A] private (
+        array: Array[PotentiallyPartialArray[A]],
+        used: Int,
+        totalUsedElems: Long,
+        totalAllocatedElems: Long,
+    )
+    object Overflow {
+
+      def from[A](overflow: ArrayBuilder.OverflowBuffer[A]): Overflow[A] =
+        Overflow(
+          array = overflow._array,
+          used = overflow._used,
+          totalUsedElems = overflow._totalUsedElems,
+          totalAllocatedElems = overflow._totalAllocatedElems,
+        )
+
+    }
+
+    final case class Current[A] private (
+        array: Array[A],
+        used: Int,
+        available: Int,
+    )
+    object Current {
+
+      def from[A](current: ArrayBuilder.CurrentBuffer[A]): Current[A] =
+        Current(
+          array = current._array,
+          used = current._used,
+          available = current._available,
+        )
+
+    }
+
+  }
 
   private final case class PartialArrayIterator[A](array: Array[A], used: Int) extends Iterator[A] {
+
+    if used > 0 && used > array.length then
+      throw new RuntimeException(s"len = ${array.length}, used = $used")
 
     def this(ppa: PotentiallyPartialArray[A]) = this(ppa.array, ppa.used)
 

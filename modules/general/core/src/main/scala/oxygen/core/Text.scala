@@ -17,11 +17,24 @@ sealed trait Text {
 
   final def +(that: Text.Auto): Text = Text.impl.Concat._2(this, that)
   final def ++(that: Text.Auto): Text = Text.impl.Concat._2(this, that)
-  final def |>(that: Text.Auto): Text = this ++ that.indented
 
-  final def indentedInitial(idt: Text.Auto): Text = Text.impl.CustomIndentedInitial(this, idt)
-  final def indented(idt: Text.Auto): Text = Text.impl.CustomIndented(this, idt)
-  final def indented: Text = Text.impl.DefaultIndented(this)
+  // `|` : newline
+  // `/` : indent0
+  // `>` : indentN
+  final def |/>(that: Text.Auto): Text = this ++ that.indentCustom(Text.IndentPrefixMode.NewlineAndIndent, Text.IndentType.Default)
+  final def />(that: Text.Auto): Text = this ++ that.indentCustom(Text.IndentPrefixMode.IndentOnly, Text.IndentType.Default)
+  final def >(that: Text.Auto): Text = this ++ that.indentCustom(Text.IndentPrefixMode.Empty, Text.IndentType.Default)
+  @deprecated("use |/>")
+  final def |>(that: Text.Auto): Text = this |/> that
+
+  final def indentedInitial(idt: Text.Auto): Text = this.indentCustom(Text.IndentPrefixMode.NewlineAndIndent, Text.IndentType.CustomInitial(idt))
+  final def indented(idt: Text.Auto): Text = this.indentCustom(Text.IndentPrefixMode.NewlineAndIndent, Text.IndentType.Custom(idt))
+  final def indented: Text = this.indentCustom(Text.IndentPrefixMode.NewlineAndIndent, Text.IndentType.Default)
+  final def indentedNoLeadingInitial(idt: Text.Auto): Text = this.indentCustom(Text.IndentPrefixMode.IndentOnly, Text.IndentType.CustomInitial(idt))
+  final def indentedNoLeading(idt: Text.Auto): Text = this.indentCustom(Text.IndentPrefixMode.IndentOnly, Text.IndentType.Custom(idt))
+  final def indentedNoLeading: Text = this.indentCustom(Text.IndentPrefixMode.IndentOnly, Text.IndentType.Default)
+
+  final def indentCustom(prefixMode: Text.IndentPrefixMode, idt: Text.IndentType): Text = Text.impl.Indented(this, prefixMode, idt)
 
   final def when(cond: Boolean): Text = Text.impl.When(this, cond)
   final def unless(cond: Boolean): Text = Text.impl.When(this, !cond)
@@ -57,16 +70,17 @@ sealed trait Text {
   final def resetFgBg: Text = this.colorizeFgBg(Color.Default, Color.Default)
 
   /////// Internal ///////////////////////////////////////////////////////////////
-  def lazyStringWriteSimple(cfg: Text.Config, builder: StringBuilder): Unit
-  def lazyStringWriteComplex(cfg: Text.Config, builder: StringBuilder, currentIndent: String, colorState: ColorStateV2): Unit
 
-  final def lazyStringBuildRootSimple(cfg: Text.Config): String =
-    StringBuilder.makeString(this.lazyStringWriteSimple(cfg, _))
-  final def lazyStringBuildRootComplex(cfg: Text.Config, currentIndent: String, colorState: ColorStateV2): String =
-    StringBuilder.makeString(this.lazyStringWriteComplex(cfg, _, currentIndent, colorState))
+  def textWriteSimple(cfg: Text.Config, builder: StringBuilder): Unit
+  def textWriteComplex(cfg: Text.Config, builder: StringBuilder, currentIndent: String, colorState: ColorStateV2): Unit
 
-  final def toStringBlank: String = lazyStringBuildRootSimple(Text.Config.defaultBlank)
-  final def toStringBraced: String = lazyStringBuildRootSimple(Text.Config.defaultBraced)
+  final def textBuildRootSimple(cfg: Text.Config): String =
+    StringBuilder.makeString(this.textWriteSimple(cfg, _))
+  final def textBuildRootComplex(cfg: Text.Config, currentIndent: String, colorState: ColorStateV2): String =
+    StringBuilder.makeString(this.textWriteComplex(cfg, _, currentIndent, colorState))
+
+  final def toStringBlank: String = textBuildRootSimple(Text.Config.defaultBlank)
+  final def toStringBraced: String = textBuildRootSimple(Text.Config.defaultBraced)
   override final def toString: String = toStringBlank
 
 }
@@ -170,6 +184,18 @@ object Text {
   //      Config / State
   //////////////////////////////////////////////////////////////////////////////////////////////////////
 
+  enum IndentPrefixMode {
+    case NewlineAndIndent
+    case IndentOnly
+    case Empty
+  }
+
+  enum IndentType {
+    case Default
+    case Custom(indent: Text)
+    case CustomInitial(indent: Text)
+  }
+
   final case class Config private[Text] (
       colorMode: ColorMode,
       rootDefaultIndents: NonEmptyList[Text],
@@ -208,16 +234,16 @@ object Text {
   private object impl {
 
     case object Empty extends Text {
-      override def lazyStringWriteSimple(cfg: Text.Config, builder: StringBuilder): Unit = ()
-      override def lazyStringWriteComplex(cfg: Text.Config, builder: StringBuilder, currentIndent: String, colorState: ColorStateV2): Unit = ()
+      override def textWriteSimple(cfg: Text.Config, builder: StringBuilder): Unit = ()
+      override def textWriteComplex(cfg: Text.Config, builder: StringBuilder, currentIndent: String, colorState: ColorStateV2): Unit = ()
     }
 
     case object Newline extends Text {
 
-      override def lazyStringWriteSimple(cfg: Text.Config, builder: StringBuilder): Unit =
+      override def textWriteSimple(cfg: Text.Config, builder: StringBuilder): Unit =
         builder.append('\n')
 
-      override def lazyStringWriteComplex(cfg: Text.Config, builder: StringBuilder, currentIndent: String, colorState: ColorStateV2): Unit = {
+      override def textWriteComplex(cfg: Text.Config, builder: StringBuilder, currentIndent: String, colorState: ColorStateV2): Unit = {
         builder.append(colorState.revert)
         builder.append('\n')
         builder.append(currentIndent)
@@ -228,13 +254,13 @@ object Text {
 
     final case class Str(value: String, unknownNewline: Boolean = true) extends Text {
 
-      override def lazyStringWriteSimple(cfg: Text.Config, builder: StringBuilder): Unit =
+      override def textWriteSimple(cfg: Text.Config, builder: StringBuilder): Unit =
         builder.append(value)
 
-      override def lazyStringWriteComplex(cfg: Text.Config, builder: StringBuilder, currentIndent: String, colorState: ColorStateV2): Unit =
+      override def textWriteComplex(cfg: Text.Config, builder: StringBuilder, currentIndent: String, colorState: ColorStateV2): Unit =
         if unknownNewline && value.contains('\n') then
           value.foreach {
-            case '\n' => Newline.lazyStringWriteComplex(cfg, builder, currentIndent, colorState)
+            case '\n' => Newline.textWriteComplex(cfg, builder, currentIndent, colorState)
             case c    => builder.append(c)
           }
         else
@@ -299,123 +325,145 @@ object Text {
         }
       }
 
-      override def lazyStringWriteSimple(cfg: Text.Config, builder: StringBuilder): Unit =
+      override def textWriteSimple(cfg: Text.Config, builder: StringBuilder): Unit =
         shared(builder, () => builder.append('\n'))
 
-      override def lazyStringWriteComplex(cfg: Text.Config, builder: StringBuilder, currentIndent: String, colorState: ColorStateV2): Unit =
-        shared(builder, () => Newline.lazyStringWriteComplex(cfg, builder, currentIndent, colorState))
+      override def textWriteComplex(cfg: Text.Config, builder: StringBuilder, currentIndent: String, colorState: ColorStateV2): Unit =
+        shared(builder, () => Newline.textWriteComplex(cfg, builder, currentIndent, colorState))
 
     }
 
     final case class When(underlying: Text, cond: Boolean) extends Text {
 
-      override def lazyStringWriteSimple(cfg: Config, builder: StringBuilder): Unit =
-        if cond then underlying.lazyStringWriteSimple(cfg, builder)
+      override def textWriteSimple(cfg: Config, builder: StringBuilder): Unit =
+        if cond then underlying.textWriteSimple(cfg, builder)
 
-      override def lazyStringWriteComplex(cfg: Config, builder: StringBuilder, currentIndent: String, colorState: ColorStateV2): Unit =
-        if cond then underlying.lazyStringWriteComplex(cfg, builder, currentIndent, colorState)
+      override def textWriteComplex(cfg: Config, builder: StringBuilder, currentIndent: String, colorState: ColorStateV2): Unit =
+        if cond then underlying.textWriteComplex(cfg, builder, currentIndent, colorState)
 
     }
 
     final case class Interpolated(strings: IArray[Text], args: IArray[Text]) extends Text {
 
-      override def lazyStringWriteSimple(cfg: Text.Config, builder: StringBuilder): Unit = {
+      override def textWriteSimple(cfg: Text.Config, builder: StringBuilder): Unit = {
         val size: Int = args.length
         var _idx: Int = 0
         while _idx < size do {
-          strings(_idx).lazyStringWriteSimple(cfg, builder)
-          args(_idx).lazyStringWriteSimple(cfg, builder)
+          strings(_idx).textWriteSimple(cfg, builder)
+          args(_idx).textWriteSimple(cfg, builder)
           _idx = _idx + 1
         }
-        strings(_idx).lazyStringWriteSimple(cfg, builder)
+        strings(_idx).textWriteSimple(cfg, builder)
       }
 
-      override def lazyStringWriteComplex(cfg: Text.Config, builder: StringBuilder, currentIndent: String, colorState: ColorStateV2): Unit = {
+      override def textWriteComplex(cfg: Text.Config, builder: StringBuilder, currentIndent: String, colorState: ColorStateV2): Unit = {
         val size: Int = args.length
         var _idx: Int = 0
         while _idx < size do {
-          strings(_idx).lazyStringWriteComplex(cfg, builder, currentIndent, colorState)
-          args(_idx).lazyStringWriteComplex(cfg, builder, currentIndent, colorState)
+          strings(_idx).textWriteComplex(cfg, builder, currentIndent, colorState)
+          args(_idx).textWriteComplex(cfg, builder, currentIndent, colorState)
           _idx = _idx + 1
         }
-        strings(_idx).lazyStringWriteComplex(cfg, builder, currentIndent, colorState)
+        strings(_idx).textWriteComplex(cfg, builder, currentIndent, colorState)
       }
 
     }
 
-    final case class CustomIndented(underlying: Text, indent: Text) extends Text {
+    sealed trait Indented extends Text {
+      val underlying: Text
+      val indent: IndentType
 
-      override def lazyStringWriteSimple(cfg: Text.Config, builder: StringBuilder): Unit = {
-        val newIdt = indent.lazyStringBuildRootSimple(cfg)
-        val tmpBuilder = StringBuilder.empty
-        underlying.lazyStringWriteComplex(cfg, tmpBuilder, newIdt, ColorStateV2.Empty)
-        if tmpBuilder.nonEmpty() then {
-          Newline.lazyStringWriteComplex(cfg, builder, newIdt, ColorStateV2.Empty)
-          builder.append(tmpBuilder)
+      protected final def calculateSimpleIndentInternal(cfg: Text.Config): (idt0: String, idtN: String, newCfg: Config) =
+        indent match {
+          case IndentType.Default =>
+            val (poppedIdt, newCfg) = cfg.popIndent
+            val newIdt = poppedIdt.textBuildRootSimple(cfg)
+            (newIdt, newIdt, newCfg)
+          case IndentType.Custom(indent) =>
+            val newIdt = indent.textBuildRootSimple(cfg)
+            (newIdt, newIdt, cfg)
+          case IndentType.CustomInitial(indent) =>
+            val initialIdt = indent.textBuildRootSimple(cfg)
+            val restIdt = " " * initialIdt.length // TODO (KR) : might be worth evaluating `indent` without color
+            (initialIdt, restIdt, cfg)
         }
-      }
 
-      override def lazyStringWriteComplex(cfg: Text.Config, builder: StringBuilder, currentIndent: String, colorState: ColorStateV2): Unit = {
-        val newIdt = currentIndent + indent.lazyStringBuildRootComplex(cfg, currentIndent, colorState)
-        val tmpBuilder = StringBuilder.empty
-        underlying.lazyStringWriteComplex(cfg, tmpBuilder, newIdt, colorState)
-        if tmpBuilder.nonEmpty() then {
-          Newline.lazyStringWriteComplex(cfg, builder, newIdt, colorState)
-          builder.append(tmpBuilder)
+      protected final def calculateComplexIndentInternal(cfg: Text.Config, currentIndent: String, colorState: ColorStateV2): (idt0: String, idtN: String, newCfg: Config) =
+        indent match {
+          case IndentType.Default =>
+            val (poppedIdt, newCfg) = cfg.popIndent
+            val newIdt = currentIndent + poppedIdt.textBuildRootComplex(cfg, currentIndent, colorState)
+            (newIdt, newIdt, newCfg)
+          case IndentType.Custom(indent) =>
+            val newIdt = currentIndent + indent.textBuildRootComplex(cfg, currentIndent, colorState)
+            (newIdt, newIdt, cfg)
+          case IndentType.CustomInitial(indent) =>
+            val tmp = indent.textBuildRootComplex(cfg, currentIndent, colorState)
+            val initialIdt = currentIndent + tmp
+            val restIdt = currentIndent + (" " * tmp.length)
+            (initialIdt, restIdt, cfg)
         }
-      }
 
     }
+    object Indented {
 
-    final case class CustomIndentedInitial(underlying: Text, indent: Text) extends Text {
+      def apply(underlying: Text, leading: IndentPrefixMode, indent: IndentType): Indented = leading match
+        case IndentPrefixMode.NewlineAndIndent => NewlineAndIndent(underlying, indent)
+        case IndentPrefixMode.IndentOnly       => IndentOnly(underlying, indent)
+        case IndentPrefixMode.Empty            => Empty(underlying, indent)
 
-      override def lazyStringWriteSimple(cfg: Text.Config, builder: StringBuilder): Unit = {
-        val initialIdt = indent.lazyStringBuildRootSimple(cfg)
-        val restIdt = " " * initialIdt.length // TODO (KR) : might be worth evaluating `indent` without color
-        val tmpBuilder = StringBuilder.empty
-        underlying.lazyStringWriteComplex(cfg, tmpBuilder, restIdt, ColorStateV2.Empty)
-        if tmpBuilder.nonEmpty() then {
-          Newline.lazyStringWriteComplex(cfg, builder, initialIdt, ColorStateV2.Empty)
-          builder.append(tmpBuilder)
+      final case class NewlineAndIndent(underlying: Text, indent: IndentType) extends Indented {
+
+        override def textWriteSimple(cfg: Text.Config, builder: StringBuilder): Unit = {
+          val next = this.calculateSimpleIndentInternal(cfg)
+          val tmpBuilder = StringBuilder.empty
+          underlying.textWriteComplex(next.newCfg, tmpBuilder, next.idtN, ColorStateV2.Empty)
+          if tmpBuilder.nonEmpty() then {
+            Newline.textWriteComplex(next.newCfg, builder, next.idt0, ColorStateV2.Empty)
+            builder.append(tmpBuilder)
+          }
         }
+
+        override def textWriteComplex(cfg: Text.Config, builder: StringBuilder, currentIndent: String, colorState: ColorStateV2): Unit = {
+          val next = this.calculateComplexIndentInternal(cfg, currentIndent, colorState)
+          val tmpBuilder = StringBuilder.empty
+          underlying.textWriteComplex(next.newCfg, tmpBuilder, next.idtN, colorState)
+          if tmpBuilder.nonEmpty() then {
+            Newline.textWriteComplex(next.newCfg, builder, next.idt0, colorState)
+            builder.append(tmpBuilder)
+          }
+        }
+
       }
 
-      override def lazyStringWriteComplex(cfg: Text.Config, builder: StringBuilder, currentIndent: String, colorState: ColorStateV2): Unit = {
-        val tmp = indent.lazyStringBuildRootComplex(cfg, currentIndent, colorState)
-        val initialIdt = currentIndent + tmp
-        val restIdt = currentIndent + (" " * tmp.length)
-        val tmpBuilder = StringBuilder.empty
-        underlying.lazyStringWriteComplex(cfg, tmpBuilder, restIdt, colorState)
-        if tmpBuilder.nonEmpty() then {
-          Newline.lazyStringWriteComplex(cfg, builder, initialIdt, colorState)
-          builder.append(tmpBuilder)
+      final case class IndentOnly(underlying: Text, indent: IndentType) extends Indented {
+
+        override def textWriteSimple(cfg: Text.Config, builder: StringBuilder): Unit = {
+          val next = this.calculateSimpleIndentInternal(cfg)
+          builder.append(next.idt0)
+          underlying.textWriteComplex(next.newCfg, builder, next.idtN, ColorStateV2.Empty)
         }
+
+        override def textWriteComplex(cfg: Text.Config, builder: StringBuilder, currentIndent: String, colorState: ColorStateV2): Unit = {
+          val next = this.calculateComplexIndentInternal(cfg, currentIndent, colorState)
+          builder.append(next.idt0)
+          underlying.textWriteComplex(next.newCfg, builder, next.idtN, colorState)
+        }
+
       }
 
-    }
+      final case class Empty(underlying: Text, indent: IndentType) extends Indented {
 
-    final case class DefaultIndented(underlying: Text) extends Text {
-
-      override def lazyStringWriteSimple(cfg: Text.Config, builder: StringBuilder): Unit = {
-        val (indent, newCfg) = cfg.popIndent
-        val newIdt = indent.lazyStringBuildRootSimple(cfg)
-        val tmpBuilder = StringBuilder.empty
-        underlying.lazyStringWriteComplex(newCfg, tmpBuilder, newIdt, ColorStateV2.Empty)
-        if tmpBuilder.nonEmpty() then {
-          Newline.lazyStringWriteComplex(newCfg, builder, newIdt, ColorStateV2.Empty)
-          builder.append(tmpBuilder)
+        override def textWriteSimple(cfg: Text.Config, builder: StringBuilder): Unit = {
+          val next = this.calculateSimpleIndentInternal(cfg)
+          underlying.textWriteComplex(next.newCfg, builder, next.idtN, ColorStateV2.Empty)
         }
-      }
 
-      override def lazyStringWriteComplex(cfg: Text.Config, builder: StringBuilder, currentIndent: String, colorState: ColorStateV2): Unit = {
-        val (indent, newCfg) = cfg.popIndent
-        val newIdt = currentIndent + indent.lazyStringBuildRootComplex(cfg, currentIndent, colorState)
-        val tmpBuilder = StringBuilder.empty
-        underlying.lazyStringWriteComplex(newCfg, tmpBuilder, newIdt, colorState)
-        if tmpBuilder.nonEmpty() then {
-          Newline.lazyStringWriteComplex(newCfg, builder, newIdt, colorState)
-          builder.append(tmpBuilder)
+        override def textWriteComplex(cfg: Text.Config, builder: StringBuilder, currentIndent: String, colorState: ColorStateV2): Unit = {
+          val next = this.calculateComplexIndentInternal(cfg, currentIndent, colorState)
+          underlying.textWriteComplex(next.newCfg, builder, next.idtN, colorState)
         }
+
       }
 
     }
@@ -425,24 +473,24 @@ object Text {
       protected val underlying: Text
       protected def patch(colorMode: ColorMode, current: ColorStateV2): Option[ColorStateV2.Patch]
 
-      override final def lazyStringWriteSimple(cfg: Text.Config, builder: StringBuilder): Unit =
+      override final def textWriteSimple(cfg: Text.Config, builder: StringBuilder): Unit =
         patch(cfg.colorMode, ColorStateV2.Empty) match {
           case Some(patch) =>
             builder.append(patch.apply)
-            underlying.lazyStringWriteComplex(cfg, builder, "", patch.newState)
+            underlying.textWriteComplex(cfg, builder, "", patch.newState)
             builder.append(patch.revert)
           case None =>
-            underlying.lazyStringWriteSimple(cfg, builder)
+            underlying.textWriteSimple(cfg, builder)
         }
 
-      override final def lazyStringWriteComplex(cfg: Text.Config, builder: StringBuilder, currentIndent: String, colorState: ColorStateV2): Unit =
+      override final def textWriteComplex(cfg: Text.Config, builder: StringBuilder, currentIndent: String, colorState: ColorStateV2): Unit =
         patch(cfg.colorMode, colorState) match {
           case Some(patch) =>
             builder.append(patch.apply)
-            underlying.lazyStringWriteComplex(cfg, builder, currentIndent, patch.newState)
+            underlying.textWriteComplex(cfg, builder, currentIndent, patch.newState)
             builder.append(patch.revert)
           case None =>
-            underlying.lazyStringWriteComplex(cfg, builder, currentIndent, colorState)
+            underlying.textWriteComplex(cfg, builder, currentIndent, colorState)
         }
 
     }
@@ -464,14 +512,14 @@ object Text {
 
     final case class FlatMap[S[_], A](seqOps: SeqRead[S], underlying: S[A], f: A => Text) extends Text {
 
-      override def lazyStringWriteSimple(cfg: Config, builder: StringBuilder): Unit = {
+      override def textWriteSimple(cfg: Config, builder: StringBuilder): Unit = {
         val iter = seqOps.newIterator(underlying)
-        while iter.hasNext do f(iter.next()).lazyStringWriteSimple(cfg, builder)
+        while iter.hasNext do f(iter.next()).textWriteSimple(cfg, builder)
       }
 
-      override def lazyStringWriteComplex(cfg: Config, builder: StringBuilder, currentIndent: String, colorState: ColorStateV2): Unit = {
+      override def textWriteComplex(cfg: Config, builder: StringBuilder, currentIndent: String, colorState: ColorStateV2): Unit = {
         val iter = seqOps.newIterator(underlying)
-        while iter.hasNext do f(iter.next()).lazyStringWriteComplex(cfg, builder, currentIndent, colorState)
+        while iter.hasNext do f(iter.next()).textWriteComplex(cfg, builder, currentIndent, colorState)
       }
 
     }
@@ -480,66 +528,66 @@ object Text {
 
       final case class _2(first: Text, second: Text) extends Text {
 
-        override def lazyStringWriteSimple(cfg: Text.Config, builder: StringBuilder): Unit = {
-          first.lazyStringWriteSimple(cfg, builder)
-          second.lazyStringWriteSimple(cfg, builder)
+        override def textWriteSimple(cfg: Text.Config, builder: StringBuilder): Unit = {
+          first.textWriteSimple(cfg, builder)
+          second.textWriteSimple(cfg, builder)
         }
 
-        override def lazyStringWriteComplex(cfg: Text.Config, builder: StringBuilder, currentIndent: String, colorState: ColorStateV2): Unit = {
-          first.lazyStringWriteComplex(cfg, builder, currentIndent, colorState)
-          second.lazyStringWriteComplex(cfg, builder, currentIndent, colorState)
+        override def textWriteComplex(cfg: Text.Config, builder: StringBuilder, currentIndent: String, colorState: ColorStateV2): Unit = {
+          first.textWriteComplex(cfg, builder, currentIndent, colorState)
+          second.textWriteComplex(cfg, builder, currentIndent, colorState)
         }
 
       }
 
       final case class ManyLazyStrings[S[_]](seqOps: SeqRead[S], underlying: S[Text]) extends Text {
 
-        override def lazyStringWriteSimple(cfg: Text.Config, builder: StringBuilder): Unit = {
+        override def textWriteSimple(cfg: Text.Config, builder: StringBuilder): Unit = {
           val iter = seqOps.newIterator(underlying)
-          while iter.hasNext do iter.next().lazyStringWriteSimple(cfg, builder)
+          while iter.hasNext do iter.next().textWriteSimple(cfg, builder)
         }
 
-        override def lazyStringWriteComplex(cfg: Text.Config, builder: StringBuilder, currentIndent: String, colorState: ColorStateV2): Unit = {
+        override def textWriteComplex(cfg: Text.Config, builder: StringBuilder, currentIndent: String, colorState: ColorStateV2): Unit = {
           val iter = seqOps.newIterator(underlying)
-          while iter.hasNext do iter.next().lazyStringWriteComplex(cfg, builder, currentIndent, colorState)
+          while iter.hasNext do iter.next().textWriteComplex(cfg, builder, currentIndent, colorState)
         }
 
       }
 
       final case class SurroundLazyStrings[S[_]](seqOps: SeqRead[S], underlying: S[Text], prefix: Text, join: Text, suffix: Text) extends Text {
 
-        override def lazyStringWriteSimple(cfg: Text.Config, builder: StringBuilder): Unit = {
+        override def textWriteSimple(cfg: Text.Config, builder: StringBuilder): Unit = {
           val iter = seqOps.newIterator(underlying)
-          val renderedJoin = join.lazyStringBuildRootSimple(cfg)
+          val renderedJoin = join.textBuildRootSimple(cfg)
 
-          prefix.lazyStringWriteSimple(cfg, builder)
+          prefix.textWriteSimple(cfg, builder)
 
           if iter.hasNext then
-            iter.next().lazyStringWriteSimple(cfg, builder)
+            iter.next().textWriteSimple(cfg, builder)
 
           while iter.hasNext do {
             builder.append(renderedJoin)
-            iter.next().lazyStringWriteSimple(cfg, builder)
+            iter.next().textWriteSimple(cfg, builder)
           }
 
-          suffix.lazyStringWriteSimple(cfg, builder)
+          suffix.textWriteSimple(cfg, builder)
         }
 
-        override def lazyStringWriteComplex(cfg: Text.Config, builder: StringBuilder, currentIndent: String, colorState: ColorStateV2): Unit = {
-          val renderedJoin = join.lazyStringBuildRootComplex(cfg, currentIndent, colorState)
+        override def textWriteComplex(cfg: Text.Config, builder: StringBuilder, currentIndent: String, colorState: ColorStateV2): Unit = {
+          val renderedJoin = join.textBuildRootComplex(cfg, currentIndent, colorState)
 
-          prefix.lazyStringWriteComplex(cfg, builder, currentIndent, colorState)
+          prefix.textWriteComplex(cfg, builder, currentIndent, colorState)
 
           val iter = seqOps.newIterator(underlying)
           if iter.hasNext then
-            iter.next().lazyStringWriteComplex(cfg, builder, currentIndent, colorState)
+            iter.next().textWriteComplex(cfg, builder, currentIndent, colorState)
 
           while iter.hasNext do {
             builder.append(renderedJoin)
-            iter.next().lazyStringWriteComplex(cfg, builder, currentIndent, colorState)
+            iter.next().textWriteComplex(cfg, builder, currentIndent, colorState)
           }
 
-          suffix.lazyStringWriteComplex(cfg, builder, currentIndent, colorState)
+          suffix.textWriteComplex(cfg, builder, currentIndent, colorState)
         }
 
       }

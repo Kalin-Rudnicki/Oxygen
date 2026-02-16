@@ -6,6 +6,6 @@ object core {
   export oxygen.core.error.Error
   export oxygen.core.str
   export oxygen.core.syntax.common.*
-  export oxygen.core.typeclass.{EnumEncoding, EnumWithOther, SeqOps, SeqRead, SeqWrite, Show, StrictEnum, StringCodec, StringDecoder, StringEncoder, Zip}
+  export oxygen.core.typeclass.{EnumEncoding, EnumWithOther, SeqOps, SeqRead, SeqWrite, Show, Showable, StrictEnum, StringCodec, StringDecoder, StringEncoder, Zip}
   export scala.collection.immutable.ArraySeq
 }
