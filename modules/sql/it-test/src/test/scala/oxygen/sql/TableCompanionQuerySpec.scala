@@ -1,9 +1,12 @@
 package oxygen.sql
 
+import java.util.UUID
 import oxygen.predef.test.*
 import oxygen.sql.migration.*
 import oxygen.sql.migration.model.*
 import oxygen.sql.migration.persistence.MigrationRepo
+import oxygen.sql.query.{PostgresCRUDRepo, TableCompanion}
+import oxygen.storage.CRUDRepo
 import scala.annotation.experimental
 import zio.*
 
@@ -11,6 +14,10 @@ import zio.*
 object TableCompanionQuerySpec extends OxygenSpec[Database] {
 
   // override def defaultLogLevel: LogLevel = LogLevel.Trace
+
+  private final case class PostgresPersonRepo(db: Database) extends PostgresCRUDRepo.Unmapped[UUID, Person] {
+    override protected val companion: TableCompanion[Person, UUID] = Person
+  }
 
   override def testSpec: TestSpec =
     suite("TableCompanion queries")(
@@ -91,6 +98,41 @@ object TableCompanionQuerySpec extends OxygenSpec[Database] {
           _ <- Person.upsert.execute(p2).unit
           res1 <- Person.selectByPK.execute(p1.id).single
         } yield assert(err1)(fails(anything)) && assertTrue(res1 == p2)
+      },
+      test("can insert (or do nothing)") {
+        def gen2(gid: UUID): UIO[(Person, Person)] =
+          Person.generate(gid)().map { p1 => (p1, p1.copy(age = p1.age + 1)) }
+
+        for {
+          db <- ZIO.service[Database]
+          groupId <- Random.nextUUID
+          (p1_1, p1_2) <- gen2(groupId)
+          (p2_1, p2_2) <- gen2(groupId)
+          (p3_1, p3_2) <- gen2(groupId)
+          (p4_1, p4_2) <- gen2(groupId)
+          (p5_1, p5_2) <- gen2(groupId)
+          repo: CRUDRepo[UUID, Person] = PostgresPersonRepo(db)
+
+          writeRes1 <- repo.insertOrDoNothing(p1_1)
+          writeRes2 <- repo.insertOrDoNothing(p1_2)
+          writeRes3 <- repo.insertOrDoNothingAllCounted(p1_2, p2_1, p2_2)
+          writeRes4 <- repo.insertOrDoNothingAllCounted(p1_2, p2_2, p3_1, p4_1, p5_1, p3_2, p4_2, p5_2)
+          readRes1 <- repo.getByKeyOrDie(p1_1.id)
+          readRes2 <- repo.getByKeyOrDie(p2_1.id)
+          readRes3 <- repo.getByKeyOrDie(p3_1.id)
+          readRes4 <- repo.getByKeyOrDie(p4_1.id)
+          readRes5 <- repo.getByKeyOrDie(p5_1.id)
+        } yield assertTrue(
+          writeRes1,
+          !writeRes2,
+          writeRes3 == (inserted = 1, ignored = 2),
+          writeRes4 == (inserted = 3, ignored = 5),
+          readRes1 == p1_1,
+          readRes2 == p2_1,
+          readRes3 == p3_1,
+          readRes4 == p4_1,
+          readRes5 == p5_1,
+        )
       },
       test("works for arrays") {
         val v1 = Arrays(Nil, Set.empty, Nil, None)

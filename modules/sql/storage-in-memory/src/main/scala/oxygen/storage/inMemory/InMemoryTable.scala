@@ -62,6 +62,28 @@ final class InMemoryTable[K, A] private (
   def insertAll[S[_]: SeqRead](values: S[A]): UIO[Unit] = ZIO.foreachDiscard(values.transformTo[Chunk])(insert) @@ rollbackAnyCause
   def insertAll(values: A*): UIO[Unit] = insertAll(values)
 
+  def insertOrDoNothing(value: A): UIO[Boolean] = {
+    val key = valueToKey(value)
+    ref.modify[Boolean] { map =>
+      map.get(key) match {
+        case Some(_) => (false, map)
+        case None    => (true, map.updated(key, value))
+      }
+    }
+  }
+
+  def insertOrDoNothingAll[S[_]: SeqRead as seqOps](values: S[A]): UIO[Unit] =
+    ZIO.foreachDiscard(values.transformTo[Chunk])(insertOrDoNothing) @@ rollbackAnyCause
+  def insertOrDoNothingAllCounted[S[_]: SeqRead as seqOps](values: S[A]): UIO[(inserted: Int, ignored: Int)] =
+    ZIO.foldLeft(seqOps.toIterable(values))((inserted = 0, ignored = 0)) { (acc, value) =>
+      insertOrDoNothing(value).map {
+        case true  => (inserted = acc.inserted + 1, ignored = acc.ignored)
+        case false => (inserted = acc.inserted, ignored = acc.ignored + 1)
+      }
+    } @@ rollbackAnyCause
+  def insertOrDoNothingAll(values: A*): UIO[Unit] = insertOrDoNothingAll(values)
+  def insertOrDoNothingAllCounted(values: A*): UIO[(inserted: Int, ignored: Int)] = insertOrDoNothingAllCounted(values)
+
   def upsert(value: A): UIO[Unit] = {
     val key = valueToKey(value)
     modifyEither(key) { _ => value.some.asRight }

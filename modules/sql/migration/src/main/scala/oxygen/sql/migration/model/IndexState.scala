@@ -68,7 +68,7 @@ object IndexState {
       explicitIdxName = repr.explicitName,
       unique = repr.unique,
       self = EntityRef.TableRef(repr.self.schemaName, repr.self.tableName),
-      columns = repr.columns.map(_.name),
+      columns = repr.columns.value.map(_.name),
     )
 
 }
