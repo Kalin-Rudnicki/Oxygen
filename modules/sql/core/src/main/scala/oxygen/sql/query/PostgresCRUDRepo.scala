@@ -23,7 +23,7 @@ object PostgresCRUDRepo {
     //      Concrete
     //////////////////////////////////////////////////////////////////////////////////////////////////////
 
-    // =====| Create |=====
+    // =====| Insert |=====
 
     override final def insert(value: A): UIO[Unit] =
       companion.insert.execute(value).unit.orDie.usingDb(db)
@@ -34,7 +34,7 @@ object PostgresCRUDRepo {
     override final def insertAllStream[R, E](values: ZStream[R, E, A]): ZIO[R, E, Unit] =
       companion.batchOptimizedInsert.insert.streamDbDie(values).unit.usingDb(db)
 
-    // =====| Read |=====
+    // =====| Select |=====
 
     override final def selectAll[S[_]: SeqOps]: UIO[S[A]] =
       companion.selectAll.execute().to[S].orDie.usingDb(db)
@@ -81,6 +81,23 @@ object PostgresCRUDRepo {
     override final def upsertAllStream[R, E](values: ZStream[R, E, A]): ZIO[R, E, Unit] =
       companion.batchOptimizedUpsert.insert.streamDbDie(values).unit.usingDb(db)
 
+    // =====| Insert or do Nothing |=====
+
+    override final def insertOrDoNothing(value: A): UIO[Boolean] =
+      companion.insertOrDoNothing.execute(value).updated.map(_ > 0).orDie.usingDb(db)
+
+    override final def insertOrDoNothingAll[S[_]: SeqOps](values: S[A]): UIO[Unit] =
+      companion.insertOrDoNothing.batched(values).unit.orDie.usingDb(db)
+
+    override final def insertOrDoNothingAllCounted[S[_]: SeqOps](values: S[A]): UIO[(inserted: Int, ignored: Int)] =
+      companion.insertOrDoNothing.batched(values).updated.map { res =>
+        val inserted = res.sum
+        (inserted = inserted, ignored = res.length - inserted)
+      }.orDie.usingDb(db)
+
+    override final def insertOrDoNothingAllStream[R, E](values: ZStream[R, E, A]): ZIO[R, E, Unit] =
+      companion.batchOptimizedInsertOrDoNothing.insert.streamDbDie(values).unit.usingDb(db)
+
   }
 
   trait MapInfallible[K, A] extends CRUDRepo[K, A] {
@@ -109,7 +126,7 @@ object PostgresCRUDRepo {
     extension (self: A) @targetName("ext_valueToDb") private def toDb: DbA = valueToDb(self)
     extension (self: DbA) @targetName("ext_valueToDomain") private def toDomain: A = valueToDomain(self)
 
-    // =====| Create |=====
+    // =====| Insert |=====
 
     override final def insert(value: A): UIO[Unit] =
       companion.insert.execute(value.toDb).unit.orDie.usingDb(db)
@@ -120,7 +137,7 @@ object PostgresCRUDRepo {
     override final def insertAllStream[R, E](values: ZStream[R, E, A]): ZIO[R, E, Unit] =
       companion.batchOptimizedInsert.insert.streamDbDie(values.map(_.toDb)).unit.usingDb(db)
 
-    // =====| Read |=====
+    // =====| Select |=====
 
     override final def selectAll[S[_]: SeqOps]: UIO[S[A]] =
       companion.selectAll.map(_.toDomain).execute().to[S].orDie.usingDb(db)
@@ -167,6 +184,23 @@ object PostgresCRUDRepo {
     override final def upsertAllStream[R, E](values: ZStream[R, E, A]): ZIO[R, E, Unit] =
       companion.batchOptimizedUpsert.insert.streamDbDie(values.map(_.toDb)).unit.usingDb(db)
 
+    // =====| Insert or do Nothing |=====
+
+    override final def insertOrDoNothing(value: A): UIO[Boolean] =
+      companion.insertOrDoNothing.execute(value.toDb).updated.map(_ > 0).orDie.usingDb(db)
+
+    override final def insertOrDoNothingAll[S[_]: SeqOps](values: S[A]): UIO[Unit] =
+      companion.insertOrDoNothing.contramap[A](_.toDb).batched(values).unit.orDie.usingDb(db)
+
+    override final def insertOrDoNothingAllCounted[S[_]: SeqOps](values: S[A]): UIO[(inserted: Int, ignored: Int)] =
+      companion.insertOrDoNothing.contramap[A](_.toDb).batched(values).updated.map { res =>
+        val inserted = res.sum
+        (inserted = inserted, ignored = res.length - inserted)
+      }.orDie.usingDb(db)
+
+    override final def insertOrDoNothingAllStream[R, E](values: ZStream[R, E, A]): ZIO[R, E, Unit] =
+      companion.batchOptimizedInsertOrDoNothing.insert.streamDbDie(values.map(_.toDb)).unit.usingDb(db)
+
   }
 
   trait MapFallible[K, A] extends CRUDRepo[K, A] {
@@ -195,7 +229,7 @@ object PostgresCRUDRepo {
     extension (self: A) @targetName("ext_valueToDb") private def toDb: DbA = valueToDb(self)
     extension (self: DbA) @targetName("ext_valueToDomain") private def toDomain: Either[String, A] = valueToDomain(self)
 
-    // =====| Create |=====
+    // =====| Insert |=====
 
     override final def insert(value: A): UIO[Unit] =
       companion.insert.execute(value.toDb).unit.orDie.usingDb(db)
@@ -206,7 +240,7 @@ object PostgresCRUDRepo {
     override final def insertAllStream[R, E](values: ZStream[R, E, A]): ZIO[R, E, Unit] =
       companion.batchOptimizedInsert.insert.streamDbDie(values.map(_.toDb)).unit.usingDb(db)
 
-    // =====| Read |=====
+    // =====| Select |=====
 
     override final def selectAll[S[_]: SeqOps]: UIO[S[A]] =
       companion.selectAll.mapOrFail(_.toDomain).execute().to[S].orDie.usingDb(db)
@@ -252,6 +286,23 @@ object PostgresCRUDRepo {
 
     override final def upsertAllStream[R, E](values: ZStream[R, E, A]): ZIO[R, E, Unit] =
       companion.batchOptimizedUpsert.insert.streamDbDie(values.map(_.toDb)).unit.usingDb(db)
+
+    // =====| Insert or do Nothing |=====
+
+    override final def insertOrDoNothing(value: A): UIO[Boolean] =
+      companion.insertOrDoNothing.execute(value.toDb).updated.map(_ > 0).orDie.usingDb(db)
+
+    override final def insertOrDoNothingAll[S[_]: SeqOps](values: S[A]): UIO[Unit] =
+      companion.insertOrDoNothing.contramap[A](_.toDb).batched(values).unit.orDie.usingDb(db)
+
+    override final def insertOrDoNothingAllCounted[S[_]: SeqOps](values: S[A]): UIO[(inserted: Int, ignored: Int)] =
+      companion.insertOrDoNothing.contramap[A](_.toDb).batched(values).updated.map { res =>
+        val inserted = res.sum
+        (inserted = inserted, ignored = res.length - inserted)
+      }.orDie.usingDb(db)
+
+    override final def insertOrDoNothingAllStream[R, E](values: ZStream[R, E, A]): ZIO[R, E, Unit] =
+      companion.batchOptimizedInsertOrDoNothing.insert.streamDbDie(values.map(_.toDb)).unit.usingDb(db)
 
   }
 

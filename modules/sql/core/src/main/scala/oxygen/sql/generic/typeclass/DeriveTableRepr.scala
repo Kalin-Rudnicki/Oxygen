@@ -144,7 +144,7 @@ final class DeriveTableRepr[A: Type](
       '{
         ForeignKeyRepr[A, RT](
           None, // TODO (KR) : allow for explicit fk naming
-          $rtTableReprExpr,
+          Lazy { $rtTableReprExpr },
           currentTableRepr => ArraySeq(${ pairs.map(_.current.toColumns('currentTableRepr)).seqToArraySeqExpr }*).flatten,
           referencesTableRepr => ArraySeq(${ pairs.map(_.references.toColumns('referencesTableRepr)).seqToArraySeqExpr }*).flatten,
         )
@@ -189,7 +189,7 @@ final class DeriveTableRepr[A: Type](
       '{
         ForeignKeyRepr[A, RT](
           None, // TODO (KR) : allow for explicit fk naming
-          $rtTableReprExpr,
+          Lazy { $rtTableReprExpr },
           currentTableRepr => ${ pair.current.toColumns('currentTableRepr) },
           referencesTableRepr => ${ pair.references.toColumns('referencesTableRepr) },
         )

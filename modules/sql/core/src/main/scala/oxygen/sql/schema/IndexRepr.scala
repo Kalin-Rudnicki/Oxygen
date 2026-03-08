@@ -9,7 +9,12 @@ final case class IndexRepr[Self](
 ) {
 
   def built(self: TableRepr[Self]): IndexRepr.Built =
-    IndexRepr.Built(explicitName, unique, self, columns(self))
+    IndexRepr.Built(
+      explicitName,
+      unique,
+      self,
+      Lazy { columns(self) },
+    )
 
 }
 object IndexRepr {
@@ -18,7 +23,7 @@ object IndexRepr {
       explicitName: Option[String],
       unique: Boolean,
       self: TableRepr[?],
-      columns: ArraySeq[Column],
+      columns: Lazy[ArraySeq[Column]],
   )
 
 }

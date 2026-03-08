@@ -79,8 +79,8 @@ object ForeignKeyState {
     ForeignKeyState(
       explicitFKName = repr.explicitName,
       self = EntityRef.TableRef(repr.self.schemaName, repr.self.tableName),
-      references = EntityRef.TableRef(repr.references.schemaName, repr.references.tableName),
-      columnPairs = repr.columnPairs.map { p => Pair(p.self.name, p.references.name) },
+      references = EntityRef.TableRef(repr.references.value.schemaName, repr.references.value.tableName),
+      columnPairs = repr.columnPairs.value.map { p => Pair(p.self.name, p.references.name) },
     )
 
 }

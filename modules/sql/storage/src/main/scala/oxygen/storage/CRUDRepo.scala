@@ -6,7 +6,7 @@ import zio.stream.*
 
 trait CRUDRepo[K, A] {
 
-  // =====| Create |=====
+  // =====| Insert |=====
 
   def insert(value: A): UIO[Unit]
   def insertAll[S[_]: SeqOps](values: S[A]): UIO[Unit]
@@ -14,7 +14,7 @@ trait CRUDRepo[K, A] {
 
   final def insertAll(values: A*): UIO[Unit] = insertAll[Seq](values)
 
-  // =====| Read |=====
+  // =====| Select |=====
 
   def selectAll[S[_]: SeqOps]: UIO[S[A]]
   def selectAllStream: UStream[A]
@@ -49,5 +49,15 @@ trait CRUDRepo[K, A] {
   def upsertAllStream[R, E](values: ZStream[R, E, A]): ZIO[R, E, Unit]
 
   final def upsertAll(values: A*): UIO[Unit] = upsertAll[Seq](values)
+
+  // =====| Insert or do Nothing |=====
+
+  def insertOrDoNothing(value: A): UIO[Boolean]
+  def insertOrDoNothingAll[S[_]: SeqOps](values: S[A]): UIO[Unit]
+  def insertOrDoNothingAllCounted[S[_]: SeqOps](values: S[A]): UIO[(inserted: Int, ignored: Int)]
+  def insertOrDoNothingAllStream[R, E](values: ZStream[R, E, A]): ZIO[R, E, Unit]
+
+  final def insertOrDoNothingAll(values: A*): UIO[Unit] = insertOrDoNothingAll[Seq](values)
+  final def insertOrDoNothingAllCounted(values: A*): UIO[(inserted: Int, ignored: Int)] = insertOrDoNothingAllCounted[Seq](values)
 
 }

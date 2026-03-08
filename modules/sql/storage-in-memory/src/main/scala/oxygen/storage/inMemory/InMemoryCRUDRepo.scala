@@ -42,4 +42,12 @@ trait InMemoryCRUDRepo[K, A] extends CRUDRepo[K, A] {
 
   override def upsertAllStream[R, E](values: ZStream[R, E, A]): ZIO[R, E, Unit] = values.foreach(table.upsert) @@ table.rollbackAnyCause
 
+  override def insertOrDoNothing(value: A): UIO[Boolean] = table.insertOrDoNothing(value)
+
+  override def insertOrDoNothingAll[S[_]: SeqOps](values: S[A]): UIO[Unit] = table.insertOrDoNothingAll(values)
+
+  override def insertOrDoNothingAllCounted[S[_]: SeqOps](values: S[A]): UIO[(inserted: Int, ignored: Int)] = table.insertOrDoNothingAllCounted(values)
+
+  override def insertOrDoNothingAllStream[R, E](values: ZStream[R, E, A]): ZIO[R, E, Unit] = values.foreach(table.insertOrDoNothing) @@ table.rollbackAnyCause
+
 }
