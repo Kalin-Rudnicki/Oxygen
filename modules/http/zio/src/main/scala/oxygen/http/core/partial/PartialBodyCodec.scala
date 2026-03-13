@@ -148,7 +148,7 @@ object PartialBodyCodec extends PartialBodyCodecLowPriority.LowPriority1 {
           .orDieWith { c => new RuntimeException(c.toString) } // really its only the responses that can fail
           .map { event => schema.encode(event) }
       val rawBytes: Stream[Throwable, Byte] =
-        (encodedLines >>> ZPipeline.intersperse("\n")) >>> ZPipeline.utf8Encode
+        encodedLines.flatMap { s => ZStream.fromChunk(Chunk(s, "\n")) } >>> ZPipeline.utf8Encode
 
       Body.fromStreamChunked(rawBytes).contentType(MediaType.text.`event-stream`)
     }

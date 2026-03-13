@@ -19,7 +19,11 @@ trait ResponseCodec[A] {
   def encode(value: A): (Status, Headers, Body)
   final def encodeResponse(value: A): Response = {
     val (status, headers, body) = encode(value)
-    Response(status = status, headers = headers, body = body)
+    val baseResponse = Response(status = status, headers = headers, body = body)
+    body.contentType match {
+      case Some(contentType) => baseResponse.addHeader(contentType.asHeader)
+      case None              => baseResponse
+    }
   }
 
   final def transform[B](ab: A => B, ba: B => A): ResponseCodec[B] = ResponseCodec.Transform(this, ab, ba)
