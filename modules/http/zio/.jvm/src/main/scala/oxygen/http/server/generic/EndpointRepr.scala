@@ -1,6 +1,6 @@
 package oxygen.http.server.generic
 
-import oxygen.http.core.ServerSentEvents
+import oxygen.http.core.{LineStream, ServerSentEvents}
 import oxygen.http.core.generic.*
 import oxygen.http.server.*
 import oxygen.quoted.*
@@ -108,7 +108,7 @@ object EndpointRepr {
 
     override protected def makeImpl(using Quotes): Expr[DerivedServerEndpointImpl[Api, In]] =
       '{
-        DerivedServerEndpointImpl.FromSSE[Api, route.In, route.ErrorOut, route.SuccessOut](
+        DerivedServerEndpointImpl.FromLines[Api, route.In, route.ErrorOut, route.SuccessOut](
           apiName = ${ Expr(route.derivedApiName) },
           endpointName = ${ Expr(route.derivedEndpointName) },
           doc = ${ Expr(route.defDefDoc) },
@@ -122,7 +122,7 @@ object EndpointRepr {
               val inExpr: Expr[route.In] = 'in
               val paramTerms: List[Term] = route.inExprToParamOrderTerms(inExpr)
               val appliedTerm: Term = apiTerm.select(route.defDef.symbol).appliedToArgs(paramTerms)
-              appliedTerm.asExprOf[ServerSentEvents[route.ErrorOut, route.SuccessOut]]
+              appliedTerm.asExprOf[LineStream[route.ErrorOut, route.SuccessOut]]
             }
           },
         )
