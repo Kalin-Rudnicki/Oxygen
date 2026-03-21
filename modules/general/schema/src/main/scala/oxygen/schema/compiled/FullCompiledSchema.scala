@@ -316,6 +316,7 @@ object FullCompiledJsonSchema {
   ) {
 
     def fieldName: String = raw.fieldName
+    def description: Option[String] = raw.description
     def nullable: Boolean = raw.nullable
     def onMissing: Option[RawCompiledJsonSchema.ProductField.DecodeMissingAs] = raw.onMissing
 

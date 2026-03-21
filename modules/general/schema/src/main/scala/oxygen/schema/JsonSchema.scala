@@ -248,6 +248,7 @@ object JsonSchema extends Derivable[JsonSchema.ObjectLike], JsonSchemaLowPriorit
 
   final case class ProductField[A](
       name: String,
+      description: Option[String],
       schema: JsonSchema[A],
   )
 
@@ -349,6 +350,7 @@ object JsonSchema extends Derivable[JsonSchema.ObjectLike], JsonSchemaLowPriorit
           generic.mapChildren.mapExpr[Growable[ProductField[?]]] { [a] => (_, _) ?=> (field: generic.Field[a]) =>
 
             val fieldName: String = field.annotations.optionalOfValue[jsonField].fold(field.name)(_.name)
+            val fieldDoc: Option[String] = field.annotations.optionalOfValue[doc].map(_.value)
             val instanceExpr: Expr[JsonSchema[a]] = field.getExpr(instances)
             val isFlattened: Boolean = field.annotations.optionalOf[jsonFlatten].nonEmpty
 
@@ -376,6 +378,7 @@ object JsonSchema extends Derivable[JsonSchema.ObjectLike], JsonSchemaLowPriorit
                 Growable.single(
                   ProductField[a](
                     name = ${ Expr(fieldName) },
+                    description = ${ Expr(fieldDoc) },
                     schema = $instanceExpr,
                   ),
                 )
