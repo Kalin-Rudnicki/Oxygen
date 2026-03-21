@@ -220,7 +220,7 @@ object RawCompiledJsonSchema {
       case I.IntermediateRepr.JsonProduct(fields) =>
         def makeField(f: I.IntermediateRepr.JsonField, reprs: I.IntermediateReprs): RawCompiledJsonSchema.ProductField = {
           val (underlyingType, nullable, ifMissing) = CompiledSchemaRef.resolveJsonConcrete(f.ref, reprs)
-          ProductField(f.name, nullable, ifMissing, underlyingType)
+          ProductField(f.name, f.description, nullable, ifMissing, underlyingType)
         }
 
         (typeIdentifier, Lazy(JsonProduct(fields.map(makeField(_, reprs))))).asRight
@@ -263,6 +263,7 @@ object RawCompiledJsonSchema {
 
   final case class ProductField(
       fieldName: String,
+      description: Option[String],
       nullable: Boolean,
       onMissing: Option[ProductField.DecodeMissingAs],
       fieldType: CompiledSchemaRef.JsonConcrete,
@@ -271,6 +272,7 @@ object RawCompiledJsonSchema {
     def mapTypeIdentifier(f: TypeIdentifier.MapFunction): ProductField =
       ProductField(
         fieldName = fieldName,
+        description = description,
         nullable = nullable,
         onMissing = onMissing,
         fieldType = fieldType.mapTypeIdentifier(f),

@@ -44,6 +44,7 @@ object IntermediateRepr {
 
   final case class JsonField(
       name: String,
+      description: Option[String],
       ref: IntermediateTypeRef.Json,
   )
 
@@ -151,7 +152,7 @@ object IntermediateRepr {
             queue match {
               case head :: tail =>
                 val gen = compileJson(head.schema, CompileInput(in, recursive))
-                val field = JsonField(head.name, gen.ref)
+                val field = JsonField(head.name, head.description, gen.ref)
                 loop(in ++ gen.reprs, out ++ gen.reprs, tail, acc :+ field)
               case Nil =>
                 (acc.toArraySeq, out)
