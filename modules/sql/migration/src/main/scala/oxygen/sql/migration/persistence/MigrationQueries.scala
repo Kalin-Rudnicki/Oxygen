@@ -8,6 +8,10 @@ object MigrationQueries {
 
   def diffToQuery(diff: StateDiff): Query =
     diff match {
+      case AlterExtension.CreateExtension(ext) =>
+        Query.simple("Create Extension", QueryContext.QueryType.Migrate)(
+          s"CREATE EXTENSION $ext",
+        )
       case AlterSchema.CreateSchema(schemaRef) =>
         MigrationQueries.createSchema(schemaRef, false)
       case AlterSchema.RenameSchema(schemaRef, newName) =>

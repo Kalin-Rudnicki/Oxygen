@@ -28,6 +28,8 @@ object Column {
       case single: Type.Single  => single.show
       case Type.Array(elemType) => elemType.baseType
 
+    val extension: Option[String] = None
+
   }
   object Type {
     given Show[Column.Type] = _.show
@@ -69,6 +71,9 @@ object Column {
 
     // Array Types
     final case class Array(elemType: Column.Type) extends Type(elemType.show + "[]")
+    final case class Vector(fixedSize: Option[Int]) extends Type.Single(fixedSize.fold("vector")(s => s"vector($s)")) {
+      override val extension: Option[String] = "vector".some
+    }
 
   }
 

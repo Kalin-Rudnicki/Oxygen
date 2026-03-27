@@ -103,12 +103,33 @@ private[json] final class JsonParser private (string: String) {
             sb.append(c)
             idx += 2
             continue()
-            Json.Number(BigDecimal(sb.getAndClear()))
           case _ =>
             fail()
         }
       case _ =>
-        Json.Number(BigDecimal(sb.getAndClear()))
+        ()
+    }
+
+    val coreNumber: BigDecimal = BigDecimal(sb.getAndClear())
+
+    string.lift(idx) match {
+      case Some('e' | 'E') =>
+        string.lift(idx + 1) match {
+          case Some('-') =>
+            idx += 2
+            continue()
+            val shift: Int = sb.getAndClear().toInt
+            Json.Number(coreNumber * BigDecimal(10).pow(-shift))
+          case Some('+') =>
+            idx += 2
+            continue()
+            val shift: Int = sb.getAndClear().toInt
+            Json.Number(coreNumber * BigDecimal(10).pow(shift))
+          case _ =>
+            fail()
+        }
+      case _ =>
+        Json.Number(coreNumber)
     }
   }
 

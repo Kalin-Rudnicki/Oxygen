@@ -8,6 +8,7 @@ import oxygen.sql.schema.*
 abstract class TableCompanion[A, K](derivedRepr: TableRepr.AuxPK[A, K]) {
 
   final given tableRepr: TableRepr.AuxPK[A, K] = derivedRepr
+  final given rowRepr: RowRepr[A] = tableRepr.rowRepr
 
   final val insert: QueryI[A] =
     QueryI.compile("insert") {

@@ -329,6 +329,32 @@ object RowRepr extends RowReprLowPriority.LowPriority1 {
       value => oxygen.sql.model.Jsonb(value.value.toJsonStringCompact),
     )
 
+  given vector: RowRepr[oxygen.sql.model.PgVector] =
+    RowRepr.ColumnRepr.simplePF(
+      Column.Type.Vector(None),
+      { case value: PGobject => oxygen.sql.model.PgVector(ArraySeq.from(value.getValue.stripPrefix("[").stripSuffix("]").split(',').map(_.toFloat))) }, // TODO (KR) : enforce pg type?
+      { value =>
+        val obj = new PGobject()
+        obj.setType("vector")
+        obj.setValue(value.vector.mkString("[", ",", "]"))
+        obj
+      },
+    )
+
+  inline given vectorSized: [I <: Int] => RowRepr[oxygen.sql.model.PgVectorSized[I]] = {
+    val size: Int = scala.compiletime.constValue[I]
+    RowRepr.ColumnRepr.simplePF(
+      Column.Type.Vector(size.some),
+      { case value: PGobject => oxygen.sql.model.PgVectorSized[I](ArraySeq.from(value.getValue.stripPrefix("[").stripSuffix("]").split(',').map(_.toFloat))) }, // TODO (KR) : enforce pg type?
+      { value =>
+        val obj = new PGobject()
+        obj.setType("vector")
+        obj.setValue(value.vector.mkString("[", ",", "]"))
+        obj
+      },
+    )
+  }
+
   // =====| Binary Types |=====
 
   // TODO (KR) :

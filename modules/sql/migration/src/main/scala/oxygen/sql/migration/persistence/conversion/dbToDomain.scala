@@ -37,21 +37,22 @@ object dbToDomain {
 
   extension (self: ColumnColumn.Type)
     def toDomain: Column.Type = self match
-      case ColumnColumn.Type.SmallInt        => Column.Type.SmallInt
-      case ColumnColumn.Type.Int             => Column.Type.Int
-      case ColumnColumn.Type.BigInt          => Column.Type.BigInt
-      case ColumnColumn.Type.Real            => Column.Type.Real
-      case ColumnColumn.Type.DoublePrecision => Column.Type.DoublePrecision
-      case ColumnColumn.Type.Text            => Column.Type.Text
-      case ColumnColumn.Type.Timestamp       => Column.Type.Timestamp
-      case ColumnColumn.Type.ZonedTimestamp  => Column.Type.ZonedTimestamp
-      case ColumnColumn.Type.Date            => Column.Type.Date
-      case ColumnColumn.Type.Time            => Column.Type.Time
-      case ColumnColumn.Type.Boolean         => Column.Type.Boolean
-      case ColumnColumn.Type.UUID            => Column.Type.UUID
-      case ColumnColumn.Type.Json            => Column.Type.Json
-      case ColumnColumn.Type.Jsonb           => Column.Type.Jsonb
-      case ColumnColumn.Type.Array(elemType) => Column.Type.Array(elemType.toDomain)
+      case ColumnColumn.Type.SmallInt          => Column.Type.SmallInt
+      case ColumnColumn.Type.Int               => Column.Type.Int
+      case ColumnColumn.Type.BigInt            => Column.Type.BigInt
+      case ColumnColumn.Type.Real              => Column.Type.Real
+      case ColumnColumn.Type.DoublePrecision   => Column.Type.DoublePrecision
+      case ColumnColumn.Type.Text              => Column.Type.Text
+      case ColumnColumn.Type.Timestamp         => Column.Type.Timestamp
+      case ColumnColumn.Type.ZonedTimestamp    => Column.Type.ZonedTimestamp
+      case ColumnColumn.Type.Date              => Column.Type.Date
+      case ColumnColumn.Type.Time              => Column.Type.Time
+      case ColumnColumn.Type.Boolean           => Column.Type.Boolean
+      case ColumnColumn.Type.UUID              => Column.Type.UUID
+      case ColumnColumn.Type.Json              => Column.Type.Json
+      case ColumnColumn.Type.Jsonb             => Column.Type.Jsonb
+      case ColumnColumn.Type.Vector(fixedSize) => Column.Type.Vector(fixedSize)
+      case ColumnColumn.Type.Array(elemType)   => Column.Type.Array(elemType.toDomain)
 
   extension (self: TableStateColumn)
     def toDomain: TableState = {
@@ -67,6 +68,7 @@ object dbToDomain {
 
   extension (self: MigrationStepColumn.StateDiff)
     def toDomain: StateDiff = self match
+      case MigrationStepColumn.AlterExtension.CreateExtension(ext)                             => StateDiff.AlterExtension.CreateExtension(ext)
       case MigrationStepColumn.AlterSchema.CreateSchema(schemaRef)                             => StateDiff.AlterSchema.CreateSchema(schemaRef.toDomain)
       case MigrationStepColumn.AlterSchema.RenameSchema(schemaRef, newName)                    => StateDiff.AlterSchema.RenameSchema(schemaRef.toDomain, newName)
       case MigrationStepColumn.AlterSchema.DropSchema(schemaRef)                               => StateDiff.AlterSchema.DropSchema(schemaRef.toDomain)
