@@ -87,4 +87,12 @@ object MigrationService {
   def migrateLayer(migrations: => Migrations): ZLayer[MigrationService, MigrationError, Unit] =
     ZLayer { migrate(migrations) }.unit
 
+  def defaultMigrateLayer(migrations: => Migrations): ZLayer[Database & Atomically, MigrationError, Unit] =
+    ZLayer.makeSome[Database & Atomically, Unit](
+      MigrationService.layer,
+      MigrationConfig.defaultLayer,
+      MigrationRepo.layer,
+      migrateLayer(migrations),
+    )
+
 }

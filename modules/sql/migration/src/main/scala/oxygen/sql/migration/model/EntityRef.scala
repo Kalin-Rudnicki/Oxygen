@@ -5,6 +5,14 @@ import oxygen.predef.core.*
 sealed trait EntityRef derives Show
 object EntityRef {
 
+  final case class ExtensionRef(ext: String) extends EntityRef {
+    override def toString: String = ext
+  }
+  object ExtensionRef {
+    given Ordering[ExtensionRef] = Ordering.by(_.ext)
+    given Show[ExtensionRef] = v => s"ExtensionRef(ext = ${v.ext})"
+  }
+
   final case class SchemaRef(schemaName: String) extends EntityRef {
     def isPublic: Boolean = schemaName == "public"
     override def toString: String = schemaName

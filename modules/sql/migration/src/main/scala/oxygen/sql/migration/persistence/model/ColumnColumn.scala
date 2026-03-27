@@ -11,7 +11,11 @@ final case class ColumnColumn(
 object ColumnColumn {
 
   sealed abstract class Type(final val show: String) {
+
     override def toString: String = show
+
+    val extension: Option[String] = None
+
   }
   object Type {
 
@@ -52,10 +56,15 @@ object ColumnColumn {
 
     // Array Types
     final case class Array(elemType: Type) extends Type(elemType.show + "[]")
+    final case class Vector(fixedSize: Option[Int]) extends Type(fixedSize.fold("vector")(s => s"vector($s)")) {
+      override val extension: Option[String] = "vector".some
+    }
 
     def decode(string: String): Either[String, ColumnColumn.Type] = string match
-      case s"$inner[]" => decode(inner).map(Array(_))
-      case _           => StrictEnum[Single].decodeEitherWithHint(string)
+      case s"$inner[]"      => decode(inner).map(Array(_))
+      case "vector"         => Vector(None).asRight
+      case s"vector($size)" => size.toIntOption.toRight("invalid vector size").map(s => Vector(s.some))
+      case _                => StrictEnum[Single].decodeEitherWithHint(string)
 
     given JsonCodec[Type] = JsonCodec.string.transformOrFail(decode, _.show)
 

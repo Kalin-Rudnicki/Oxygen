@@ -24,6 +24,9 @@ object DiffApplier {
     diff match {
       case diff: StateDiff.DerivationPhase.Phase1 =>
         diff match {
+          case StateDiff.AlterExtension.CreateExtension(ext) =>
+            if currentState.extensions.contains(ext) then ApplyError(ExtensionRef(ext), AlreadyExists, diff).asLeft
+            else currentState.copy(extensions = currentState.extensions + ext).asRight
           case StateDiff.AlterSchema.CreateSchema(schemaRef) =>
             if currentState.schemas.contains(schemaRef) then ApplyError(schemaRef, AlreadyExists, diff).asLeft
             else currentState.copy(schemas = currentState.schemas + schemaRef).asRight
@@ -105,10 +108,11 @@ object DiffApplier {
     diff match {
       case diff: StateDiff.DerivationPhase.Phase1 =>
         diff match {
-          case _: StateDiff.AlterSchema.CreateSchema    => currentState.some.asRight
-          case _: StateDiff.AlterSchema.DropSchema      => currentState.some.asRight
-          case _: StateDiff.AlterTable.CreateTable      => currentState.some.asRight
-          case StateDiff.AlterTable.DropTable(tableRef) =>
+          case _: StateDiff.AlterExtension.CreateExtension => currentState.some.asRight
+          case _: StateDiff.AlterSchema.CreateSchema       => currentState.some.asRight
+          case _: StateDiff.AlterSchema.DropSchema         => currentState.some.asRight
+          case _: StateDiff.AlterTable.CreateTable         => currentState.some.asRight
+          case StateDiff.AlterTable.DropTable(tableRef)    =>
             if currentState.tableName == tableRef then None.asRight
             else currentState.some.asRight
           case StateDiff.AlterColumn.CreateColumn(tableRef, column) =>

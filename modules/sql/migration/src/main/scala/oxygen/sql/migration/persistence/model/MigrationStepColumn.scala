@@ -9,6 +9,15 @@ object MigrationStepColumn {
 
   sealed trait StateDiff extends MigrationStepColumn
 
+  sealed trait AlterExtension extends StateDiff
+  object AlterExtension {
+
+    final case class CreateExtension(ext: String) extends AlterExtension
+
+    // TODO (KR) : drop extension?
+
+  }
+
   sealed trait AlterSchema extends StateDiff
   object AlterSchema {
 

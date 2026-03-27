@@ -8,6 +8,7 @@ import oxygen.sql.schema.*
 sealed trait StateDiff { self: StateDiff.CoreType =>
 
   final lazy val applicationOrder: Int = this match
+    case _: AlterExtension.CreateExtension                  => 0
     case _: AlterSchema.CreateSchema                        => 1
     case _: AlterSchema.RenameSchema                        => 2
     case _: AlterTable.CreateTable                          => 3
@@ -121,6 +122,15 @@ object StateDiff {
   //////////////////////////////////////////////////////////////////////////////////////////////////////
   //      Leaves
   //////////////////////////////////////////////////////////////////////////////////////////////////////
+
+  sealed trait AlterExtension extends StateDiff { self: CoreType => }
+  object AlterExtension {
+
+    final case class CreateExtension(ext: String) extends AlterExtension, CanBeSpecifiedAndDerived, DerivationPhase.Phase1
+
+    // TODO (KR) : drop extension?
+
+  }
 
   sealed trait AlterSchema extends StateDiff { self: CoreType =>
     val schemaRef: SchemaRef

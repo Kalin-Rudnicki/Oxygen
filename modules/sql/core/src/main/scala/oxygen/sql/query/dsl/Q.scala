@@ -63,6 +63,10 @@ object Q {
     def :=(value: A): T.Partial.SetValue = macroOnly
     def asc: T.Partial.OrderByPart = macroOnly
     def desc: T.Partial.OrderByPart = macroOnly
+    def <=>(value: A): Double = macroOnly
+    def <#>(value: A): Double = macroOnly
+    def <->(value: A): Double = macroOnly
+    def <+>(value: A): Double = macroOnly
 
   def mkSqlString(strings: String*): String = macroOnly
 

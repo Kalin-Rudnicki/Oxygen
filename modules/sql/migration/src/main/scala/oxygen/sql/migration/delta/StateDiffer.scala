@@ -15,6 +15,7 @@ object StateDiffer {
         target: MigrationState,
     ): Either[DiffError, Growable[StateDiff.CanBeDerived & StateDiff.DerivationPhase.Phase1]] =
       for {
+        diffs0 <- extensionDiffs(current, target)
         diffs1 <- schemaDiffs(current, target)
         diffs2 <- tableDiffs(current, target)
         diffs3 <- Growable.many(Ior.zippedMapIterator(current.tables, target.tables).map(_._2).toSeq).traverse {
@@ -22,7 +23,17 @@ object StateDiffer {
           case Ior.Left(_)               => Growable.empty.asRight
           case Ior.Right(_)              => Growable.empty.asRight
         }
-      } yield diffs1 ++ diffs2 ++ diffs3.flatten
+      } yield diffs0 ++ diffs1 ++ diffs2 ++ diffs3.flatten
+
+    private def extensionDiffs(
+        current: MigrationState,
+        target: MigrationState,
+    ): Either[DiffError, Growable[StateDiff.CanBeDerived & StateDiff.DerivationPhase.Phase1 & StateDiff.AlterExtension]] = {
+      val createExtensions: Growable[StateDiff.AlterExtension.CreateExtension] =
+        Growable.many(target.extensions &~ current.extensions).map { StateDiff.AlterExtension.CreateExtension(_) }
+
+      createExtensions.asRight
+    }
 
     private def schemaDiffs(
         current: MigrationState,
