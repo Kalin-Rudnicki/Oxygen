@@ -63,10 +63,12 @@ object Q {
     def :=(value: A): T.Partial.SetValue = macroOnly
     def asc: T.Partial.OrderByPart = macroOnly
     def desc: T.Partial.OrderByPart = macroOnly
-    def <=>(value: A): Double = macroOnly
-    def <#>(value: A): Double = macroOnly
-    def <->(value: A): Double = macroOnly
-    def <+>(value: A): Double = macroOnly
+    def <=>(value: A): Double = macroOnly // Cosine distance (used for vector similarity)
+    def <#>(value: A): Double = macroOnly // Negative inner product (used for vector similarity)
+    def <->(value: A): Double = macroOnly // Euclidean (L2) distance
+    def <+>(value: A): Double = macroOnly // L1 (Manhattan) distance
+    def @>(value: A): Boolean = macroOnly // is ancestor of (ltree)
+    def <@(value: A): Boolean = macroOnly // is descendant of (ltree)
 
   def mkSqlString(strings: String*): String = macroOnly
 

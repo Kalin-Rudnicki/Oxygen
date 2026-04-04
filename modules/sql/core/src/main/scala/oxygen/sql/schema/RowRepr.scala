@@ -355,6 +355,22 @@ object RowRepr extends RowReprLowPriority.LowPriority1 {
     )
   }
 
+  given ltree: RowRepr[oxygen.sql.model.LTree] =
+    RowRepr.ColumnRepr.simplePF(
+      Column.Type.LTree,
+      { case value: PGobject =>
+        val str = value.getValue
+        if str.nonEmpty then oxygen.sql.model.LTree(ArraySeq.unsafeWrapArray(str.split('.')))
+        else oxygen.sql.model.LTree(ArraySeq.empty)
+      }, // TODO (KR) : enforce pg type?
+      { value =>
+        val obj = new PGobject()
+        obj.setType("ltree")
+        obj.setValue(value.labels.mkString("."))
+        obj
+      },
+    )
+
   // =====| Binary Types |=====
 
   // TODO (KR) :

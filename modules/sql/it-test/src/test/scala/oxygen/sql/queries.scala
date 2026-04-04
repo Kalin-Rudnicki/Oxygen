@@ -147,6 +147,12 @@ final case class Arrays(
 )
 object Arrays extends TableCompanion[Arrays, Unit](TableRepr.derived[Arrays])
 
+final case class LTreeEx(
+    @primaryKey id: UUID,
+    tree: oxygen.sql.model.LTree,
+)
+object LTreeEx extends TableCompanion[LTreeEx, UUID](TableRepr.derived[LTreeEx])
+
 @experimental
 object queries {
 
@@ -371,6 +377,22 @@ object queries {
     for {
       n <- Q.select[Note2]
       _ <- where if n.note2.nonEmpty
+    } yield n
+
+  @compile
+  val ltreeAncestors: QueryIO[oxygen.sql.model.LTree, LTreeEx] =
+    for {
+      in <- input[oxygen.sql.model.LTree]
+      n <- Q.select[LTreeEx]
+      _ <- where if n.tree @> in
+    } yield n
+
+  @compile
+  val ltreeDescendants: QueryIO[oxygen.sql.model.LTree, LTreeEx] =
+    for {
+      in <- input[oxygen.sql.model.LTree]
+      n <- Q.select[LTreeEx]
+      _ <- where if n.tree <@ in
     } yield n
 
   //////////////////////////////////////////////////////////////////////////////////////////////////////

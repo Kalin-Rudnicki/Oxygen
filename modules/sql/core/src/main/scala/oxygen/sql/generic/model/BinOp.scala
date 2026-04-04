@@ -25,6 +25,8 @@ private[generic] object BinOp {
     case `<#>` extends Comp("<#>", "<#>")
     case `<->` extends Comp("<->", "<->")
     case `<+>` extends Comp("<+>", "<+>")
+    case `@>` extends Comp("@>", "@>")
+    case `<@` extends Comp("<@", "<@")
 
     final def show: String = sql.hexFg("#E6C120").toString
 

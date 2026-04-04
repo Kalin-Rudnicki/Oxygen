@@ -51,6 +51,8 @@ object ColumnColumn {
     case object Json extends Type.Single("JSON")
     case object Jsonb extends Type.Single("JSONB")
 
+    case object LTree extends Type.Single("ltree")
+
     // Binary Types
     // TODO (KR) : ...
 

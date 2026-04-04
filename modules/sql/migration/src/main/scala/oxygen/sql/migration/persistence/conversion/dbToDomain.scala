@@ -51,6 +51,7 @@ object dbToDomain {
       case ColumnColumn.Type.UUID              => Column.Type.UUID
       case ColumnColumn.Type.Json              => Column.Type.Json
       case ColumnColumn.Type.Jsonb             => Column.Type.Jsonb
+      case ColumnColumn.Type.LTree             => Column.Type.LTree
       case ColumnColumn.Type.Vector(fixedSize) => Column.Type.Vector(fixedSize)
       case ColumnColumn.Type.Array(elemType)   => Column.Type.Array(elemType.toDomain)
 
