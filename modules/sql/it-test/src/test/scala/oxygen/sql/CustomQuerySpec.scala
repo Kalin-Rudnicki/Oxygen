@@ -323,6 +323,26 @@ object CustomQuerySpec extends OxygenSpec[Database] {
           res2 == Set(n3, n4),
         )
       },
+      test("ltree") {
+        def make(labels: String*): UIO[LTreeEx] =
+          Random.nextUUID.map(LTreeEx(_, oxygen.sql.model.LTree(ArraySeq.from(labels))))
+
+        for {
+          a <- make("a")
+          ab <- make("a", "b")
+          abc1 <- make("a", "b", "c1")
+          abc2 <- make("a", "b", "c2")
+          ad <- make("a", "d")
+          d <- make("d")
+
+          _ <- LTreeEx.insert.all(a, ab, abc1, abc2, ad, d).unit
+          res1 <- queries.ltreeAncestors.execute(ab.tree).to[Set]
+          res2 <- queries.ltreeDescendants.execute(ab.tree).to[Set]
+        } yield assertTrue(
+          res1 == Set(a, ab),
+          res2 == Set(ab, abc1, abc2),
+        )
+      },
     )
 
   override def testAspects: Chunk[CustomQuerySpec.TestSpecAspect] = Chunk(TestAspect.nondeterministic, TestAspect.withLiveClock, SqlAspects.isolateTestsInRollbackTransaction)
@@ -335,7 +355,7 @@ object CustomQuerySpec extends OxygenSpec[Database] {
       MigrationConfig.defaultLayer,
       MigrationService.migrateLayer(
         Migrations(
-          PlannedMigration.auto(1)(Person.tableRepr, Note.tableRepr, Note2.tableRepr, Ints.tableRepr, MultiPK1.tableRepr, MultiPK2.tableRepr),
+          PlannedMigration.auto(1)(Person.tableRepr, Note.tableRepr, Note2.tableRepr, Ints.tableRepr, MultiPK1.tableRepr, MultiPK2.tableRepr, LTreeEx.tableRepr),
         ),
       ),
       Atomically.LiveDB.layer,

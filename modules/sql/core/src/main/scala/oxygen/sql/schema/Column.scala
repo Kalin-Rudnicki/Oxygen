@@ -66,6 +66,10 @@ object Column {
     case object Json extends Type.Single("JSON")
     case object Jsonb extends Type.Single("JSONB")
 
+    case object LTree extends Type.Single("ltree") {
+      override val extension: Option[String] = "ltree".some
+    }
+
     // Binary Types
     // TODO (KR) : ...
 
