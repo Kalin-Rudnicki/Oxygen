@@ -101,6 +101,13 @@ lazy val `oxygen-modules-jvm`: Project =
       `oxygen-sql-migration`,
       `oxygen-sql-test`,
 
+      // events
+      `oxygen-events`,
+      `oxygen-events-in-memory`,
+      `oxygen-events-pulsar`,
+      // TODO (KR) : add
+      // `oxygen-events-pulsar-test`,
+
       // http
       `oxygen-http`.jvm,
       // TODO (KR) : add
@@ -327,6 +334,49 @@ lazy val `oxygen-storage`: Project =
       `oxygen-test`.jvm % Test,
     )
 
+lazy val `oxygen-events`: Project =
+  project
+    .in(file("modules/events/core"))
+    .settings(
+      publishedProjectSettings,
+      name := "oxygen-events",
+      description := "Generic oxygen events.",
+    )
+    .dependsOn(
+      `oxygen-schema`.jvm % testAndCompile,
+      `oxygen-zio`.jvm % testAndCompile,
+      `oxygen-test`.jvm % Test,
+    )
+
+lazy val `oxygen-events-in-memory`: Project =
+  project
+    .in(file("modules/events/in-memory"))
+    .settings(
+      publishedProjectSettings,
+      name := "oxygen-events-in-memory",
+      description := "In-memory implementation of oxygen-events.",
+    )
+    .dependsOn(
+      `oxygen-events` % testAndCompile,
+    )
+
+lazy val `oxygen-events-pulsar`: Project =
+  project
+    .in(file("modules/events/pulsar"))
+    .settings(
+      publishedProjectSettings,
+      name := "oxygen-events-pulsar",
+      description := "Apache pulsar implementation of oxygen-events.",
+      libraryDependencies ++= Seq(
+        pulsar.organization % pulsar.client % pulsar.version,
+        pulsar.organization % pulsar.adminClient % pulsar.version,
+      ),
+    )
+    .dependsOn(
+      `oxygen-events` % testAndCompile,
+      `oxygen-schema`.jvm % testAndCompile,
+    )
+
 lazy val `oxygen-storage-in-memory`: Project =
   project
     .in(file("modules/sql/storage-in-memory"))
@@ -508,6 +558,20 @@ lazy val `oxygen-sql-test`: Project =
       `oxygen-sql` % testAndCompile,
     )
 
+// TODO (KR) :
+// lazy val `oxygen-events-pulsar-test`: Project =
+//   project
+//     .in(file("modules/events/pulsar-test-utils"))
+//     .settings(
+//       publishedProjectSettings,
+//       name := "oxygen-events-pulsar-test",
+//       description := "Test utils for oxygen-events-pulsar.",
+//     )
+//     .dependsOn(
+//       `oxygen-test-container` % testAndCompile,
+//       `oxygen-events-pulsar` % testAndCompile,
+//     )
+
 //////////////////////////////////////////////////////////////////////////////////////////////////////
 //      Internal
 //////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -523,6 +587,7 @@ lazy val `it`: Project =
     .aggregate(
       `sql-it`,
       `http-it`,
+      `events-it`,
     )
 
 lazy val `sql-it`: Project =
@@ -555,6 +620,20 @@ lazy val `http-it`: Project =
       // TODO (KR) : replace
       // `oxygen-http-test`
       `oxygen-http`.jvm % testAndCompile,
+    )
+
+lazy val `events-it`: Project =
+  project
+    .in(file("modules/events/it-test"))
+    .settings(
+      nonPublishedProjectSettings,
+      name := "events-it",
+      description := "events-it",
+    )
+    .dependsOn(
+      `oxygen-events` % testAndCompile,
+      `oxygen-events-in-memory` % testAndCompile,
+      `oxygen-events-pulsar` % testAndCompile,
     )
 
 lazy val `ut`: CrossProject =
