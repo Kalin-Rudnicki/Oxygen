@@ -11,8 +11,13 @@ trait EventConsumer[+A] {
 }
 object EventConsumer {
 
+  type Sourceless[+K, +V] = EventConsumer[Event.Sourceless[K, V]]
+
   final case class Mapped[A, B](a: EventConsumer[A], transform: A => B) extends EventConsumer[B] {
     override def consume[R](f: B => URIO[R, Unit]): URIO[R, Unit] = a.consume(v => f(transform(v)))
   }
+
+  def mapLayer[A: Tag, B: Tag](f: A => B): URLayer[EventConsumer[A], EventConsumer[B]] =
+    ZLayer.service[EventConsumer[A]].project(_.map(f))
 
 }

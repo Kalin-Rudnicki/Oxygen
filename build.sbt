@@ -101,6 +101,8 @@ lazy val `oxygen-modules-jvm`: Project =
 
       // events
       `oxygen-events`,
+      `oxygen-events-in-memory`,
+      `oxygen-events-pulsar`,
 
       // http
       `oxygen-http`.jvm,
@@ -336,6 +338,30 @@ lazy val `oxygen-events`: Project =
     .dependsOn(
       `oxygen-zio`.jvm % testAndCompile,
       `oxygen-test`.jvm % Test,
+    )
+
+lazy val `oxygen-events-in-memory`: Project =
+  project
+    .in(file("modules/events/in-memory"))
+    .settings(
+      publishedProjectSettings,
+      name := "oxygen-events-in-memory",
+      description := "In-memory implementation of oxygen-events.",
+    )
+    .dependsOn(
+      `oxygen-events` % testAndCompile,
+    )
+
+lazy val `oxygen-events-pulsar`: Project =
+  project
+    .in(file("modules/events/pulsar"))
+    .settings(
+      publishedProjectSettings,
+      name := "oxygen-events-pulsar",
+      description := "Apache pulsar implementation of oxygen-events.",
+    )
+    .dependsOn(
+      `oxygen-events` % testAndCompile,
     )
 
 lazy val `oxygen-storage-in-memory`: Project =
