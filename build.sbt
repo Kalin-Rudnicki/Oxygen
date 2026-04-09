@@ -99,6 +99,9 @@ lazy val `oxygen-modules-jvm`: Project =
       `oxygen-sql-migration`,
       `oxygen-sql-test`,
 
+      // events
+      `oxygen-events`,
+
       // http
       `oxygen-http`.jvm,
       // TODO (KR) : add
@@ -316,6 +319,19 @@ lazy val `oxygen-storage`: Project =
       publishedProjectSettings,
       name := "oxygen-storage",
       description := "Parent library for oxygen-sql that doesn't assume you are using SQL.",
+    )
+    .dependsOn(
+      `oxygen-zio`.jvm % testAndCompile,
+      `oxygen-test`.jvm % Test,
+    )
+
+lazy val `oxygen-events`: Project =
+  project
+    .in(file("modules/events/core"))
+    .settings(
+      publishedProjectSettings,
+      name := "oxygen-events",
+      description := "Generic oxygen events.",
     )
     .dependsOn(
       `oxygen-zio`.jvm % testAndCompile,
