@@ -359,6 +359,10 @@ lazy val `oxygen-events-pulsar`: Project =
       publishedProjectSettings,
       name := "oxygen-events-pulsar",
       description := "Apache pulsar implementation of oxygen-events.",
+      libraryDependencies ++= Seq(
+        pulsar.organization % pulsar.client % pulsar.version,
+        pulsar.organization % pulsar.adminClient % pulsar.version,
+      ),
     )
     .dependsOn(
       `oxygen-events` % testAndCompile,

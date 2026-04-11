@@ -50,4 +50,15 @@ object Dependencies {
 
   }
 
+  object pulsar {
+
+    val organization = "org.apache.pulsar"
+
+    val version = "4.2.0"
+
+    val client = "pulsar-client"
+    val adminClient = "pulsar-client-admin"
+
+  }
+
 }

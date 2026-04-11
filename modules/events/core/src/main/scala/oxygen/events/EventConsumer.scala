@@ -6,6 +6,9 @@ trait EventConsumer[+A] {
 
   def consume[R](f: A => URIO[R, Unit]): URIO[R, Unit]
 
+  // TODO (KR) :
+  // def filter(f: A => Boolean): EventConsumer[A]
+
   final def map[B](f: A => B): EventConsumer[B] = EventConsumer.Mapped(this, f)
 
 }
