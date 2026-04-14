@@ -366,6 +366,7 @@ lazy val `oxygen-events-pulsar`: Project =
     )
     .dependsOn(
       `oxygen-events` % testAndCompile,
+      `oxygen-schema`.jvm % testAndCompile,
     )
 
 lazy val `oxygen-storage-in-memory`: Project =
