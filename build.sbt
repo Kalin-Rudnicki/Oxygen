@@ -90,6 +90,7 @@ lazy val `oxygen-modules-jvm`: Project =
       `oxygen-quoted`.jvm,
       `oxygen-schema`.jvm,
       `oxygen-transform`.jvm,
+      `oxygen-yaml`.jvm,
       `oxygen-zio`.jvm,
 
       // sql
@@ -133,6 +134,7 @@ lazy val `oxygen-modules-js`: Project =
       `oxygen-quoted`.js,
       `oxygen-schema`.js,
       `oxygen-transform`.js,
+      `oxygen-yaml`.js,
       `oxygen-zio`.js,
 
       // http
@@ -168,6 +170,7 @@ lazy val `oxygen-modules-native`: Project =
       `oxygen-quoted`.native,
       `oxygen-schema`.native,
       `oxygen-transform`.native,
+      `oxygen-yaml`.native,
       `oxygen-zio`.native,
 
       // jwt
@@ -408,6 +411,22 @@ lazy val `oxygen-ui-web`: Project =
     )
     .dependsOn(
       `oxygen-http`.js % testAndCompile,
+    )
+
+lazy val `oxygen-yaml`: CrossProject =
+  crossProject(JSPlatform, JVMPlatform, NativePlatform)
+    .crossType(CrossType.Pure)
+    .in(file("modules/general/yaml"))
+    .settings(
+      publishedProjectSettings,
+      name := "oxygen-yaml",
+      description := "Wrapper around scala-yaml to work with oxygen-json.",
+      libraryDependencies ++= Seq(
+        virtusLabs.organization %% virtusLabs.scalaYaml % virtusLabs.scalaYamlVersion,
+      ),
+    )
+    .dependsOn(
+      `oxygen-json` % testAndCompile,
     )
 
 lazy val `oxygen-zio`: CrossProject =
