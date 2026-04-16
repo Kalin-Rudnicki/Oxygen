@@ -29,6 +29,14 @@ object Dependencies {
 
   }
 
+  object virtusLabs {
+
+    val organization = "org.virtuslab"
+
+    val scalaYaml = "scala-yaml"
+    val scalaYamlVersion = "0.3.1"
+
+  }
   object zio {
 
     val organization = "dev.zio"
