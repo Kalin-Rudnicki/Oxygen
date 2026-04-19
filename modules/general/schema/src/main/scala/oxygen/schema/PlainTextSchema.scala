@@ -69,11 +69,17 @@ object PlainTextSchema extends PlainTextSchemaLowPriority.LowPriority1 {
     PlainTextSchema.jwt[JWT.StandardPayload[A]]
   }
 
+  given memorySize: PlainTextSchema[MemorySize] = PlainTextSchema.string.transformOrFail(MemorySize.fromString, _.toString)
+
   given email: PlainTextSchema[Email] = PlainTextSchema.string.transformOption(Email.fromString, _.toString)
   given ipv4: PlainTextSchema[IPV4] = PlainTextSchema.string.transformOption(IPV4.parse, _.toString)
   given ipv4Range: PlainTextSchema[IPV4Range] = PlainTextSchema.string.transformOption(IPV4Range.parse, _.toString)
   given ipv4CIDR: PlainTextSchema[IPV4CIDR] = PlainTextSchema.string.transformOption(IPV4CIDR.parse, _.toString)
-  given memorySize: PlainTextSchema[MemorySize] = PlainTextSchema.string.transformOrFail(MemorySize.fromString, _.toString)
+  given ipv4CIDRPrefix: PlainTextSchema[IPV4CIDR.Prefix] = PlainTextSchema.string.transformOption(IPV4CIDR.Prefix.slashMap.get, _.showSlash)
+  given ipv4CIDRBlockStart: PlainTextSchema[IPV4CIDR.BlockStart] = ipv4CIDR.transformOrFail(IPV4CIDR.BlockStart.wrap, identity)
+  given ipv4CIDRBlockEnd: PlainTextSchema[IPV4CIDR.BlockEnd] = ipv4CIDR.transformOrFail(IPV4CIDR.BlockEnd.wrap, identity)
+  given networkSpec: PlainTextSchema[NetworkSpec] = PlainTextSchema.string.transformOption(NetworkSpec.parse, _.toString)
+  given networkSpecMultiple: PlainTextSchema[NetworkSpec.Multiple] = PlainTextSchema.string.transformOption(NetworkSpec.Multiple.parse, _.toString)
 
   given password: PlainTextSchema[Password.PlainText] =
     PlainTextSchema.fromStringCodec
