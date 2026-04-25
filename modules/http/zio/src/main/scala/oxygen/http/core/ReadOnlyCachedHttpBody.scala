@@ -141,6 +141,9 @@ final class ReadOnlyCachedHttpBody private (
   override def knownContentLength: Option[Long] =
     rawBody.knownContentLength
 
+  override def toString: String =
+    rawBody.toString
+
 }
 object ReadOnlyCachedHttpBody {
 

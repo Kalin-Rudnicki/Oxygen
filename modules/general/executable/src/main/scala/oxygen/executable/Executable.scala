@@ -253,6 +253,17 @@ object SingleBuilders {
     private val logLevelParser: Params[LogLevel] =
       Params.`enum`[RichLogLevel]("log-level", hints = List("default log level"))(using RichLogLevel.strictEnum).withDefault(RichLogLevel.Info).map(_.level)
 
+    private def defaultedOxygenLogger(defaults: OxygenLoggerDefaults): Logger =
+      Logger.oxygen(
+        colorMode = defaults.colorMode,
+        logTrace = defaults.logTrace,
+        logFiberId = defaults.logFiberId,
+        logAnnotations = defaults.logAnnotations,
+        logSpans = defaults.logSpans,
+        logTimestamp = defaults.logTimestamp,
+        ignoreStackless = defaults.ignoreStackless,
+      )
+
     private def oxygenLoggerParser(defaults: OxygenLoggerDefaults): Params[Logger] =
       Params.valueWith(
         "oxygen-logger",
@@ -269,17 +280,7 @@ object SingleBuilders {
             Params.toggle.prefixFalse("no", "ignore-stackless", hints = List("Ignore when a cause denotes itself as `stackless`")).withDefault(defaults.ignoreStackless)
         ).bracketed("oxygen-params")
           .map { Logger.oxygen }
-          .withDefault {
-            Logger.oxygen(
-              colorMode = defaults.colorMode,
-              logTrace = defaults.logTrace,
-              logFiberId = defaults.logFiberId,
-              logAnnotations = defaults.logAnnotations,
-              logSpans = defaults.logSpans,
-              logTimestamp = defaults.logTimestamp,
-              ignoreStackless = defaults.ignoreStackless,
-            )
-          }
+          .withDefault { defaultedOxygenLogger(defaults) }
       }
 
     private val jsonLoggerParser: Params[Logger] =
@@ -314,7 +315,7 @@ object SingleBuilders {
           logLevelParser &&
           loggerParser(config.additionalLoggerParsers, config.oxygenLoggerDefaults) {
             if config.executableConfig.keepZioLogger then Logger.zioDefault
-            else Logger.oxygenDefault
+            else defaultedOxygenLogger(config.oxygenLoggerDefaults)
           }
       ).map { case (annotations, spans, logLevel, logger) => LogConfig(annotations, spans, ArraySeq(LogConfig.LoggerElem(logger, logLevel))) }
 
