@@ -40,6 +40,7 @@ trait Path {
   /////// Read ///////////////////////////////////////////////////////////////
 
   def read: IO[FileSystemError, String]
+  def readBytes: IO[FileSystemError, Array[Byte]]
 
   def status: IO[FileSystemError, Path.Status]
 
@@ -58,6 +59,10 @@ trait Path {
   /////// Write ///////////////////////////////////////////////////////////////
 
   def write(contents: String): IO[FileSystemError, Unit]
+  def writeBytes(contents: Array[Byte]): IO[FileSystemError, Unit]
+
+  def append(contents: String): IO[FileSystemError, Unit]
+  def appendBytes(contents: Array[Byte]): IO[FileSystemError, Unit]
 
   def createEmptyFile: IO[FileSystemError, Unit]
   def createDirectory: IO[FileSystemError, Unit]
