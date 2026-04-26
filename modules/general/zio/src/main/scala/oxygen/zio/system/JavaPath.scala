@@ -61,6 +61,9 @@ final case class JavaPath(javaPath: J.Path) extends Path {
   override def read: IO[FileSystemError, String] =
     FileSystem.attempt(pathName, "read from path") { J.Files.readString(javaPath) }
 
+  override def readBytes: IO[FileSystemError, Array[Byte]] =
+    FileSystem.attempt(pathName, "read bytes from path") { J.Files.readAllBytes(javaPath) }
+
   override def status: IO[FileSystemError, Path.Status] =
     FileSystem.attempt(pathName, "detect path status") {
       if !J.Files.exists(javaPath) then Path.Status.DoesNotExist
@@ -93,6 +96,15 @@ final case class JavaPath(javaPath: J.Path) extends Path {
 
   override def write(contents: String): IO[FileSystemError, Unit] =
     FileSystem.attempt(pathName, "write to path") { J.Files.writeString(javaPath, contents) }
+
+  override def writeBytes(contents: Array[Byte]): IO[FileSystemError, Unit] =
+    FileSystem.attempt(pathName, "write to path") { J.Files.write(javaPath, contents) }
+
+  override def append(contents: String): IO[FileSystemError, Unit] =
+    FileSystem.attempt(pathName, "write to path") { J.Files.writeString(javaPath, contents, J.StandardOpenOption.APPEND) }
+
+  override def appendBytes(contents: Array[Byte]): IO[FileSystemError, Unit] =
+    FileSystem.attempt(pathName, "write to path") { J.Files.write(javaPath, contents, J.StandardOpenOption.APPEND) }
 
   override def createEmptyFile: IO[FileSystemError, Unit] = FileSystem.attempt(pathName, "create empty file") { J.Files.createFile(javaPath) }
 
