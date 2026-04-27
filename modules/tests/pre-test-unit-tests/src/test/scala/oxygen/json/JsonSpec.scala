@@ -1,9 +1,11 @@
 package oxygen.json
 
 import java.time.*
+import oxygen.core.model.IntOrString
 import oxygen.json.syntax.build.*
 import oxygen.meta.k0.*
 import oxygen.predef.test.*
+import oxygen.schema.instances.given
 
 object JsonSpec extends OxygenSpecDefault {
 
@@ -299,6 +301,10 @@ object JsonSpec extends OxygenSpecDefault {
         test("unicode") {
           assert(JsonParser.parse("\"1\\u003c\\u003e2\""))(isRight(equalTo_filteredDiff(Json.Str("1<>2"))))
         },
+        suite("oneOf")(
+          directRoundTripTest[IntOrString]("5")(IntOrString(5)),
+          directRoundTripTest[IntOrString]("\"hi\"")(IntOrString("hi")),
+        ),
       ),
     )
 

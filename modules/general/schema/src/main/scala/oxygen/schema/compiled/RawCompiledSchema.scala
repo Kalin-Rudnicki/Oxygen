@@ -163,6 +163,10 @@ final case class RawCompiledJsonSchema(
           discriminator.map { d => s"discriminator: $d" },
           IndentedString.section("cases:")(cases.map(c => s"${c.caseName}: ${c.caseType}")),
         )
+      case RawCompiledJsonSchema.JsonOneOf(oneOf) =>
+        IndentedString.section(s"[${ref.fullTypeName}]: <JsonOneOf>")(
+          IndentedString.section("oneOf:")(oneOf.map(c => s"- $c")),
+        )
       case RawCompiledJsonSchema.JsonTransform(jsonRef, false, _) =>
         s"[${ref.fullTypeName}]: <JsonTransform> - $jsonRef"
       case RawCompiledJsonSchema.JsonTransform(jsonRef, true, _) =>
@@ -183,6 +187,7 @@ final case class RawCompiledJsonSchema(
         case ja: RawCompiledJsonSchema.JsonAST       => ja
         case jp: RawCompiledJsonSchema.JsonProduct   => jp
         case js: RawCompiledJsonSchema.JsonSum       => js
+        case jp: RawCompiledJsonSchema.JsonOneOf     => jp
         case jt: RawCompiledJsonSchema.JsonTransform => jt.copy(sourceFile = jt.sourceFile.withoutLineNo)
       },
     )
@@ -226,6 +231,8 @@ object RawCompiledJsonSchema {
         (typeIdentifier, Lazy(JsonProduct(fields.map(makeField(_, reprs))))).asRight
       case I.IntermediateRepr.JsonSum(discriminator, cases) =>
         (typeIdentifier, Lazy(JsonSum(discriminator, cases.map(c => SumCase(c.name, CompiledSchemaRef.resolveJson(c.ref, reprs)))))).asRight
+      case I.IntermediateRepr.JsonOneOf(oneOf) =>
+        (typeIdentifier, Lazy(JsonOneOf(oneOf.map(CompiledSchemaRef.resolveJson(_, reprs))))).asRight
       case I.IntermediateRepr.JsonTransform(jsonRef, sourceFile) =>
         def transform: RawCompiledJsonSchema.JsonTransform = {
           val (resolvedUnderlying, underlyingNullable, _) = CompiledSchemaRef.resolveJsonConcrete(jsonRef, reprs)
@@ -255,6 +262,10 @@ object RawCompiledJsonSchema {
 
   final case class JsonSum(discriminator: Option[String], cases: ArraySeq[SumCase]) extends Repr {
     override def mapTypeIdentifier(f: TypeIdentifier.MapFunction): JsonSum = JsonSum(discriminator, cases.map(_.mapTypeIdentifier(f)))
+  }
+
+  final case class JsonOneOf(oneOf: ArraySeq[CompiledSchemaRef.JsonLike]) extends Repr {
+    override def mapTypeIdentifier(f: TypeIdentifier.MapFunction): Repr = JsonOneOf(oneOf.map(_.mapTypeIdentifier(f)))
   }
 
   final case class JsonTransform(underlyingType: CompiledSchemaRef.JsonConcrete, underlyingIsNullable: Boolean, sourceFile: RawCompiledSchema.SourceFile) extends Repr {

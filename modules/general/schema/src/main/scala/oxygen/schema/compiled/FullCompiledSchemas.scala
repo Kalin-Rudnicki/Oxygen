@@ -52,6 +52,8 @@ final case class FullCompiledSchemas(rawSchemas: RawCompiledSchemas) {
           FullCompiledJsonSchema.JsonProduct(raw, repr, repr.fields.map { f => FullCompiledJsonSchema.ProductField(f, mutableInternalState.resolveJson(f.fieldType)) })
         case repr: RawCompiledJsonSchema.JsonSum =>
           FullCompiledJsonSchema.JsonSum(raw, repr, repr.cases.map { f => FullCompiledJsonSchema.SumCase(f, mutableInternalState.resolveJson(f.caseType)) })
+        case repr: RawCompiledJsonSchema.JsonOneOf =>
+          FullCompiledJsonSchema.JsonOneOf(raw, repr, Lazy { repr.oneOf.map { c => mutableInternalState.resolveJson(c).value } })
         case repr: RawCompiledJsonSchema.JsonTransform =>
           FullCompiledJsonSchema.Transformed(raw, repr, mutableInternalState.resolveJson(repr.underlyingType))
       }

@@ -33,8 +33,8 @@ trait JsonDecoder[A] {
   final def mapJsonInput(f: PartialFunction[Json, Json]): JsonDecoder[A] =
     JsonDecoder.MapJsonInput(this, json => f.lift(json).getOrElse(json))
 
-  final def <>[B >: A](that: JsonDecoder[B]): JsonDecoder[B] =
-    JsonDecoder.OrElse(this, that)
+  final def <>[P >: A, B <: P](that: JsonDecoder[B]): JsonDecoder[P] =
+    JsonDecoder.OrElse[P, A, B](this, that)
 
   inline final def autoMap[B]: JsonDecoder[B] = {
     val (ab, _) = ProductGeneric.deriveTransform[A, B]
@@ -297,13 +297,14 @@ object JsonDecoder extends Derivable[JsonDecoder.ObjectDecoder], JsonDecoderLowP
 
   }
 
-  final case class OrElse[A, B >: A](a: JsonDecoder[A], b: JsonDecoder[B]) extends JsonDecoder[B] {
+  final case class OrElse[P, A <: P, B <: P](a: JsonDecoder[A], b: JsonDecoder[B]) extends JsonDecoder[P] {
 
-    override def decodeJsonAST(ast: Json): Either[JsonError, B] =
-      a.decodeJsonAST(ast) match {
+    override def decodeJsonAST(ast: Json): Either[JsonError, P] =
+      a.decodeJsonAST(ast) match
         case Right(value) => value.asRight
         case Left(_)      => b.decodeJsonAST(ast)
-      }
+
+    override val onMissingFromObject: Option[P] = a.onMissingFromObject.orElse(b.onMissingFromObject)
 
   }
 

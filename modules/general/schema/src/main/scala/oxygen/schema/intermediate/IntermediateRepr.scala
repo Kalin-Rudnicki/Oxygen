@@ -41,6 +41,7 @@ object IntermediateRepr {
   final case class JsonProduct(fields: ArraySeq[JsonField]) extends JsonRepr
   final case class JsonSum(discriminator: Option[String], cases: ArraySeq[JsonCase]) extends JsonRepr
   final case class JsonTransform(jsonRef: IntermediateTypeRef.Json, sourceFile: SourcePosition) extends JsonRepr
+  final case class JsonOneOf(oneOf: ArraySeq[IntermediateTypeRef.Json]) extends JsonRepr
 
   final case class JsonField(
       name: String,
@@ -143,6 +144,23 @@ object IntermediateRepr {
         case schema: JsonSchema.TransformOrFailObject[?, ?] =>
           val gen = compileJson(schema.underlying, input)
           gen.withJson(schema, JsonTransform(gen.ref, schema.pos))
+
+        case schema: JsonSchema.OrElse[?, ?, ?] =>
+          val flattened: NonEmptyList[JsonSchema[?]] = JsonSchema.OrElse.flatten(schema)
+
+          val recursive = input.recursive + myRef
+          @tailrec
+          def loop(in: IntermediateReprs, out: IntermediateReprs, queue: List[JsonSchema[?]], acc: Growable[IntermediateTypeRef.Json]): (ArraySeq[IntermediateTypeRef.Json], IntermediateReprs) =
+            queue match {
+              case head :: tail =>
+                val gen = compileJson(head, CompileInput(in, recursive))
+                loop(in ++ gen.reprs, out ++ gen.reprs, tail, acc :+ gen.ref)
+              case Nil =>
+                (acc.toArraySeq, out)
+            }
+
+          val (oneOf, gen) = loop(input.reprs, IntermediateReprs.empty, flattened.toList, Growable.empty)
+          gen.withJson(schema, JsonOneOf(oneOf))
 
         /////// ProductSchema ///////////////////////////////////////////////////////////////
         case schema: JsonSchema.ProductSchema[?] =>

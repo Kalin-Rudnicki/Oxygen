@@ -172,7 +172,7 @@ object Compared {
 
       private type RootJson =
         FullCompiledJsonSchema.JsonNumber | FullCompiledJsonSchema.JsonAST | FullCompiledJsonSchema.JsonString | FullCompiledJsonSchema.JsonArray | FullCompiledJsonSchema.JsonMap |
-          FullCompiledJsonSchema.JsonProduct | FullCompiledJsonSchema.JsonSum
+          FullCompiledJsonSchema.JsonProduct | FullCompiledJsonSchema.JsonSum | FullCompiledJsonSchema.JsonOneOf
 
       @tailrec
       private def getRoot(schema: FullCompiledSchema, rTransforms: List[RawCompiledSchema.SourceFile]): (transforms: List[RawCompiledSchema.SourceFile], root: RootPlain | RootJson) =
@@ -310,14 +310,22 @@ object Compared {
             resolvedFrom: RootJson,
             resolvedTo: RootJson,
         ): Compared[ComparisonResult] =
-          resolvedFrom match {
-            case resolvedFrom: FullCompiledJsonSchema.JsonNumber  => diffJsonNumber(resolvedFrom, resolvedTo)
-            case resolvedFrom: FullCompiledJsonSchema.JsonAST     => diffJsonAST(resolvedFrom, resolvedTo)
-            case resolvedFrom: FullCompiledJsonSchema.JsonString  => diffJsonString(resolvedFrom, resolvedTo)
-            case resolvedFrom: FullCompiledJsonSchema.JsonArray   => diffJsonArray(resolvedFrom, resolvedTo)
-            case resolvedFrom: FullCompiledJsonSchema.JsonMap     => diffJsonMap(resolvedFrom, resolvedTo)
-            case resolvedFrom: FullCompiledJsonSchema.JsonProduct => diffJsonProduct(resolvedFrom, resolvedTo)
-            case resolvedFrom: FullCompiledJsonSchema.JsonSum     => diffJsonSum(resolvedFrom, resolvedTo)
+          (resolvedFrom, resolvedTo) match {
+            // one of
+            case (resolvedFrom: FullCompiledJsonSchema.JsonOneOf, resolvedTo: FullCompiledJsonSchema.JsonOneOf) =>
+              Compared.notComparable(resolvedFrom, resolvedTo) // TODO (KR) : support this : compare(oneOf, oneOf)
+            case (resolvedFrom: FullCompiledJsonSchema.JsonOneOf, _) =>
+              Compared.notComparable(resolvedFrom, resolvedTo) // TODO (KR) : support this : compare(oneOf, ___)
+            case (_, resolvedTo: FullCompiledJsonSchema.JsonOneOf) =>
+              Compared.notComparable(resolvedFrom, resolvedTo) // TODO (KR) : support this : compare(___, oneOf)
+            // other
+            case (resolvedFrom: FullCompiledJsonSchema.JsonNumber, _)  => diffJsonNumber(resolvedFrom, resolvedTo)
+            case (resolvedFrom: FullCompiledJsonSchema.JsonAST, _)     => diffJsonAST(resolvedFrom, resolvedTo)
+            case (resolvedFrom: FullCompiledJsonSchema.JsonString, _)  => diffJsonString(resolvedFrom, resolvedTo)
+            case (resolvedFrom: FullCompiledJsonSchema.JsonArray, _)   => diffJsonArray(resolvedFrom, resolvedTo)
+            case (resolvedFrom: FullCompiledJsonSchema.JsonMap, _)     => diffJsonMap(resolvedFrom, resolvedTo)
+            case (resolvedFrom: FullCompiledJsonSchema.JsonProduct, _) => diffJsonProduct(resolvedFrom, resolvedTo)
+            case (resolvedFrom: FullCompiledJsonSchema.JsonSum, _)     => diffJsonSum(resolvedFrom, resolvedTo)
           }
 
         private def diffJsonNumber(resolvedFrom: FullCompiledJsonSchema.JsonNumber, resolvedTo: RootJson): Compared[ComparisonResult] =

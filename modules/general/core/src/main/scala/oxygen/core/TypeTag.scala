@@ -99,6 +99,16 @@ object TypeTag {
       case self: TypeRef.Intersection => self.some
       case _                          => None
 
+    final def unionCases: Set[TypeRef] =
+      this.toUnion.fold(Set(this))(_.cases)
+    final def intersectionCases: Set[TypeRef] =
+      this.toIntersection.fold(Set(this))(_.cases)
+
+    final def ||(that: TypeRef): TypeRef =
+      TypeRef.Union(this.unionCases ++ that.unionCases)
+    final def &&(that: TypeRef): TypeRef =
+      TypeRef.Intersection(this.intersectionCases ++ that.intersectionCases)
+
   }
   object TypeRef {
 

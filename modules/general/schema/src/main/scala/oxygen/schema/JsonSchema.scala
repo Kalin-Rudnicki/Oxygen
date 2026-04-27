@@ -3,7 +3,7 @@ package oxygen.schema
 import java.time.*
 import java.util.{TimeZone, UUID}
 import oxygen.core.SourcePosition
-import oxygen.core.model.Email
+import oxygen.core.model.{Email, IntOrString}
 import oxygen.json.*
 import oxygen.json.generic.*
 import oxygen.meta.{*, given}
@@ -11,7 +11,7 @@ import oxygen.meta.k0.*
 import oxygen.predef.core.*
 import oxygen.quoted.*
 import scala.quoted.*
-import scala.reflect.ClassTag
+import scala.reflect.{ClassTag, TypeTest}
 
 sealed trait JsonSchema[A] extends SchemaLike[A] {
 
@@ -31,6 +31,10 @@ sealed trait JsonSchema[A] extends SchemaLike[A] {
   final def toProductLikeOrThrow: JsonSchema.ObjectLike[A] = this match
     case self: JsonSchema.ObjectLike[A] => self
     case _                              => throw new RuntimeException(s"Not a `JsonEncoder.ObjectEncoder`: ${this.getClass.getName}")
+
+  final def ||[B](that: JsonSchema[B])(using j: JsonSchema.OrJoin[A, B]): JsonSchema[j.C] = JsonSchema.OrElse(this, that, j)
+  final def <||[B](that: JsonSchema[B])(using j: JsonSchema.OrJoin[A, B]): JsonSchema[j.C] = JsonSchema.OrElse(this, that, j)
+  final def ||>[B](that: JsonSchema[B])(using j: JsonSchema.OrJoin[B, A]): JsonSchema[j.C] = JsonSchema.OrElse(that, this, j)
 
 }
 object JsonSchema extends Derivable[JsonSchema.ObjectLike], JsonSchemaLowPriority.LowPriority1 {
@@ -73,6 +77,10 @@ object JsonSchema extends Derivable[JsonSchema.ObjectLike], JsonSchemaLowPriorit
     MapSchema(TypeTag.derived, keySchema, valueSchema)
 
   given email: JsonSchema[Email] = JsonSchema.fromPlainText
+  given intOrString: JsonSchema[IntOrString] =
+    (
+      JsonSchema.int <|| JsonSchema.string.transform(IntOrString(_).unwrap, _.toString)
+    ).transform(IntOrString(_), _.unwrap)
 
   given period: JsonSchema[Period] = standardJavaTime.period
   given instant: JsonSchema[Instant] = standardJavaTime.instant
@@ -262,6 +270,99 @@ object JsonSchema extends Derivable[JsonSchema.ObjectLike], JsonSchemaLowPriorit
       withHeader("Json.TransformOrFail", "pos" -> pos.toString, "underlying" -> builder.referenceOf(underlying))
     override val jsonEncoder: JsonEncoder[B] = underlying.jsonEncoder.contramap(ba)
     override val jsonDecoder: JsonDecoder[B] = underlying.jsonDecoder.mapOrFail(ab)
+  }
+
+  private[schema] final case class OrElse[A, B, C](a: JsonSchema[A], b: JsonSchema[B], j: OrJoin.Aux[A, B, C]) extends JsonSchema.NonProductLike[C] {
+    override protected def __internalReferenceOf(builder: SchemaLike.ReferenceBuilder): String =
+      withHeader("Json.OrSameType", "a" -> builder.referenceOf(a), "b" -> builder.referenceOf(b))
+    override val typeTag: TypeTag[C] = j.typeTag(a.typeTag, b.typeTag)
+    override val jsonEncoder: JsonEncoder[C] = j.encoder(a.jsonEncoder, b.jsonEncoder)
+    override val jsonDecoder: JsonDecoder[C] = j.decoder(a.jsonDecoder, b.jsonDecoder)
+  }
+  private[schema] object OrElse {
+
+    def flatten(schema: JsonSchema[?]): NonEmptyList[JsonSchema[?]] = schema match
+      case JsonSchema.OrElse(a, b, _) => flatten(a) ++ flatten(b)
+      case _                          => NonEmptyList.one(schema)
+
+  }
+
+  trait OrJoin[A, B] {
+    type C
+    def typeTag(a: TypeTag[A], b: TypeTag[B]): TypeTag[C]
+    def encoder(a: JsonEncoder[A], b: JsonEncoder[B]): JsonEncoder[C]
+    def decoder(a: JsonDecoder[A], b: JsonDecoder[B]): JsonDecoder[C]
+  }
+  object OrJoin extends OrJoinLowPriority.LowPriority1 {
+
+    type Aux[A, B, _C] = OrJoin[A, B] { type C = _C }
+
+    given id: [A] => OrJoin.Aux[A, A, A] =
+      new OrJoin[A, A] {
+        override type C = A
+        override def typeTag(a: TypeTag[A], b: TypeTag[A]): TypeTag[A] = a
+        override def encoder(a: JsonEncoder[A], b: JsonEncoder[A]): JsonEncoder[A] = a
+        override def decoder(a: JsonDecoder[A], b: JsonDecoder[A]): JsonDecoder[A] = a <> b
+      }
+
+  }
+
+  object OrJoinLowPriority {
+
+    import oxygen.meta.typing.*
+
+    trait LowPriority1 extends LowPriority2 {
+
+      given `super`: [A, B <: A] => (@scala.annotation.unused ev: A >>:> B) => OrJoin.Aux[A, B, A] =
+        new OrJoin[A, B] {
+          override type C = A
+          override def typeTag(a: TypeTag[A], b: TypeTag[B]): TypeTag[A] = a
+          override def encoder(a: JsonEncoder[A], b: JsonEncoder[B]): JsonEncoder[A] = a
+          override def decoder(a: JsonDecoder[A], b: JsonDecoder[B]): JsonDecoder[A] = a <> b
+        }
+
+    }
+
+    trait LowPriority2 extends LowPriority3 {
+
+      given sub: [A, B >: A] => (@scala.annotation.unused ev: B >>:> A, aTT: TypeTest[B, A]) => OrJoin.Aux[A, B, B] =
+        new OrJoin[A, B] {
+          override type C = B
+          override def typeTag(a: TypeTag[A], b: TypeTag[B]): TypeTag[B] = b
+          override def encoder(a: JsonEncoder[A], b: JsonEncoder[B]): JsonEncoder[B] =
+            new JsonEncoder[B] {
+              override def encodeJsonAST(value: B): Json = value match
+                case aTT(value) => a.encodeJsonAST(value)
+                case _          => b.encodeJsonAST(value)
+              override def addToObject(value: B): Boolean = value match
+                case aTT(value) => a.addToObject(value)
+                case _          => b.addToObject(value)
+            }
+          override def decoder(a: JsonDecoder[A], b: JsonDecoder[B]): JsonDecoder[B] = a <> b
+        }
+
+    }
+
+    trait LowPriority3 {
+
+      given disjoint: [A, B] => (@scala.annotation.unused ev: A >:< B, aTT: TypeTest[A | B, A], bTT: TypeTest[A | B, B]) => OrJoin.Aux[A, B, A | B] =
+        new OrJoin[A, B] {
+          override type C = A | B
+          override def typeTag(a: TypeTag[A], b: TypeTag[B]): TypeTag[A | B] = TypeTag[A | B, TypeTag.TypeRef](a.tag || b.tag, classOf[Any])
+          override def encoder(a: JsonEncoder[A], b: JsonEncoder[B]): JsonEncoder[A | B] =
+            new JsonEncoder[A | B] {
+              override def encodeJsonAST(value: A | B): Json = value match
+                case aTT(value) => a.encodeJsonAST(value)
+                case bTT(value) => b.encodeJsonAST(value)
+              override def addToObject(value: A | B): Boolean = value match
+                case aTT(value) => a.addToObject(value)
+                case bTT(value) => b.addToObject(value)
+            }
+          override def decoder(a: JsonDecoder[A], b: JsonDecoder[B]): JsonDecoder[A | B] = a <> b
+        }
+
+    }
+
   }
 
   /////// Object ///////////////////////////////////////////////////////////////

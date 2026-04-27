@@ -162,7 +162,7 @@ object FullCompiledPlainSchema {
 //////////////////////////////////////////////////////////////////////////////////////////////////////
 
 sealed trait FullCompiledJsonSchema extends FullCompiledSchema {
-  val isInherentlyNullable: Boolean
+  def isInherentlyNullable: Boolean
   override val ref: CompiledSchemaRef.JsonLike
 }
 object FullCompiledJsonSchema {
@@ -281,9 +281,29 @@ object FullCompiledJsonSchema {
     def discriminator: Option[String] = rawRepr.discriminator
 
     override protected def __toIndentedStringInternal(seen: Set[CompiledSchemaRef]): IndentedString =
-      makeIndentedStringOpt("Json Object (Product)")(
+      makeIndentedStringOpt("Json Object (Sum)")(
         ("discriminator", rawRepr.discriminator),
         ("cases", cases.map(_.toIndentedString(seen)).some),
+      )
+
+  }
+
+  final case class JsonOneOf(
+      raw: RawCompiledJsonSchema,
+      rawRepr: RawCompiledJsonSchema.JsonOneOf,
+      lazyOneOf: Lazy[ArraySeq[FullCompiledJsonSchema]],
+  ) extends FullCompiledJsonSchema {
+
+    override lazy val isInherentlyNullable: Boolean =
+      oneOf.exists(_.isInherentlyNullable)
+
+    override val ref: CompiledSchemaRef.JsonLike = raw.ref
+
+    def oneOf: ArraySeq[FullCompiledJsonSchema] = lazyOneOf.value
+
+    override protected def __toIndentedStringInternal(seen: Set[CompiledSchemaRef]): IndentedString =
+      makeIndentedStringOpt("Json OneOf")(
+        ("oneOf", oneOf.map(_.toIndentedString(seen)).some),
       )
 
   }

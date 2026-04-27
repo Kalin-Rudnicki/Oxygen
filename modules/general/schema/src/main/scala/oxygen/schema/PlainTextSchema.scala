@@ -3,7 +3,7 @@ package oxygen.schema
 import java.time.*
 import java.util.{TimeZone, UUID}
 import oxygen.core.{SourcePosition, TypeTag}
-import oxygen.core.model.Email
+import oxygen.core.model.{Email, IntOrString}
 import oxygen.core.model.compute.*
 import oxygen.crypto.model.{BearerToken, JWT, Password}
 import oxygen.meta.k0.*
@@ -72,6 +72,8 @@ object PlainTextSchema extends PlainTextSchemaLowPriority.LowPriority1 {
   given memorySize: PlainTextSchema[MemorySize] = PlainTextSchema.string.transformOrFail(MemorySize.fromString, _.toString)
 
   given email: PlainTextSchema[Email] = PlainTextSchema.string.transformOption(Email.fromString, _.toString)
+  given intOrString: PlainTextSchema[IntOrString] = PlainTextSchema.string.transform(IntOrString.fromString, _.toString)
+
   given ipv4: PlainTextSchema[IPV4] = PlainTextSchema.string.transformOption(IPV4.parse, _.toString)
   given ipv4Range: PlainTextSchema[IPV4Range] = PlainTextSchema.string.transformOption(IPV4Range.parse, _.toString)
   given ipv4CIDR: PlainTextSchema[IPV4CIDR] = PlainTextSchema.string.transformOption(IPV4CIDR.parse, _.toString)
