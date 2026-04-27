@@ -296,6 +296,9 @@ object JsonSpec extends OxygenSpecDefault {
 
           assert(parsed)(isRight(equalTo_filteredDiff(init)))
         },
+        test("unicode") {
+          assert(JsonParser.parse("\"1\\u003c\\u003e2\""))(isRight(equalTo_filteredDiff(Json.Str("1<>2"))))
+        },
       ),
     )
 
