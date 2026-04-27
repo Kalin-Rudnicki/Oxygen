@@ -62,7 +62,13 @@ private[json] final class JsonParser private (string: String) {
             case '"' => sb.append('"')
             case 'n' => sb.append('\n')
             case 't' => sb.append('\t')
-            case c   => sb.append(c)
+            case 'u' =>
+              val arr: Array[Char] = Array[Char](string(idx + 2), string(idx + 3), string(idx + 4), string(idx + 5))
+              val unicodeInt: Int = Integer.parseInt(new String(arr), 16)
+              idx += 4
+              sb.append(unicodeInt.toChar)
+            case c =>
+              sb.append(c)
           }
           idx += 2
           continue()
