@@ -77,6 +77,7 @@ object JsonEncoder extends Derivable[JsonEncoder.ObjectEncoder], JsonEncoderLowP
   given seq: [S[_], A] => (seqOps: SeqOps[S], encoder: JsonEncoder[A], ct: ClassTag[A]) => JsonEncoder[S[A]] = ArraySeqEncoder(encoder).contramap(_.toArraySeq)
 
   given map: [K, V] => (k: JsonFieldEncoder[K], v: JsonEncoder[V]) => JsonEncoder[Map[K, V]] = MapEncoder(k, v)
+  given orderedMap: [K, V] => (k: JsonFieldEncoder[K], v: JsonEncoder[V]) => JsonEncoder[OrderedMap[K, V]] = OrderedMapEncoder(k, v)
 
   given tuple: [A <: Tuple] => (enc: TupleEncoder[A]) => JsonEncoder[A] = enc
 
@@ -177,6 +178,11 @@ object JsonEncoder extends Derivable[JsonEncoder.ObjectEncoder], JsonEncoderLowP
   final case class MapEncoder[K, V](k: JsonFieldEncoder[K], v: JsonEncoder[V]) extends JsonEncoder[Map[K, V]] {
     override def encodeJsonAST(value: Map[K, V]): Json =
       Json.Obj(ArraySeq.from(value).map { case (_k, _v) => (k.encode(_k), v.encodeJsonAST(_v)) })
+  }
+
+  final case class OrderedMapEncoder[K, V](k: JsonFieldEncoder[K], v: JsonEncoder[V]) extends JsonEncoder[OrderedMap[K, V]] {
+    override def encodeJsonAST(value: OrderedMap[K, V]): Json =
+      Json.Obj(value.elements.map { case (_k, _v) => (k.encode(_k), v.encodeJsonAST(_v)) })
   }
 
   sealed trait TupleEncoder[A <: Tuple] extends JsonEncoder[A] {

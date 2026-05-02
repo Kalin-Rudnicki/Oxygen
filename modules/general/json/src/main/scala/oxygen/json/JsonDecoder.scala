@@ -86,6 +86,7 @@ object JsonDecoder extends Derivable[JsonDecoder.ObjectDecoder], JsonDecoderLowP
   given seq: [S[_], A] => (seqOps: SeqOps[S], decoder: JsonDecoder[A]) => JsonDecoder[S[A]] = ArraySeqDecoder(decoder).map(_.transformTo[S])
 
   given map: [K, V] => (k: JsonFieldDecoder[K], v: JsonDecoder[V]) => JsonDecoder[Map[K, V]] = MapDecoder(k, v)
+  given orderedMap: [K, V] => (k: JsonFieldDecoder[K], v: JsonDecoder[V]) => JsonDecoder[OrderedMap[K, V]] = OrderedMapDecoder(k, v)
 
   given tuple: [A <: Tuple] => (dec: TupleDecoder[A]) => JsonDecoder[A] = dec
 
@@ -253,6 +254,21 @@ object JsonDecoder extends Derivable[JsonDecoder.ObjectDecoder], JsonDecoderLowP
             } yield (k2, v2)
           }
           .map(_.toMap)
+      case _ => JsonError(Nil, JsonError.Cause.InvalidType(Json.Type.Object, ast.tpe)).asLeft
+    }
+  }
+
+  final case class OrderedMapDecoder[K, V](k: JsonFieldDecoder[K], v: JsonDecoder[V]) extends JsonDecoder[OrderedMap[K, V]] {
+    override def decodeJsonAST(ast: Json): Either[JsonError, OrderedMap[K, V]] = ast match {
+      case Json.Obj(value) =>
+        value
+          .traverse { case (_k, _v) =>
+            for {
+              k2 <- k.decode(_k).leftMap(e => JsonError(JsonError.Path.Field(_k) :: Nil, JsonError.Cause.InvalidKey(e)))
+              v2 <- v.decodeJsonAST(_v).leftMap(_.inField(_k))
+            } yield (k2, v2)
+          }
+          .map(OrderedMap.from)
       case _ => JsonError(Nil, JsonError.Cause.InvalidType(Json.Type.Object, ast.tpe)).asLeft
     }
   }

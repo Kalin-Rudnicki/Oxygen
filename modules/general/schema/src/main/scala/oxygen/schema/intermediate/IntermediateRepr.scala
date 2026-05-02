@@ -132,6 +132,10 @@ object IntermediateRepr {
           val keyGen = compilePlain(schema.keySchema, input)
           val valueGen = compileJson(schema.valueSchema, CompileInput(keyGen.reprs, input.recursive))
           valueGen.withJson(schema, JsonMap(keyGen.ref, valueGen.ref))
+        case schema: JsonSchema.OrderedMapSchema[?, ?] =>
+          val keyGen = compilePlain(schema.keySchema, input)
+          val valueGen = compileJson(schema.valueSchema, CompileInput(keyGen.reprs, input.recursive))
+          valueGen.withJson(schema, JsonMap(keyGen.ref, valueGen.ref))
         case schema: JsonSchema.Transform[?, ?] =>
           val gen = compileJson(schema.underlying, input)
           gen.withJson(schema, JsonTransform(gen.ref, schema.pos))

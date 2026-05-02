@@ -73,8 +73,8 @@ object JsonSchema extends Derivable[JsonSchema.ObjectLike], JsonSchemaLowPriorit
   given specified: [A: JsonSchema as underlying] => JsonSchema[Specified[A]] = SpecifiedSchema(underlying)
   given arraySeq: [A: {JsonSchema as underlying, TypeTag}] => JsonSchema[ArraySeq[A]] =
     ArraySchema(underlying, TypeTag.derived, JsonEncoder.arraySeq[A](using underlying.jsonEncoder), JsonDecoder.arraySeq[A](using underlying.jsonDecoder))
-  given map: [K: {PlainTextSchema as keySchema, TypeTag}, V: {JsonSchema as valueSchema, TypeTag}] => JsonSchema[Map[K, V]] =
-    MapSchema(TypeTag.derived, keySchema, valueSchema)
+  given map: [K: {PlainTextSchema as keySchema, TypeTag}, V: {JsonSchema as valueSchema, TypeTag}] => JsonSchema[Map[K, V]] = MapSchema(TypeTag.derived, keySchema, valueSchema)
+  given orderedMap: [K: {PlainTextSchema as keySchema, TypeTag}, V: {JsonSchema as valueSchema, TypeTag}] => JsonSchema[OrderedMap[K, V]] = OrderedMapSchema(TypeTag.derived, keySchema, valueSchema)
 
   given email: JsonSchema[Email] = JsonSchema.fromPlainText
   given intOrString: JsonSchema[IntOrString] =
@@ -243,6 +243,23 @@ object JsonSchema extends Derivable[JsonSchema.ObjectLike], JsonSchemaLowPriorit
 
     override val jsonEncoder: JsonEncoder[Map[K, V]] = JsonEncoder.map[K, V](using jsonFieldEncoder, valueSchema.jsonEncoder)
     override val jsonDecoder: JsonDecoder[Map[K, V]] = JsonDecoder.map[K, V](using jsonFieldDecoder, valueSchema.jsonDecoder)
+
+  }
+
+  private[schema] final case class OrderedMapSchema[K, V] private[schema] (
+      typeTag: TypeTag[OrderedMap[K, V]],
+      keySchema: PlainTextSchema[K],
+      valueSchema: JsonSchema[V],
+  ) extends NonProductLike[OrderedMap[K, V]] {
+
+    override protected def __internalReferenceOf(builder: SchemaLike.ReferenceBuilder): String =
+      withHeader("JsonOrderedMap", "keyType" -> builder.referenceOf(keySchema), "valueType" -> builder.referenceOf(valueSchema))
+
+    private val jsonFieldEncoder: JsonFieldEncoder[K] = JsonFieldEncoder.string.contramap(keySchema.encode)
+    private val jsonFieldDecoder: JsonFieldDecoder[K] = JsonFieldDecoder.string.mapOrFail(keySchema.decode)
+
+    override val jsonEncoder: JsonEncoder[OrderedMap[K, V]] = JsonEncoder.orderedMap[K, V](using jsonFieldEncoder, valueSchema.jsonEncoder)
+    override val jsonDecoder: JsonDecoder[OrderedMap[K, V]] = JsonDecoder.orderedMap[K, V](using jsonFieldDecoder, valueSchema.jsonDecoder)
 
   }
 
