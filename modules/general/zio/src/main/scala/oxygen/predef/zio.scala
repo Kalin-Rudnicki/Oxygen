@@ -7,5 +7,5 @@ object zio {
   export oxygen.zio.syntax.error.*
   export oxygen.zio.syntax.log.*
   export oxygen.zio.syntax.seq.*
-  export oxygen.zio.system.Command
+  export oxygen.zio.system.{Command, Path}
 }

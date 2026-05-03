@@ -23,7 +23,7 @@ import zio.*
   */
 sealed trait ExtractedCauses[+E] {
 
-  val causeType: ZioCauses.CauseType
+  val causeType: CauseType
 
   final def foldPriority[T](
       fail: NonEmptyList[Cause.Fail[E]] => T,
@@ -137,7 +137,7 @@ object ExtractedCauses {
 
   final case class Failures[+E](failures: NonEmptyList[Cause.Fail[E]], defects: List[Cause.Die], interrupts: List[Cause.Interrupt]) extends ExtractedCauses[E] {
 
-    override val causeType: ZioCauses.CauseType = ZioCauses.CauseType.Failure
+    override val causeType: CauseType = CauseType.Failure
 
     override def map[E2](f: E => E2): ExtractedCauses.Failures[E2] =
       ExtractedCauses.Failures(
@@ -240,7 +240,7 @@ object ExtractedCauses {
 
   final case class Defects(defects: NonEmptyList[Cause.Die], interrupts: List[Cause.Interrupt]) extends ExtractedCauses.NoFailures {
 
-    override val causeType: ZioCauses.CauseType = ZioCauses.CauseType.Defect
+    override val causeType: CauseType = CauseType.Defect
 
     override def recoverSome[E2 >: Nothing](f: Throwable => Option[E2]): ExtractedCauses[E2] =
       defects.partitionMap { die =>
@@ -272,10 +272,10 @@ object ExtractedCauses {
   }
 
   final case class Interrupts(interrupts: NonEmptyList[Cause.Interrupt]) extends ExtractedCauses.NoDefects {
-    override val causeType: ZioCauses.CauseType = ZioCauses.CauseType.Interrupt
+    override val causeType: CauseType = CauseType.Interrupt
   }
   case object Empty extends ExtractedCauses.NoDefects {
-    override val causeType: ZioCauses.CauseType = ZioCauses.CauseType.Empty
+    override val causeType: CauseType = CauseType.Empty
   }
 
   def fromRootCauses[E](
@@ -320,5 +320,10 @@ object ExtractedCauses {
 
   def fromCause[E](cause: Cause[E]): ExtractedCauses[E] =
     loop(cause :: Nil, Nil, Nil, Nil)
+
+  def fromNothingCause(cause: Cause[Nothing]): ExtractedCauses.NoFailures =
+    fromCause(cause) match
+      case causes: NoFailures   => causes
+      case _: Failures[Nothing] => throw new RuntimeException("ExtractedCauses.fromNothingCause(_) -> ExtractedCauses.Failures")
 
 }
