@@ -2,7 +2,7 @@ package oxygen.zio.syntax
 
 import oxygen.core.error.*
 import oxygen.predef.core.*
-import oxygen.zio.ZioCauses
+import oxygen.zio.{CauseType, ZioCauses}
 import zio.*
 import zio.stream.*
 
@@ -27,7 +27,7 @@ object error {
       */
     def convertCausesAuto[E2 <: Error](f: ZioCauses => E2)(using Trace): ZIO[R, E2, A] =
       self.catchAllCause { cause =>
-        val (causes, causeType): (ZioCauses, ZioCauses.CauseType) = ZioCauses.fromCauseWithType(cause)
+        val (causes, causeType): (ZioCauses, CauseType) = ZioCauses.fromCauseWithType(cause)
         val typedError: E2 = f(causes)
         if causeType.isFailure then ZIO.fail(typedError)
         else ZIO.die(typedError)
@@ -74,7 +74,7 @@ object error {
       */
     def convertCausesAuto[E2 <: Error](f: ZioCauses => E2)(using Trace): ZLayer[R, E2, A] =
       self.catchAllCause { cause =>
-        val (causes, causeType): (ZioCauses, ZioCauses.CauseType) = ZioCauses.fromCauseWithType(cause)
+        val (causes, causeType): (ZioCauses, CauseType) = ZioCauses.fromCauseWithType(cause)
         val typedError: E2 = f(causes)
         if causeType.isFailure then ZLayer.fail(typedError)
         else ZLayer.die(typedError)
@@ -121,7 +121,7 @@ object error {
       */
     def convertCausesAuto[E2 <: Error](f: ZioCauses => E2)(using Trace): ZStream[R, E2, A] =
       self.catchAllCause { cause =>
-        val (causes, causeType): (ZioCauses, ZioCauses.CauseType) = ZioCauses.fromCauseWithType(cause)
+        val (causes, causeType): (ZioCauses, CauseType) = ZioCauses.fromCauseWithType(cause)
         val typedError: E2 = f(causes)
         if causeType.isFailure then ZStream.fail(typedError)
         else ZStream.die(typedError)
@@ -153,6 +153,9 @@ object error {
 
     def attempting[E <: Error, A](causesToError: ZioCauses => E)(thunk: => A)(using Trace): IO[E, A] =
       ZIO.attempt { thunk }.convertCausesFail(causesToError)
+
+    def attemptingContext[A](op: => String)(thunk: => A)(using Trace): IO[Error, A] =
+      ZIO.attempting[Error, A] { Error(s"Failed operation [$op]", _) } { thunk }
 
   }
 
