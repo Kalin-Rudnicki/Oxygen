@@ -10,6 +10,7 @@ final case class PageURL(
     path: Path,
     queryParams: QueryParams,
 ) {
+
   def formatted: String = URL(path = path.addLeadingSlash, queryParams = queryParams).encode
 
   def addPrefix(prefix: Path): PageURL = copy(path = prefix ++ path)
@@ -18,10 +19,16 @@ final case class PageURL(
 }
 object PageURL {
 
+  private val fromWindowRaw: Task[PageURL] =
+    ZIO.attempt { window.location.href }.flatMap {
+      case href if href.startsWith("file://") => ZIO.succeed(PageURL(Path("/page"), QueryParams.empty))
+      case href                               =>
+        for {
+          parsed <- ZIO.fromEither { URL.decode(href) }
+        } yield PageURL(parsed.path, parsed.queryParams)
+    }
+
   val fromWindow: UIO[PageURL] =
-    (for
-      path <- ZIO.attempt { window.location.href.stripPrefix("file://") }
-      parsed <- ZIO.fromEither { URL.decode(path) }
-    yield PageURL(parsed.path, parsed.queryParams)).tapErrorCause { ZIO.logErrorCause("Error parsing window URL", _) }.orDie
+    fromWindowRaw.tapErrorCause { ZIO.logErrorCause("Error parsing window URL", _) }.orDie
 
 }
