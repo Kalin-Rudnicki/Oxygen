@@ -60,7 +60,7 @@ jobs:
       - name: Compile
         run: sbt example/test:compile
       - name: WebComp
-        run: sbt example-ui/webComp
+        run: sbt example-ui-web/webComp
 
   test-jvm:
     needs: warm-cache

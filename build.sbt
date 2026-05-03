@@ -1,9 +1,10 @@
 //
 
-import Dependencies._
-import Settings._
+import Dependencies.*
+import Settings.*
+import org.scalajs.linker.interface.{ModuleInitializer, ModuleSplitStyle}
 import sbtcrossproject.CrossProject
-import scala.sys.process._
+import scala.sys.process.*
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////
 //      Settings
@@ -141,6 +142,7 @@ lazy val `oxygen-modules-js`: Project =
       `oxygen-http`.js,
 
       // ui
+      `oxygen-ui-electron`,
       `oxygen-ui-web`,
 
       // jwt
@@ -396,6 +398,19 @@ lazy val `oxygen-http`: CrossProject =
       `oxygen-test` % Test,
     )
 
+lazy val `oxygen-ui-electron`: Project =
+  project
+    .in(file("modules/ui/electron"))
+    .enablePlugins(ScalaJSPlugin)
+    .settings(
+      publishedProjectSettings,
+      name := "oxygen-ui-electron",
+      description := "Make your desktop-ui using scala and FP principles!",
+    )
+    .dependsOn(
+      `oxygen-ui-web` % testAndCompile,
+    )
+
 lazy val `oxygen-ui-web`: Project =
   project
     .in(file("modules/ui/web"))
@@ -583,7 +598,8 @@ lazy val `example`: Project =
       `example-domain-impl`,
       `example-web-server`,
       // js-only
-      `example-ui`,
+      `example-ui-web`,
+      `example-ui-electron`,
     )
 
 lazy val `example-core`: CrossProject =
@@ -703,15 +719,15 @@ lazy val `example-web-server`: Project =
 val webComp: InputKey[Unit] = inputKey("webComp")
 val webCompDirs = settingKey[Seq[File]]("webCompDirs")
 
-lazy val `example-ui`: Project =
+lazy val `example-ui-web`: Project =
   project
     .in(file("example/apps/ui"))
     .enablePlugins(ScalaJSPlugin)
     .settings(
       nonPublishedProjectSettings,
       scalacOptions += "-experimental",
-      name := "oxygen-example-ui",
-      description := "oxygen-example-ui",
+      name := "oxygen-example-ui-web",
+      description := "oxygen-example-ui-web",
       scalaJSUseMainModuleInitializer := true,
       // webComp
       webCompDirs := Seq(
@@ -767,6 +783,132 @@ lazy val `example-ui`: Project =
     .dependsOn(
       `example-api`.js,
       `oxygen-ui-web`,
+    )
+
+lazy val `example-ui-electron`: Project =
+  project
+    .in(file("example/apps/ui-electron"))
+    .enablePlugins(ScalaJSPlugin)
+    .settings(
+      nonPublishedProjectSettings,
+      scalacOptions += "-experimental",
+      name := "oxygen-example-ui-electron",
+      description := "oxygen-example-ui-electron",
+      scalaJSModuleInitializers := Seq(
+        ModuleInitializer
+          .mainMethodWithArgs("oxygen.example.ui.electron.Main", "main")
+          .withModuleID("electron-main"),
+        ModuleInitializer
+          .mainMethodWithArgs("oxygen.example.ui.electron.Renderer", "main")
+          .withModuleID("electron-renderer"),
+      ),
+      Compile / fastLinkJS / crossTarget := target.value / "electron",
+      scalaJSLinkerConfig ~= { _.withModuleKind(ModuleKind.CommonJSModule) },
+      webComp :=
+        Def.inputTaskDyn {
+          import complete.DefaultParsers._
+
+          val args: List[String] = spaceDelimited("<arg>").parsed.toList
+          val (task, taskName) =
+            if (args.contains("--full")) (fullLinkJS, "opt")
+            else (fastLinkJS, "fastopt")
+
+          val copySourceMap = !args.contains("--no-source-map")
+
+          Def.sequential(
+            Def
+              .inputTask { println("Running 'webComp'...") }
+              .toTask(""),
+            Compile / task,
+            Def
+              .inputTask {
+                import scala.sys.process._
+
+                val rootTargetDir = (`oxygen-root` / target).value
+                val projectTargetDir = (Compile / task / crossTarget).value
+
+                def compiledJsFile(name: String): File = {
+                  val projectName = normalizedName.value
+                  new File(s"$projectTargetDir/$projectName-$taskName/$name")
+                }
+                def outFile(name: String): File = {
+                  val projectName = normalizedName.value
+                  new File(s"$projectTargetDir/out/$name")
+                }
+
+                val compiledRendererFile = compiledJsFile("electron-renderer.js")
+                val compiledMainFile = compiledJsFile("electron-main.js")
+                val outRendererFile = outFile("electron-renderer.js")
+                val outMainFile = outFile("electron-main.js")
+
+                // TODO (KR) : remove --no-sandbox
+
+                val appName = "oxygen-ui-electron"
+                val appVersion = "1.0.0"
+
+                val indexHtmlContents =
+                  s"""
+                     |<!DOCTYPE html>
+                     |<html>
+                     |<head>
+                     |  <meta charset="UTF-8">
+                     |  <title>Oxygen Electron App</title>
+                     |</head>
+                     |<body>
+                     |  <div id="app">Loading...</div>
+                     |  <script src="electron-renderer.js"></script>
+                     |</body>
+                     |</html>
+                     |""".stripMargin
+                val packageJsonContents =
+                  s"""
+                     |{
+                     |  "name": "$appName",
+                     |  "version": "$appVersion",
+                     |  "main": "electron-main.js",
+                     |  "description": "$appName",
+                     |  "author": {
+                     |    "name": "Oxygen",
+                     |    "email": "oxygen@gmeila.com"
+                     |  },
+                     |  "homepage": "https://github.com/Kalin-Rudnicki/Oxygen",
+                     |  "scripts": {
+                     |    "start": "electron --no-sandbox .",
+                     |    "dist": "electron-builder --linux"
+                     |  },
+                     |  "devDependencies": {
+                     |    "electron": "^41.4.0",
+                     |    "electron-builder": "^26.8.1"
+                     |  },
+                     |  "build": {
+                     |    "appId": "com.yourname.myoxygen",
+                     |    "productName": "$appName",
+                     |    "linux": {
+                     |      "target": ["AppImage", "deb"],
+                     |      "category": "Utility"
+                     |    }
+                     |  }
+                     |}
+                     |""".stripMargin
+
+                outFile("").mkdirs()
+                IO.write(outFile("index.html"), indexHtmlContents)
+                IO.write(outFile("package.json"), packageJsonContents)
+                List("esbuild", compiledRendererFile.toString, "--bundle", s"--outfile=$outRendererFile", "--platform=node").!
+                List("esbuild", compiledMainFile.toString, "--bundle", s"--outfile=$outMainFile", "--platform=node", "--external:electron").!
+
+                Process(List("npm", "install"), outFile("")).!
+                Process(List("npm", "run", "dist"), outFile("")).!
+                IO.copyFile(outFile(s"dist/$appName-$appVersion.AppImage"), new File(s"$rootTargetDir/$appName.AppImage"))
+
+                ()
+              }
+              .toTask(""),
+          )
+        }.evaluated,
+    )
+    .dependsOn(
+      `oxygen-ui-electron`,
     )
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////
