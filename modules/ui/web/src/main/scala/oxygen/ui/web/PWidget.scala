@@ -120,6 +120,20 @@ object PWidget {
   //      Builder Classes
   //////////////////////////////////////////////////////////////////////////////////////////////////////
 
+  trait Deferred[-Env, +Action, -StateGet, +StateSet <: StateGet] extends PWidget[Env, Action, StateGet, StateSet] {
+
+    override private[web] final def build[Env2 <: Env: HasNoScope](
+        state: PWidgetState[StateGet, StateSet],
+        rh: RaiseHandler[Env2, Action],
+        pageInstance: PageInstance.Untyped,
+        uiRuntime: UIRuntime[Env2],
+    ): Growable[DOMElement] =
+      build.build[Env2](state, rh, pageInstance, uiRuntime)
+
+    protected def build: PWidget[Env, Action, StateGet, StateSet]
+
+  }
+
   object HandleActionBuilders {
 
     // =====| Stateless |=====
