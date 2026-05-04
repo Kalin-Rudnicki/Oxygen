@@ -76,6 +76,20 @@ object PForm {
 
   type Stateful[-Env, +Action, State, +Value] = PForm[Env, Action, State, State, Value]
 
+  trait Deferred[-Env, +Action, -StateGet, +StateSet <: StateGet, +Value] extends PForm[Env, Action, StateGet, StateSet, Value] {
+
+    protected def build: PForm[Env, Action, StateGet, StateSet, Value]
+
+    override private[PForm] final def buildInternal[State2 >: StateSet <: StateGet](state: WidgetState[State2]): (Widget.Stateful[Env, Action, State2], FormValue[State2, Value]) =
+      build.buildInternal[State2](state)
+
+  }
+  object Deferred {
+
+    type Stateful[-Env, +Action, State, +Value] = PForm.Deferred[Env, Action, State, State, Value]
+
+  }
+
   final case class Basic[-Env, +Action, -StateGet, +StateSet <: StateGet, +Value](
       widget: Widget.Polymorphic[Env, Action, StateGet, StateSet],
       value: FormValue[StateGet, Value],
