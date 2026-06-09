@@ -68,7 +68,7 @@ And thus, another library is born from the ashes. A bright-eyed, bushy-tailed ne
 Long live `KLib` and `Harness`, but we're goin to prod baby...
 
 So, what does `Oxygen` actually do...?  
-The core bits are [oxygen-sql](sql/index.md), [oxygen-http](http/index.md), and [oxygen-ui](ui/index.md).
+The core bits are [oxygen-sql](sql/index.md), [oxygen-http](http/index.md), [oxygen-ui](ui/index.md), and [oxygen-executable](executable/index.md).
 Sure, libraries for all these things exist, but do they play nicely with each other? Like... at all?
 
 - Sure, `doobie`'s `ConnectionIO` can work with `Task`, but what happens when I want to execute an effect (even as simple as logging), in the middle of a transaction. Guess what... you cant...

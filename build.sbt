@@ -235,7 +235,8 @@ lazy val `oxygen-cli`: CrossProject =
       description := "Command line parsing for the enlightened.",
     )
     .dependsOn(
-      `oxygen-core` % testAndCompile,
+      `oxygen-schema` % testAndCompile,
+      `oxygen-zio` % testAndCompile,
       `oxygen-test` % Test,
     )
 
@@ -250,7 +251,6 @@ lazy val `oxygen-executable`: CrossProject =
     )
     .dependsOn(
       `oxygen-cli` % testAndCompile,
-      `oxygen-zio` % testAndCompile,
       `oxygen-test` % Test,
     )
 

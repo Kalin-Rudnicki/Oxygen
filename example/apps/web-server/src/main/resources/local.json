@@ -7,8 +7,8 @@
   },
   "token": {
     "key": {
-      "alg": "HS256",
-      "base64Key": "HS256ExampleKey"
+      "keyType": "hmac",
+      "key": "HS256ExampleKey"
     },
     "timeToLive": "P3650D"
   },
