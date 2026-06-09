@@ -1,0 +1,49 @@
+package oxygen.executable
+
+import zio.*
+
+// FIX-PRE-MERGE (KR) : variance
+abstract class CliApp[RequiredEnv, ProvidedEnv] {
+
+  final type FullEnv = RequiredEnv & ProvidedEnv
+
+  final type Effect = RIO[FullEnv, Unit | ExitCode]
+  final type EnvLayer = RLayer[RequiredEnv, ProvidedEnv]
+  final type SubApp = CliApp[? <: FullEnv, ?]
+
+}
+object CliApp {
+
+  abstract class Executable[A](using app: DeriveCliApp.Root[A]) extends ZIOAppDefault {
+
+    println(app) // FIX-PRE-MERGE (KR) : remove
+
+    /**
+      * At this point, all [[zio.Cause]] should be caught, and any errors printed.
+      */
+    private final def runBuiltin(args: List[String]): URIO[Scope, ExitCode] =
+      ??? // FIX-PRE-MERGE (KR) :
+
+    /**
+      * At this point, all [[zio.Cause]] should be caught, and any errors printed.
+      */
+    private final def runApp(args: List[String]): URIO[Scope, ExitCode] =
+      ??? // FIX-PRE-MERGE (KR) :
+
+    override final def run: URIO[ZIOAppArgs & Scope, Unit] = {
+      for {
+        rawArgs <- ZIOAppArgs.getArgs
+        exitCode <- rawArgs.toList match
+          case "--:" :: builtinRest => runBuiltin(builtinRest)
+          case args                 => runApp(args)
+        doExit <- System.env(Constants.oxygenExecutableExit).!.map(_.flatMap(_.toBooleanOption).getOrElse(true))
+        _ <- (doExit, exitCode) match
+          case (true, _)            => exit(exitCode)
+          case (false, ExitCode(0)) => ZIO.unit // TODO (KR) : do something different?
+          case (false, _)           => ZIO.unit // TODO (KR) : do something different?
+      } yield ()
+    }
+
+  }
+
+}

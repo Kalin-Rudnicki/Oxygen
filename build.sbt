@@ -225,6 +225,7 @@ lazy val `oxygen-core`: CrossProject =
       `oxygen-quoted` % testAndCompile,
     )
 
+// FIX-PRE-MERGE (KR) : remove
 lazy val `oxygen-cli`: CrossProject =
   crossProject(JSPlatform, JVMPlatform, NativePlatform)
     .crossType(CrossType.Pure)
@@ -239,6 +240,21 @@ lazy val `oxygen-cli`: CrossProject =
       `oxygen-test` % Test,
     )
 
+lazy val `oxygen-cli-2`: CrossProject =
+  crossProject(JSPlatform, JVMPlatform, NativePlatform)
+    .crossType(CrossType.Pure)
+    .in(file("modules/general/cli-2"))
+    .settings(
+      publishedProjectSettings,
+      name := "oxygen-cli-2",
+      description := "Command line parsing for the enlightened.",
+    )
+    .dependsOn(
+      `oxygen-schema` % testAndCompile,
+      `oxygen-test` % Test,
+    )
+
+// FIX-PRE-MERGE (KR) : remove
 lazy val `oxygen-executable`: CrossProject =
   crossProject(JSPlatform, JVMPlatform, NativePlatform)
     .crossType(CrossType.Pure)
@@ -250,6 +266,21 @@ lazy val `oxygen-executable`: CrossProject =
     )
     .dependsOn(
       `oxygen-cli` % testAndCompile,
+      `oxygen-zio` % testAndCompile,
+      `oxygen-test` % Test,
+    )
+
+lazy val `oxygen-executable-2`: CrossProject =
+  crossProject(JSPlatform, JVMPlatform, NativePlatform)
+    .crossType(CrossType.Pure)
+    .in(file("modules/general/executable-2"))
+    .settings(
+      publishedProjectSettings,
+      name := "oxygen-executable-2",
+      description := "An entry-point for your ZIO applications that provides seamless integration with the `oxygen` ecosystem.",
+    )
+    .dependsOn(
+      `oxygen-cli-2` % testAndCompile,
       `oxygen-zio` % testAndCompile,
       `oxygen-test` % Test,
     )
