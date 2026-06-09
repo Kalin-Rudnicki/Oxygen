@@ -1,5 +1,6 @@
 package oxygen.example.webServer
 
+import oxygen.cli.*
 import oxygen.crypto.service.{HashKey, JWTService, PasswordService}
 import oxygen.example.api.*
 import oxygen.example.api.model.user.User
@@ -7,16 +8,29 @@ import oxygen.example.api.service.*
 import oxygen.example.domain.repo.*
 import oxygen.example.domain.service.*
 import oxygen.example.webServer.api.{*, given}
+import oxygen.executable.*
 import oxygen.http.server.*
 import oxygen.json.JsonCodec
-import oxygen.predef.executable.*
 import oxygen.schema.instances.jsonCodecFromSchema
 import oxygen.sql.{Atomically, Database, DbConfig}
 import oxygen.sql.migration.*
 import oxygen.sql.migration.persistence.MigrationRepo
 import zio.*
 
-object WebServerMain extends ExecutableApp {
+final case class WebServerMain() extends CliApp[Any, WebServerMain.Env] {
+
+  def env(@config("APP_CONFIG") config: WebServerMain.Config): EnvLayer =
+    WebServerMain.Env.layer(config)
+
+  @execute
+  def run(): Effect =
+    MigrationService.migrate(oxygen.example.db.migrations.migrations) *>
+      ZIO.logInfo("Press space+enter to stop server") *>
+      ZIO.attempt(java.lang.System.in.read()).unit *>
+      ZIO.logInfo("Stopping...")
+
+}
+object WebServerMain extends CliApp.Executable[WebServerMain] {
 
   final case class Config(
       http: Config.Http,
@@ -84,14 +98,4 @@ object WebServerMain extends ExecutableApp {
 
   }
 
-  override val executable: Executable =
-    Executable
-      .withJsonConfig[Config]
-      .withEnv[Env] { (config, _) => Env.layer(config) }
-      .withExecute {
-        MigrationService.migrate(oxygen.example.db.migrations.migrations) *>
-          ZIO.logInfo("Press space+enter to stop server") *>
-          ZIO.succeed { java.lang.System.in.read() } *>
-          ZIO.logInfo("Stopping...")
-      }
 }
