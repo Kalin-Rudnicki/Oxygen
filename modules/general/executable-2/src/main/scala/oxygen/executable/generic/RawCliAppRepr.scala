@@ -31,7 +31,9 @@ private[generic] final class RawCliAppRepr[A](val isRoot: Boolean)(using quotes:
     typeSymbol.tree.narrowOpt[ClassDef].getOrElse { report.errorAndAbort("Not a ClassDef?", gen.pos) }
 
   val constructorParams: List[RawParamRepr] =
-    if isRoot then gen.fields.toList.map { f => new RawParamRepr(f.constructorValDef, gen.pos) } else Nil
+    if isRoot then
+      gen.fields.toList.zipWithIndex.map { (f, idx) => new RawParamRepr(f.constructorValDef, gen.pos, idx) }
+    else Nil
 
   val bodyDefs: List[RawDefRepr] =
     for {
@@ -61,7 +63,7 @@ private[generic] final class RawCliAppRepr[A](val isRoot: Boolean)(using quotes:
   val subAppTypeRepr: TypeRepr = TypeRepr.of[SubApp].simplified
 
   private val defaultReg = "^([^$]+)\\$default\\$(\\d+)$".r
-  val defaultSyms: Map[(String, Int), Tree] =
+  val defaultSyms: Map[(String, Int), Term] =
     gen.sym.declaredMethods.flatMap { sym =>
       sym.name match
         case defaultReg(name, idx) =>
@@ -71,9 +73,5 @@ private[generic] final class RawCliAppRepr[A](val isRoot: Boolean)(using quotes:
         case _ =>
           None
     }.toMap
-
-  report.errorAndAbort(
-    defaultSyms.mkString(", "),
-  )
 
 }

@@ -25,6 +25,7 @@ private[generic] final class RawDefRepr(val defDef: DefDef, val optAnnot: Option
 
   val valDefs: List[ValDef] = paramClause.fold(Nil)(_.params)
 
-  val params: List[RawParamRepr] = valDefs.map { valDef => new RawParamRepr(valDef, defPosition) }
+  val params: List[RawParamRepr] =
+    valDefs.zipWithIndex.map { (valDef, idx) => new RawParamRepr(valDef, defPosition, idx) }
 
 }

@@ -5,7 +5,7 @@ import oxygen.meta.given
 import oxygen.quoted.*
 import scala.quoted.*
 
-private[generic] final class RawParamRepr(val valDef: ValDef, val parentPos: Position)(using quotes: Quotes) {
+private[generic] final class RawParamRepr(val valDef: ValDef, val parentPos: Position, val paramIdx: Int)(using quotes: Quotes) {
 
   type T
 
@@ -31,7 +31,5 @@ private[generic] final class RawParamRepr(val valDef: ValDef, val parentPos: Pos
 
   val typeRepr: TypeRepr = valDef.tpt.tpe.widen
   given Type[T] = typeRepr.asTypeOf
-
-  // TODO (KR) : companion object `default_somethingSomething_1234` -> `port: Int = 8080`
 
 }

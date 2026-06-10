@@ -14,9 +14,15 @@ sealed trait ParamRepr {
 }
 object ParamRepr {
 
-  def extract(raw: RawParamRepr)(using Quotes): ParamRepr = {
+  def extract(raw: RawParamRepr, ownerName: String, defaultSyms: Map[(String, Int), Term])(using Quotes): ParamRepr = {
     def doSummon[T: Type]: Expr[T] =
       Implicits.searchOption[T].getOrElse { raw.failAtVal(s"Missing given instance: ${TypeRepr.of[T].showAnsiCode}") }
+
+    def extractFlagAbsentValue: Boolean =
+      defaultSyms.get((ownerName, raw.paramIdx)) match
+        case None        => false
+        case Some(rhs)   =>
+          rhs.asExprOf[Boolean].evalOption.getOrElse { raw.failAtVal("Unable to evaluate @flag default") }
 
     def extractToggleLongName: ToggleLongNameRepr =
       ToggleLongNameRepr
@@ -42,7 +48,9 @@ object ParamRepr {
       case config(env) =>
         val decoder: Expr[JsonDecoder[raw.T]] = doSummon
         new Config(raw)(env, decoder)
-      case flag()   => ???
+      case flag() =>
+        val longName: String = raw.annot_longName.fold(raw.valDef.name)(_.name)
+        new Flag(raw)(longName, extractFlagAbsentValue)
       case toggle() =>
         new Toggle(raw)(extractToggleLongName)
       case custom() =>
@@ -83,6 +91,13 @@ object ParamRepr {
       val raw: RawParamRepr,
   )(
       val longNames: ToggleLongNameRepr,
+  ) extends ParamRepr
+
+  final class Flag(
+      val raw: RawParamRepr,
+  )(
+      val longName: String,
+      val absentValue: Boolean,
   ) extends ParamRepr
 
   ///////  ///////////////////////////////////////////////////////////////
