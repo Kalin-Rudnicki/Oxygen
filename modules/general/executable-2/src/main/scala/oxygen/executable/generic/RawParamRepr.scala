@@ -2,7 +2,6 @@ package oxygen.executable.generic
 
 import oxygen.cli.*
 import oxygen.meta.given
-import oxygen.predef.core.*
 import oxygen.quoted.*
 import scala.quoted.*
 
@@ -14,8 +13,7 @@ private[generic] final class RawParamRepr(val valDef: ValDef, val parentPos: Pos
 
   private val annotations: Annotations = valDef.symbol.annotations
 
-  val annot_paramType: CliFunctionParamType =
-    annotations.optionalOfValue[CliFunctionParamType].getOrElse { failAtVal("Missing param type annotation") }
+  val annot_paramType: CliFunctionParamType = annotations.optionalOfValue[CliFunctionParamType].getOrElse { failAtVal("Missing param type annotation") }
 
   val annot_longName: Option[longName] = annotations.optionalOfValue[longName]
   val annot_longName_truePrefix: Option[longName.truePrefix] = annotations.optionalOfValue[longName.truePrefix]
