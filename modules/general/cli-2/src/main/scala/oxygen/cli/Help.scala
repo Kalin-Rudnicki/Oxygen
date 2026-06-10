@@ -8,8 +8,8 @@ sealed trait Help {
   def subHelp: SubHelp = SubHelp.Empty
 
   final def withHints(hints: List[HelpHint]): Help = (hints, this) match
+    case (_ :: _, Help.WithHints(annotated, msgs)) => Help.WithHints(annotated, msgs ++ hints)
     case (h :: t, self: Help.Base)                 => Help.WithHints(self, NonEmptyList(h, t))
-    case (_ :: _, Help.WithHints(annotated, msgs))  => Help.WithHints(annotated, msgs ++ hints)
     case _                                         => this
 
   private[cli] final def isEmpty: Boolean = this match
@@ -37,14 +37,14 @@ sealed trait Help {
     case Help.Raw(message) => Help.Repr(message.detailedSplit("\n".r, true, true).toList.map(ColorString.make(_)), Nil, color"") :: Nil
     case Help.Positional(name, subHelp) => Help.Repr(color"[$name]".magentaFg :: Nil, Help.Repr.formatSubHelp(subHelp, extraHints), color"|    ") :: Nil
     case Help.Named(longName, shortName, valueHelp, subHelp) =>
-      val main: ColorString = shortName.fold(color"--$longName".cyanFg)(s => color"--$longName, -$s".cyanFg)
+      val main: ColorString = shortName.fold(color"--$longName".cyanFg)(s => color"--$longName, -${s.toString}".cyanFg)
       Help.Repr(main :: Nil, Help.Repr.formatSubHelp(subHelp, extraHints), color"|    ") :: valueHelp.removeEmpties.toRepr(Nil).map(_.scoped)
     case Help.Flag(longName, shortName, subHelp) =>
-      val main: ColorString = shortName.fold(color"--$longName".cyanFg)(s => color"--$longName, -$s".cyanFg)
+      val main: ColorString = shortName.fold(color"--$longName".cyanFg)(s => color"--$longName, -${s.toString}".cyanFg)
       Help.Repr(main :: Nil, Help.Repr.formatSubHelp(subHelp, extraHints), color"|    ") :: Nil
     case Help.Toggle(trueName, falseName, shortNames, subHelp) =>
       val main: ColorString = shortNames match
-        case Some((t, f)) => color"--$trueName / --$falseName, -$t / -$f".cyanFg
+        case Some((t, f)) => color"--$trueName / --$falseName, -${t.toString} / -${f.toString}".cyanFg
         case None         => color"--$trueName / --$falseName".cyanFg
       Help.Repr(main :: Nil, Help.Repr.formatSubHelp(subHelp, extraHints), color"|    ") :: Nil
     case Help.And(left, right) => left.toRepr(Nil) ::: right.toRepr(Nil)
@@ -54,7 +54,6 @@ sealed trait Help {
     case Help.UnparsedNamed(args) => Help.Repr.fromUnparsedNamed(args) :: Nil
     case Help.Extra(help) => help.toRepr(Nil)
     case Help.Annotated(subHelp) => Help.Repr(Nil, Help.Repr.formatSubHelp(subHelp, extraHints), color"") :: Nil
-    case _ if extraHints.nonEmpty => Help.Repr.fromHints(NonEmptyList.unsafeFromList(extraHints)) :: this.toRepr(Nil).map(_.scoped)
 
   override final def toString: String = Help.Repr.format(this.removeEmpties.toRepr(Nil))
 

@@ -1,8 +1,10 @@
 package oxygen.cli
 
-sealed trait CliParseResult[+V, A] {
+import scala.annotation.unchecked.uncheckedVariance
 
-  final def mapRemaining[A2](f: A => A2): CliParseResult[V, A2] = this match
+sealed trait CliParseResult[+V, +A] {
+
+  final def mapRemaining[A2](f: (A @uncheckedVariance) => A2): CliParseResult[V, A2] = this match
     case CliParseResult.Success(value, remaining) => CliParseResult.Success(value, f(remaining))
     case fail @ CliParseResult.Fail(_, _)         => fail
 
@@ -10,7 +12,7 @@ sealed trait CliParseResult[+V, A] {
     case CliParseResult.Success(value, remaining) => CliParseResult.Success(f(value), remaining)
     case fail @ CliParseResult.Fail(_, _)         => fail
 
-  final def flatMap[B](f: V => CliParseResult[B, A]): CliParseResult[B, A] = this match
+  final def flatMap[B](f: V => CliParseResult[B, A @uncheckedVariance]): CliParseResult[B, A] = this match
     case CliParseResult.Success(value, remaining) =>
       f(value) match
         case CliParseResult.Success(value2, remaining2) => CliParseResult.Success(value2, remaining2)

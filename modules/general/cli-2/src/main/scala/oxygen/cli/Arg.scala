@@ -23,6 +23,10 @@ object NamedArgNested {
 
   def values(args: List[PositionalArg]): PositionalArgs = PositionalArgs(args)
 
+  def positional(nested: Any): PositionalArgs = nested.asInstanceOf[PositionalArgs]
+
+  def isEmpty(nested: Any): Boolean = positional(nested).args.isEmpty
+
 }
 object Arg {
 
@@ -63,7 +67,7 @@ object Arg {
         case GroupedArg.Value(i, v) :: tail =>
           loop(tail, PositionalArg(i, v) :: positional, named)
         case GroupedArg.Bracketed(i, inner) :: tail =>
-          parseBracketed(i, inner) match
+          parseBracketed(inner) match
             case Right(value) => loop(tail, PositionalArg(i, value) :: positional, named)
             case Left(error)  => error.asLeft
         case GroupedArg.ShortParams(i, names) :: tail =>
@@ -100,7 +104,7 @@ object Arg {
       q match
         case GroupedArg.Value(i, v) :: tail       => loop(tail, PositionalArg(i, v) :: stack)
         case GroupedArg.Bracketed(i, inner) :: tail =>
-          parseBracketed(i, inner) match
+          parseBracketed(inner) match
             case Right(value) => loop(tail, PositionalArg(i, value) :: stack)
             case Left(error)  => error.asLeft
         case _ => (stack.reverse, q).asRight
@@ -108,7 +112,7 @@ object Arg {
     loop(queue, Nil)
   }
 
-  private def parseBracketed(i: Int, args: List[GroupedArg]): Either[String, String] =
+  private def parseBracketed(args: List[GroupedArg]): Either[String, String] =
     for {
       (positional, named) <- classify(args)
     } yield BracketedRepr(positional, named).render
@@ -126,10 +130,10 @@ object Arg {
       s"{${parts.mkString(" ")}}"
     }
 
-    private def renderNamed(prefix: String, nested: Any): List[String] = nested match
-      case PositionalArgs(Nil)  => prefix :: Nil
-      case PositionalArgs(args) => s"$prefix=${args.map(_.value).mkString(" ")}" :: Nil
-      case _                    => prefix :: Nil
+    private def renderNamed(prefix: String, nested: Any): List[String] =
+      NamedArgNested.positional(nested).args match
+        case Nil  => prefix :: Nil
+        case args => s"$prefix=${args.map(_.value).mkString(" ")}" :: Nil
 
   }
 
@@ -159,7 +163,7 @@ object Arg {
       case longRegex(name)                              => LongParam(name).asRight
       case shortWithValueRegex(name, value)             => ShortParamWithValue(name.head, value).asRight
       case shortRegex(chars) if chars.length == 1       => ShortParam(chars.head).asRight
-      case shortRegex(chars)                            => ShortParams(NonEmptyList.fromListUnsafe(chars.toList)).asRight
+      case shortRegex(chars)                            => ShortParams(NonEmptyList.unsafeFromList(chars.toList)).asRight
       case "{"                                          => OpenBrace.asRight
       case "}"                                          => CloseBrace.asRight
       case _                                            => Value(string).asRight

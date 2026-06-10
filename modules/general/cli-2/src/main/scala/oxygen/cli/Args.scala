@@ -1,6 +1,11 @@
 package oxygen.cli
 
-final case class Args(positional: PositionalArgs, named: NamedArgs)
+final case class Args(positional: PositionalArgs, named: NamedArgs) {
+
+  final def isFullyConsumed: Boolean =
+    positional.args.isEmpty && named.args.isEmpty
+
+}
 object Args {
 
   def parse(args: List[String]): Either[String, Args] =
@@ -8,9 +13,6 @@ object Args {
 
   def empty: Args =
     Args(PositionalArgs(Nil), NamedArgs(Nil))
-
-  final def isFullyConsumed: Boolean =
-    positional.args.isEmpty && named.args.isEmpty
 
 }
 final case class PositionalArgs(args: List[PositionalArg])

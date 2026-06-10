@@ -1,5 +1,7 @@
 package oxygen.cli
 
+import oxygen.core.collection.NonEmptyList
+
 sealed trait CliParseError {
 
   final def onlyContainsMissingRequired: Boolean = this match

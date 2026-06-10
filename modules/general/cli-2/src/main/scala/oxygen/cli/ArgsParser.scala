@@ -12,8 +12,8 @@ sealed trait ArgsParser[+A] {
 
   def parseArgs(input: Args): CliParseResult[A, Args]
 
-  final def map[B](f: A => B): ArgsParser[B] = ArgsParser.Mapped(this, f)
-  final def mapOrFail[B](f: A => Either[String, B]): ArgsParser[B] = ArgsParser.MappedOrFail(this, f)
+  def map[B](f: A => B): ArgsParser[B] = ArgsParser.Mapped(this, f)
+  def mapOrFail[B](f: A => Either[String, B]): ArgsParser[B] = ArgsParser.MappedOrFail(this, f)
   final def <||[A2 >: A](that: ArgsParser[A2]): ArgsParser[A2] = ArgsParser.Or(this, that)
 
   final def ^>>[B](that: ArgsParser[B])(using zip: Zip[A @uncheckedVariance, B]): ArgsParser[zip.Out] =
@@ -243,11 +243,11 @@ object PositionalArgsParser {
   val unit: PositionalArgsParser[Unit] = Empty
   def const[A](value: A): PositionalArgsParser[A] = Const(value)
 
-  given plainTextBuilder: [A] => PlainTextSchema[A] => Builder[A] = schema => new Builder[A] {
+  given plainTextBuilder: [A: PlainTextSchema as schema] => Builder[A] = new Builder[A] {
     override def build(name: String, help: SubHelp): PositionalArgsParser[A] = single(name, help)(using schema)
   }
 
-  given jsonBuilder: [A] => JsonSchema[A] => Builder[A] = schema => new Builder[A] {
+  given jsonBuilder: [A: JsonSchema as schema] => Builder[A] = new Builder[A] {
     override def build(name: String, help: SubHelp): PositionalArgsParser[A] = single(name, help)(using schema)
   }
 
@@ -317,16 +317,14 @@ object NamedArgsParser {
     override def parseNamedArgs(input: NamedArgs): CliParseResult[A, NamedArgs] =
       findNamed(longName, shortName, input.args) match
         case Some((nested, rest)) =>
-          nested match
-            case PositionalArgs(Nil) =>
-              CliParseResult.Fail(CliParseError.MissingRequiredPositional(longName), help.withHints(HelpHint.Error("Missing required value") :: Nil))
-            case values: PositionalArgs =>
-              valueParser.parsePositionalArgs(values) match
-                case CliParseResult.Success(value, remaining) if remaining.args.isEmpty => CliParseResult.Success(value, NamedArgs(rest))
-                case CliParseResult.Success(_, remaining) if remaining.args.nonEmpty =>
-                  CliParseResult.Fail(CliParseError.NamedUnexpectedValues(longName, NonEmptyList.fromListUnsafe(remaining.args)), help)
-                case fail @ CliParseResult.Fail(_, _) => fail
-            case _ => CliParseResult.Fail(CliParseError.ExpectedPositionalArg(longName), help.withHints(HelpHint.Error("Expected value arg") :: Nil))
+          val values = NamedArgNested.positional(nested)
+          if values.args.isEmpty then CliParseResult.Fail(CliParseError.MissingRequiredPositional(longName), help.withHints(HelpHint.Error("Missing required value") :: Nil))
+          else
+            valueParser.parsePositionalArgs(values) match
+              case CliParseResult.Success(value, remaining) =>
+                if remaining.args.isEmpty then CliParseResult.Success(value, NamedArgs(rest))
+                else CliParseResult.Fail(CliParseError.NamedUnexpectedValues(longName, NonEmptyList.unsafeFromList(remaining.args)), help)
+              case fail @ CliParseResult.Fail(_, _) => fail
         case None => CliParseResult.Fail(CliParseError.MissingRequiredNamed(longName), help.withHints(HelpHint.Error("Missing required param") :: Nil))
   }
 
@@ -420,11 +418,11 @@ object NamedArgsParser {
     @tailrec
     def loop(queue: List[NamedArg], stack: List[NamedArg]): Option[(Any, List[NamedArg])] =
       queue match
-        case LongNameArg(_, name, nested) if name == longName            => (nested, stack.reverse ::: queue.tail).some
-        case ShortNameArg(_, name, nested) if shortName.contains(name)   => (nested, stack.reverse ::: queue.tail).some
-        case MultiShortNameArg(_, _, name) if shortName.contains(name) => (NamedArgNested.empty, stack.reverse ::: queue.tail).some
-        case head :: tail                                                => loop(tail, head :: stack)
-        case Nil                                                         => None
+        case LongNameArg(_, name, nested) :: tail if name == longName            => (nested, stack.reverse ::: tail).some
+        case ShortNameArg(_, name, nested) :: tail if shortName.contains(name)   => (nested, stack.reverse ::: tail).some
+        case MultiShortNameArg(_, _, name) :: tail if shortName.contains(name)   => (NamedArgNested.empty, stack.reverse ::: tail).some
+        case head :: tail                                                          => loop(tail, head :: stack)
+        case Nil                                                                   => None
     loop(args, Nil)
   }
 
@@ -432,25 +430,25 @@ object NamedArgsParser {
     @tailrec
     def loop(queue: List[NamedArg], stack: List[NamedArg]): Option[(Boolean, List[NamedArg])] =
       queue match
-        case LongNameArg(_, name, nested) if name == longNames.trueLongName =>
-          if nested == NamedArgNested.empty then (true, stack.reverse ::: queue.tail).some else None
-        case LongNameArg(_, name, nested) if name == longNames.falseLongName =>
-          if nested == NamedArgNested.empty then (false, stack.reverse ::: queue.tail).some else None
-        case ShortNameArg(_, name, nested) =>
+        case LongNameArg(_, name, nested) :: tail if name == longNames.trueLongName =>
+          if NamedArgNested.isEmpty(nested) then (true, stack.reverse ::: tail).some else None
+        case LongNameArg(_, name, nested) :: tail if name == longNames.falseLongName =>
+          if NamedArgNested.isEmpty(nested) then (false, stack.reverse ::: tail).some else None
+        case ShortNameArg(_, name, nested) :: tail =>
           shortNames match
-            case Some((t, _)) if name == t && nested == NamedArgNested.empty => (true, stack.reverse ::: queue.tail).some
-            case Some((_, f)) if name == f && nested == NamedArgNested.empty => (false, stack.reverse ::: queue.tail).some
-            case _                                                           => loop(queue.tail, queue.head :: stack)
+            case Some((t, _)) if name == t && NamedArgNested.isEmpty(nested) => (true, stack.reverse ::: tail).some
+            case Some((_, f)) if name == f && NamedArgNested.isEmpty(nested) => (false, stack.reverse ::: tail).some
+            case _                                                           => loop(tail, queue.head :: stack)
         case head :: tail => loop(tail, head :: stack)
         case Nil          => None
     loop(args, Nil)
   }
 
-  given plainTextBuilder: [A] => PlainTextSchema[A] => Builder[A] = schema => new Builder[A] {
+  given plainTextBuilder: [A: PlainTextSchema as schema] => Builder[A] = new Builder[A] {
     override def build(name: String, help: SubHelp): NamedArgsParser[A] = named(name, PositionalArgsParser.single(name, help)(using schema), help = help)
   }
 
-  given jsonBuilder: [A] => JsonSchema[A] => Builder[A] = schema => new Builder[A] {
+  given jsonBuilder: [A: JsonSchema as schema] => Builder[A] = new Builder[A] {
     override def build(name: String, help: SubHelp): NamedArgsParser[A] = named(name, PositionalArgsParser.single(name, help)(using schema), help = help)
   }
 
