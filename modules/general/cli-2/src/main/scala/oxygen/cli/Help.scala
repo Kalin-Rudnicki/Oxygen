@@ -59,6 +59,8 @@ sealed trait Help {
     case Help.UnparsedPositional(args) => Help.Repr.fromUnparsedPositional(args) :: Nil
     case Help.UnparsedNamed(args) => Help.Repr.fromUnparsedNamed(args) :: Nil
     case Help.Extra(help) => help.toRepr(Nil)
+    case Help.Config(envVar, subHelp) =>
+      Help.Repr(color"$$$envVar".greenFg :: Nil, Help.Repr.formatSubHelp(subHelp, extraHints), color"|    ") :: Nil
     case Help.Annotated(subHelp) => Help.Repr(Nil, Help.Repr.formatSubHelp(subHelp, extraHints), color"") :: Nil
 
   override final def toString: String = Help.Repr.format(this.removeEmpties.toRepr(Nil))
@@ -80,6 +82,7 @@ object Help {
   final case class UnparsedPositional(args: NonEmptyList[PositionalArg]) extends Help
   final case class UnparsedNamed(args: NonEmptyList[NamedArg]) extends Help
   final case class Extra(help: Help) extends Help
+  final case class Config(envVar: String, override val subHelp: SubHelp) extends Help.Base
   final case class Annotated(override val subHelp: SubHelp) extends Help
 
   sealed trait Repr {

@@ -13,7 +13,7 @@ private[generic] object ConfigLoader {
 
   def loadSync[T](envVar: String, decoder: JsonDecoder[T]): Either[String, T] =
     Option(System.getenv(envVar)) match
-      case None    => s"Missing env var: $envVar".asLeft
+      case None      => s"Environment variable $envVar is not set".asLeft
       case Some(raw) => loadDecoded(raw, decoder)
 
   private def resolveJson(raw: String): Either[String, Json] =

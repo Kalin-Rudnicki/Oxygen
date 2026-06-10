@@ -7,6 +7,7 @@ import oxygen.schema.instances.given
 import zio.*
 
 final case class ExampleApp(
+    @named myOpt: Option[String],
 ) extends CliApp[Any, String] {
 
   def env(
@@ -17,13 +18,14 @@ final case class ExampleApp(
   @command
   def client(
       @config("APP_CONFIG") cfg: ClientConfig,
+      @config("OPTIONAL_CONFIG") extraCfg: Option[ClientConfig],
       @named i: Option[String],
       @named p1: List[String],
       @named p2: NonEmptyList[String],
       @named p5: (String, Int),
       @named p6: List[(Int, String)],
   ): Effect =
-    ZIO.logInfo(s"Hello Client!\n$i\n$cfg\np1=$p1\np2=$p2\np5=$p5\np6=$p6")
+    ZIO.logInfo(s"Hello Client!\n$i\n$cfg\nextraCfg=$extraCfg\np1=$p1\np2=$p2\np5=$p5\np6=$p6")
 
   @command
   def server(

@@ -42,19 +42,51 @@ object ArgsParser {
     override def parseArgs(input: Args): CliParseResult[Unit, Args] = CliParseResult.Success((), input)
   }
 
-  final case class Config[A](envVar: String, load: String => Either[String, A]) extends ArgsParser[A] {
-    override val help: Help = Help.Annotated(SubHelp.fromDocs(List(s"Config from env var $envVar")))
+  final case class Config[A](envVar: String, load: String => Either[String, A], subHelp: SubHelp) extends ArgsParser[A] {
+    override val help: Help = Help.Config(envVar, subHelp)
     override def parseArgs(input: Args): CliParseResult[A, Args] =
       Option(java.lang.System.getenv(envVar)) match
-        case None      => CliParseResult.Fail(CliParseError.FailedValidation(s"Missing env var: $envVar"), help.withHints(HelpHint.Error(s"Missing env var: $envVar") :: Nil))
+        case None =>
+          CliParseResult.Fail(
+            CliParseError.MissingEnvVar(envVar),
+            help.withHints(
+              HelpHint.Error(s"Environment variable $envVar is not set") ::
+                HelpHint.Help("Set it to a JSON value, a path to a .json file, or a directory of .json files") ::
+                Nil,
+            ),
+          )
         case Some(raw) =>
           load(raw) match
-            case Right(value)  => CliParseResult.Success(value, input)
-            case Left(message) => CliParseResult.Fail(CliParseError.FailedValidation(message), help.withHints(HelpHint.Error(message) :: Nil))
+            case Right(value) => CliParseResult.Success(value, input)
+            case Left(message) =>
+              CliParseResult.Fail(
+                CliParseError.FailedValidation(message),
+                help.withHints(HelpHint.Error(s"Failed to load config from $envVar: $message") :: Nil),
+              )
     override def complete(request: CompletionRequest, value: String): List[String] = Nil
   }
 
-  def config[A](envVar: String, load: String => Either[String, A]): ArgsParser[A] = Config(envVar, load)
+  final case class ConfigOptional[A](envVar: String, load: String => Either[String, A], subHelp: SubHelp) extends ArgsParser[Option[A]] {
+    override val help: Help = Help.Config(envVar, subHelp).withHints(HelpHint.Optional :: Nil)
+    override def parseArgs(input: Args): CliParseResult[Option[A], Args] =
+      Option(java.lang.System.getenv(envVar)) match
+        case None      => CliParseResult.Success(None, input)
+        case Some(raw) =>
+          load(raw) match
+            case Right(value) => CliParseResult.Success(value.some, input)
+            case Left(message) =>
+              CliParseResult.Fail(
+                CliParseError.FailedValidation(message),
+                help.withHints(HelpHint.Error(s"Failed to load config from $envVar: $message") :: Nil),
+              )
+    override def complete(request: CompletionRequest, value: String): List[String] = Nil
+  }
+
+  def config[A](envVar: String, load: String => Either[String, A], help: SubHelp = SubHelp.Empty): ArgsParser[A] =
+    Config(envVar, load, help)
+
+  def configOptional[A](envVar: String, load: String => Either[String, A], help: SubHelp = SubHelp.Empty): ArgsParser[Option[A]] =
+    ConfigOptional(envVar, load, help)
 
   final case class HelpOnly(combinedHelp: Help) extends ArgsParser[Unit] {
     override val help: Help = combinedHelp

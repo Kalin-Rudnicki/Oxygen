@@ -93,13 +93,29 @@ private[generic] object ParserCodegen {
     case p: ParamRepr.Custom =>
       p.make
     case p: ParamRepr.Config =>
-      type T = p.raw.T
-      '{
-        ArgsParser.config[T](
-          ${ Expr(p.envVar) },
-          (raw: String) => ConfigLoader.loadDecoded[T](raw, ${ p.decoder }),
-        )
-      }
+      if p.optional then
+        p.raw.typeRepr.dealias match
+          case AppliedType(_, inner :: Nil) =>
+            inner.asTypeOf match
+              case '[t] =>
+                '{
+                  ArgsParser.configOptional[t](
+                    ${ Expr(p.envVar) },
+                    (raw: String) => ConfigLoader.loadDecoded[t](raw, ${ p.decoder.asExprOf[oxygen.json.JsonDecoder[t]] }),
+                    ${ subHelp(p) },
+                  )
+                }
+              case _ => report.errorAndAbort(s"Unable to build optional @config for ${p.raw.typeRepr.showAnsiCode}", p.raw.valPosition)
+          case _ => report.errorAndAbort(s"Unable to build optional @config for ${p.raw.typeRepr.showAnsiCode}", p.raw.valPosition)
+      else
+        type T = p.raw.T
+        '{
+          ArgsParser.config[T](
+            ${ Expr(p.envVar) },
+            (raw: String) => ConfigLoader.loadDecoded[T](raw, ${ p.decoder.asExprOf[oxygen.json.JsonDecoder[T]] }),
+            ${ subHelp(p) },
+          )
+        }
 
   def combine(parsers: List[Expr[ArgsParser[?]]])(using Quotes): Expr[ArgsParser[?]] = parsers match
     case Nil         => '{ ArgsParser.unit }

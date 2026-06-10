@@ -34,4 +34,6 @@ object CliParseError {
 
   final case class NamedUnexpectedValues(name: String, values: NonEmptyList[PositionalArg]) extends CliParseError
 
+  final case class MissingEnvVar(name: String) extends CliParseError
+
 }

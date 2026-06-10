@@ -48,10 +48,18 @@ object ParamRepr {
           case Some(s: oxygen.cli.shortName)      => Defaultable.Explicit(Some(s.name))
         new Named(raw)(longName, resolvedShortName)
       case config(env) =>
-        type ParamT = raw.T
-        given Type[ParamT] = raw.typeRepr.asTypeOf
-        val decoder: Expr[JsonDecoder[ParamT]] = doSummon[JsonDecoder[ParamT]]
-        new Config(raw)(env, decoder)
+        raw.typeRepr.dealias match
+          case AppliedType(constructor, inner :: Nil) if constructor.typeSymbol.fullName == "scala.Option" =>
+            inner.asTypeOf match
+              case '[t] =>
+                val decoder: Expr[JsonDecoder[t]] = doSummon[JsonDecoder[t]]
+                new Config(raw)(env, decoder, optional = true)
+              case _ => raw.failAtVal(s"Unable to build optional @config for ${raw.typeRepr.showAnsiCode}")
+          case _ =>
+            type ParamT = raw.T
+            given Type[ParamT] = raw.typeRepr.asTypeOf
+            val decoder: Expr[JsonDecoder[ParamT]] = doSummon[JsonDecoder[ParamT]]
+            new Config(raw)(env, decoder, optional = false)
       case flag() =>
         val longName: String = raw.annot_longName.fold(raw.valDef.name)(_.name)
         val absentValue: Boolean = defaultSyms.get((ownerName, raw.paramIdx)) match
@@ -91,7 +99,8 @@ object ParamRepr {
       val raw: RawParamRepr,
   )(
       val envVar: String,
-      val decoder: Expr[JsonDecoder[raw.T]],
+      val decoder: Expr[JsonDecoder[?]],
+      val optional: Boolean,
   ) extends ParamRepr
 
   final class Toggle(
