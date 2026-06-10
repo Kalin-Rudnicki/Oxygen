@@ -75,8 +75,8 @@ private[generic] final class RawCliAppRepr[A](val isRoot: Boolean)(using quotes:
       case Nil => None
       case _   => report.errorAndAbort("Multiple `def env` not allowed...", gen.pos)
 
-  private val commandDefs: List[RawDefRepr] = bodyDefs.filter(_.optAnnot.exists(_.isInstanceOf[command]))
-  private val executeDefs: List[RawDefRepr] = bodyDefs.filter(_.optAnnot.exists(_.isInstanceOf[execute]))
+  val commandDefs: List[RawDefRepr] = bodyDefs.filter(_.optAnnot.exists(_.isInstanceOf[command]))
+  val executeDefs: List[RawDefRepr] = bodyDefs.filter(_.optAnnot.exists(_.isInstanceOf[execute]))
 
   if commandDefs.nonEmpty && executeDefs.nonEmpty then
     report.errorAndAbort("Cannot have both @command and @execute in the same class", gen.pos)

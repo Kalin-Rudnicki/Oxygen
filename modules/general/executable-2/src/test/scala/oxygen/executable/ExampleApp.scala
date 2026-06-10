@@ -8,7 +8,7 @@ final case class ExampleApp(
 ) extends CliApp[Any, String] {
 
   def env(
-      @named host: String,
+      @named host: String = "localhost",
   ): EnvLayer =
     ZLayer.succeed { host }
 

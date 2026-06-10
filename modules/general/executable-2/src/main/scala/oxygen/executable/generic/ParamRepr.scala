@@ -4,7 +4,12 @@ import oxygen.cli.*
 import oxygen.executable.*
 import oxygen.json.JsonDecoder
 import oxygen.quoted.*
+import oxygen.schema.{JsonSchema, PlainTextSchema}
+import oxygen.schema.PlainTextSchema.given
 import scala.quoted.*
+
+private val __ensureCliSchemaGivens: (PlainTextSchema[String], PlainTextSchema[Int], PlainTextSchema[Double]) =
+  (summon[PlainTextSchema[String]], summon[PlainTextSchema[Int]], summon[PlainTextSchema[Double]])
 
 sealed trait ParamRepr {
   val raw: RawParamRepr
@@ -17,6 +22,16 @@ object ParamRepr {
   def extract(raw: RawParamRepr, ownerName: String, defaultSyms: Map[(String, Int), Term])(using Quotes): ParamRepr = {
     def doSummon[T: Type]: Expr[T] =
       Implicits.searchOption[T].getOrElse { raw.failAtVal(s"Missing given instance: ${TypeRepr.of[T].showAnsiCode}") }
+
+    def summonPlainTextSchema[ParamT: Type]: Expr[PlainTextSchema[ParamT]] =
+      Implicits.searchOption[PlainTextSchema[ParamT]].getOrElse {
+        summonPlainTextSchemaFromJson[ParamT]
+      }
+
+    def summonPlainTextSchemaFromJson[ParamT: Type]: Expr[PlainTextSchema[ParamT]] =
+      Implicits.searchOption[JsonSchema[ParamT]] match
+        case Some(jsonSchema) => '{ PlainTextSchema.jsonString(using $jsonSchema) }
+        case None             => raw.failAtVal(s"Missing PlainTextSchema or JsonSchema for ${TypeRepr.of[ParamT].showAnsiCode}")
 
     def extractToggleLongName: ToggleLongNameRepr =
       ToggleLongNameRepr
@@ -31,20 +46,24 @@ object ParamRepr {
 
     raw.annot_paramType match {
       case positional() =>
+        type ParamT = raw.T
+        given Type[ParamT] = raw.typeRepr.asTypeOf
         val longName: String = raw.annot_longName.fold(raw.valDef.name)(_.name)
-        val make: Expr[PositionalArgsParser.Builder[raw.T]] = doSummon
-        new Positional(raw)(longName, make)
+        new Positional(raw)(longName, summonPlainTextSchema[ParamT])
       case named() =>
+        type ParamT = raw.T
+        given Type[ParamT] = raw.typeRepr.asTypeOf
         val longName: String = raw.annot_longName.fold(raw.valDef.name)(_.name)
         val resolvedShortName: Defaultable.Opt[Char] = raw.annot_shortName match
           case None                              => Defaultable.Default
           case Some(_: oxygen.cli.shortName.none) => Defaultable.Explicit(None)
           case Some(_: oxygen.cli.shortName.auto) => Defaultable.Default
           case Some(s: oxygen.cli.shortName)      => Defaultable.Explicit(Some(s.name))
-        val make: Expr[NamedArgsParser.Builder[raw.T]] = doSummon
-        new Named(raw)(longName, resolvedShortName, make)
+        new Named(raw)(longName, resolvedShortName, summonPlainTextSchema[ParamT])
       case config(env) =>
-        val decoder: Expr[JsonDecoder[raw.T]] = doSummon
+        type ParamT = raw.T
+        given Type[ParamT] = raw.typeRepr.asTypeOf
+        val decoder: Expr[JsonDecoder[ParamT]] = doSummon[JsonDecoder[ParamT]]
         new Config(raw)(env, decoder)
       case flag() =>
         val longName: String = raw.annot_longName.fold(raw.valDef.name)(_.name)
@@ -55,7 +74,9 @@ object ParamRepr {
       case toggle() =>
         new Toggle(raw)(extractToggleLongName)
       case custom() =>
-        val make: Expr[ArgsParser[raw.T]] = doSummon
+        type ParamT = raw.T
+        given Type[ParamT] = raw.typeRepr.asTypeOf
+        val make: Expr[ArgsParser[ParamT]] = doSummon[ArgsParser[ParamT]]
         new Custom(raw)(make)
     }
   }
@@ -64,7 +85,7 @@ object ParamRepr {
       val raw: RawParamRepr,
   )(
       val longName: String,
-      val make: Expr[PositionalArgsParser.Builder[raw.T]],
+      val schema: Expr[PlainTextSchema[raw.T]],
   ) extends ParamRepr
 
   final class Named(
@@ -72,7 +93,7 @@ object ParamRepr {
   )(
       val longName: String,
       val shortName: Defaultable.Opt[Char],
-      val make: Expr[NamedArgsParser.Builder[raw.T]],
+      val schema: Expr[PlainTextSchema[raw.T]],
   ) extends ParamRepr
 
   final class Custom(

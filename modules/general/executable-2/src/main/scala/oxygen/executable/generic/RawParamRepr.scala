@@ -38,12 +38,4 @@ private[generic] final class RawParamRepr(
   val typeRepr: TypeRepr = valDef.tpt.tpe.widen
   given Type[T] = typeRepr.asTypeOf
 
-  private val hasDefault: Boolean =
-    ownerName.flatMap { owner => defaultSyms.get((owner, paramIdx)) }.isDefined
-
-  annot_paramType match {
-    case named() if hasDefault => failAtVal("@named params cannot have default values")
-    case _                     => ()
-  }
-
 }

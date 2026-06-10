@@ -16,8 +16,6 @@ object CliApp {
 
   abstract class Executable[A](using app: DeriveCliApp.Root[A]) extends ZIOAppDefault {
 
-    println(app) // FIX-PRE-MERGE (KR) : remove
-
     /**
       * At this point, all [[zio.Cause]] should be caught, and any errors printed.
       */
@@ -28,7 +26,7 @@ object CliApp {
       * At this point, all [[zio.Cause]] should be caught, and any errors printed.
       */
     private final def runApp(args: List[String]): URIO[Scope, ExitCode] =
-      ??? // FIX-PRE-MERGE (KR) :
+      app.app.run(args).catchAllCause(cause => Console.printLine(cause.prettyPrint).orDie.as(ExitCode.failure))
 
     override final def run: URIO[ZIOAppArgs & Scope, Unit] = {
       for {
