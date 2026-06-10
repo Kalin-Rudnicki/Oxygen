@@ -2,6 +2,10 @@ package oxygen.executable
 import oxygen.cli.*
 
 object CompletionEngine {
+  private def flagCompletions(value: String, paramCompletions: List[String]): List[String] =
+    val flags: List[String] = paramCompletions.filter(_.startsWith("-"))
+    CliHelp.mergeCompletions(CliHelp.builtinFlagCompletions(value), flags)
+
   def complete(app: CompiledCliApp[?], request: CompletionRequest): List[String] =
     val value: String = request.args.lift(request.argIdx).getOrElse("")
     request.args match
@@ -11,7 +15,8 @@ object CompletionEngine {
         activeApp(app, request) match
           case (sub, adjusted) =>
             val paramCompletions: List[String] = sub.helpParser.complete(adjusted, value)
-            if value.startsWith("-") || value.isEmpty then CliHelp.mergeCompletions(CliHelp.builtinFlagCompletions(value), paramCompletions)
+            if value.startsWith("-") then flagCompletions(value, paramCompletions)
+            else if value.isEmpty then CliHelp.mergeCompletions(CliHelp.builtinFlagCompletions(value), paramCompletions)
             else paramCompletions
 
   private def activeApp(app: CompiledCliApp[?], request: CompletionRequest): (CompiledCliApp[?], CompletionRequest) =
@@ -29,11 +34,15 @@ object CompletionEngine {
         case None => (app, request)
 
   private def completeSubCommand(app: CompiledCliApp[?], value: String, request: CompletionRequest): List[String] =
-    if app.subCommands.isEmpty then app.helpParser.complete(request, value)
+    if app.subCommands.isEmpty then
+      if value.startsWith("-") then flagCompletions(value, app.helpParser.complete(request, value))
+      else if value.isEmpty then CliHelp.mergeCompletions(CliHelp.builtinFlagCompletions(value), app.helpParser.complete(request, value))
+      else app.helpParser.complete(request, value)
     else
       val names: List[String] = app.subCommands.keySet.toList.sorted
       val commandMatches: List[String] = names.filter(_.startsWith(value))
       val commands: List[String] = if commandMatches.nonEmpty then commandMatches else names
-      if value.startsWith("-") || value.isEmpty then CliHelp.mergeCompletions(CliHelp.builtinFlagCompletions(value), commands)
+      if value.startsWith("-") then flagCompletions(value, app.helpParser.complete(request, value))
+      else if value.isEmpty then CliHelp.mergeCompletions(CliHelp.builtinFlagCompletions(value), commands)
       else commands
 }
