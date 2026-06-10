@@ -361,13 +361,11 @@ object NamedArgsParser {
       findNamed(longName, shortName, input.args) match
         case Some((nested, rest)) =>
           val values = NamedArgNested.positional(nested)
-          if values.args.isEmpty then CliParseResult.Fail(CliParseError.MissingRequiredPositional(longName), help.withHints(HelpHint.Error("Missing required value") :: Nil))
-          else
-            valueParser.parsePositionalArgs(values) match
-              case CliParseResult.Success(value, remaining) =>
-                if remaining.args.isEmpty then CliParseResult.Success(value, NamedArgs(rest))
-                else CliParseResult.Fail(CliParseError.NamedUnexpectedValues(longName, NonEmptyList.unsafeFromList(remaining.args)), help)
-              case fail @ CliParseResult.Fail(_, _) => fail
+          valueParser.parsePositionalArgs(values) match
+            case CliParseResult.Success(value, remaining) =>
+              if remaining.args.isEmpty then CliParseResult.Success(value, NamedArgs(rest))
+              else CliParseResult.Fail(CliParseError.NamedUnexpectedValues(longName, NonEmptyList.unsafeFromList(remaining.args)), help)
+            case fail @ CliParseResult.Fail(_, _) => fail
         case None => CliParseResult.Fail(CliParseError.MissingRequiredNamed(longName), help.withHints(HelpHint.Error("Missing required param") :: Nil))
     override def complete(request: CompletionRequest, value: String): List[String] =
       if value.isEmpty || value.startsWith("-") then CliHelp.paramNameCompletions(help, value) else valueParser.complete(request, value)

@@ -145,23 +145,41 @@ private[generic] object ParserCodegen {
 
   def withDefault[A: Type](
       parser: Expr[NamedArgsParser[A]],
+      typeRepr: TypeRepr,
       ownerName: String,
       param: ParamRepr,
       defaultSyms: Map[(String, Int), Term],
   )(using Quotes): Expr[NamedArgsParser[A]] =
     defaultSyms.get((ownerName, param.raw.paramIdx)) match
-      case None        => parser
-      case Some(rhs)   => '{ $parser.withDefault(${ rhs.asExprOf[A] }) }
+      case Some(rhs) => '{ $parser.withDefault(${ rhs.asExprOf[A] }) }
+      case None =>
+        unwrapList(typeRepr) match
+          case Some(inner) =>
+            inner.asTypeOf match
+              case '[elemT] =>
+                val empty: Expr[A] = '{ List.empty[elemT] }.asExprOf[A]
+                '{ $parser.withDefault($empty) }
+              case _ => parser
+          case None => parser
 
   def withDefaultPositional[A: Type](
       parser: Expr[PositionalArgsParser[A]],
+      typeRepr: TypeRepr,
       ownerName: String,
       param: ParamRepr,
       defaultSyms: Map[(String, Int), Term],
   )(using Quotes): Expr[PositionalArgsParser[A]] =
     defaultSyms.get((ownerName, param.raw.paramIdx)) match
-      case None        => parser
-      case Some(rhs)   => '{ $parser.withDefault(${ rhs.asExprOf[A] }) }
+      case Some(rhs) => '{ $parser.withDefault(${ rhs.asExprOf[A] }) }
+      case None =>
+        unwrapList(typeRepr) match
+          case Some(inner) =>
+            inner.asTypeOf match
+              case '[elemT] =>
+                val empty: Expr[A] = '{ List.empty[elemT] }.asExprOf[A]
+                '{ $parser.withDefault($empty) }
+              case _ => parser
+          case None => parser
 
   def buildParam(
       param: ParamRepr,
@@ -181,7 +199,7 @@ private[generic] object ParserCodegen {
                 buildValueParser(p.longName, p.raw.typeRepr, p)
               val base: Expr[PositionalArgsParser[t]] =
                 '{ $valueParser.asInstanceOf[PositionalArgsParser[t]] }
-              withDefaultPositional(base, ownerName, p, defaultSyms)
+              withDefaultPositional(base, p.raw.typeRepr, ownerName, p, defaultSyms)
             case _ => report.errorAndAbort(s"Unable to build positional param for ${p.raw.typeRepr.showAnsiCode}", p.raw.valPosition)
     case p: ParamRepr.Named =>
       unwrapOption(p.raw.typeRepr) match
@@ -196,7 +214,7 @@ private[generic] object ParserCodegen {
                 buildValueParser(p.longName, p.raw.typeRepr, p)
               val base: Expr[NamedArgsParser[t]] =
                 '{ NamedArgsParser.named(${ Expr(p.longName) }, $valueParser.asInstanceOf[PositionalArgsParser[t]], ${ shortNameExpr(p.shortName) }, ${ subHelp(p) }) }
-              withDefault(base, ownerName, p, defaultSyms)
+              withDefault(base, p.raw.typeRepr, ownerName, p, defaultSyms)
             case _ => report.errorAndAbort(s"Unable to build named param for ${p.raw.typeRepr.showAnsiCode}", p.raw.valPosition)
     case p: ParamRepr.Flag =>
       '{ NamedArgsParser.flag(${ Expr(p.longName) }, ${ Expr(p.absentValue) }, help = ${ subHelp(p) }) }
