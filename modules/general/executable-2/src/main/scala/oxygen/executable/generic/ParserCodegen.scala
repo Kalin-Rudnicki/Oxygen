@@ -72,13 +72,27 @@ private[generic] object ParserCodegen {
     case p: ParamRepr.Custom =>
       p.make
     case p: ParamRepr.Config =>
-      report.errorAndAbort(s"@config params are not supported in CLI parsing yet (${p.envVar})", p.raw.valPosition)
+      type T = p.raw.T
+      '{
+        ArgsParser.config[T](
+          ${ Expr(p.envVar) },
+          (raw: String) => ConfigLoader.loadDecoded[T](raw, ${ p.decoder }),
+        )
+      }
 
   def combine(parsers: List[Expr[ArgsParser[?]]])(using Quotes): Expr[ArgsParser[?]] = parsers match
     case Nil         => '{ ArgsParser.unit }
     case head :: Nil => head
     case head :: tail =>
       tail.foldLeft(head) { (acc, next) => '{ $acc ^>> $next } }
+
+  def combineHelp(parsers: List[Expr[ArgsParser[?]]])(using Quotes): Expr[ArgsParser[?]] = parsers match
+    case Nil         => '{ ArgsParser.unit }
+    case one :: Nil  => '{ ArgsParser.helpOnly($one.help) }
+    case many        =>
+      val helpExprs: List[Expr[Help]] = many.map(parser => '{ $parser.help })
+      val combined: Expr[Help] = helpExprs.reduceLeft((left, right) => '{ Help.And($left, $right) })
+      '{ ArgsParser.helpOnly($combined) }
 
   def buildParams(
       params: List[ParamRepr],

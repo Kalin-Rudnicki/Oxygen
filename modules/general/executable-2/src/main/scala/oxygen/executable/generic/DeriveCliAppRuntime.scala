@@ -21,16 +21,44 @@ private[executable] object DeriveCliAppRuntime {
   def provideEnvAndRun(layer: Any, effect: Any): URIO[Scope, ExitCode] =
     runEffect(effect).provideSomeLayer(layer.asInstanceOf[ZLayer[Any, Nothing, Any]])
 
+  def printHelp(help: Help): URIO[Scope, ExitCode] =
+    Console.printLine(help.toString).orDie.as(ExitCode.success)
+
+  def printComposedHelp(
+      helpParser: ArgsParser[?],
+      helpType: HelpType,
+      subCommands: Map[String, CompiledCliApp[Any]] = Map.empty,
+      title: Option[String] = None,
+  ): URIO[Scope, ExitCode] =
+    printHelp(CliHelp.compose(helpParser, helpType, subCommands, title))
+
+  def handleHelpOr(
+      args: Args,
+      helpParser: ArgsParser[?],
+      subCommands: Map[String, CompiledCliApp[Any]],
+      title: Option[String],
+      run: Args => URIO[Scope, ExitCode],
+  ): URIO[Scope, ExitCode] =
+    CliHelp.peelArgs(args) match
+      case (stripped, Some(helpType)) =>
+        stripped.positional.args match
+          case PositionalArg(_, name) :: _ if subCommands.nonEmpty =>
+            subCommands.get(name) match
+              case Some(cmd) => printComposedHelp(cmd.helpParser, helpType, title = Some(s"Command: $name"))
+              case None      => printComposedHelp(helpParser, helpType, subCommands, title)
+          case _ => printComposedHelp(helpParser, helpType, subCommands, title)
+      case (stripped, None) => run(stripped)
+
   def runParsed(
       parser: ArgsParser[?],
       args: Args,
       runParsed: Any => URIO[Scope, ExitCode],
   ): URIO[Scope, ExitCode] =
     parser.parseArgs(args) match
-      case CliParseResult.Fail(_, help) => Console.printLine(help.toString).orDie.as(ExitCode.success)
+      case CliParseResult.Fail(_, help) => printHelp(help)
       case CliParseResult.Success(parsed, remaining) =>
         ArgsParser.toFinal(parser.parseArgs(Args(remaining.positional, remaining.named))) match
-          case Left((_, help)) => Console.printLine(help.toString).orDie.as(ExitCode.success)
+          case Left((_, help)) => printHelp(help)
           case Right(_)        => runParsed(parsed)
 
   def runParsedN(
@@ -47,7 +75,7 @@ private[executable] object DeriveCliAppRuntime {
             case CliParseResult.Success(value, _) => loop(rest, parsed :+ value, remainingArgs)
 
     loop(parsers, Nil, args) match
-      case Left((_, help)) => Console.printLine(help.toString).orDie.as(ExitCode.success)
+      case Left((_, help)) => printHelp(help)
       case Right(parsed)   => runParsed(parsed)
   }
 
@@ -58,13 +86,13 @@ private[executable] object DeriveCliAppRuntime {
       runParsed: (Any, Any) => URIO[Scope, ExitCode],
   ): URIO[Scope, ExitCode] =
     envParser.parseArgs(args) match
-      case CliParseResult.Fail(_, help) => Console.printLine(help.toString).orDie.as(ExitCode.success)
+      case CliParseResult.Fail(_, help) => printHelp(help)
       case CliParseResult.Success(envParsed, afterEnv) =>
         cmdParser.parseArgs(afterEnv) match
-          case CliParseResult.Fail(_, help) => Console.printLine(help.toString).orDie.as(ExitCode.success)
+          case CliParseResult.Fail(_, help) => printHelp(help)
           case CliParseResult.Success(cmdParsed, remaining) =>
             ArgsParser.toFinal(cmdParser.parseArgs(Args(remaining.positional, remaining.named))) match
-              case Left((_, help)) => Console.printLine(help.toString).orDie.as(ExitCode.success)
+              case Left((_, help)) => printHelp(help)
               case Right(_)        => runParsed(envParsed, cmdParsed)
 
   def provideEnvLayer(layer: Any, run: URIO[Scope, ExitCode]): URIO[Scope, ExitCode] =
@@ -72,32 +100,38 @@ private[executable] object DeriveCliAppRuntime {
 
   def runWithSubCommandsFromArgs(
       rootParser: ArgsParser[?],
+      helpParser: ArgsParser[?],
       subCommands: Map[String, CompiledCliApp[Any]],
       args: Args,
   ): URIO[Scope, ExitCode] =
-    rootParser.parseArgs(args) match
-      case CliParseResult.Fail(_, help) => Console.printLine(help.toString).orDie.as(ExitCode.success)
-      case CliParseResult.Success(rootParsed, remaining) =>
-        remaining.positional.args match
-          case PositionalArg(_, name) :: posTail =>
-            subCommands.get(name) match
-              case Some(cmd) =>
-                val cmdArgs = Args(PositionalArgs(posTail), remaining.named)
-                cmd.asInstanceOf[CompiledCliApp.Impl[Any]].runWithRoot(rootParsed, cmdArgs)
-              case None =>
-                val known = subCommands.keySet.toList.sorted.mkString(", ")
-                Console.printLine(s"Unknown command '$name'. Known commands: $known").orDie.as(ExitCode.failure)
-          case Nil =>
-            val known = subCommands.keySet.toList.sorted.mkString(", ")
-            Console.printLine(s"Missing command. Known commands: $known").orDie.as(ExitCode.failure)
+    handleHelpOr(args, helpParser, subCommands, title = Some("Usage"), run = stripped =>
+      rootParser.parseArgs(stripped) match
+        case CliParseResult.Fail(_, help) => printHelp(help)
+        case CliParseResult.Success(rootParsed, remaining) =>
+          remaining.positional.args match
+            case PositionalArg(_, name) :: posTail =>
+              subCommands.get(name) match
+                case Some(cmd) =>
+                  val cmdArgs = Args(PositionalArgs(posTail), remaining.named)
+                  handleHelpOr(cmdArgs, cmd.helpParser, Map.empty, title = Some(s"Command: $name"), run = cmdStripped =>
+                    cmd.asInstanceOf[CompiledCliApp.Impl[Any]].runWithRoot(rootParsed, cmdStripped),
+                  )
+                case None =>
+                  val known = subCommands.keySet.toList.sorted.mkString(", ")
+                  Console.printLine(s"Unknown command '$name'. Known commands: $known").orDie.as(ExitCode.failure)
+            case Nil =>
+              val known = subCommands.keySet.toList.sorted.mkString(", ")
+              Console.printLine(s"Missing command. Known commands: $known").orDie.as(ExitCode.failure),
+    )
 
   def runWithSubCommands(
       rootParser: ArgsParser[?],
+      helpParser: ArgsParser[?],
       subCommands: Map[String, CompiledCliApp[Any]],
       args: List[String],
   ): URIO[Scope, ExitCode] =
     Args.parse(args) match
       case Left(message) => Console.printLine(message).orDie.as(ExitCode.failure)
-      case Right(parsedArgs) => runWithSubCommandsFromArgs(rootParser, subCommands, parsedArgs)
+      case Right(parsedArgs) => runWithSubCommandsFromArgs(rootParser, helpParser, subCommands, parsedArgs)
 
 }

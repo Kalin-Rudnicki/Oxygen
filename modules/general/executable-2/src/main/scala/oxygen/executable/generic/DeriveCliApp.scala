@@ -105,10 +105,30 @@ private[executable] object DeriveCliApp {
   private def buildDisplayParser(parsers: Expr[List[ArgsParser[?]]])(using Quotes): Expr[ArgsParser[?]] =
     '{ $parsers.headOption.getOrElse(ArgsParser.unit: ArgsParser[?]) }
 
+  private def buildHelpParserExprs[A](repr: RawCliAppRepr[A])(using Quotes): List[Expr[ArgsParser[?]]] = {
+    val rootParserExpr: Expr[ArgsParser[?]] = buildRootParser(repr)
+    val envParsers: List[Expr[ArgsParser[?]]] =
+      repr.envDef.fold(Nil)(_.params.map(p => ParserCodegen.buildParam(ParamRepr.extract(p, "env", repr.defaultSyms), "env", repr.defaultSyms)))
+    val cmdParsers: List[Expr[ArgsParser[?]]] =
+      repr.executeDefs.headOption.fold(Nil)(defRepr =>
+        defRepr.params.map(p => ParserCodegen.buildParam(ParamRepr.extract(p, defRepr.defDef.name, repr.defaultSyms), defRepr.defDef.name, repr.defaultSyms)),
+      )
+    rootParserExpr :: envParsers ::: cmdParsers
+  }
+
+  private def buildSubCommandHelpParserExprs[A](repr: RawCliAppRepr[A], defRepr: RawDefRepr)(using Quotes): List[Expr[ArgsParser[?]]] = {
+    val envParsers: List[Expr[ArgsParser[?]]] =
+      repr.envDef.fold(Nil)(_.params.map(p => ParserCodegen.buildParam(ParamRepr.extract(p, "env", repr.defaultSyms), "env", repr.defaultSyms)))
+    val cmdParsers: List[Expr[ArgsParser[?]]] =
+      defRepr.params.map(p => ParserCodegen.buildParam(ParamRepr.extract(p, defRepr.defDef.name, repr.defaultSyms), defRepr.defDef.name, repr.defaultSyms))
+    envParsers ::: cmdParsers
+  }
+
   private def buildRunFromArgs[A: Type](
       repr: RawCliAppRepr[A],
       instanceExpr: Expr[A],
       rootParserExpr: Expr[ArgsParser[?]],
+      helpParserExpr: Expr[ArgsParser[?]],
       subCommandsExpr: Expr[Map[String, CompiledCliApp[Any]]],
   )(using Quotes): Expr[Args => URIO[Scope, ExitCode]] =
     repr.executeDefs.headOption match
@@ -121,28 +141,36 @@ private[executable] object DeriveCliApp {
         val envMethodSym: Option[oxygen.quoted.Symbol] = repr.envDef.map(_.defDef.symbol)
         '{
           (args: Args) =>
-            $rootParserExpr.parseArgs(args) match
-              case CliParseResult.Fail(_, help) => Console.printLine(help.toString).orDie.as(ExitCode.success)
-              case CliParseResult.Success(_, remaining) =>
-                DeriveCliAppRuntime.runParsedN(
-                  parsers = $envParserExprs,
-                  args = remaining,
-                  runParsed = { envValues =>
+            DeriveCliAppRuntime.handleHelpOr(
+              args = args,
+              helpParser = $helpParserExpr,
+              subCommands = Map.empty[String, CompiledCliApp[Any]],
+              title = Some("Usage"),
+              run = stripped =>
+                $rootParserExpr.parseArgs(stripped) match
+                  case CliParseResult.Fail(_, help) => DeriveCliAppRuntime.printHelp(help)
+                  case CliParseResult.Success(_, remaining) =>
                     DeriveCliAppRuntime.runParsedN(
-                      parsers = $cmdParserExprs,
+                      parsers = $envParserExprs,
                       args = remaining,
-                      runParsed = { cmdValues =>
-                        ${ buildExecutionBody(instanceExpr, repr.effectTypeRepr, repr.envLayerTypeRepr, envMethodSym, methodSym, envParamTypeReprs, cmdParamTypeReprs, 'envValues, 'cmdValues) }
+                      runParsed = { envValues =>
+                        DeriveCliAppRuntime.runParsedN(
+                          parsers = $cmdParserExprs,
+                          args = remaining,
+                          runParsed = { cmdValues =>
+                            ${ buildExecutionBody(instanceExpr, repr.effectTypeRepr, repr.envLayerTypeRepr, envMethodSym, methodSym, envParamTypeReprs, cmdParamTypeReprs, 'envValues, 'cmdValues) }
+                          },
+                        )
                       },
-                    )
-                  },
-                )
+                    ),
+            )
         }
       case None =>
         '{
           (args: Args) =>
             DeriveCliAppRuntime.runWithSubCommandsFromArgs(
               rootParser = $rootParserExpr,
+              helpParser = $helpParserExpr,
               subCommands = $subCommandsExpr,
               args = args,
             )
@@ -152,10 +180,11 @@ private[executable] object DeriveCliApp {
       repr: RawCliAppRepr[A],
       instanceExpr: Expr[A],
       rootParserExpr: Expr[ArgsParser[?]],
+      helpParserExpr: Expr[ArgsParser[?]],
       subCommandsExpr: Expr[Map[String, CompiledCliApp[Any]]],
   )(using Quotes): Expr[List[String] => URIO[Scope, ExitCode]] = {
     val runFromArgsExpr: Expr[Args => URIO[Scope, ExitCode]] =
-      buildRunFromArgs(repr, instanceExpr, rootParserExpr, subCommandsExpr)
+      buildRunFromArgs(repr, instanceExpr, rootParserExpr, helpParserExpr, subCommandsExpr)
     '{
       (args: List[String]) =>
         Args.parse(args) match
@@ -169,15 +198,17 @@ private[executable] object DeriveCliApp {
       instanceExpr: Expr[A],
   )(using Quotes): Expr[CompiledCliApp[Any]] = {
     val rootParserExpr: Expr[ArgsParser[?]] = buildRootParser(repr)
+    val helpParserExpr: Expr[ArgsParser[?]] = ParserCodegen.combineHelp(buildHelpParserExprs(repr))
     val subCommandsExpr: Expr[Map[String, CompiledCliApp[Any]]] =
       if repr.commandDefs.nonEmpty then buildSubCommands(repr, instanceExpr)
       else '{ Map.empty[String, CompiledCliApp[Any]] }
     val runFnExpr: Expr[List[String] => URIO[Scope, ExitCode]] =
-      buildRunFnFromArgs(repr, instanceExpr, rootParserExpr, subCommandsExpr)
+      buildRunFnFromArgs(repr, instanceExpr, rootParserExpr, helpParserExpr, subCommandsExpr)
 
     '{
       CompiledCliApp.Impl(
         rootParser = $rootParserExpr,
+        helpParser = $helpParserExpr,
         subCommands = $subCommandsExpr,
         runFn = $runFnExpr,
       )
@@ -242,8 +273,9 @@ private[executable] object DeriveCliApp {
                   val nestedSubCommandsExpr: Expr[Map[String, CompiledCliApp[Any]]] =
                     if nestedRepr.commandDefs.nonEmpty then buildSubCommands(nestedRepr, '{ subAppInstance }.asExprOf[B])
                     else '{ Map.empty[String, CompiledCliApp[Any]] }
+                  val nestedHelpParserExpr: Expr[ArgsParser[?]] = ParserCodegen.combineHelp(buildHelpParserExprs(nestedRepr))
                   val nestedRunFromArgsExpr: Expr[Args => URIO[Scope, ExitCode]] =
-                    buildRunFromArgs(nestedRepr, '{ subAppInstance }.asExprOf[B], nestedRootParserExpr, nestedSubCommandsExpr)
+                    buildRunFromArgs(nestedRepr, '{ subAppInstance }.asExprOf[B], nestedRootParserExpr, nestedHelpParserExpr, nestedSubCommandsExpr)
                   buildRunNestedApp(parentRepr, parentInstanceExpr, envMethodSym, envParamTypeReprs, nestedRunFromArgsExpr, '{ cmdArgs }, '{ envValues })
                 }
               },
@@ -300,6 +332,7 @@ private[executable] object DeriveCliApp {
         val name: String = commandName(defRepr)
         val cmdParserExprs: Expr[List[ArgsParser[?]]] = buildCmdParamParsers(repr, defRepr)
         val cmdParserExpr: Expr[ArgsParser[?]] = buildDisplayParser(cmdParserExprs)
+        val helpParserExpr: Expr[ArgsParser[?]] = ParserCodegen.combineHelp(buildSubCommandHelpParserExprs(repr, defRepr))
         val methodSym: oxygen.quoted.Symbol = defRepr.defDef.symbol
         val envParamTypeReprs: List[TypeRepr] = repr.envDef.fold(Nil)(_.params.map(_.typeRepr))
         val cmdParamTypeReprs: List[TypeRepr] = defRepr.params.map(_.typeRepr)
@@ -345,6 +378,7 @@ private[executable] object DeriveCliApp {
             ${ Expr(name) },
             CompiledCliApp.Impl(
               rootParser = $cmdParserExpr,
+              helpParser = $helpParserExpr,
               subCommands = Map.empty[String, CompiledCliApp[Any]],
               runFn = $standaloneRunFnExpr,
               runWithRootFn = Some($runWithRootFnExpr),

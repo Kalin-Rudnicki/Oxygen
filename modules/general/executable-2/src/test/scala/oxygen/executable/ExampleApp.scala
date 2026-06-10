@@ -3,7 +3,6 @@ package oxygen.executable
 import oxygen.cli.*
 import zio.*
 
-// FIX-PRE-MERGE (KR) : remove
 final case class ExampleApp(
 ) extends CliApp[Any, String] {
 
@@ -20,9 +19,8 @@ final case class ExampleApp(
   @command
   def server(
       @named port: Int = 8080,
-      @named port2: Int = 8080,
   ): Effect =
-    ZIO.logInfo(s"Hello Server! (port: $port, $port2)")
+    ZIO.logInfo(s"Hello Server! (port: $port)")
 
   @command
   def nested1: Nested1 = Nested1()

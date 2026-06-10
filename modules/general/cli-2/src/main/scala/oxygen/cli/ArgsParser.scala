@@ -42,6 +42,29 @@ object ArgsParser {
     override def parseArgs(input: Args): CliParseResult[Unit, Args] = CliParseResult.Success((), input)
   }
 
+  final case class Config[A](envVar: String, load: String => Either[String, A]) extends ArgsParser[A] {
+    override val help: Help = Help.Annotated(SubHelp.fromDocs(List(s"Config from env var $envVar")))
+    override def parseArgs(input: Args): CliParseResult[A, Args] =
+      Option(java.lang.System.getenv(envVar)) match
+        case None => CliParseResult.Fail(CliParseError.FailedValidation(s"Missing env var: $envVar"), help.withHints(HelpHint.Error(s"Missing env var: $envVar") :: Nil))
+        case Some(raw) =>
+          load(raw) match
+            case Right(value)  => CliParseResult.Success(value, input)
+            case Left(message) => CliParseResult.Fail(CliParseError.FailedValidation(message), help.withHints(HelpHint.Error(message) :: Nil))
+    override def complete(request: CompletionRequest, value: String): List[String] = Nil
+  }
+
+  def config[A](envVar: String, load: String => Either[String, A]): ArgsParser[A] = Config(envVar, load)
+
+  final case class HelpOnly(combinedHelp: Help) extends ArgsParser[Unit] {
+    override val help: Help = combinedHelp
+    override def parseArgs(input: Args): CliParseResult[Unit, Args] = CliParseResult.Success((), input)
+    override def complete(request: CompletionRequest, value: String): List[String] =
+      if value.isEmpty || value.startsWith("-") then CliHelp.paramNameCompletions(combinedHelp, value) else Nil
+  }
+
+  def helpOnly(combinedHelp: Help): ArgsParser[Unit] = HelpOnly(combinedHelp)
+
   final case class Const[A](value: A) extends ArgsParser[A] {
     override val help: Help = Help.Empty
     override def parseArgs(input: Args): CliParseResult[A, Args] = CliParseResult.Success(value, input)
@@ -56,6 +79,11 @@ object ArgsParser {
             case CliParseResult.Success(value2, remaining2) => CliParseResult.Success(zip.zip(value1, value2), remaining2)
             case fail @ CliParseResult.Fail(_, _)           => fail
         case fail @ CliParseResult.Fail(_, _) => fail
+    override def complete(request: CompletionRequest, value: String): List[String] =
+      left.parseArgs(Args(PositionalArgs(request.args.zipWithIndex.map { case (a, i) => PositionalArg(i, a) }), NamedArgs(Nil))) match
+        case CliParseResult.Success(_, remaining) if remaining.positional.args.isEmpty && remaining.named.args.isEmpty =>
+          right.complete(request, value)
+        case _ => left.complete(request, value)
   }
 
   final case class Or[A](left: ArgsParser[A], right: ArgsParser[A]) extends ArgsParser[A] {
@@ -67,11 +95,14 @@ object ArgsParser {
           right.parseArgs(input) match
             case success @ CliParseResult.Success(_, _) => success
             case CliParseResult.Fail(error2, help2)     => CliParseResult.Fail(CliParseError.RootOr(error1, error2), Help.Or(help1, help2))
+    override def complete(request: CompletionRequest, value: String): List[String] =
+      (left.complete(request, value) ::: right.complete(request, value)).distinct
   }
 
   final case class Mapped[A, B](parser: ArgsParser[A], f: A => B) extends ArgsParser[B] {
     override val help: Help = parser.help
     override def parseArgs(input: Args): CliParseResult[B, Args] = parser.parseArgs(input).map(f)
+    override def complete(request: CompletionRequest, value: String): List[String] = parser.complete(request, value)
   }
 
   final case class MappedOrFail[A, B](parser: ArgsParser[A], f: A => Either[String, B]) extends ArgsParser[B] {
@@ -83,6 +114,7 @@ object ArgsParser {
             case Right(value2) => CliParseResult.Success(value2, remaining)
             case Left(message) => CliParseResult.Fail(CliParseError.FailedValidation(message), parser.help.withHints(HelpHint.Error(message) :: Nil))
         case fail @ CliParseResult.Fail(_, _) => fail
+    override def complete(request: CompletionRequest, value: String): List[String] = parser.complete(request, value)
   }
 
   final def toFinal[A](result: CliParseResult[A, Args]): Either[(CliParseError, Help), A] = result match
@@ -309,6 +341,8 @@ object NamedArgsParser {
       findFlag(longName, shortName, input.args) match
         case Some(rest) => CliParseResult.Success(!absentValue, NamedArgs(rest))
         case None       => CliParseResult.Success(absentValue, input)
+    override def complete(request: CompletionRequest, value: String): List[String] =
+      if value.isEmpty || value.startsWith("-") then CliHelp.paramNameCompletions(help, value) else Nil
   }
 
   final case class Toggle(longNames: ToggleLongNameRepr, shortNames: Option[(Char, Char)], subHelp: SubHelp) extends NamedArgsParser[Boolean] {
@@ -317,6 +351,8 @@ object NamedArgsParser {
       findToggle(longNames, shortNames, input.args) match
         case Some((value, rest)) => CliParseResult.Success(value, NamedArgs(rest))
         case None                => CliParseResult.Fail(CliParseError.MissingRequiredNamed(s"${longNames.trueLongName}/${longNames.falseLongName}"), help.withHints(HelpHint.Error("Missing required param") :: Nil))
+    override def complete(request: CompletionRequest, value: String): List[String] =
+      if value.isEmpty || value.startsWith("-") then CliHelp.paramNameCompletions(help, value) else Nil
   }
 
   final case class Named[A](longName: String, shortName: Option[Char], valueParser: PositionalArgsParser[A], subHelp: SubHelp) extends NamedArgsParser[A] {
@@ -333,6 +369,8 @@ object NamedArgsParser {
                 else CliParseResult.Fail(CliParseError.NamedUnexpectedValues(longName, NonEmptyList.unsafeFromList(remaining.args)), help)
               case fail @ CliParseResult.Fail(_, _) => fail
         case None => CliParseResult.Fail(CliParseError.MissingRequiredNamed(longName), help.withHints(HelpHint.Error("Missing required param") :: Nil))
+    override def complete(request: CompletionRequest, value: String): List[String] =
+      if value.isEmpty || value.startsWith("-") then CliHelp.paramNameCompletions(help, value) else valueParser.complete(request, value)
   }
 
   final case class Optional[A](parser: NamedArgsParser[A]) extends NamedArgsParser[Option[A]] {
@@ -342,6 +380,7 @@ object NamedArgsParser {
         case CliParseResult.Success(value, remaining)                           => CliParseResult.Success(value.some, remaining)
         case CliParseResult.Fail(error, _) if error.onlyContainsMissingRequired => CliParseResult.Success(None, input)
         case fail @ CliParseResult.Fail(_, _)                                   => fail
+    override def complete(request: CompletionRequest, value: String): List[String] = parser.complete(request, value)
   }
 
   final case class Repeated[A](parser: NamedArgsParser[A]) extends NamedArgsParser[List[A]] {
@@ -378,6 +417,7 @@ object NamedArgsParser {
         case success @ CliParseResult.Success(_, _)                             => success
         case CliParseResult.Fail(error, _) if error.onlyContainsMissingRequired => CliParseResult.Success(default, input)
         case fail @ CliParseResult.Fail(_, _)                                   => fail
+    override def complete(request: CompletionRequest, value: String): List[String] = parser.complete(request, value)
   }
 
   final case class And[A, B, O](left: NamedArgsParser[A], right: NamedArgsParser[B], zip: Zip.Out[A, B, O]) extends NamedArgsParser[O] {
@@ -392,6 +432,8 @@ object NamedArgsParser {
           right.parseNamedArgs(input) match
             case CliParseResult.Success(_, _)       => fail1
             case CliParseResult.Fail(error2, help2) => CliParseResult.Fail(CliParseError.RootAnd(error1, error2), Help.And(help1, help2))
+    override def complete(request: CompletionRequest, value: String): List[String] =
+      (left.complete(request, value) ::: right.complete(request, value)).distinct
   }
 
   final case class Or[A](left: NamedArgsParser[A], right: NamedArgsParser[A]) extends NamedArgsParser[A] {
@@ -403,16 +445,20 @@ object NamedArgsParser {
           right.parseNamedArgs(input) match
             case success @ CliParseResult.Success(_, _) => success
             case CliParseResult.Fail(error2, help2)     => CliParseResult.Fail(CliParseError.NamedOr(error1, error2), Help.Or(help1, help2))
+    override def complete(request: CompletionRequest, value: String): List[String] =
+      (left.complete(request, value) ::: right.complete(request, value)).distinct
   }
 
   final case class Mapped[A, B](parser: NamedArgsParser[A], f: A => B) extends NamedArgsParser[B] {
     override val help: Help = parser.help
     override def parseNamedArgs(input: NamedArgs): CliParseResult[B, NamedArgs] = parser.parseNamedArgs(input).map(f)
+    override def complete(request: CompletionRequest, value: String): List[String] = parser.complete(request, value)
   }
 
   final case class MappedOrFail[A, B](parser: NamedArgsParser[A], f: A => Either[String, B]) extends NamedArgsParser[B] {
     override val help: Help = parser.help
     override def parseNamedArgs(input: NamedArgs): CliParseResult[B, NamedArgs] = parser.parseNamedArgs(input).mapOrFail(f)(help)
+    override def complete(request: CompletionRequest, value: String): List[String] = parser.complete(request, value)
   }
 
   val unit: NamedArgsParser[Unit] = Empty
