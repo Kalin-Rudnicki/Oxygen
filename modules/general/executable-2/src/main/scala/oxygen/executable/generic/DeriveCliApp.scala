@@ -153,11 +153,13 @@ private[executable] object DeriveCliApp {
                     DeriveCliAppRuntime.runParsedN(
                       parsers = $envParserExprs,
                       args = remaining,
-                      runParsed = { envValues =>
+                      validateRemaining = false,
+                      runParsed = { (envValues, afterEnv) =>
                         DeriveCliAppRuntime.runParsedN(
                           parsers = $cmdParserExprs,
-                          args = remaining,
-                          runParsed = { cmdValues =>
+                          args = afterEnv,
+                          validateRemaining = true,
+                          runParsed = { (cmdValues, _) =>
                             ${ buildExecutionBody(instanceExpr, repr.effectTypeRepr, repr.envLayerTypeRepr, envMethodSym, methodSym, envParamTypeReprs, cmdParamTypeReprs, 'envValues, 'cmdValues) }
                           },
                         )
@@ -230,11 +232,13 @@ private[executable] object DeriveCliApp {
         DeriveCliAppRuntime.runParsedN(
           parsers = $envParserExprs,
           args = cmdArgs,
-          runParsed = { envValues =>
+          validateRemaining = false,
+          runParsed = { (envValues, afterEnv) =>
             DeriveCliAppRuntime.runParsedN(
               parsers = $cmdParserExprs,
-              args = cmdArgs,
-              runParsed = { cmdValues =>
+              args = afterEnv,
+              validateRemaining = true,
+              runParsed = { (cmdValues, _) =>
                 ${ buildExecutionBody(instanceExpr, repr.effectTypeRepr, repr.envLayerTypeRepr, envMethodSym, cmdMethodSym, envParamTypeReprs, cmdParamTypeReprs, 'envValues, 'cmdValues) }
               },
             )
@@ -261,11 +265,13 @@ private[executable] object DeriveCliApp {
         DeriveCliAppRuntime.runParsedN(
           parsers = $envParserExprs,
           args = cmdArgs,
-          runParsed = { envValues =>
+          validateRemaining = false,
+          runParsed = { (envValues, afterEnv) =>
             DeriveCliAppRuntime.runParsedN(
               parsers = $cmdParserExprs,
-              args = cmdArgs,
-              runParsed = { cmdValues =>
+              args = afterEnv,
+              validateRemaining = true,
+              runParsed = { (cmdValues, _) =>
                 val subAppInstance = ${
                   buildSubAppInstance(parentInstanceExpr, cmdMethodSym, cmdParamTypeReprs, '{ cmdValues }).asExprOf[B]
                 }
@@ -355,11 +361,13 @@ private[executable] object DeriveCliApp {
                     DeriveCliAppRuntime.runParsedN(
                       parsers = $envParserExprs,
                       args = parsedArgs,
-                      runParsed = { envValues =>
+                      validateRemaining = false,
+                      runParsed = { (envValues, afterEnv) =>
                         DeriveCliAppRuntime.runParsedN(
                           parsers = $cmdParserExprs,
-                          args = parsedArgs,
-                          runParsed = { cmdValues =>
+                          args = afterEnv,
+                          validateRemaining = true,
+                          runParsed = { (cmdValues, _) =>
                             ${ buildExecutionBody(instanceExpr, repr.effectTypeRepr, repr.envLayerTypeRepr, envMethodSym, methodSym, envParamTypeReprs, cmdParamTypeReprs, 'envValues, 'cmdValues) }
                           },
                         )

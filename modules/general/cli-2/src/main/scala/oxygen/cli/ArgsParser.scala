@@ -378,7 +378,7 @@ object NamedArgsParser {
 
       given list: [A: PlainTextSchema] => Builder[List[A]] = new Builder[List[A]] {
         override def build(name: String, help: SubHelp, shortName: Option[Char]): NamedArgsParser[List[A]] =
-          named(name, PositionalArgsParser.single(name, help).repeated, shortName, help).withDefault(Nil)
+          AccumRepeated(named(name, PositionalArgsParser.single(name, help).repeated, shortName, help)).withDefault(Nil)
       }
 
       given nonEmptyList: [A: PlainTextSchema] => Builder[NonEmptyList[A]] = new Builder[NonEmptyList[A]] {
@@ -397,7 +397,7 @@ object NamedArgsParser {
 
       given list: [A] => (pos: PositionalArgsParser.Builder[A]) => Builder[List[A]] = new Builder[List[A]] {
         override def build(name: String, help: SubHelp, shortName: Option[Char]): NamedArgsParser[List[A]] =
-          named(name, pos.build(name, help).repeated, shortName, help).withDefault(Nil)
+          AccumRepeated(named(name, pos.build(name, help).repeated, shortName, help)).withDefault(Nil)
       }
 
       given nonEmptyList: [A] => (pos: PositionalArgsParser.Builder[A]) => Builder[NonEmptyList[A]] = new Builder[NonEmptyList[A]] {
@@ -488,6 +488,18 @@ object NamedArgsParser {
         case CliParseResult.Fail(error, _) if error.onlyContainsMissingRequired => CliParseResult.Success(None, input)
         case fail @ CliParseResult.Fail(_, _)                                   => fail
     override def complete(request: CompletionRequest, value: String): List[String] = parser.complete(request, value)
+  }
+
+  final case class AccumRepeated[A](parser: NamedArgsParser[List[A]]) extends NamedArgsParser[List[A]] {
+    override val help: Help = parser.help.withHints(HelpHint.Repeated :: Nil)
+    @tailrec
+    private def loop(input: NamedArgs, acc: List[A]): CliParseResult[List[A], NamedArgs] =
+      parser.parseNamedArgs(input) match
+        case CliParseResult.Success(values, remaining) if remaining.args.size < input.args.size => loop(remaining, acc ++ values)
+        case CliParseResult.Fail(error, _) if error.onlyContainsMissingRequired                 => CliParseResult.Success(acc, input)
+        case fail @ CliParseResult.Fail(_, _)                                                   => fail
+        case CliParseResult.Success(values, remaining)                                          => CliParseResult.Success(acc ++ values, remaining)
+    override def parseNamedArgs(input: NamedArgs): CliParseResult[List[A], NamedArgs] = loop(input, Nil)
   }
 
   final case class Repeated[A](parser: NamedArgsParser[A]) extends NamedArgsParser[List[A]] {

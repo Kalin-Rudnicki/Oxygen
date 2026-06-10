@@ -64,19 +64,25 @@ private[executable] object DeriveCliAppRuntime {
   def runParsedN(
       parsers: List[ArgsParser[?]],
       args: Args,
-      runParsed: List[Any] => URIO[Scope, ExitCode],
+      validateRemaining: Boolean,
+      runParsed: (List[Any], Args) => URIO[Scope, ExitCode],
   ): URIO[Scope, ExitCode] = {
-    def loop(remainingParsers: List[ArgsParser[?]], parsed: List[Any], remainingArgs: Args): Either[(CliParseError, Help), List[Any]] =
+    def loop(remainingParsers: List[ArgsParser[?]], parsed: List[Any], remainingArgs: Args): Either[(CliParseError, Help), (List[Any], Args)] =
       remainingParsers match
-        case Nil => Right(parsed)
+        case Nil => Right((parsed, remainingArgs))
         case parser :: rest =>
           parser.parseArgs(remainingArgs) match
-            case CliParseResult.Fail(error, help) => Left((error, help))
-            case CliParseResult.Success(value, _) => loop(rest, parsed :+ value, remainingArgs)
+            case CliParseResult.Fail(error, help)         => Left((error, help))
+            case CliParseResult.Success(value, remaining) => loop(rest, parsed :+ value, remaining)
 
     loop(parsers, Nil, args) match
       case Left((_, help)) => printHelp(help)
-      case Right(parsed)   => runParsed(parsed)
+      case Right((parsed, remaining)) =>
+        if validateRemaining then
+          ArgsParser.toFinal(CliParseResult.Success((), remaining)) match
+            case Left((_, help)) => printHelp(help)
+            case Right(_)        => runParsed(parsed, remaining)
+        else runParsed(parsed, remaining)
   }
 
   def runParsed2(
