@@ -46,7 +46,7 @@ object ArgsParser {
     override val help: Help = Help.Annotated(SubHelp.fromDocs(List(s"Config from env var $envVar")))
     override def parseArgs(input: Args): CliParseResult[A, Args] =
       Option(java.lang.System.getenv(envVar)) match
-        case None => CliParseResult.Fail(CliParseError.FailedValidation(s"Missing env var: $envVar"), help.withHints(HelpHint.Error(s"Missing env var: $envVar") :: Nil))
+        case None      => CliParseResult.Fail(CliParseError.FailedValidation(s"Missing env var: $envVar"), help.withHints(HelpHint.Error(s"Missing env var: $envVar") :: Nil))
         case Some(raw) =>
           load(raw) match
             case Right(value)  => CliParseResult.Success(value, input)
@@ -119,12 +119,12 @@ object ArgsParser {
 
   final def toFinal[A](result: CliParseResult[A, Args]): Either[(CliParseError, Help), A] = result match
     case CliParseResult.Success(value, remaining) if remaining.isFullyConsumed => value.asRight
-    case CliParseResult.Success(_, remaining) =>
+    case CliParseResult.Success(_, remaining)                                  =>
       val pos = remaining.positional.args
       val named = remaining.named.args
       (pos, named) match
-        case (upH :: upT, Nil)       => (CliParseError.UnparsedPositional(NonEmptyList(upH, upT)), Help.UnparsedPositional(NonEmptyList(upH, upT))).asLeft
-        case (Nil, upH :: upT)       => (CliParseError.UnparsedNamed(NonEmptyList(upH, upT)), Help.UnparsedNamed(NonEmptyList(upH, upT))).asLeft
+        case (upH :: upT, Nil)          => (CliParseError.UnparsedPositional(NonEmptyList(upH, upT)), Help.UnparsedPositional(NonEmptyList(upH, upT))).asLeft
+        case (Nil, upH :: upT)          => (CliParseError.UnparsedNamed(NonEmptyList(upH, upT)), Help.UnparsedNamed(NonEmptyList(upH, upT))).asLeft
         case (upH :: upT, uppH :: uppT) =>
           (
             CliParseError.RootAnd(CliParseError.UnparsedPositional(NonEmptyList(upH, upT)), CliParseError.UnparsedNamed(NonEmptyList(uppH, uppT))),
@@ -195,7 +195,7 @@ object PositionalArgsParser {
     override val help: Help = Help.Positional(name, subHelp)
     override def parsePositionalArgs(input: PositionalArgs): CliParseResult[A, PositionalArgs] =
       input.args match
-        case (_ @ PositionalArg(_, value)) :: rest =>
+        case (_ @PositionalArg(_, value)) :: rest =>
           schema.decode(value) match
             case Right(decoded) => CliParseResult.Success(decoded, PositionalArgs(rest))
             case Left(message)  => CliParseResult.Fail(CliParseError.FailedValidation(message), help.withHints(HelpHint.Error(message) :: Nil))
@@ -216,10 +216,10 @@ object PositionalArgsParser {
     @tailrec
     private def loop(input: PositionalArgs, rStack: List[A]): CliParseResult[List[A], PositionalArgs] =
       parser.parsePositionalArgs(input) match
-        case CliParseResult.Success(value, remaining) if remaining.args.size < input.args.size => loop(remaining, value :: rStack)
+        case CliParseResult.Success(value, remaining) if remaining.args.size < input.args.size     => loop(remaining, value :: rStack)
         case CliParseResult.Fail(error, _) if breakOnAnyError || error.onlyContainsMissingRequired => CliParseResult.Success(rStack.reverse, input)
-        case fail @ CliParseResult.Fail(_, _) => fail
-        case CliParseResult.Success(_, remaining) => CliParseResult.Success(rStack.reverse, remaining)
+        case fail @ CliParseResult.Fail(_, _)                                                      => fail
+        case CliParseResult.Success(_, remaining)                                                  => CliParseResult.Success(rStack.reverse, remaining)
     override def parsePositionalArgs(input: PositionalArgs): CliParseResult[List[A], PositionalArgs] = loop(input, Nil)
   }
 
@@ -228,10 +228,10 @@ object PositionalArgsParser {
     @tailrec
     private def loop(input: PositionalArgs, rStack: NonEmptyList[A]): CliParseResult[NonEmptyList[A], PositionalArgs] =
       parser.parsePositionalArgs(input) match
-        case CliParseResult.Success(value, remaining) if remaining.args.size < input.args.size => loop(remaining, value :: rStack)
+        case CliParseResult.Success(value, remaining) if remaining.args.size < input.args.size     => loop(remaining, value :: rStack)
         case CliParseResult.Fail(error, _) if breakOnAnyError || error.onlyContainsMissingRequired => CliParseResult.Success(rStack.reverse, input)
-        case fail @ CliParseResult.Fail(_, _) => fail
-        case CliParseResult.Success(_, remaining) => CliParseResult.Success(rStack.reverse, remaining)
+        case fail @ CliParseResult.Fail(_, _)                                                      => fail
+        case CliParseResult.Success(_, remaining)                                                  => CliParseResult.Success(rStack.reverse, remaining)
     override def parsePositionalArgs(input: PositionalArgs): CliParseResult[NonEmptyList[A], PositionalArgs] =
       parser.parsePositionalArgs(input) match
         case CliParseResult.Success(value, remaining) => loop(remaining, NonEmptyList.one(value))
@@ -242,9 +242,9 @@ object PositionalArgsParser {
     override val help: Help = parser.help.withHints(HelpHint.Default(shownDefault) :: Nil)
     override def parsePositionalArgs(input: PositionalArgs): CliParseResult[A, PositionalArgs] =
       parser.parsePositionalArgs(input) match
-        case success @ CliParseResult.Success(_, _)                                              => success
+        case success @ CliParseResult.Success(_, _)                                                => success
         case CliParseResult.Fail(error, _) if breakOnAnyError || error.onlyContainsMissingRequired => CliParseResult.Success(default, input)
-        case fail @ CliParseResult.Fail(_, _)                                                    => fail
+        case fail @ CliParseResult.Fail(_, _)                                                      => fail
   }
 
   final case class Then[A, B, O](left: PositionalArgsParser[A], right: PositionalArgsParser[B], zip: Zip.Out[A, B, O]) extends PositionalArgsParser[O] {
@@ -315,6 +315,19 @@ object NamedArgsParser {
   trait Builder[+A] {
     def build(name: String, help: SubHelp): NamedArgsParser[A]
   }
+  object Builder extends BuilderLowPriority.LowPriority1
+
+  object BuilderLowPriority {
+
+    trait LowPriority1 {
+
+      given option: [A] => NamedArgsParser.Builder[Option[A]] = ???
+      given list: [A] => NamedArgsParser.Builder[List[A]] = ???
+      given nonEmptyList: [A] => NamedArgsParser.Builder[NonEmptyList[A]] = ???
+
+    }
+
+  }
 
   def flag(longName: String, absentValue: Boolean = false, shortName: Option[Char] = None, help: SubHelp = SubHelp.Empty): NamedArgsParser[Boolean] =
     Flag(longName, absentValue, shortName, help)
@@ -350,7 +363,10 @@ object NamedArgsParser {
     override def parseNamedArgs(input: NamedArgs): CliParseResult[Boolean, NamedArgs] =
       findToggle(longNames, shortNames, input.args) match
         case Some((value, rest)) => CliParseResult.Success(value, NamedArgs(rest))
-        case None                => CliParseResult.Fail(CliParseError.MissingRequiredNamed(s"${longNames.trueLongName}/${longNames.falseLongName}"), help.withHints(HelpHint.Error("Missing required param") :: Nil))
+        case None                => CliParseResult.Fail(
+            CliParseError.MissingRequiredNamed(s"${longNames.trueLongName}/${longNames.falseLongName}"),
+            help.withHints(HelpHint.Error("Missing required param") :: Nil),
+          )
     override def complete(request: CompletionRequest, value: String): List[String] =
       if value.isEmpty || value.startsWith("-") then CliHelp.paramNameCompletions(help, value) else Nil
   }
@@ -469,11 +485,11 @@ object NamedArgsParser {
     @tailrec
     def loop(queue: List[NamedArg], stack: List[NamedArg]): Option[(Any, List[NamedArg])] =
       queue match
-        case LongNameArg(_, name, nested) :: tail if name == longName            => (nested, stack.reverse ::: tail).some
-        case ShortNameArg(_, name, nested) :: tail if shortName.contains(name)   => (nested, stack.reverse ::: tail).some
-        case MultiShortNameArg(_, _, name) :: tail if shortName.contains(name)   => (NamedArgNested.empty, stack.reverse ::: tail).some
-        case head :: tail                                                          => loop(tail, head :: stack)
-        case Nil                                                                   => None
+        case LongNameArg(_, name, nested) :: tail if name == longName          => (nested, stack.reverse ::: tail).some
+        case ShortNameArg(_, name, nested) :: tail if shortName.contains(name) => (nested, stack.reverse ::: tail).some
+        case MultiShortNameArg(_, _, name) :: tail if shortName.contains(name) => (NamedArgNested.empty, stack.reverse ::: tail).some
+        case head :: tail                                                      => loop(tail, head :: stack)
+        case Nil                                                               => None
     loop(args, Nil)
   }
 

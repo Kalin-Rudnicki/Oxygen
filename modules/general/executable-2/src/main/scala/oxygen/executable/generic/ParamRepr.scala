@@ -41,7 +41,7 @@ object ParamRepr {
       case named() =>
         val longName: String = raw.annot_longName.fold(raw.valDef.name)(_.name)
         val resolvedShortName: Defaultable.Opt[Char] = raw.annot_shortName match
-          case None                              => Defaultable.Default
+          case None                               => Defaultable.Default
           case Some(_: oxygen.cli.shortName.none) => Defaultable.Explicit(None)
           case Some(_: oxygen.cli.shortName.auto) => Defaultable.Default
           case Some(s: oxygen.cli.shortName)      => Defaultable.Explicit(Some(s.name))
