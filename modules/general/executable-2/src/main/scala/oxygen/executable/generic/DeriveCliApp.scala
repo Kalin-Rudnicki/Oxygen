@@ -110,7 +110,12 @@ private[executable] object DeriveCliApp {
     buildParamParsers(defRepr.params.map(p => ParamRepr.extract(p, defRepr.defDef.name, repr.defaultSyms)), defRepr.defDef.name, repr.defaultSyms)
 
   private def buildDisplayParser(parsers: Expr[List[ArgsParser[?]]])(using Quotes): Expr[ArgsParser[?]] =
-    '{ $parsers.headOption.getOrElse(ArgsParser.unit: ArgsParser[?]) }
+    '{
+      $parsers match
+        case Nil          => ArgsParser.unit
+        case head :: Nil  => head
+        case head :: tail => tail.foldLeft(head)((acc, next) => acc ^>> next)
+    }
 
   private def docHelpParserExprs(defRepr: RawDefRepr)(using Quotes): List[Expr[ArgsParser[?]]] =
     defRepr.annot_doc.fold(Nil)(doc => List(ParserCodegen.docHelpParser(doc.parts)))

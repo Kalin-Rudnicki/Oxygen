@@ -8,12 +8,27 @@ trait CompletionOptions[A] {
 }
 object CompletionOptions extends CompletionOptionsLowPriority.LowPriority1 {
 
+  def filterPrefix(values: Seq[String], in: String): Seq[String] =
+    val low = in.toLowerCase
+    val matched = values.filter(_.toLowerCase.startsWith(low))
+    if matched.nonEmpty then matched else values
+
+  def completeList[A](completion: CompletionOptions[A], in: String): List[String] =
+    Unsafe.unsafely {
+      Runtime.default.unsafe.run(completion.completionOptions(in)).getOrThrowFiberFailure().toList
+    }
+
+  def helpHints[A](completion: CompletionOptions[A]): List[HelpHint] = completion match
+    case FromStrictEnum(se) => HelpHint.EnumValues(se.encodedValues) :: Nil
+    case _                  => Nil
+
   final class Empty[A] extends CompletionOptions[A] {
     override def completionOptions(in: String): Task[Seq[String]] = ZIO.succeed(Nil)
   }
 
   final case class FromStrictEnum[A](strictEnum: StrictEnum[A]) extends CompletionOptions[A] {
-    override def completionOptions(in: String): Task[Seq[String]] = ??? // FIX-PRE-MERGE (KR) :
+    override def completionOptions(in: String): Task[Seq[String]] =
+      ZIO.succeed(CompletionOptions.filterPrefix(strictEnum.encodedValues, in))
   }
 
 }
@@ -22,7 +37,7 @@ object CompletionOptionsLowPriority {
 
   trait LowPriority1 extends LowPriority2 {
 
-    given strictEnum: [A: StrictEnum as se] => CompletionOptions[A] = ??? // FIX-PRE-MERGE (KR) :
+    given strictEnum: [A: StrictEnum as se] => CompletionOptions[A] = CompletionOptions.FromStrictEnum(se)
 
   }
 

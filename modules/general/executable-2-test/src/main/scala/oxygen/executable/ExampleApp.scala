@@ -34,9 +34,10 @@ final case class ExampleApp(
   @command
   def server(
       @named port: Int = 8080,
+      @named mood: Mood = Mood.Chill,
   ): Effect =
     ZIO.serviceWithZIO[String] { host =>
-      ZIO.logInfo(s"Hello Server! (host: $host, port: $port, myOpt: $myOpt)")
+      ZIO.logInfo(s"Hello Server! (host: $host, port: $port, mood: $mood, myOpt: $myOpt)")
     }
 
   @command
@@ -54,6 +55,10 @@ final case class ExampleApp(
 
 }
 object ExampleApp extends CliApp.Executable[ExampleApp]
+
+enum Mood derives StrictEnum {
+  case Chill, Hyped, Sleepy
+}
 
 final case class ClientConfig(
     p1: ClientConfig.Part1,

@@ -253,23 +253,26 @@ object PositionalArgsParser {
 
     trait LowPriority2 extends LowPriority3 {
 
-      given plainText: [A: PlainTextSchema] => Builder[A] = new Builder[A] {
-        override def build(name: String, help: SubHelp): PositionalArgsParser[A] = single(name, help)
+      given plainText: [A: {PlainTextSchema, CompletionOptions as co}] => Builder[A] = new Builder[A] {
+        override def build(name: String, help: SubHelp): PositionalArgsParser[A] =
+          single(name, help)(using summon[PlainTextSchema[A]], co)
       }
 
     }
 
     trait LowPriority3 {
 
-      given json: [A: JsonSchema] => Builder[A] = new Builder[A] {
-        override def build(name: String, help: SubHelp): PositionalArgsParser[A] = single(name, help)
+      given json: [A: {JsonSchema, CompletionOptions as co}] => Builder[A] = new Builder[A] {
+        override def build(name: String, help: SubHelp): PositionalArgsParser[A] =
+          single(name, help)(using summon[JsonSchema[A]], co)
       }
 
     }
 
   }
 
-  def single[A](name: String, help: SubHelp)(using schema: SchemaLike[A]): PositionalArgsParser[A] = Single(name, help, schema)
+  def single[A](name: String, help: SubHelp)(using schema: SchemaLike[A], completion: CompletionOptions[A]): PositionalArgsParser[A] =
+    Single(name, help, schema, completion)
 
   case object Empty extends PositionalArgsParser[Unit] {
     override val help: Help = Help.Empty
@@ -281,8 +284,8 @@ object PositionalArgsParser {
     override def parsePositionalArgs(input: PositionalArgs): CliParseResult[A, PositionalArgs] = CliParseResult.Success(value, input)
   }
 
-  final case class Single[A](name: String, subHelp: SubHelp, schema: SchemaLike[A]) extends PositionalArgsParser[A] {
-    override val help: Help = Help.Positional(name, subHelp)
+  final case class Single[A](name: String, subHelp: SubHelp, schema: SchemaLike[A], completion: CompletionOptions[A]) extends PositionalArgsParser[A] {
+    override val help: Help = Single.helpFor(name, subHelp, completion)
     override def parsePositionalArgs(input: PositionalArgs): CliParseResult[A, PositionalArgs] =
       input.args match
         case (_ @PositionalArg(_, value)) :: rest =>
@@ -290,6 +293,16 @@ object PositionalArgsParser {
             case Right(decoded) => CliParseResult.Success(decoded, PositionalArgs(rest))
             case Left(message)  => CliParseResult.Fail(CliParseError.FailedValidation(message), help.withHints(HelpHint.Error(message) :: Nil))
         case Nil => CliParseResult.Fail(CliParseError.MissingRequiredPositional(name), help.withHints(HelpHint.Error("Missing required value") :: Nil))
+    override def complete(request: CompletionRequest, value: String): List[String] =
+      CompletionOptions.completeList(completion, value)
+  }
+
+  object Single {
+    def helpFor[A](name: String, subHelp: SubHelp, completion: CompletionOptions[A]): Help =
+      val positional: Help.Positional = Help.Positional(name, subHelp)
+      val hints: List[HelpHint] = CompletionOptions.helpHints(completion)
+      if hints.isEmpty then positional
+      else Help.WithHints(positional, NonEmptyList.unsafeFromList(hints))
   }
 
   final case class Optional[A](parser: PositionalArgsParser[A], breakOnAnyError: Boolean) extends PositionalArgsParser[Option[A]] {
@@ -299,6 +312,7 @@ object PositionalArgsParser {
         case CliParseResult.Success(value, remaining)                                              => CliParseResult.Success(value.some, remaining)
         case CliParseResult.Fail(error, _) if breakOnAnyError || error.onlyContainsMissingRequired => CliParseResult.Success(None, input)
         case fail @ CliParseResult.Fail(_, _)                                                      => fail
+    override def complete(request: CompletionRequest, value: String): List[String] = parser.complete(request, value)
   }
 
   final case class Repeated[A](parser: PositionalArgsParser[A], breakOnAnyError: Boolean) extends PositionalArgsParser[List[A]] {
@@ -311,6 +325,7 @@ object PositionalArgsParser {
         case fail @ CliParseResult.Fail(_, _)                                                      => fail
         case CliParseResult.Success(_, remaining)                                                  => CliParseResult.Success(rStack.reverse, remaining)
     override def parsePositionalArgs(input: PositionalArgs): CliParseResult[List[A], PositionalArgs] = loop(input, Nil)
+    override def complete(request: CompletionRequest, value: String): List[String] = parser.complete(request, value)
   }
 
   final case class RepeatedNel[A](parser: PositionalArgsParser[A], breakOnAnyError: Boolean) extends PositionalArgsParser[NonEmptyList[A]] {
@@ -326,6 +341,7 @@ object PositionalArgsParser {
       parser.parsePositionalArgs(input) match
         case CliParseResult.Success(value, remaining) => loop(remaining, NonEmptyList.one(value))
         case fail @ CliParseResult.Fail(_, _)         => fail
+    override def complete(request: CompletionRequest, value: String): List[String] = parser.complete(request, value)
   }
 
   final case class WithDefault[A](parser: PositionalArgsParser[A], default: A, shownDefault: String, breakOnAnyError: Boolean) extends PositionalArgsParser[A] {
@@ -335,6 +351,7 @@ object PositionalArgsParser {
         case success @ CliParseResult.Success(_, _)                                                => success
         case CliParseResult.Fail(error, _) if breakOnAnyError || error.onlyContainsMissingRequired => CliParseResult.Success(default, input)
         case fail @ CliParseResult.Fail(_, _)                                                      => fail
+    override def complete(request: CompletionRequest, value: String): List[String] = parser.complete(request, value)
   }
 
   final case class Then[A, B, O](left: PositionalArgsParser[A], right: PositionalArgsParser[B], zip: Zip.Out[A, B, O]) extends PositionalArgsParser[O] {
@@ -346,6 +363,10 @@ object PositionalArgsParser {
             case CliParseResult.Success(value2, remaining2) => CliParseResult.Success(zip.zip(value1, value2), remaining2)
             case fail @ CliParseResult.Fail(_, _)           => fail
         case fail @ CliParseResult.Fail(_, _) => fail
+    override def complete(request: CompletionRequest, value: String): List[String] =
+      left.parsePositionalArgs(PositionalArgs(request.args.zipWithIndex.map { case (a, i) => PositionalArg(i, a) })) match
+        case CliParseResult.Success(_, remaining) if remaining.args.isEmpty => right.complete(request, value)
+        case _                                                              => left.complete(request, value)
   }
 
   final case class Or[A](left: PositionalArgsParser[A], right: PositionalArgsParser[A]) extends PositionalArgsParser[A] {
@@ -357,16 +378,20 @@ object PositionalArgsParser {
           right.parsePositionalArgs(input) match
             case success @ CliParseResult.Success(_, _) => success
             case CliParseResult.Fail(error2, help2)     => CliParseResult.Fail(CliParseError.PositionalOr(error1, error2), Help.Or(help1, help2))
+    override def complete(request: CompletionRequest, value: String): List[String] =
+      (left.complete(request, value) ::: right.complete(request, value)).distinct
   }
 
   final case class Mapped[A, B](parser: PositionalArgsParser[A], f: A => B) extends PositionalArgsParser[B] {
     override val help: Help = parser.help
     override def parsePositionalArgs(input: PositionalArgs): CliParseResult[B, PositionalArgs] = parser.parsePositionalArgs(input).map(f)
+    override def complete(request: CompletionRequest, value: String): List[String] = parser.complete(request, value)
   }
 
   final case class MappedOrFail[A, B](parser: PositionalArgsParser[A], f: A => Either[String, B]) extends PositionalArgsParser[B] {
     override val help: Help = parser.help
     override def parsePositionalArgs(input: PositionalArgs): CliParseResult[B, PositionalArgs] = parser.parsePositionalArgs(input).mapOrFail(f)(help)
+    override def complete(request: CompletionRequest, value: String): List[String] = parser.complete(request, value)
   }
 
   val unit: PositionalArgsParser[Unit] = Empty
@@ -403,19 +428,19 @@ object NamedArgsParser {
 
     trait LowPriority1 extends LowPriority2 {
 
-      given option: [A: PlainTextSchema] => Builder[Option[A]] = new Builder[Option[A]] {
+      given option: [A: {PlainTextSchema, CompletionOptions as co}] => Builder[Option[A]] = new Builder[Option[A]] {
         override def build(name: String, help: SubHelp, shortName: Option[Char]): NamedArgsParser[Option[A]] =
-          named(name, PositionalArgsParser.single(name, help), shortName, help).optional
+          named(name, PositionalArgsParser.single(name, help)(using summon[PlainTextSchema[A]], co), shortName, help).optional
       }
 
-      given list: [A: PlainTextSchema] => Builder[List[A]] = new Builder[List[A]] {
+      given list: [A: {PlainTextSchema, CompletionOptions as co}] => Builder[List[A]] = new Builder[List[A]] {
         override def build(name: String, help: SubHelp, shortName: Option[Char]): NamedArgsParser[List[A]] =
-          named(name, PositionalArgsParser.single(name, help), shortName, help).repeated.withDefault(Nil)
+          named(name, PositionalArgsParser.single(name, help)(using summon[PlainTextSchema[A]], co), shortName, help).repeated.withDefault(Nil)
       }
 
-      given nonEmptyList: [A: PlainTextSchema] => Builder[NonEmptyList[A]] = new Builder[NonEmptyList[A]] {
+      given nonEmptyList: [A: {PlainTextSchema, CompletionOptions as co}] => Builder[NonEmptyList[A]] = new Builder[NonEmptyList[A]] {
         override def build(name: String, help: SubHelp, shortName: Option[Char]): NamedArgsParser[NonEmptyList[A]] =
-          named(name, PositionalArgsParser.single(name, help), shortName, help).repeatedNel
+          named(name, PositionalArgsParser.single(name, help)(using summon[PlainTextSchema[A]], co), shortName, help).repeatedNel
       }
 
     }
@@ -441,8 +466,9 @@ object NamedArgsParser {
 
     trait LowPriority3 {
 
-      given fromPositional: [A] => (builder: PositionalArgsParser.Builder[A]) => Builder[A] = new Builder[A] {
+      given fromPositional: [A: CompletionOptions] => (builder: PositionalArgsParser.Builder[A]) => Builder[A] = new Builder[A] {
         override def build(name: String, help: SubHelp, shortName: Option[Char]): NamedArgsParser[A] =
+          summon[CompletionOptions[A]]
           named(name, builder.build(name, help), shortName, help)
       }
 

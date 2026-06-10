@@ -14,7 +14,9 @@ object CompletionEngine {
       case _ =>
         activeApp(app, request) match
           case (sub, adjusted) =>
-            val paramCompletions: List[String] = sub.helpParser.complete(adjusted, value)
+            val paramCompletions: List[String] =
+              if value.startsWith("-") || value.isEmpty then sub.helpParser.complete(adjusted, value)
+              else sub.rootParser.complete(adjusted, value)
             if value.startsWith("-") then flagCompletions(value, paramCompletions)
             else if value.isEmpty then CliHelp.mergeCompletions(CliHelp.builtinFlagCompletions(value), paramCompletions)
             else paramCompletions
