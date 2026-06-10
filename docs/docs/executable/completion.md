@@ -65,13 +65,26 @@ with the `OXYGEN_CLI_COMPLETE__*` env vars.
 When the running binary is **not** named `*.jar`, `generate` assumes a native image and **prints**
 the completion script to stdout instead of writing a file.
 
+**Recommended** — no file to manage; load straight from the binary:
+
+```bash
+source <(./my-app --: generate)
+```
+
+Add that line to `~/.bashrc` to persist. The script embeds the binary's absolute path, so update
+it if you move the executable.
+
+**Alternative** — save to a file:
+
 ```bash
 ./my-app --: generate > ~/.local/share/bash-completion/completions/my-app
-chmod +x ~/.local/share/bash-completion/completions/my-app
 source ~/.local/share/bash-completion/completions/my-app
 ```
 
-The generated script calls `./my-app --: complete` directly (no `java -jar`).
+Unlike the JAR workflow, native images have no `--: export` step — `generate` prints a
+self-contained script that registers completion directly.
+
+The generated script calls the binary at `--: complete` (no `java -jar`).
 
 ## How it works (debugging)
 

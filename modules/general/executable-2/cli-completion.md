@@ -77,24 +77,26 @@ image and **prints** the completion script to stdout instead of writing a file.
 Use your project’s GraalVM / native-image setup (e.g. `nativeImage` task) so you
 have an executable, say `./my-app`.
 
-### 2. Generate the script
+### 2. Load completion
+
+**Recommended** — no wrapper file:
+
+```bash
+source <(./my-app --: generate)
+```
+
+Add that to `~/.bashrc` to persist. The script embeds the binary's absolute path — re-run if you
+move the executable.
+
+**Alternative** — save to a file:
 
 ```bash
 ./my-app --: generate > ~/.local/share/bash-completion/completions/my-app
-chmod +x ~/.local/share/bash-completion/completions/my-app
-```
-
-Or save anywhere and `source` it from your shell rc.
-
-The generated script calls `./my-app --: complete` directly (no `java -jar`).
-
-### 3. Load it
-
-```bash
 source ~/.local/share/bash-completion/completions/my-app
 ```
 
-Native images also register completion for `./my-app` and `my-app`.
+Unlike the JAR workflow, there is no `--: export` step for native images — `generate` prints a
+self-contained script that registers completion for `./my-app` and `my-app`.
 
 ## How it works (debugging)
 
