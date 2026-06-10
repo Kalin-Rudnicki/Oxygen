@@ -78,7 +78,7 @@ final case class Nested1(
 
   @command
   def run1(): Effect =
-    ZIO.logInfo("Nested1.run1")
+    ZIO.logDebug("Nested1.run1") *> ZIO.logInfo("Nested1.run1")
 
   @command
   def run2(): Effect =
