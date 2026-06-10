@@ -72,8 +72,12 @@ final case class Nested1(
 ) extends CliApp[String, Any] {
 
   @command
-  def run(): Effect =
-    ZIO.logInfo("Nested1")
+  def run1(): Effect =
+    ZIO.logInfo("Nested1.run1")
+
+  @command
+  def run2(): Effect =
+    ZIO.logInfo("Nested1.run2")
 
 }
 

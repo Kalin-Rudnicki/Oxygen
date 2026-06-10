@@ -49,6 +49,8 @@ sealed trait Help {
 
   private[cli] final def toRepr(extraHints: List[HelpHint]): List[Help.Repr] = this match
     case Help.Empty => Nil
+    case Help.BlankLine => Help.Repr(color"" :: Nil, Nil, color"") :: Nil
+    case Help.CommandTitle(path) => Help.Repr((color"[Command]".yellowFg + color" $path") :: Nil, Nil, color"") :: Nil
     case Help.Raw(message) => Help.Repr(message.detailedSplit("\n".r, true, true).toList.map(ColorString.make(_)), Nil, color"") :: Nil
     case Help.Positional(name, subHelp) => Help.Repr(color"[$name]".magentaFg :: Nil, Help.Repr.formatSubHelp(subHelp, extraHints), color"|    ") :: Nil
     case Help.Named(longName, shortName, valueHelp, subHelp) =>
@@ -90,6 +92,8 @@ object Help {
   sealed trait Base extends Help
 
   case object Empty extends Help
+  case object BlankLine extends Help.Base
+  final case class CommandTitle(path: String) extends Help.Base
   final case class Raw(message: String) extends Help.Base
   final case class Positional(name: String, override val subHelp: SubHelp) extends Help.Base
   final case class Named(longName: String, shortName: Option[Char], valueHelp: Help, override val subHelp: SubHelp) extends Help.Base

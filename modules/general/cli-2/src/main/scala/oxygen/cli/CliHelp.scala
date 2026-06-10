@@ -43,16 +43,18 @@ object CliHelp {
       parser: ArgsParser[?],
       helpType: HelpType,
       subCommandNames: Set[String] = Set.empty,
-      title: Option[String] = None,
+      title: Option[Help] = None,
       expandedSubCommands: Option[Help] = None,
   ): Help = {
     val parserHelp: Help = helpType match
       case HelpType.Help      => parser.help.stripDocs
       case HelpType.HelpExtra => parser.help
     val subCommandsSection: Option[Help] =
-      expandedSubCommands.orElse(subCommandsHelp(subCommandNames))
+      expandedSubCommands
+        .map(help => Help.And(Help.BlankLine, help))
+        .orElse(subCommandsHelp(subCommandNames))
     val sections = List(
-      title.map(Help.Raw(_)),
+      title,
       Some(parserHelp),
       subCommandsSection,
       helpTypeExtra(helpType),
@@ -67,7 +69,7 @@ object CliHelp {
       parser: ArgsParser[?],
       helpType: HelpType,
       subCommandNames: Set[String] = Set.empty,
-      title: Option[String] = None,
+      title: Option[Help] = None,
       expandedSubCommands: Option[Help] = None,
   ): String =
     compose(parser, helpType, subCommandNames, title, expandedSubCommands).toString

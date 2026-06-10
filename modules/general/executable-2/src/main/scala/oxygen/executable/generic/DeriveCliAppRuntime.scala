@@ -24,50 +24,77 @@ private[executable] object DeriveCliAppRuntime {
   def printHelp(help: Help): URIO[Scope, ExitCode] =
     Console.printLine(help.toString).orDie.as(ExitCode.success)
 
-  private def expandSubCommandsHelp(subCommands: Map[String, CompiledCliApp[Any]]): Help =
-    subCommands.toList.sortBy(_._1).map { case (name, cmd) =>
-      Help.And(Help.Raw(s"Command: $name"), expandCommandHelp(cmd))
-    }.reduceLeftOption(Help.And(_, _)).getOrElse(Help.Empty)
+  private val commandBlockSeparator: Help = Help.BlankLine
 
-  private def expandCommandHelp(cmd: CompiledCliApp[Any]): Help =
+  private def joinWithSpacing(helps: List[Help]): Help =
+    helps match
+      case Nil          => Help.Empty
+      case one :: Nil   => one
+      case head :: tail => tail.foldLeft(head)((acc, next) => Help.And(Help.And(acc, commandBlockSeparator), next))
+
+  private def titleForPath(path: List[String]): Option[Help] =
+    if path.isEmpty then Some(Help.Raw("Usage")) else Some(Help.CommandTitle(path.mkString(" ")))
+
+  private def expandSubCommandsHelp(subCommands: Map[String, CompiledCliApp[Any]], pathPrefix: List[String]): Help =
+    joinWithSpacing(
+      subCommands.toList.sortBy(_._1).map { case (name, cmd) =>
+        val path = pathPrefix :+ name
+        Help.And(Help.CommandTitle(path.mkString(" ")), expandCommandHelp(cmd, path))
+      },
+    )
+
+  private def expandCommandHelp(cmd: CompiledCliApp[Any], pathPrefix: List[String]): Help =
     if cmd.subCommands.isEmpty then cmd.helpParser.help
-    else Help.And(cmd.helpParser.help, expandSubCommandsHelp(cmd.subCommands))
+    else Help.And(Help.And(cmd.helpParser.help, commandBlockSeparator), expandSubCommandsHelp(cmd.subCommands, pathPrefix))
 
   def printComposedHelp(
       helpParser: ArgsParser[?],
       helpType: HelpType,
       subCommands: Map[String, CompiledCliApp[Any]] = Map.empty,
-      title: Option[String] = None,
+      commandPath: List[String] = Nil,
   ): URIO[Scope, ExitCode] =
     val expandedSubCommands: Option[Help] =
-      if helpType == HelpType.HelpExtra && subCommands.nonEmpty then Some(expandSubCommandsHelp(subCommands))
+      if helpType == HelpType.HelpExtra && subCommands.nonEmpty then Some(expandSubCommandsHelp(subCommands, commandPath))
       else None
     printHelp(
       CliHelp.compose(
         helpParser,
         helpType,
         subCommands.keySet,
-        title,
+        titleForPath(commandPath),
         expandedSubCommands,
       ),
     )
+
+  private def drillHelp(
+      helpParser: ArgsParser[?],
+      subCommands: Map[String, CompiledCliApp[Any]],
+      args: Args,
+      helpType: HelpType,
+      commandPath: List[String],
+  ): URIO[Scope, ExitCode] =
+    args.positional.args match
+      case PositionalArg(_, name) :: tail if subCommands.nonEmpty =>
+        subCommands.get(name) match
+          case Some(cmd) if tail.nonEmpty =>
+            drillHelp(cmd.helpParser, cmd.subCommands, Args(PositionalArgs(tail), args.named), helpType, commandPath :+ name)
+          case Some(cmd) =>
+            printComposedHelp(cmd.helpParser, helpType, cmd.subCommands, commandPath = commandPath :+ name)
+          case None =>
+            printComposedHelp(helpParser, helpType, subCommands, commandPath = commandPath)
+      case _ =>
+        printComposedHelp(helpParser, helpType, subCommands, commandPath = commandPath)
 
   def handleHelpOr(
       args: Args,
       helpParser: ArgsParser[?],
       subCommands: Map[String, CompiledCliApp[Any]],
-      title: Option[String],
+      commandPath: List[String] = Nil,
       run: Args => URIO[Scope, ExitCode],
   ): URIO[Scope, ExitCode] =
     CliHelp.peelArgs(args) match
-      case (stripped, Some(helpType)) =>
-        stripped.positional.args match
-          case PositionalArg(_, name) :: _ if subCommands.nonEmpty =>
-            subCommands.get(name) match
-              case Some(cmd) => printComposedHelp(cmd.helpParser, helpType, cmd.subCommands, title = Some(s"Command: $name"))
-              case None      => printComposedHelp(helpParser, helpType, subCommands, title)
-          case _ => printComposedHelp(helpParser, helpType, subCommands, title)
-      case (stripped, None) => run(stripped)
+      case (stripped, Some(helpType)) => drillHelp(helpParser, subCommands, stripped, helpType, commandPath)
+      case (stripped, None)           => run(stripped)
 
   def runParsed(
       parser: ArgsParser[?],
@@ -159,7 +186,7 @@ private[executable] object DeriveCliAppRuntime {
                   val cmdArgs: Args = Args(rootRemaining.positional, rootRemaining.named)
                   subCommands.get(cmdName) match
                     case Some(cmd) =>
-                      handleHelpOr(cmdArgs, cmd.helpParser, Map.empty, title = Some(s"Command: $cmdName"), run = cmdStripped =>
+                      handleHelpOr(cmdArgs, cmd.helpParser, cmd.subCommands, commandPath = List(cmdName), run = cmdStripped =>
                         cmd.asInstanceOf[CompiledCliApp.Impl[Any]].runWithRoot(rootParsed, cmdStripped),
                       )
                     case None =>
@@ -173,6 +200,7 @@ private[executable] object DeriveCliAppRuntime {
       rootParser: ArgsParser[?],
       subCommands: Map[String, CompiledCliApp[Any]],
       stripped: Args,
+      commandPath: List[String],
   ): URIO[Scope, ExitCode] =
     rootParser.parseArgs(stripped) match
       case CliParseResult.Fail(_, help) => printHelp(help)
@@ -182,7 +210,7 @@ private[executable] object DeriveCliAppRuntime {
             subCommands.get(name) match
               case Some(cmd) =>
                 val cmdArgs = Args(PositionalArgs(posTail), remaining.named)
-                handleHelpOr(cmdArgs, cmd.helpParser, Map.empty, title = Some(s"Command: $name"), run = cmdStripped =>
+                handleHelpOr(cmdArgs, cmd.helpParser, cmd.subCommands, commandPath = commandPath :+ name, run = cmdStripped =>
                   cmd.asInstanceOf[CompiledCliApp.Impl[Any]].runWithRoot(rootParsed, cmdStripped),
                 )
               case None =>
@@ -198,11 +226,12 @@ private[executable] object DeriveCliAppRuntime {
       subCommands: Map[String, CompiledCliApp[Any]],
       parsedArgs: Args,
       rawArgs: Option[List[String]] = None,
+      commandPath: List[String] = Nil,
   ): URIO[Scope, ExitCode] =
-    handleHelpOr(parsedArgs, helpParser, subCommands, title = Some("Usage"), run = stripped =>
+    handleHelpOr(parsedArgs, helpParser, subCommands, commandPath = commandPath, run = stripped =>
       rawArgs match
         case Some(raw) => runWithSubCommandsSplit(rootParser, subCommands, raw)
-        case None      => runWithSubCommandsLegacy(rootParser, subCommands, stripped),
+        case None      => runWithSubCommandsLegacy(rootParser, subCommands, stripped, commandPath),
     )
 
   def runWithSubCommands(
