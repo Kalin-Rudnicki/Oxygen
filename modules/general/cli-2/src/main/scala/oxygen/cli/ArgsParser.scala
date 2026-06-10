@@ -319,11 +319,17 @@ object NamedArgsParser {
 
   object BuilderLowPriority {
 
-    trait LowPriority1 {
+    trait LowPriority1 extends LowPriority2 {
 
       given option: [A] => NamedArgsParser.Builder[Option[A]] = ???
       given list: [A] => NamedArgsParser.Builder[List[A]] = ???
       given nonEmptyList: [A] => NamedArgsParser.Builder[NonEmptyList[A]] = ???
+
+    }
+
+    trait LowPriority2 {
+
+      given id: [A] => NamedArgsParser.Builder[A] = ???
 
     }
 
