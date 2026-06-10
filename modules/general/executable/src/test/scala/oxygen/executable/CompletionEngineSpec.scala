@@ -2,6 +2,7 @@ package oxygen.executable
 
 import oxygen.cli.*
 import oxygen.predef.test.*
+import oxygen.schema.PlainTextSchema
 import zio.*
 
 object CompletionEngineSpec extends OxygenSpecDefault {
@@ -54,11 +55,35 @@ object CompletionEngineSpec extends OxygenSpecDefault {
       runFn = _ => ZIO.succeed(ExitCode.success),
     )
 
+  private given CompletionOptions[String]:
+    def completionOptions(in: String): Task[Seq[String]] =
+      ZIO.succeed(Seq("dev/", "prod/").filter(_.startsWith(in)))
+
+  private val fileParser: ArgsParser[?] =
+    NamedArgsParser.named(
+      "file",
+      PositionalArgsParser.single("file", SubHelp.Empty)(using PlainTextSchema.string, summon[CompletionOptions[String]]),
+    )
+
+  private val pickConfigLike: CompiledCliApp[Any] =
+    CompiledCliApp.Impl(
+      rootParser = fileParser,
+      helpParser = ArgsParser.helpOnly(fileParser.help),
+      subCommands = Map.empty,
+      runFn = _ => ZIO.succeed(ExitCode.success),
+    )
+
   private val root: CompiledCliApp[Any] =
     CompiledCliApp.Impl(
       rootParser = ArgsParser.helpOnly(Help.Flag("my-opt", None, SubHelp.Empty)),
       helpParser = ArgsParser.helpOnly(Help.Flag("my-opt", None, SubHelp.Empty)),
-      subCommands = Map("client" -> client, "server" -> client, "deep" -> deepL1, "capsule" -> capsuleLike),
+      subCommands = Map(
+        "client" -> client,
+        "server" -> client,
+        "deep" -> deepL1,
+        "capsule" -> capsuleLike,
+        "pick-config" -> pickConfigLike,
+      ),
       runFn = _ => ZIO.succeed(ExitCode.success),
     )
 
@@ -93,7 +118,14 @@ object CompletionEngineSpec extends OxygenSpecDefault {
       },
       test("offers nested subcommands after a selected parent subcommand") {
         complete(root, List("deep", ""), 1).map { out =>
-          assertTrue(out.contains("level"), out.contains("--help"))
+          assertTrue(out.contains("level"), out.contains("--help"), out.indexOf("level") < out.indexOf("--help"))
+        }
+      },
+      test("lists subcommand names before help flags on an empty cursor") {
+        complete(root, Nil, 0).map { out =>
+          val firstFlag = out.indexWhere(_.startsWith("-"))
+          val lastCommand = out.lastIndexWhere(s => !s.startsWith("-"))
+          assertTrue(firstFlag < 0 || lastCommand < firstFlag)
         }
       },
       test("walks multiple nested subcommand levels") {
@@ -109,6 +141,11 @@ object CompletionEngineSpec extends OxygenSpecDefault {
       test("offers env and command flags at an empty cursor inside a nested subcommand") {
         complete(root, List("capsule", ""), 1).map { out =>
           assertTrue(out.contains("--shard"), out.contains("--seed"))
+        }
+      },
+      test("completes parameter values after an empty cursor following the flag name") {
+        complete(root, List("pick-config", "--file", ""), 2).map { out =>
+          assertTrue(out.contains("dev/"), out.contains("prod/"), out.forall(!_.startsWith("--")))
         }
       },
     )

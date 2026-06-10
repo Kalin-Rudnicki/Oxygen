@@ -89,6 +89,14 @@ object AutoComplete {
        |  done
        |  [[ -n "$$_rest" ]] && COMPREPLY+=("$$_rest")
        |
+       |  local _comp
+       |  for _comp in "$${COMPREPLY[@]}"; do
+       |    if [[ "$$_comp" == */ ]]; then
+       |      compopt -o nospace 2>/dev/null
+       |      break
+       |    fi
+       |  done
+       |
        |  return 0
        |}
        |

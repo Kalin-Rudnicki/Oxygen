@@ -85,6 +85,13 @@ final case class ShowcaseApp() extends CliApp[Any, RootCtx] {
   def dieDemo(): Effect =
     ZIO.die(new RuntimeException("intentional die"))
 
+  @doc("Pick a config file", "tab-completes under example/apps/example-app/configs (run from repo root)")
+  @command("pick-config")
+  def pickConfig(
+      @named @longName("file") file: GlobalPath["example/apps/example-app/configs"],
+  ): Effect =
+    ZIO.logInfo(s"pick-config file=$file")
+
   // ── one level deep ────────────────────────────────────────────────────
 
   @command

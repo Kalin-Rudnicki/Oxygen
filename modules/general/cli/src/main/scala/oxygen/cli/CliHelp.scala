@@ -37,7 +37,8 @@ object CliHelp {
     builtinFlags.filter(_.startsWith(value))
 
   def mergeCompletions(builtins: List[String], rest: List[String]): List[String] =
-    (builtins ::: rest).distinct.sorted
+    val (flags, nonFlags) = (builtins ::: rest).distinct.partition(_.startsWith("-"))
+    nonFlags.sorted ::: flags.sorted
 
   def compose(
       parser: ArgsParser[?],

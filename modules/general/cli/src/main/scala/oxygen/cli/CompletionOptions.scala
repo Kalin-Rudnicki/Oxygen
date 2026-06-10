@@ -26,6 +26,14 @@ object CompletionOptions extends CompletionOptionsLowPriority.LowPriority1 {
       ZIO.succeed(CompletionOptions.filterPrefix(strictEnum.encodedValues, in))
   }
 
+  final case class UnderBasePath(basePath: String) extends CompletionOptions[String] {
+    override def completionOptions(in: String): Task[Seq[String]] =
+      PathCompletion.completeUnderBase(basePath, in)
+  }
+
+  /** Tab-complete paths relative to a fixed base directory (JVM / Native). */
+  def underBasePath(basePath: String): CompletionOptions[String] = UnderBasePath(basePath)
+
 }
 
 object CompletionOptionsLowPriority {
