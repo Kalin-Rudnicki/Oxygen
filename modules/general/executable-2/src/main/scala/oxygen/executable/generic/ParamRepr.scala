@@ -45,7 +45,9 @@ object ParamRepr {
       case flag()   => ???
       case toggle() =>
         new Toggle(raw)(extractToggleLongName)
-      case custom() => ???
+      case custom() =>
+        val make: Expr[ArgsParser[raw.T]] = doSummon
+        new Custom(raw)(make)
     }
   }
 
