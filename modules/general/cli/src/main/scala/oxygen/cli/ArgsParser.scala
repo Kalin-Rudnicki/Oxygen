@@ -113,10 +113,22 @@ object ArgsParser {
             case fail @ CliParseResult.Fail(_, _)           => fail
         case fail @ CliParseResult.Fail(_, _) => fail
     override def complete(request: CompletionRequest, value: String): Task[List[String]] =
-      left.parseArgs(Args(PositionalArgs(request.args.zipWithIndex.map { case (a, i) => PositionalArg(i, a) }), NamedArgs(Nil))) match
-        case CliParseResult.Success(_, remaining) if remaining.positional.args.isEmpty && remaining.named.args.isEmpty =>
-          right.complete(request, value)
-        case _ => left.complete(request, value)
+      request.toArgs match
+        case Right(parsed) =>
+          left.parseArgs(parsed) match
+            case CliParseResult.Success(_, remaining) =>
+              if remaining.isFullyConsumed then right.complete(request, value)
+              else
+                right.complete(request, value).flatMap { rightResults =>
+                  if rightResults.nonEmpty then ZIO.succeed(rightResults) else left.complete(request, value)
+                }
+            case CliParseResult.Fail(_, _) =>
+              right.complete(request, value).flatMap { rightResults =>
+                val completingValue = request.prefixArgs.nonEmpty && rightResults.nonEmpty && rightResults.forall(!_.startsWith("-"))
+                if completingValue then ZIO.succeed(rightResults)
+                else left.complete(request, value).zipWith(ZIO.succeed(rightResults))((l, r) => (l ::: r).distinct)
+              }
+        case Left(_) => left.complete(request, value)
   }
 
   final case class Or[A](left: ArgsParser[A], right: ArgsParser[A]) extends ArgsParser[A] {
@@ -535,7 +547,8 @@ object NamedArgsParser {
             case fail @ CliParseResult.Fail(_, _) => fail
         case None => CliParseResult.Fail(CliParseError.MissingRequiredNamed(longName), help.withHints(HelpHint.Error("Missing required param") :: Nil))
     override def complete(request: CompletionRequest, value: String): Task[List[String]] =
-      if value.isEmpty || value.startsWith("-") then ZIO.succeed(CliHelp.paramNameCompletions(help, value))
+      if completingFlagValue(request, longName, shortName) && !value.startsWith("-") then valueParser.complete(request, value)
+      else if value.isEmpty || value.startsWith("-") then ZIO.succeed(CliHelp.paramNameCompletions(help, value))
       else valueParser.complete(request, value)
   }
 
@@ -599,7 +612,22 @@ object NamedArgsParser {
             case CliParseResult.Success(_, _)       => fail1
             case CliParseResult.Fail(error2, help2) => CliParseResult.Fail(CliParseError.RootAnd(error1, error2), Help.And(help1, help2))
     override def complete(request: CompletionRequest, value: String): Task[List[String]] =
-      left.complete(request, value).zipWith(right.complete(request, value))((l, r) => (l ::: r).distinct)
+      request.toArgs match
+        case Right(parsed) =>
+          left.parseNamedArgs(parsed.named) match
+            case CliParseResult.Success(_, remaining) =>
+              if remaining.args.isEmpty then right.complete(request, value)
+              else
+                right.complete(request, value).flatMap { rightResults =>
+                  if rightResults.nonEmpty then ZIO.succeed(rightResults) else left.complete(request, value)
+                }
+            case CliParseResult.Fail(_, _) =>
+              right.complete(request, value).flatMap { rightResults =>
+                val completingValue = request.prefixArgs.nonEmpty && rightResults.nonEmpty && rightResults.forall(!_.startsWith("-"))
+                if completingValue then ZIO.succeed(rightResults)
+                else left.complete(request, value).zipWith(ZIO.succeed(rightResults))((l, r) => (l ::: r).distinct)
+              }
+        case Left(_) => left.complete(request, value).zipWith(right.complete(request, value))((l, r) => (l ::: r).distinct)
   }
 
   final case class Or[A](left: NamedArgsParser[A], right: NamedArgsParser[A]) extends NamedArgsParser[A] {
@@ -629,6 +657,11 @@ object NamedArgsParser {
 
   val unit: NamedArgsParser[Unit] = Empty
   def const[A](value: A): NamedArgsParser[A] = Const(value)
+
+  private def completingFlagValue(request: CompletionRequest, longName: String, shortName: Option[Char]): Boolean =
+    request.prefixArgs.nonEmpty && Args.parse(request.prefixArgs).toOption.exists { args =>
+      findNamed(longName, shortName, args.named.args).exists { case (nested, _) => NamedArgNested.isEmpty(nested) }
+    }
 
   private def findFlag(longName: String, shortName: Option[Char], args: List[NamedArg]): Option[List[NamedArg]] =
     findNamed(longName, shortName, args).map(_._2)

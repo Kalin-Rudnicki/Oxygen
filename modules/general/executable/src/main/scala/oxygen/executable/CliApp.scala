@@ -7,6 +7,7 @@ abstract class CliApp[RequiredEnv, ProvidedEnv] {
   final type FullEnv = RequiredEnv & ProvidedEnv
 
   final type Effect = RIO[FullEnv & Scope, Unit | ExitCode]
+  final type EffectE[E <: Throwable] = ZIO[FullEnv & Scope, E, Unit | ExitCode]
   final type EnvLayer = RLayer[RequiredEnv, ProvidedEnv]
   final type SubApp = CliApp[? <: FullEnv, ?]
 
@@ -35,7 +36,9 @@ object CliApp {
       app.app.run(args).catchAllCause { cause =>
         ExecutableError.ExitWith.exitCodeFromCause(cause) match
           case Some(code) => ZIO.succeed(code)
-          case None       => Console.printLine(cause.prettyPrint).orDie.as(ExitCode.failure)
+          case None       =>
+            ZIO.logDebugCause("CLI app failed", cause) *>
+              Console.printLine(ExecutableError.ExitWith.messageFromCause(cause)).orDie.as(ExitCode.failure)
       }
 
     override final def run: URIO[ZIOAppArgs & Scope, Unit] =

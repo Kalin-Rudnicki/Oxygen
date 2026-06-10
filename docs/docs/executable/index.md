@@ -113,6 +113,43 @@ subcommands. See [CLI annotations](cli.md) for a full annotated example with nes
 Optional `def env(...): EnvLayer` provides a `ZLayer` merged into every command's `RIO` environment.
 Parameters on `env` use the same annotation vocabulary as command parameters.
 
+### Command result types (`Effect` and `EffectE`)
+
+Every `@execute` or `@command` method must return an effect that produces `Unit` or `ExitCode`.
+`CliApp` defines two type aliases for that shape:
+
+| Alias | Definition | When to use |
+|-------|------------|-------------|
+| `Effect` | `RIO[FullEnv & Scope, Unit \| ExitCode]` | Default — unconstrained error channel |
+| `EffectE[E]` | `ZIO[FullEnv & Scope, E, Unit \| ExitCode]` where `E <: Throwable` | Command should only fail with a specific error type |
+
+`Effect` is the usual choice for simple commands:
+
+```scala
+@execute
+def run(): Effect =
+  ZIO.logInfo("Hello")
+```
+
+Use `EffectE` when you want the compiler to enforce a narrow failure type inside a command:
+
+```scala
+enum AppError extends Throwable {
+  case MissingInput(path: String)
+  case InvalidConfig(message: String)
+}
+
+@command
+def importData(@named path: String): EffectE[AppError] =
+  if path.isBlank then ZIO.fail(AppError.MissingInput(path))
+  else ZIO.logInfo(s"import $path")
+```
+
+`EffectE` is accepted anywhere `Effect` is — the macro treats it as a command effect. At runtime,
+uncaught failures are still handled by `CliApp.Executable` (console message via `safeGetMessage`,
+full cause logged at debug). Prefer `ExecutableError.ExitWith` when you need a specific exit code
+without treating the outcome as a failure.
+
 ## Runtime environment variables
 
 These are read at startup by `CliApp.Executable` — they are **not** CLI flags.

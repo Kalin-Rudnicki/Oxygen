@@ -120,17 +120,18 @@ private[executable] object DeriveCliApp {
   private def docHelpParserExprs(defRepr: RawDefRepr)(using Quotes): List[Expr[ArgsParser[?]]] =
     defRepr.annot_doc.fold(Nil)(doc => List(ParserCodegen.docHelpParser(doc.parts)))
 
+  private def buildExecuteHelpParserExprs[A](repr: RawCliAppRepr[A])(using Quotes): List[Expr[ArgsParser[?]]] =
+    repr.executeDefs.headOption.fold(Nil)(defRepr =>
+      docHelpParserExprs(defRepr) :::
+        defRepr.params.map(p => ParserCodegen.buildParam(ParamRepr.extract(p, defRepr.defDef.name, repr.defaultSyms), defRepr.defDef.name, repr.defaultSyms)),
+    )
+
   private def buildHelpParserExprs[A](repr: RawCliAppRepr[A])(using Quotes): List[Expr[ArgsParser[?]]] = {
     val rootParserExpr: Expr[ArgsParser[?]] = buildRootParser(repr)
     val envDocParsers: List[Expr[ArgsParser[?]]] = repr.envDef.fold(Nil)(docHelpParserExprs)
     val envParsers: List[Expr[ArgsParser[?]]] =
       repr.envDef.fold(Nil)(_.params.map(p => ParserCodegen.buildParam(ParamRepr.extract(p, "env", repr.defaultSyms), "env", repr.defaultSyms)))
-    val cmdParsers: List[Expr[ArgsParser[?]]] =
-      repr.executeDefs.headOption.fold(List.empty)(defRepr =>
-        docHelpParserExprs(defRepr) :::
-          defRepr.params.map(p => ParserCodegen.buildParam(ParamRepr.extract(p, defRepr.defDef.name, repr.defaultSyms), defRepr.defDef.name, repr.defaultSyms)),
-      )
-    rootParserExpr :: envDocParsers ::: envParsers ::: cmdParsers
+    rootParserExpr :: envDocParsers ::: envParsers ::: buildExecuteHelpParserExprs(repr)
   }
 
   private def buildSubCommandHelpParserExprs[A](repr: RawCliAppRepr[A], defRepr: RawDefRepr)(using Quotes): List[Expr[ArgsParser[?]]] = {
@@ -426,15 +427,15 @@ private[executable] object DeriveCliApp {
         val name: String = commandName(defRepr)
         val cmdParserExprs: Expr[List[ArgsParser[?]]] = buildCmdParamParsers(repr, defRepr)
         val cmdParserExpr: Expr[ArgsParser[?]] = buildDisplayParser(cmdParserExprs)
-        val helpParserExpr: Expr[ArgsParser[?]] = ParserCodegen.combineHelp(buildSubCommandHelpParserExprs(repr, defRepr))
         val methodSym: oxygen.quoted.Symbol = defRepr.defDef.symbol
         val envParamTypeReprs: List[TypeRepr] = repr.envDef.fold(Nil)(_.params.map(_.typeRepr))
         val cmdParamTypeReprs: List[TypeRepr] = defRepr.params.map(_.typeRepr)
         val isEffect: Boolean = defRepr.returnTypeRepr <:< repr.effectTypeRepr
         val rootParserExpr: Expr[ArgsParser[?]] = buildRootParser(repr)
-        val (runWithRootFnExpr, standaloneRunFnExpr, subCommandsExpr) =
+        val (helpParserExpr, runWithRootFnExpr, standaloneRunFnExpr, subCommandsExpr) =
           if isEffect then
             (
+              ParserCodegen.combineHelp(buildSubCommandHelpParserExprs(repr, defRepr)),
               buildRunWithRootFn(repr, envMethodSym, methodSym, envParamTypeReprs, cmdParamTypeReprs, envParserExprs, cmdParserExprs),
               buildStandaloneEffectRunFn(repr, rootParserExpr, envParserExprs, cmdParserExprs, envMethodSym, methodSym, envParamTypeReprs, cmdParamTypeReprs),
               '{ Map.empty[String, CompiledCliApp[Any]] },
@@ -446,7 +447,12 @@ private[executable] object DeriveCliApp {
                 val nestedSubCommandsExpr: Expr[Map[String, CompiledCliApp[Any]]] =
                   if nestedRepr.commandDefs.nonEmpty then buildSubCommands(nestedRepr)
                   else '{ Map.empty[String, CompiledCliApp[Any]] }
+                val helpParserExprs: List[Expr[ArgsParser[?]]] =
+                  val base = buildSubCommandHelpParserExprs(repr, defRepr)
+                  if nestedRepr.commandDefs.isEmpty && nestedRepr.executeDefs.nonEmpty then base ::: buildExecuteHelpParserExprs(nestedRepr)
+                  else base
                 (
+                  ParserCodegen.combineHelp(helpParserExprs),
                   buildRunSubAppWithRootFn(repr, defRepr, nestedRepr),
                   buildRunSubAppStandaloneFn(repr, defRepr, nestedRepr),
                   nestedSubCommandsExpr,

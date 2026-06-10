@@ -1,5 +1,7 @@
 package oxygen.executable
 
+import oxygen.predef.core.*
+import oxygen.zio.ExtractedCauses
 import zio.*
 
 sealed trait ExecutableError extends Throwable
@@ -15,6 +17,19 @@ object ExecutableError {
       case Cause.Then(left, right)      => exitCodeFromCause(left).orElse(exitCodeFromCause(right))
       case Cause.Both(left, right)      => exitCodeFromCause(left).orElse(exitCodeFromCause(right))
       case _                            => None
+
+    def messageFromCause(cause: Cause[Any]): String =
+      ExtractedCauses.fromCause(cause).foldPriorityHead(
+        fail = failure => errorMessage(failure.value),
+        die = defect => defect.value.safeGetMessage,
+        interrupt = _ => "Interrupted",
+        empty = "Unknown error",
+      )
+
+    private def errorMessage(error: Any): String =
+      error.asInstanceOf[AnyRef] match
+        case throwable: Throwable => throwable.safeGetMessage
+        case other                => other.toString
   }
 
 }
