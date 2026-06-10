@@ -126,25 +126,27 @@ private[executable] object DeriveCliAppRuntime {
       case Some((cmdName, cmdIdx)) =>
         val beforeRaw: List[String] = raw.take(cmdIdx)
         val afterRaw: List[String] = raw.drop(cmdIdx + 1)
-        for {
-          before <- parseArgsOrDie(beforeRaw)
-          after <- parseArgsOrDie(afterRaw)
-          exitCode <- {
-            val rootArgs: Args = Args(before.positional, NamedArgs(before.named.args ++ after.named.args))
-            rootParser.parseArgs(rootArgs) match
-              case CliParseResult.Fail(_, help) => printHelp(help)
-              case CliParseResult.Success(rootParsed, rootRemaining) =>
-                val cmdArgs: Args = Args(after.positional, rootRemaining.named)
-                subCommands.get(cmdName) match
-                  case Some(cmd) =>
-                    handleHelpOr(cmdArgs, cmd.helpParser, Map.empty, title = Some(s"Command: $cmdName"), run = cmdStripped =>
-                      cmd.asInstanceOf[CompiledCliApp.Impl[Any]].runWithRoot(rootParsed, cmdStripped),
-                    )
-                  case None =>
-                    val known = subCommands.keySet.toList.sorted.mkString(", ")
-                    Console.printLine(s"Unknown command '$cmdName'. Known commands: $known").orDie.as(ExitCode.failure)
-          }
-        } yield exitCode
+        if beforeRaw.nonEmpty then
+          Console.printLine("Parent arguments must appear after the command name").orDie.as(ExitCode.failure)
+        else
+          for {
+            after <- parseArgsOrDie(afterRaw)
+            exitCode <- {
+              val rootArgs: Args = Args(after.positional, after.named)
+              rootParser.parseArgs(rootArgs) match
+                case CliParseResult.Fail(_, help) => printHelp(help)
+                case CliParseResult.Success(rootParsed, rootRemaining) =>
+                  val cmdArgs: Args = Args(rootRemaining.positional, rootRemaining.named)
+                  subCommands.get(cmdName) match
+                    case Some(cmd) =>
+                      handleHelpOr(cmdArgs, cmd.helpParser, Map.empty, title = Some(s"Command: $cmdName"), run = cmdStripped =>
+                        cmd.asInstanceOf[CompiledCliApp.Impl[Any]].runWithRoot(rootParsed, cmdStripped),
+                      )
+                    case None =>
+                      val known = subCommands.keySet.toList.sorted.mkString(", ")
+                      Console.printLine(s"Unknown command '$cmdName'. Known commands: $known").orDie.as(ExitCode.failure)
+            }
+          } yield exitCode
   }
 
   private def runWithSubCommandsLegacy(
