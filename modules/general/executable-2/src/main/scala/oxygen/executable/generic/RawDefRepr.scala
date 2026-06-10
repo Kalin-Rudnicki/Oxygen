@@ -66,7 +66,6 @@ private[generic] final class RawDefRepr(
     case execute() =>
       if !(returnTypeRepr <:< effectTypeRepr) then
         failAtDef(s"@execute must return ${effectTypeRepr.showAnsiCode}, found ${returnTypeRepr.showAnsiCode}")
-    case inlineApp() => ()
   }
 
 }

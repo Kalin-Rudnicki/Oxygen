@@ -33,7 +33,11 @@ object CliApp {
       * At this point, all [[zio.Cause]] should be caught, and any errors printed.
       */
     private final def runApp(args: List[String]): URIO[Scope, ExitCode] =
-      app.app.run(args).catchAllCause(cause => Console.printLine(cause.prettyPrint).orDie.as(ExitCode.failure))
+      app.app.run(args).catchAllCause { cause =>
+        ExecutableError.ExitWith.exitCodeFromCause(cause) match
+          case Some(code) => ZIO.succeed(code)
+          case None       => Console.printLine(cause.prettyPrint).orDie.as(ExitCode.failure)
+      }
 
     override final def run: URIO[ZIOAppArgs & Scope, Unit] =
       for {
