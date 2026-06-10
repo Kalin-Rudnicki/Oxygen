@@ -60,7 +60,11 @@ sealed trait Help {
     case Help.UnparsedNamed(args) => Help.Repr.fromUnparsedNamed(args) :: Nil
     case Help.Extra(help) => help.toRepr(Nil)
     case Help.Config(envVar, subHelp) =>
-      Help.Repr(color"$$$envVar".greenFg :: Nil, Help.Repr.formatSubHelp(subHelp, extraHints), color"|    ") :: Nil
+      val main: ColorString = color"ENV:".whiteFg + color" $$$envVar".greenFg
+      val hints: List[HelpHint] =
+        HelpHint.Help("JSON config is loaded from the file path in this environment variable") ::
+          extraHints
+      Help.Repr(main :: Nil, Help.Repr.formatSubHelp(subHelp, hints), color"|    ") :: Nil
     case Help.Annotated(subHelp) => Help.Repr(Nil, Help.Repr.formatSubHelp(subHelp, extraHints), color"") :: Nil
 
   override final def toString: String = Help.Repr.format(this.removeEmpties.toRepr(Nil))
