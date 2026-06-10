@@ -10,6 +10,14 @@ sealed trait ArgsParser[+A] {
 
   def parseArgs(input: Args): CliParseResult[A, Args]
 
+  def complete(request: CompletionRequest, partialValue: String): List[String] = Nil
+
+}
+object ArgsParser {
+  object Unimplemented extends ArgsParser[Unit] {
+    override val help: Help = Help.Empty
+    override def parseArgs(input: Args): CliParseResult[Unit, Args] = ???
+  }
 }
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////
