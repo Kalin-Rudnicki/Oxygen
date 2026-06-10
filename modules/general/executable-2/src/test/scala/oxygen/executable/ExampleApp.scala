@@ -7,7 +7,7 @@ final case class ExampleApp(
 ) extends CliApp[Any, String] {
 
   def env(
-      @named host: String = "localhost",
+      @named host: String,
   ): EnvLayer =
     ZLayer.succeed { host }
 
@@ -20,7 +20,9 @@ final case class ExampleApp(
   def server(
       @named port: Int = 8080,
   ): Effect =
-    ZIO.logInfo(s"Hello Server! (port: $port)")
+    ZIO.serviceWithZIO[String] { host =>
+      ZIO.logInfo(s"Hello Server! (host: $host, port: $port)")
+    }
 
   @command
   def nested1: Nested1 = Nested1()
@@ -37,7 +39,7 @@ object ExampleApp extends CliApp.Executable[ExampleApp]
 final case class Nested1(
 ) extends CliApp[String, Any] {
 
-  @execute
+  @command
   def run(): Effect =
     ZIO.logInfo("Nested1")
 
