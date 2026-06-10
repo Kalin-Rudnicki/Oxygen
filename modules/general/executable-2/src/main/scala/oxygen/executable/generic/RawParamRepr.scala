@@ -7,6 +7,8 @@ import scala.quoted.*
 
 private[generic] final class RawParamRepr(val valDef: ValDef, val parentPos: Position)(using quotes: Quotes) {
 
+  type T
+
   val valPosition: Position = valDef.symbol.pos.getOrElse(valDef.pos)
 
   def failAtVal(msg: String): Nothing = report.errorAndAbort(msg, valPosition)
@@ -26,6 +28,9 @@ private[generic] final class RawParamRepr(val valDef: ValDef, val parentPos: Pos
   val annot_shortName_falseName: Option[shortName.falseName] = annotations.optionalOfValue[shortName.falseName]
 
   val annot_doc: Option[doc] = annotations.optionalOfValue[doc]
+
+  val typeRepr: TypeRepr = valDef.tpt.tpe.widen
+  given Type[T] = typeRepr.asTypeOf
 
   // TODO (KR) : companion object `default_somethingSomething_1234` -> `port: Int = 8080`
 
