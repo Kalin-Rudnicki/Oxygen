@@ -16,6 +16,8 @@ object CliApp {
 
   abstract class Executable[A](using app: DeriveCliApp.Root[A]) extends ZIOAppDefault {
 
+    def defaultLoggerType: DefaultLoggerType = DefaultLoggerType.default
+
     /**
       * At this point, all [[zio.Cause]] should be caught, and any errors printed.
       */
@@ -35,7 +37,7 @@ object CliApp {
 
     override final def run: URIO[ZIOAppArgs & Scope, Unit] =
       for {
-        _ <- CliAppLogging.install
+        _ <- CliAppLogging.install(defaultLoggerType)
         rawArgs <- ZIOAppArgs.getArgs
         exitCode <- rawArgs.toList match
           case "--:" :: builtinRest => runBuiltin(builtinRest)
