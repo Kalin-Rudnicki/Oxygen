@@ -12,6 +12,8 @@ sealed trait ArgsParser[+A] {
 
   def parseArgs(input: Args): CliParseResult[A, Args]
 
+  def complete(request: CompletionRequest, value: String): List[String] = Nil
+
   def map[B](f: A => B): ArgsParser[B] = ArgsParser.Mapped(this, f)
   def mapOrFail[B](f: A => Either[String, B]): ArgsParser[B] = ArgsParser.MappedOrFail(this, f)
   final def <||[A2 >: A](that: ArgsParser[A2]): ArgsParser[A2] = ArgsParser.Or(this, that)
@@ -28,6 +30,11 @@ object ArgsParser {
 
   trait Builder[+A] {
     def build(name: String, help: SubHelp): ArgsParser[A]
+  }
+
+  case object Unimplemented extends ArgsParser[Nothing] {
+    override val help: Help = Help.Empty
+    override def parseArgs(input: Args): CliParseResult[Nothing, Args] = CliParseResult.Fail(CliParseError.FailedValidation("unimplemented parser"), Help.Empty)
   }
 
   case object Empty extends ArgsParser[Unit] {
