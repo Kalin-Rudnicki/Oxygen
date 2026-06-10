@@ -24,13 +24,33 @@ private[executable] object DeriveCliAppRuntime {
   def printHelp(help: Help): URIO[Scope, ExitCode] =
     Console.printLine(help.toString).orDie.as(ExitCode.success)
 
+  private def expandSubCommandsHelp(subCommands: Map[String, CompiledCliApp[Any]]): Help =
+    subCommands.toList.sortBy(_._1).map { case (name, cmd) =>
+      Help.And(Help.Raw(s"Command: $name"), expandCommandHelp(cmd))
+    }.reduceLeftOption(Help.And(_, _)).getOrElse(Help.Empty)
+
+  private def expandCommandHelp(cmd: CompiledCliApp[Any]): Help =
+    if cmd.subCommands.isEmpty then cmd.helpParser.help
+    else Help.And(cmd.helpParser.help, expandSubCommandsHelp(cmd.subCommands))
+
   def printComposedHelp(
       helpParser: ArgsParser[?],
       helpType: HelpType,
       subCommands: Map[String, CompiledCliApp[Any]] = Map.empty,
       title: Option[String] = None,
   ): URIO[Scope, ExitCode] =
-    printHelp(CliHelp.compose(helpParser, helpType, subCommands, title))
+    val expandedSubCommands: Option[Help] =
+      if helpType == HelpType.HelpExtra && subCommands.nonEmpty then Some(expandSubCommandsHelp(subCommands))
+      else None
+    printHelp(
+      CliHelp.compose(
+        helpParser,
+        helpType,
+        subCommands.keySet,
+        title,
+        expandedSubCommands,
+      ),
+    )
 
   def handleHelpOr(
       args: Args,
@@ -44,7 +64,7 @@ private[executable] object DeriveCliAppRuntime {
         stripped.positional.args match
           case PositionalArg(_, name) :: _ if subCommands.nonEmpty =>
             subCommands.get(name) match
-              case Some(cmd) => printComposedHelp(cmd.helpParser, helpType, title = Some(s"Command: $name"))
+              case Some(cmd) => printComposedHelp(cmd.helpParser, helpType, cmd.subCommands, title = Some(s"Command: $name"))
               case None      => printComposedHelp(helpParser, helpType, subCommands, title)
           case _ => printComposedHelp(helpParser, helpType, subCommands, title)
       case (stripped, None) => run(stripped)

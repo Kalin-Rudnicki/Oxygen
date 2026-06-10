@@ -1,6 +1,8 @@
 package oxygen.executable.generic
 
+import oxygen.cli.*
 import oxygen.executable.*
+import oxygen.meta.given
 import oxygen.predef.core.*
 import oxygen.quoted.*
 import scala.quoted.*
@@ -21,6 +23,10 @@ private[generic] final class RawDefRepr(
   def failAtDef(msg: String): Nothing = report.errorAndAbort(msg, defPosition)
 
   def annot: CliFunctionAnnotation = optAnnot.getOrElse { report.errorAndAbort("Internal Defect : None.get on RawDefRepr without CliFunctionAnnotation") }
+
+  private val annotations: Annotations = defDef.symbol.annotations
+
+  val annot_doc: Option[doc] = annotations.optionalOfValue[doc]
 
   type ReturnType
 

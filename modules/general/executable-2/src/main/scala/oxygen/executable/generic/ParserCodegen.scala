@@ -12,6 +12,9 @@ private[generic] object ParserCodegen {
       case Nil => '{ SubHelp.Empty }
       case ds  => '{ SubHelp.fromDocs(${ Expr(ds) }) }
 
+  def docHelpParser(docs: List[String])(using Quotes): Expr[ArgsParser[?]] =
+    '{ ArgsParser.helpOnly(Help.Extra(Help.Raw(${ Expr(docs.mkString("\n")) }))) }
+
   def shortNameExpr(resolved: Defaultable.Opt[Char])(using Quotes): Expr[Option[Char]] = resolved match
     case Defaultable.Explicit(value) => Expr(value)
     case Defaultable.Default         => '{ None }

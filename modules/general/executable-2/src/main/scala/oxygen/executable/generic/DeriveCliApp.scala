@@ -111,15 +111,20 @@ private[executable] object DeriveCliApp {
   private def buildDisplayParser(parsers: Expr[List[ArgsParser[?]]])(using Quotes): Expr[ArgsParser[?]] =
     '{ $parsers.headOption.getOrElse(ArgsParser.unit: ArgsParser[?]) }
 
+  private def docHelpParserExprs(defRepr: RawDefRepr)(using Quotes): List[Expr[ArgsParser[?]]] =
+    defRepr.annot_doc.fold(Nil)(doc => List(ParserCodegen.docHelpParser(doc.parts)))
+
   private def buildHelpParserExprs[A](repr: RawCliAppRepr[A])(using Quotes): List[Expr[ArgsParser[?]]] = {
     val rootParserExpr: Expr[ArgsParser[?]] = buildRootParser(repr)
+    val envDocParsers: List[Expr[ArgsParser[?]]] = repr.envDef.fold(Nil)(docHelpParserExprs)
     val envParsers: List[Expr[ArgsParser[?]]] =
       repr.envDef.fold(Nil)(_.params.map(p => ParserCodegen.buildParam(ParamRepr.extract(p, "env", repr.defaultSyms), "env", repr.defaultSyms)))
     val cmdParsers: List[Expr[ArgsParser[?]]] =
-      repr.executeDefs.headOption.fold(Nil)(defRepr =>
-        defRepr.params.map(p => ParserCodegen.buildParam(ParamRepr.extract(p, defRepr.defDef.name, repr.defaultSyms), defRepr.defDef.name, repr.defaultSyms)),
+      repr.executeDefs.headOption.fold(List.empty)(defRepr =>
+        docHelpParserExprs(defRepr) :::
+          defRepr.params.map(p => ParserCodegen.buildParam(ParamRepr.extract(p, defRepr.defDef.name, repr.defaultSyms), defRepr.defDef.name, repr.defaultSyms)),
       )
-    rootParserExpr :: envParsers ::: cmdParsers
+    rootParserExpr :: envDocParsers ::: envParsers ::: cmdParsers
   }
 
   private def buildSubCommandHelpParserExprs[A](repr: RawCliAppRepr[A], defRepr: RawDefRepr)(using Quotes): List[Expr[ArgsParser[?]]] = {
@@ -127,7 +132,7 @@ private[executable] object DeriveCliApp {
       repr.envDef.fold(Nil)(_.params.map(p => ParserCodegen.buildParam(ParamRepr.extract(p, "env", repr.defaultSyms), "env", repr.defaultSyms)))
     val cmdParsers: List[Expr[ArgsParser[?]]] =
       defRepr.params.map(p => ParserCodegen.buildParam(ParamRepr.extract(p, defRepr.defDef.name, repr.defaultSyms), defRepr.defDef.name, repr.defaultSyms))
-    envParsers ::: cmdParsers
+    docHelpParserExprs(defRepr) ::: envParsers ::: cmdParsers
   }
 
   private def buildRunFromArgs[A: Type](

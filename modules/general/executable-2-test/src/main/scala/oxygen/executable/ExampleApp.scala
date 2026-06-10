@@ -7,14 +7,18 @@ import oxygen.schema.instances.given
 import zio.*
 
 final case class ExampleApp(
-    @named myOpt: Option[String],
+    @named
+    @doc("Optional root-level", "configuration flag")
+    myOpt: Option[String],
 ) extends CliApp[Any, String] {
 
+  @doc("Provides runtime environment", "for subcommands")
   def env(
       @named host: String = "localhost",
   ): EnvLayer =
     ZLayer.succeed { host }
 
+  @doc("Run the example client", "against a remote host")
   @command
   def client(
       @config("APP_CONFIG") cfg: ClientConfig,

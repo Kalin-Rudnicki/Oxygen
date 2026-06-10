@@ -12,6 +12,21 @@ sealed trait Help {
     case (h :: t, self: Help.Base)                 => Help.WithHints(self, NonEmptyList(h, t))
     case _                                         => this
 
+  def stripDocs: Help = this match
+    case Help.Named(longName, shortName, valueHelp, subHelp)       => Help.Named(longName, shortName, valueHelp.stripDocs, subHelp.stripDocs)
+    case Help.Positional(name, subHelp)                            => Help.Positional(name, subHelp.stripDocs)
+    case Help.Flag(longName, shortName, subHelp)                   => Help.Flag(longName, shortName, subHelp.stripDocs)
+    case Help.Toggle(trueName, falseName, shortNames, subHelp)     => Help.Toggle(trueName, falseName, shortNames, subHelp.stripDocs)
+    case Help.Config(envVar, subHelp)                              => Help.Config(envVar, subHelp.stripDocs)
+    case Help.And(left, right)                                     => Help.And(left.stripDocs, right.stripDocs)
+    case Help.Or(left, right)                                      => Help.Or(left.stripDocs, right.stripDocs)
+    case Help.WithHints(annotated, messages)                       =>
+      annotated.stripDocs match
+        case base: Help.Base => Help.WithHints(base, messages)
+        case other           => other
+    case Help.Extra(_)                                             => Help.Empty
+    case self                                                        => self
+
   private[cli] final def isEmpty: Boolean = this match
     case Help.Empty            => true
     case Help.Or(left, right)  => left.isEmpty && right.isEmpty

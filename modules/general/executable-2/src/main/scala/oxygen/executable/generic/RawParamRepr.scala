@@ -11,6 +11,7 @@ private[generic] final class RawParamRepr(
     val paramIdx: Int,
     val ownerName: Option[String],
     val defaultSyms: Map[(String, Int), Term],
+    val annotationSymbol: Option[Symbol] = None,
 )(using quotes: Quotes) {
 
   type T
@@ -33,7 +34,8 @@ private[generic] final class RawParamRepr(
   val annot_shortName_trueName: Option[shortName.trueName] = annotations.optionalOfValue[shortName.trueName]
   val annot_shortName_falseName: Option[shortName.falseName] = annotations.optionalOfValue[shortName.falseName]
 
-  val annot_doc: Option[doc] = annotations.optionalOfValue[doc]
+  val annot_doc: Option[doc] =
+    annotationSymbol.flatMap(_.annotations.optionalOfValue[doc]).orElse(annotations.optionalOfValue[doc])
 
   val typeRepr: TypeRepr = valDef.tpt.tpe.widen
   given Type[T] = typeRepr.asTypeOf

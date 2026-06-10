@@ -5,6 +5,10 @@ sealed trait SubHelp {
   def docs: List[String]
   def hints: List[HelpHint]
 
+  def stripDocs: SubHelp = this match
+    case SubHelp.Annotated(_, hints) => SubHelp.Annotated(Nil, hints)
+    case SubHelp.Empty               => SubHelp.Empty
+
   final def withHints(more: List[HelpHint]): SubHelp = this match
     case self: SubHelp.Annotated => self.copy(hints = self.hints ::: more)
     case SubHelp.Empty             => SubHelp.Annotated(Nil, more)

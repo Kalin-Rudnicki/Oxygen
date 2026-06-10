@@ -31,11 +31,30 @@ object CliHelp {
     peel(args.named) match
       case (stripped, ht) => (Args(args.positional, stripped), ht)
 
-  def compose(parser: ArgsParser[?], helpType: HelpType, subCommands: Map[String, ?] = Map.empty, title: Option[String] = None): Help = {
+  val builtinFlags: List[String] = List("--help", "--help-extra", "-h", "-H")
+
+  def builtinFlagCompletions(value: String): List[String] =
+    builtinFlags.filter(_.startsWith(value))
+
+  def mergeCompletions(builtins: List[String], rest: List[String]): List[String] =
+    (builtins ::: rest).distinct.sorted
+
+  def compose(
+      parser: ArgsParser[?],
+      helpType: HelpType,
+      subCommandNames: Set[String] = Set.empty,
+      title: Option[String] = None,
+      expandedSubCommands: Option[Help] = None,
+  ): Help = {
+    val parserHelp: Help = helpType match
+      case HelpType.Help      => parser.help.stripDocs
+      case HelpType.HelpExtra => parser.help
+    val subCommandsSection: Option[Help] =
+      expandedSubCommands.orElse(subCommandsHelp(subCommandNames))
     val sections = List(
       title.map(Help.Raw(_)),
-      Some(parser.help),
-      subCommandsHelp(subCommands),
+      Some(parserHelp),
+      subCommandsSection,
       helpTypeExtra(helpType),
     ).flatten
     sections match
@@ -44,19 +63,25 @@ object CliHelp {
       case many       => many.reduceLeft(Help.And(_, _))
   }
 
-  def printHelp(parser: ArgsParser[?], helpType: HelpType, subCommands: Map[String, ?] = Map.empty, title: Option[String] = None): String =
-    compose(parser, helpType, subCommands, title).toString
+  def printHelp(
+      parser: ArgsParser[?],
+      helpType: HelpType,
+      subCommandNames: Set[String] = Set.empty,
+      title: Option[String] = None,
+      expandedSubCommands: Option[Help] = None,
+  ): String =
+    compose(parser, helpType, subCommandNames, title, expandedSubCommands).toString
 
   private def helpTypeExtra(helpType: HelpType): Option[Help] = helpType match
     case HelpType.HelpExtra => None
     case HelpType.Help      => None
 
-  private def subCommandsHelp(subCommands: Map[String, ?]): Option[Help] =
-    if subCommands.isEmpty then None
-    else Help.Raw(s"Commands:\n${subCommands.keys.toList.sorted.map(name => s"  $name").mkString("\n")}").some
+  private def subCommandsHelp(subCommandNames: Set[String]): Option[Help] =
+    if subCommandNames.isEmpty then None
+    else Help.Raw(s"Commands:\n${subCommandNames.toList.sorted.map(name => s"  $name").mkString("\n")}").some
 
   def paramNameCompletions(help: Help, value: String): List[String] =
-    collectParamNames(help).filter(_.startsWith(value)).distinct.sorted
+    mergeCompletions(builtinFlagCompletions(value), collectParamNames(help).filter(_.startsWith(value)))
 
   private def collectParamNames(help: Help): List[String] = help match
     case Help.Named(longName, shortName, _, _) =>

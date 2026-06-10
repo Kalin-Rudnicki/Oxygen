@@ -54,7 +54,9 @@ private[generic] final class RawCliAppRepr[A](val isRoot: Boolean)(using quotes:
 
   val constructorParams: List[RawParamRepr] =
     if isRoot then
-      gen.fields.toList.zipWithIndex.map { (f, idx) => new RawParamRepr(f.constructorValDef, gen.pos, idx, typeSymbol.name.some, defaultSyms) }
+      gen.fields.toList.zipWithIndex.map { (f, idx) =>
+        new RawParamRepr(f.constructorValDef, gen.pos, idx, typeSymbol.name.some, defaultSyms, Some(f.fieldSym))
+      }
     else Nil
 
   val bodyDefs: List[RawDefRepr] =

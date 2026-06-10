@@ -3,11 +3,16 @@ import oxygen.cli.*
 
 object CompletionEngine {
   def complete(app: CompiledCliApp[?], request: CompletionRequest): List[String] =
+    val value: String = request.args.lift(request.argIdx).getOrElse("")
     request.args match
-      case value :: _ if request.argIdx == 0 && app.subCommands.nonEmpty => completeSubCommand(app, value, request)
+      case _ if request.argIdx == 0 && app.subCommands.nonEmpty =>
+        completeSubCommand(app, value, request)
       case _ =>
         activeApp(app, request) match
-          case (sub, adjusted) => sub.helpParser.complete(adjusted, request.args.lift(request.argIdx).getOrElse(""))
+          case (sub, adjusted) =>
+            val paramCompletions: List[String] = sub.helpParser.complete(adjusted, value)
+            if value.startsWith("-") || value.isEmpty then CliHelp.mergeCompletions(CliHelp.builtinFlagCompletions(value), paramCompletions)
+            else paramCompletions
 
   private def activeApp(app: CompiledCliApp[?], request: CompletionRequest): (CompiledCliApp[?], CompletionRequest) =
     if app.subCommands.isEmpty then (app, request)
@@ -26,7 +31,9 @@ object CompletionEngine {
   private def completeSubCommand(app: CompiledCliApp[?], value: String, request: CompletionRequest): List[String] =
     if app.subCommands.isEmpty then app.helpParser.complete(request, value)
     else
-      val names = app.subCommands.keySet.toList.sorted
-      val matches = names.filter(_.startsWith(value))
-      if matches.nonEmpty then matches else names
+      val names: List[String] = app.subCommands.keySet.toList.sorted
+      val commandMatches: List[String] = names.filter(_.startsWith(value))
+      val commands: List[String] = if commandMatches.nonEmpty then commandMatches else names
+      if value.startsWith("-") || value.isEmpty then CliHelp.mergeCompletions(CliHelp.builtinFlagCompletions(value), commands)
+      else commands
 }
