@@ -1,6 +1,8 @@
 package oxygen.executable
 
 import oxygen.cli.*
+import oxygen.schema.JsonSchema
+import oxygen.schema.instances.given
 import zio.*
 
 final case class ExampleApp(
@@ -13,8 +15,10 @@ final case class ExampleApp(
 
   @command
   def client(
+      @config("APP_CONFIG") cfg: ClientConfig,
+      @named i: Option[String],
   ): Effect =
-    ZIO.logInfo("Hello Client!")
+    ZIO.logInfo(s"Hello Client!\n$i\n$cfg")
 
   @command
   def server(
@@ -39,6 +43,19 @@ final case class ExampleApp(
 
 }
 object ExampleApp extends CliApp.Executable[ExampleApp]
+
+final case class ClientConfig(
+    p1: ClientConfig.Part1,
+    name: String,
+) derives JsonSchema
+object ClientConfig {
+
+  final case class Part1(
+      a: Int,
+      b: String,
+  ) derives JsonSchema
+
+}
 
 final case class Nested1(
 ) extends CliApp[String, Any] {
