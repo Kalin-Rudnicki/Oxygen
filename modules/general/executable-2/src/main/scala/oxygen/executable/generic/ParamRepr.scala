@@ -18,12 +18,6 @@ object ParamRepr {
     def doSummon[T: Type]: Expr[T] =
       Implicits.searchOption[T].getOrElse { raw.failAtVal(s"Missing given instance: ${TypeRepr.of[T].showAnsiCode}") }
 
-    def extractFlagAbsentValue: Boolean =
-      defaultSyms.get((ownerName, raw.paramIdx)) match
-        case None        => false
-        case Some(rhs)   =>
-          rhs.asExprOf[Boolean].evalOption.getOrElse { raw.failAtVal("Unable to evaluate @flag default") }
-
     def extractToggleLongName: ToggleLongNameRepr =
       ToggleLongNameRepr
         .resolve(
@@ -50,7 +44,10 @@ object ParamRepr {
         new Config(raw)(env, decoder)
       case flag() =>
         val longName: String = raw.annot_longName.fold(raw.valDef.name)(_.name)
-        new Flag(raw)(longName, extractFlagAbsentValue)
+        val absentValue: Boolean = defaultSyms.get((ownerName, raw.paramIdx)) match
+          case None      => false
+          case Some(rhs) => rhs.asExprOf[Boolean].evalOption.getOrElse { raw.failAtVal("Unable to evaluate @flag default") }
+        new Flag(raw)(longName, absentValue)
       case toggle() =>
         new Toggle(raw)(extractToggleLongName)
       case custom() =>

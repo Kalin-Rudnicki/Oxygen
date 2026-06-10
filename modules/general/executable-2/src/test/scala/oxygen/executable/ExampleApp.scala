@@ -22,7 +22,7 @@ final case class ExampleApp(
       @named port: Int = 8080,
       @named port2: Int = 8080,
   ): Effect =
-    ZIO.logInfo(s"Hello Server! (port: $port)")
+    ZIO.logInfo(s"Hello Server! (port: $port, $port2)")
 
   @command
   def nested1: Nested1 = Nested1()
