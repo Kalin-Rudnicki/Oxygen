@@ -3,6 +3,7 @@ package oxygen.executable.generic
 import oxygen.cli.*
 import oxygen.executable.*
 import oxygen.meta.k0.*
+import oxygen.predef.core.*
 import oxygen.quoted.*
 import scala.quoted.*
 import zio.*
@@ -40,8 +41,8 @@ private[executable] object DeriveCliApp {
   }
 
   private def commandName(defRepr: RawDefRepr): String = defRepr.annot match
-    case command(name) if name.nonEmpty => name
-    case _                              => defRepr.defDef.name
+    case command(name) if name.nonEmpty => name.camelToDash
+    case _                              => defRepr.defDef.name.camelToDash
 
   private def asExprOfTypeRepr(expr: Expr[?], typeRepr: TypeRepr)(using Quotes): Expr[?] =
     typeRepr.asTypeOf match
