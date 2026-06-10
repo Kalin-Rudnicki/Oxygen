@@ -4,21 +4,21 @@ import oxygen.predef.core.*
 import zio.*
 
 trait CompletionOptions[A] {
-  def completionOptions: Task[Seq[String]]
+  def completionOptions(in: String): Task[Seq[String]]
 }
-object CompletionOptions extends AutoCompleteLowPriority.LowPriority1 {
+object CompletionOptions extends CompletionOptionsLowPriority.LowPriority1 {
 
   final class Empty[A] extends CompletionOptions[A] {
-    override def completionOptions: Task[Seq[String]] = ZIO.succeed(Nil)
+    override def completionOptions(in: String): Task[Seq[String]] = ZIO.succeed(Nil)
   }
 
   final case class FromStrictEnum[A](strictEnum: StrictEnum[A]) extends CompletionOptions[A] {
-    override def completionOptions: Task[Seq[String]] = ??? // FIX-PRE-MERGE (KR) :
+    override def completionOptions(in: String): Task[Seq[String]] = ??? // FIX-PRE-MERGE (KR) :
   }
 
 }
 
-object AutoCompleteLowPriority {
+object CompletionOptionsLowPriority {
 
   trait LowPriority1 extends LowPriority2 {
 
