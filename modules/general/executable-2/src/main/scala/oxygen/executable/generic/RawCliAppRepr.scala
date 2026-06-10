@@ -23,34 +23,6 @@ private[generic] final class RawCliAppRepr[A](val isRoot: Boolean)(using quotes:
   given requiredEnvType: Type[RequiredEnv] = requiredEnvTypeRepr.asTypeOf
   given providedEnvType: Type[ProvidedEnv] = providedEnvTypeRepr.asTypeOf
 
-  val gen: ProductGeneric.CaseClassGeneric[A] = ProductGeneric.CaseClassGeneric.of[A]
-
-  val typeSymbol: Symbol = gen.typeRepr.typeSymbol
-
-  val classDef: ClassDef =
-    typeSymbol.tree.narrowOpt[ClassDef].getOrElse { report.errorAndAbort("Not a ClassDef?", gen.pos) }
-
-  val constructorParams: List[RawParamRepr] =
-    if isRoot then
-      gen.fields.toList.zipWithIndex.map { (f, idx) => new RawParamRepr(f.constructorValDef, gen.pos, idx) }
-    else Nil
-
-  val bodyDefs: List[RawDefRepr] =
-    for {
-      statement <- classDef.body
-      defDef <- statement.narrowOpt[DefDef]
-      annot <- defDef.symbol.annotations.optionalOfValue[CliFunctionAnnotation]
-    } yield new RawDefRepr(defDef, annot.some, gen.pos)
-
-  val envDef: Option[RawDefRepr] =
-    (for {
-      statement <- classDef.body
-      defDef <- statement.narrowOpt[DefDef] if defDef.name == "env"
-    } yield new RawDefRepr(defDef, None, gen.pos)) match
-      case head :: Nil => head.some
-      case Nil         => None
-      case _           => report.errorAndAbort("Multiple `def env` not allowed...")
-
   // TODO (KR) : these need to match [[CliApp]]
   type FullEnv = ProvidedEnv & RequiredEnv
   type Effect = RIO[FullEnv, Unit | ExitCode]
@@ -62,6 +34,13 @@ private[generic] final class RawCliAppRepr[A](val isRoot: Boolean)(using quotes:
   val envLayerTypeRepr: TypeRepr = TypeRepr.of[EnvLayer].simplified
   val subAppTypeRepr: TypeRepr = TypeRepr.of[SubApp].simplified
 
+  val gen: ProductGeneric.CaseClassGeneric[A] = ProductGeneric.CaseClassGeneric.of[A]
+
+  val typeSymbol: Symbol = gen.typeRepr.typeSymbol
+
+  val classDef: ClassDef =
+    typeSymbol.tree.narrowOpt[ClassDef].getOrElse { report.errorAndAbort("Not a ClassDef?", gen.pos) }
+
   private val defaultReg = "^([^$]+)\\$default\\$(\\d+)$".r
   val defaultSyms: Map[(String, Int), Term] =
     gen.sym.declaredMethods.flatMap { sym =>
@@ -70,8 +49,39 @@ private[generic] final class RawCliAppRepr[A](val isRoot: Boolean)(using quotes:
           val defDef: DefDef = sym.tree.narrow[DefDef]
           val rhs: Term = defDef.rhs.getOrElse { report.errorAndAbort("No default RHS?", sym.pos.getOrElse(gen.pos)) }
           ((name, idx.toInt - 1), rhs).some
-        case _ =>
-          None
+        case _ => None
     }.toMap
+
+  val constructorParams: List[RawParamRepr] =
+    if isRoot then
+      gen.fields.toList.zipWithIndex.map { (f, idx) => new RawParamRepr(f.constructorValDef, gen.pos, idx, typeSymbol.name.some, defaultSyms) }
+    else Nil
+
+  val bodyDefs: List[RawDefRepr] =
+    for {
+      statement <- classDef.body
+      defDef <- statement.narrowOpt[DefDef]
+      annot <- defDef.symbol.annotations.optionalOfValue[CliFunctionAnnotation]
+    } yield new RawDefRepr(defDef, annot.some, gen.pos, effectTypeRepr, subAppTypeRepr, defDef.name.some, defaultSyms)
+
+  val envDef: Option[RawDefRepr] =
+    (for {
+      statement <- classDef.body
+      defDef <- statement.narrowOpt[DefDef] if defDef.name == "env"
+    } yield new RawDefRepr(defDef, None, gen.pos, effectTypeRepr, subAppTypeRepr, "env".some, defaultSyms)) match
+      case head :: Nil =>
+        head.validateEnv(envLayerTypeRepr)
+        head.some
+      case Nil => None
+      case _   => report.errorAndAbort("Multiple `def env` not allowed...", gen.pos)
+
+  private val commandDefs: List[RawDefRepr] = bodyDefs.filter(_.optAnnot.exists(_.isInstanceOf[command]))
+  private val executeDefs: List[RawDefRepr] = bodyDefs.filter(_.optAnnot.exists(_.isInstanceOf[execute]))
+
+  if commandDefs.nonEmpty && executeDefs.nonEmpty then
+    report.errorAndAbort("Cannot have both @command and @execute in the same class", gen.pos)
+
+  if executeDefs.size > 1 then
+    report.errorAndAbort("Only one @execute is allowed", gen.pos)
 
 }
