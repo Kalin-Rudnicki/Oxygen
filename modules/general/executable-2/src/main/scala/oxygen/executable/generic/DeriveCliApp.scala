@@ -181,7 +181,7 @@ private[executable] object DeriveCliApp {
               rootParser = $rootParserExpr,
               helpParser = $helpParserExpr,
               subCommands = $subCommandsExpr,
-              args = args,
+              parsedArgs = args,
             )
         }
 
@@ -190,16 +190,30 @@ private[executable] object DeriveCliApp {
       rootParserExpr: Expr[ArgsParser[?]],
       helpParserExpr: Expr[ArgsParser[?]],
       subCommandsExpr: Expr[Map[String, CompiledCliApp[Any]]],
-  )(using Quotes): Expr[List[String] => URIO[Scope, ExitCode]] = {
-    val runFromArgsExpr: Expr[Args => URIO[Scope, ExitCode]] =
-      buildRunFromArgs(repr, rootParserExpr, helpParserExpr, subCommandsExpr)
-    '{
-      (args: List[String]) =>
-        Args.parse(args) match
-          case Left(message) => Console.printLine(message).orDie.as(ExitCode.failure)
-          case Right(parsedArgs) => $runFromArgsExpr(parsedArgs)
-    }
-  }
+  )(using Quotes): Expr[List[String] => URIO[Scope, ExitCode]] =
+    if repr.commandDefs.nonEmpty && repr.executeDefs.isEmpty then
+      '{
+        (rawArgs: List[String]) =>
+          Args.parse(rawArgs) match
+            case Left(message) => Console.printLine(message).orDie.as(ExitCode.failure)
+            case Right(parsedArgs) =>
+              DeriveCliAppRuntime.runWithSubCommandsFromArgs(
+                rootParser = $rootParserExpr,
+                helpParser = $helpParserExpr,
+                subCommands = $subCommandsExpr,
+                parsedArgs = parsedArgs,
+                rawArgs = Some(rawArgs),
+              )
+      }
+    else
+      val runFromArgsExpr: Expr[Args => URIO[Scope, ExitCode]] =
+        buildRunFromArgs(repr, rootParserExpr, helpParserExpr, subCommandsExpr)
+      '{
+        (rawArgs: List[String]) =>
+          Args.parse(rawArgs) match
+            case Left(message) => Console.printLine(message).orDie.as(ExitCode.failure)
+            case Right(parsedArgs) => $runFromArgsExpr(parsedArgs)
+      }
 
   private def buildCompiledCliApp[A: Type](
       repr: RawCliAppRepr[A],

@@ -104,30 +104,83 @@ private[executable] object DeriveCliAppRuntime {
   def provideEnvLayer(layer: Any, run: URIO[Scope, ExitCode]): URIO[Scope, ExitCode] =
     run.provideSomeLayer(layer.asInstanceOf[ZLayer[Any, Nothing, Any]])
 
+  private def stripHelpFlags(rawArgs: List[String]): List[String] =
+    rawArgs.filterNot(arg => arg == "--help" || arg == "-h" || arg == "--help-extra" || arg == "-H")
+
+  private def findSubCommandRaw(rawArgs: List[String], subCommands: Map[String, CompiledCliApp[Any]]): Option[(String, Int)] =
+    rawArgs.zipWithIndex.collectFirst { case (tok, idx) if subCommands.contains(tok) => (tok, idx) }
+
+  private def parseArgsOrDie(rawArgs: List[String]): URIO[Scope, Args] =
+    ZIO.fromEither(Args.parse(rawArgs).left.map(new RuntimeException(_))).orDie
+
+  private def runWithSubCommandsSplit(
+      rootParser: ArgsParser[?],
+      subCommands: Map[String, CompiledCliApp[Any]],
+      rawArgs: List[String],
+  ): URIO[Scope, ExitCode] = {
+    val raw: List[String] = stripHelpFlags(rawArgs)
+    findSubCommandRaw(raw, subCommands) match
+      case None =>
+        val known = subCommands.keySet.toList.sorted.mkString(", ")
+        Console.printLine(s"Missing command. Known commands: $known").orDie.as(ExitCode.failure)
+      case Some((cmdName, cmdIdx)) =>
+        val beforeRaw: List[String] = raw.take(cmdIdx)
+        val afterRaw: List[String] = raw.drop(cmdIdx + 1)
+        for {
+          before <- parseArgsOrDie(beforeRaw)
+          after <- parseArgsOrDie(afterRaw)
+          exitCode <- {
+            val rootArgs: Args = Args(before.positional, NamedArgs(before.named.args ++ after.named.args))
+            rootParser.parseArgs(rootArgs) match
+              case CliParseResult.Fail(_, help) => printHelp(help)
+              case CliParseResult.Success(rootParsed, rootRemaining) =>
+                val cmdArgs: Args = Args(after.positional, rootRemaining.named)
+                subCommands.get(cmdName) match
+                  case Some(cmd) =>
+                    handleHelpOr(cmdArgs, cmd.helpParser, Map.empty, title = Some(s"Command: $cmdName"), run = cmdStripped =>
+                      cmd.asInstanceOf[CompiledCliApp.Impl[Any]].runWithRoot(rootParsed, cmdStripped),
+                    )
+                  case None =>
+                    val known = subCommands.keySet.toList.sorted.mkString(", ")
+                    Console.printLine(s"Unknown command '$cmdName'. Known commands: $known").orDie.as(ExitCode.failure)
+          }
+        } yield exitCode
+  }
+
+  private def runWithSubCommandsLegacy(
+      rootParser: ArgsParser[?],
+      subCommands: Map[String, CompiledCliApp[Any]],
+      stripped: Args,
+  ): URIO[Scope, ExitCode] =
+    rootParser.parseArgs(stripped) match
+      case CliParseResult.Fail(_, help) => printHelp(help)
+      case CliParseResult.Success(rootParsed, remaining) =>
+        remaining.positional.args match
+          case PositionalArg(_, name) :: posTail =>
+            subCommands.get(name) match
+              case Some(cmd) =>
+                val cmdArgs = Args(PositionalArgs(posTail), remaining.named)
+                handleHelpOr(cmdArgs, cmd.helpParser, Map.empty, title = Some(s"Command: $name"), run = cmdStripped =>
+                  cmd.asInstanceOf[CompiledCliApp.Impl[Any]].runWithRoot(rootParsed, cmdStripped),
+                )
+              case None =>
+                val known = subCommands.keySet.toList.sorted.mkString(", ")
+                Console.printLine(s"Unknown command '$name'. Known commands: $known").orDie.as(ExitCode.failure)
+          case Nil =>
+            val known = subCommands.keySet.toList.sorted.mkString(", ")
+            Console.printLine(s"Missing command. Known commands: $known").orDie.as(ExitCode.failure)
+
   def runWithSubCommandsFromArgs(
       rootParser: ArgsParser[?],
       helpParser: ArgsParser[?],
       subCommands: Map[String, CompiledCliApp[Any]],
-      args: Args,
+      parsedArgs: Args,
+      rawArgs: Option[List[String]] = None,
   ): URIO[Scope, ExitCode] =
-    handleHelpOr(args, helpParser, subCommands, title = Some("Usage"), run = stripped =>
-      rootParser.parseArgs(stripped) match
-        case CliParseResult.Fail(_, help) => printHelp(help)
-        case CliParseResult.Success(rootParsed, remaining) =>
-          remaining.positional.args match
-            case PositionalArg(_, name) :: posTail =>
-              subCommands.get(name) match
-                case Some(cmd) =>
-                  val cmdArgs = Args(PositionalArgs(posTail), remaining.named)
-                  handleHelpOr(cmdArgs, cmd.helpParser, Map.empty, title = Some(s"Command: $name"), run = cmdStripped =>
-                    cmd.asInstanceOf[CompiledCliApp.Impl[Any]].runWithRoot(rootParsed, cmdStripped),
-                  )
-                case None =>
-                  val known = subCommands.keySet.toList.sorted.mkString(", ")
-                  Console.printLine(s"Unknown command '$name'. Known commands: $known").orDie.as(ExitCode.failure)
-            case Nil =>
-              val known = subCommands.keySet.toList.sorted.mkString(", ")
-              Console.printLine(s"Missing command. Known commands: $known").orDie.as(ExitCode.failure),
+    handleHelpOr(parsedArgs, helpParser, subCommands, title = Some("Usage"), run = stripped =>
+      rawArgs match
+        case Some(raw) => runWithSubCommandsSplit(rootParser, subCommands, raw)
+        case None      => runWithSubCommandsLegacy(rootParser, subCommands, stripped),
     )
 
   def runWithSubCommands(
@@ -137,7 +190,7 @@ private[executable] object DeriveCliAppRuntime {
       args: List[String],
   ): URIO[Scope, ExitCode] =
     Args.parse(args) match
-      case Left(message) => Console.printLine(message).orDie.as(ExitCode.failure)
-      case Right(parsedArgs) => runWithSubCommandsFromArgs(rootParser, helpParser, subCommands, parsedArgs)
+      case Left(message)     => Console.printLine(message).orDie.as(ExitCode.failure)
+      case Right(parsedArgs) => runWithSubCommandsFromArgs(rootParser, helpParser, subCommands, parsedArgs, rawArgs = Some(args))
 
 }

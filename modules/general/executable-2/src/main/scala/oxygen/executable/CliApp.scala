@@ -20,7 +20,12 @@ object CliApp {
       * At this point, all [[zio.Cause]] should be caught, and any errors printed.
       */
     private final def runBuiltin(args: List[String]): URIO[Scope, ExitCode] =
-      AutoComplete.handleArgs(args, app.app).as(ExitCode.success).catchAll { case AutoCompleteError.Help(m) => Console.printLine(m).orDie.as(ExitCode.success); case AutoCompleteError.ProgramError(c) => Console.printLine(c.getMessage).orDie.as(ExitCode.failure) }
+      AutoComplete
+        .handleArgs(args, app.app).as(ExitCode.success)
+        .catchAll {
+          case AutoCompleteError.Help(m)         => Console.printLine(m).orDie.as(ExitCode.success)
+          case AutoCompleteError.ProgramError(c) => Console.printLine(c.getMessage).orDie.as(ExitCode.failure)
+        }
 
     /**
       * At this point, all [[zio.Cause]] should be caught, and any errors printed.
