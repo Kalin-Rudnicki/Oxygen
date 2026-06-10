@@ -39,7 +39,9 @@ object ExampleApp extends CliApp.Executable[ExampleApp]
 final case class Nested1(
 ) extends CliApp[String, Any] {
 
-  // TODO (KR) :
+  @execute
+  def run(): Effect =
+    ZIO.logInfo("Nested1")
 
 }
 
@@ -47,6 +49,8 @@ final case class Nested2(
     n2: Double,
 ) extends CliApp[String, Any] {
 
-  // TODO (KR) :
+  @execute
+  def run(): Effect =
+    ZIO.logInfo(s"Nested2: $n2")
 
 }

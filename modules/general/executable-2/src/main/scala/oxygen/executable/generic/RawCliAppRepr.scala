@@ -62,13 +62,13 @@ private[generic] final class RawCliAppRepr[A](val isRoot: Boolean)(using quotes:
       statement <- classDef.body
       defDef <- statement.narrowOpt[DefDef]
       annot <- defDef.symbol.annotations.optionalOfValue[CliFunctionAnnotation]
-    } yield new RawDefRepr(defDef, annot.some, gen.pos, effectTypeRepr, subAppTypeRepr, defDef.name.some, defaultSyms)
+    } yield new RawDefRepr(defDef, annot.some, gen.pos, effectTypeRepr, subAppTypeRepr, fullEnvTypeRepr, defDef.name.some, defaultSyms)
 
   val envDef: Option[RawDefRepr] =
     (for {
       statement <- classDef.body
       defDef <- statement.narrowOpt[DefDef] if defDef.name == "env"
-    } yield new RawDefRepr(defDef, None, gen.pos, effectTypeRepr, subAppTypeRepr, "env".some, defaultSyms)) match
+    } yield new RawDefRepr(defDef, None, gen.pos, effectTypeRepr, subAppTypeRepr, fullEnvTypeRepr, "env".some, defaultSyms)) match
       case head :: Nil =>
         head.validateEnv(envLayerTypeRepr)
         head.some

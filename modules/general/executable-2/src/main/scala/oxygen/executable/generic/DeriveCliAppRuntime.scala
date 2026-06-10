@@ -67,8 +67,29 @@ private[executable] object DeriveCliAppRuntime {
               case Left((_, help)) => Console.printLine(help.toString).orDie.as(ExitCode.success)
               case Right(_)        => runParsed(envParsed, cmdParsed)
 
-  def subAppStub(name: String): URIO[Scope, ExitCode] =
-    Console.printLine(s"Sub-app command '$name' is not yet supported").orDie.as(ExitCode.failure)
+  def provideEnvLayer(layer: Any, run: URIO[Scope, ExitCode]): URIO[Scope, ExitCode] =
+    run.provideSomeLayer(layer.asInstanceOf[ZLayer[Any, Nothing, Any]])
+
+  def runWithSubCommandsFromArgs(
+      rootParser: ArgsParser[?],
+      subCommands: Map[String, CompiledCliApp[Any]],
+      args: Args,
+  ): URIO[Scope, ExitCode] =
+    rootParser.parseArgs(args) match
+      case CliParseResult.Fail(_, help) => Console.printLine(help.toString).orDie.as(ExitCode.success)
+      case CliParseResult.Success(rootParsed, remaining) =>
+        remaining.positional.args match
+          case PositionalArg(_, name) :: posTail =>
+            subCommands.get(name) match
+              case Some(cmd) =>
+                val cmdArgs = Args(PositionalArgs(posTail), remaining.named)
+                cmd.asInstanceOf[CompiledCliApp.Impl[Any]].runWithRoot(rootParsed, cmdArgs)
+              case None =>
+                val known = subCommands.keySet.toList.sorted.mkString(", ")
+                Console.printLine(s"Unknown command '$name'. Known commands: $known").orDie.as(ExitCode.failure)
+          case Nil =>
+            val known = subCommands.keySet.toList.sorted.mkString(", ")
+            Console.printLine(s"Missing command. Known commands: $known").orDie.as(ExitCode.failure)
 
   def runWithSubCommands(
       rootParser: ArgsParser[?],
@@ -77,21 +98,6 @@ private[executable] object DeriveCliAppRuntime {
   ): URIO[Scope, ExitCode] =
     Args.parse(args) match
       case Left(message) => Console.printLine(message).orDie.as(ExitCode.failure)
-      case Right(parsedArgs) =>
-        rootParser.parseArgs(parsedArgs) match
-          case CliParseResult.Fail(_, help) => Console.printLine(help.toString).orDie.as(ExitCode.success)
-          case CliParseResult.Success(rootParsed, remaining) =>
-            remaining.positional.args match
-              case PositionalArg(_, name) :: posTail =>
-                subCommands.get(name) match
-                  case Some(cmd) =>
-                    val cmdArgs = Args(PositionalArgs(posTail), remaining.named)
-                    cmd.asInstanceOf[CompiledCliApp.Impl[Any]].runWithRoot(rootParsed, cmdArgs)
-                  case None =>
-                    val known = subCommands.keySet.toList.sorted.mkString(", ")
-                    Console.printLine(s"Unknown command '$name'. Known commands: $known").orDie.as(ExitCode.failure)
-              case Nil =>
-                val known = subCommands.keySet.toList.sorted.mkString(", ")
-                Console.printLine(s"Missing command. Known commands: $known").orDie.as(ExitCode.failure)
+      case Right(parsedArgs) => runWithSubCommandsFromArgs(rootParser, subCommands, parsedArgs)
 
 }

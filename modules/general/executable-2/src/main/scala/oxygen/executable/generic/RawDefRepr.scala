@@ -11,6 +11,7 @@ private[generic] final class RawDefRepr(
     val parentPos: Position,
     val effectTypeRepr: TypeRepr,
     val subAppTypeRepr: TypeRepr,
+    val parentFullEnvTypeRepr: TypeRepr,
     val ownerName: Option[String],
     val defaultSyms: Map[(String, Int), Term],
 )(using quotes: Quotes) {
@@ -40,10 +41,21 @@ private[generic] final class RawDefRepr(
     if !(returnTypeRepr <:< envLayerTypeRepr) then
       failAtDef(s"def env must return ${envLayerTypeRepr.showAnsiCode}, found ${returnTypeRepr.showAnsiCode}")
 
+  def validateSubAppReturn(): Unit =
+    val cliAppSym: Symbol = TypeRepr.of[CliApp[?, ?]].typeSymbol
+    returnTypeRepr.baseType(cliAppSym) match
+      case AppliedType(_, List(reqEnv, _)) =>
+        if !(reqEnv <:< parentFullEnvTypeRepr) then
+          failAtDef(
+            s"SubApp RequiredEnv ${reqEnv.showAnsiCode} must be a subtype of parent FullEnv ${parentFullEnvTypeRepr.showAnsiCode}",
+          )
+      case _ =>
+        failAtDef(s"SubApp must extend ${TypeRepr.of[CliApp[?, ?]].showAnsiCode}, found ${returnTypeRepr.showAnsiCode}")
+
   optAnnot.foreach {
     case command(_) =>
       if returnTypeRepr <:< effectTypeRepr then ()
-      else if returnTypeRepr <:< subAppTypeRepr then ()
+      else if returnTypeRepr <:< subAppTypeRepr then validateSubAppReturn()
       else failAtDef(s"@command must return ${effectTypeRepr.showAnsiCode} or ${subAppTypeRepr.showAnsiCode}, found ${returnTypeRepr.showAnsiCode}")
     case execute() =>
       if !(returnTypeRepr <:< effectTypeRepr) then

@@ -12,20 +12,11 @@ private[executable] object DeriveCliApp {
   def derive[A: Type](using Quotes): Expr[oxygen.executable.DeriveCliApp.Root[A]] = {
     val repr: RawCliAppRepr[A] = new RawCliAppRepr[A](isRoot = true)
     val instanceExpr: Expr[A] = instantiate(repr)
-    val rootParserExpr: Expr[ArgsParser[?]] = buildRootParser(repr)
-    val subCommandsExpr: Expr[Map[String, CompiledCliApp[Any]]] =
-      if repr.commandDefs.nonEmpty then buildSubCommands(repr, instanceExpr)
-      else '{ Map.empty[String, CompiledCliApp[Any]] }
-    val runFnExpr: Expr[List[String] => URIO[Scope, ExitCode]] = buildRunFn(repr, instanceExpr, rootParserExpr, subCommandsExpr)
+    val compiledCliAppExpr: Expr[CompiledCliApp[Any]] = buildCompiledCliApp(repr, instanceExpr)
 
     '{
       new oxygen.executable.DeriveCliApp.Root[A] {
-        override val app: CompiledCliApp[Any] =
-          CompiledCliApp.Impl(
-            rootParser = $rootParserExpr,
-            subCommands = $subCommandsExpr,
-            runFn = $runFnExpr,
-          )
+        override val app: CompiledCliApp[Any] = $compiledCliAppExpr
       }
     }
   }
@@ -80,8 +71,19 @@ private[executable] object DeriveCliApp {
       case None => '{ DeriveCliAppRuntime.runEffect($effectExpr) }
   }
 
-  private def buildSubAppStubFn(name: String)(using Quotes): Expr[(Any, Args) => URIO[Scope, ExitCode]] =
-    '{ (_: Any, _: Args) => DeriveCliAppRuntime.subAppStub(${ Expr(name) }) }
+  private def buildSubAppInstance(
+      parentInstanceExpr: Expr[?],
+      cmdMethodSym: oxygen.quoted.Symbol,
+      cmdParamTypeReprs: List[TypeRepr],
+      cmdParsedValues: Expr[List[Any]],
+  )(using Quotes): Expr[?] = {
+    val cmdArgExprs: List[Expr[?]] = cmdParamTypeReprs.zipWithIndex.map { (tpe, idx) =>
+      tpe.asTypeOf match
+        case '[t] => '{ $cmdParsedValues(${ Expr(idx) }).asInstanceOf[t] }
+        case _    => report.errorAndAbort(s"Unable to convert command param type ${tpe.showAnsiCode}")
+    }
+    ParserCodegen.callMethod(parentInstanceExpr, cmdMethodSym, cmdArgExprs)
+  }
 
   private def buildParamParsers(
       params: List[ParamRepr],
@@ -102,6 +104,85 @@ private[executable] object DeriveCliApp {
 
   private def buildDisplayParser(parsers: Expr[List[ArgsParser[?]]])(using Quotes): Expr[ArgsParser[?]] =
     '{ $parsers.headOption.getOrElse(ArgsParser.unit: ArgsParser[?]) }
+
+  private def buildRunFromArgs[A: Type](
+      repr: RawCliAppRepr[A],
+      instanceExpr: Expr[A],
+      rootParserExpr: Expr[ArgsParser[?]],
+      subCommandsExpr: Expr[Map[String, CompiledCliApp[Any]]],
+  )(using Quotes): Expr[Args => URIO[Scope, ExitCode]] =
+    repr.executeDefs.headOption match
+      case Some(defRepr) =>
+        val envParserExprs: Expr[List[ArgsParser[?]]] = buildEnvParamParsers(repr)
+        val cmdParserExprs: Expr[List[ArgsParser[?]]] = buildCmdParamParsers(repr, defRepr)
+        val envParamTypeReprs: List[TypeRepr] = repr.envDef.fold(Nil)(_.params.map(_.typeRepr))
+        val cmdParamTypeReprs: List[TypeRepr] = defRepr.params.map(_.typeRepr)
+        val methodSym: oxygen.quoted.Symbol = defRepr.defDef.symbol
+        val envMethodSym: Option[oxygen.quoted.Symbol] = repr.envDef.map(_.defDef.symbol)
+        '{
+          (args: Args) =>
+            $rootParserExpr.parseArgs(args) match
+              case CliParseResult.Fail(_, help) => Console.printLine(help.toString).orDie.as(ExitCode.success)
+              case CliParseResult.Success(_, remaining) =>
+                DeriveCliAppRuntime.runParsedN(
+                  parsers = $envParserExprs,
+                  args = remaining,
+                  runParsed = { envValues =>
+                    DeriveCliAppRuntime.runParsedN(
+                      parsers = $cmdParserExprs,
+                      args = remaining,
+                      runParsed = { cmdValues =>
+                        ${ buildExecutionBody(instanceExpr, repr.effectTypeRepr, repr.envLayerTypeRepr, envMethodSym, methodSym, envParamTypeReprs, cmdParamTypeReprs, 'envValues, 'cmdValues) }
+                      },
+                    )
+                  },
+                )
+        }
+      case None =>
+        '{
+          (args: Args) =>
+            DeriveCliAppRuntime.runWithSubCommandsFromArgs(
+              rootParser = $rootParserExpr,
+              subCommands = $subCommandsExpr,
+              args = args,
+            )
+        }
+
+  private def buildRunFnFromArgs[A: Type](
+      repr: RawCliAppRepr[A],
+      instanceExpr: Expr[A],
+      rootParserExpr: Expr[ArgsParser[?]],
+      subCommandsExpr: Expr[Map[String, CompiledCliApp[Any]]],
+  )(using Quotes): Expr[List[String] => URIO[Scope, ExitCode]] = {
+    val runFromArgsExpr: Expr[Args => URIO[Scope, ExitCode]] =
+      buildRunFromArgs(repr, instanceExpr, rootParserExpr, subCommandsExpr)
+    '{
+      (args: List[String]) =>
+        Args.parse(args) match
+          case Left(message) => Console.printLine(message).orDie.as(ExitCode.failure)
+          case Right(parsedArgs) => $runFromArgsExpr(parsedArgs)
+    }
+  }
+
+  private def buildCompiledCliApp[A: Type](
+      repr: RawCliAppRepr[A],
+      instanceExpr: Expr[A],
+  )(using Quotes): Expr[CompiledCliApp[Any]] = {
+    val rootParserExpr: Expr[ArgsParser[?]] = buildRootParser(repr)
+    val subCommandsExpr: Expr[Map[String, CompiledCliApp[Any]]] =
+      if repr.commandDefs.nonEmpty then buildSubCommands(repr, instanceExpr)
+      else '{ Map.empty[String, CompiledCliApp[Any]] }
+    val runFnExpr: Expr[List[String] => URIO[Scope, ExitCode]] =
+      buildRunFnFromArgs(repr, instanceExpr, rootParserExpr, subCommandsExpr)
+
+    '{
+      CompiledCliApp.Impl(
+        rootParser = $rootParserExpr,
+        subCommands = $subCommandsExpr,
+        runFn = $runFnExpr,
+      )
+    }
+  }
 
   private def buildRunWithRootFn[A: Type](
       repr: RawCliAppRepr[A],
@@ -130,6 +211,86 @@ private[executable] object DeriveCliApp {
         )
     }
 
+  private def buildRunSubAppWithRootFn[A: Type, B: Type](
+      parentRepr: RawCliAppRepr[A],
+      parentInstanceExpr: Expr[A],
+      defRepr: RawDefRepr,
+      nestedRepr: RawCliAppRepr[B],
+  )(using Quotes): Expr[(Any, Args) => URIO[Scope, ExitCode]] = {
+    val envParserExprs: Expr[List[ArgsParser[?]]] = buildEnvParamParsers(parentRepr)
+    val cmdParserExprs: Expr[List[ArgsParser[?]]] = buildCmdParamParsers(parentRepr, defRepr)
+    val envMethodSym: Option[oxygen.quoted.Symbol] = parentRepr.envDef.map(_.defDef.symbol)
+    val cmdMethodSym: oxygen.quoted.Symbol = defRepr.defDef.symbol
+    val envParamTypeReprs: List[TypeRepr] = parentRepr.envDef.fold(Nil)(_.params.map(_.typeRepr))
+    val cmdParamTypeReprs: List[TypeRepr] = defRepr.params.map(_.typeRepr)
+    val nestedRootParserExpr: Expr[ArgsParser[?]] = buildRootParser(nestedRepr)
+
+    '{
+      (_: Any, cmdArgs: Args) =>
+        DeriveCliAppRuntime.runParsedN(
+          parsers = $envParserExprs,
+          args = cmdArgs,
+          runParsed = { envValues =>
+            DeriveCliAppRuntime.runParsedN(
+              parsers = $cmdParserExprs,
+              args = cmdArgs,
+              runParsed = { cmdValues =>
+                val subAppInstance = ${
+                  buildSubAppInstance(parentInstanceExpr, cmdMethodSym, cmdParamTypeReprs, '{ cmdValues }).asExprOf[B]
+                }
+                ${
+                  val nestedSubCommandsExpr: Expr[Map[String, CompiledCliApp[Any]]] =
+                    if nestedRepr.commandDefs.nonEmpty then buildSubCommands(nestedRepr, '{ subAppInstance }.asExprOf[B])
+                    else '{ Map.empty[String, CompiledCliApp[Any]] }
+                  val nestedRunFromArgsExpr: Expr[Args => URIO[Scope, ExitCode]] =
+                    buildRunFromArgs(nestedRepr, '{ subAppInstance }.asExprOf[B], nestedRootParserExpr, nestedSubCommandsExpr)
+                  buildRunNestedApp(parentRepr, parentInstanceExpr, envMethodSym, envParamTypeReprs, nestedRunFromArgsExpr, '{ cmdArgs }, '{ envValues })
+                }
+              },
+            )
+          },
+        )
+    }
+  }
+
+  private def buildRunNestedApp[A: Type](
+      parentRepr: RawCliAppRepr[A],
+      parentInstanceExpr: Expr[A],
+      envMethodSym: Option[oxygen.quoted.Symbol],
+      envParamTypeReprs: List[TypeRepr],
+      nestedRunFromArgsExpr: Expr[Args => URIO[Scope, ExitCode]],
+      cmdArgsExpr: Expr[Args],
+      envParsedValues: Expr[List[Any]],
+  )(using Quotes): Expr[URIO[Scope, ExitCode]] =
+    envMethodSym match
+      case Some(sym) =>
+        val envArgExprs: List[Expr[?]] = envParamTypeReprs.zipWithIndex.map { (tpe, idx) =>
+          tpe.asTypeOf match
+            case '[t] => '{ $envParsedValues(${ Expr(idx) }).asInstanceOf[t] }
+            case _    => report.errorAndAbort(s"Unable to convert env param type ${tpe.showAnsiCode}")
+        }
+        val envLayerExpr: Expr[?] =
+          asExprOfTypeRepr(ParserCodegen.callMethod(parentInstanceExpr, sym, envArgExprs), parentRepr.envLayerTypeRepr)
+        '{ DeriveCliAppRuntime.provideEnvLayer($envLayerExpr, $nestedRunFromArgsExpr($cmdArgsExpr)) }
+      case None =>
+        '{ $nestedRunFromArgsExpr($cmdArgsExpr) }
+
+  private def buildRunSubAppStandaloneFn[A: Type, B: Type](
+      parentRepr: RawCliAppRepr[A],
+      parentInstanceExpr: Expr[A],
+      defRepr: RawDefRepr,
+      nestedRepr: RawCliAppRepr[B],
+  )(using Quotes): Expr[List[String] => URIO[Scope, ExitCode]] = {
+    val runWithRootFnExpr: Expr[(Any, Args) => URIO[Scope, ExitCode]] =
+      buildRunSubAppWithRootFn(parentRepr, parentInstanceExpr, defRepr, nestedRepr)
+    '{
+      (args: List[String]) =>
+        Args.parse(args) match
+          case Left(message) => Console.printLine(message).orDie.as(ExitCode.failure)
+          case Right(parsedArgs) => $runWithRootFnExpr((), parsedArgs)
+    }
+  }
+
   private def buildSubCommands[A](repr: RawCliAppRepr[A], instanceExpr: Expr[A])(using Quotes, Type[A]): Expr[Map[String, CompiledCliApp[Any]]] = {
     val envParserExprs: Expr[List[ArgsParser[?]]] = buildEnvParamParsers(repr)
     val envMethodSym: Option[oxygen.quoted.Symbol] = repr.envDef.map(_.defDef.symbol)
@@ -145,7 +306,12 @@ private[executable] object DeriveCliApp {
         val isEffect: Boolean = defRepr.returnTypeRepr <:< repr.effectTypeRepr
         val runWithRootFnExpr: Expr[(Any, Args) => URIO[Scope, ExitCode]] =
           if isEffect then buildRunWithRootFn(repr, instanceExpr, envMethodSym, methodSym, envParamTypeReprs, cmdParamTypeReprs, envParserExprs, cmdParserExprs)
-          else buildSubAppStubFn(name)
+          else
+            defRepr.returnTypeRepr.asTypeOf match
+              case '[nestedA] =>
+                val nestedRepr = new RawCliAppRepr[nestedA](isRoot = false)
+                buildRunSubAppWithRootFn(repr, instanceExpr, defRepr, nestedRepr)
+              case _ => report.errorAndAbort(s"Unable to derive nested CLI app for ${defRepr.returnTypeRepr.showAnsiCode}")
         val standaloneRunFnExpr: Expr[List[String] => URIO[Scope, ExitCode]] =
           if isEffect then
             '{
@@ -167,7 +333,12 @@ private[executable] object DeriveCliApp {
                       },
                     )
             }
-          else '{ (_: List[String]) => DeriveCliAppRuntime.subAppStub(${ Expr(name) }) }
+          else
+            defRepr.returnTypeRepr.asTypeOf match
+              case '[nestedA] =>
+                val nestedRepr = new RawCliAppRepr[nestedA](isRoot = false)
+                buildRunSubAppStandaloneFn(repr, instanceExpr, defRepr, nestedRepr)
+              case _ => report.errorAndAbort(s"Unable to derive nested CLI app for ${defRepr.returnTypeRepr.showAnsiCode}")
 
         '{
           (
@@ -187,51 +358,5 @@ private[executable] object DeriveCliApp {
         val itemsExpr: Expr[List[(String, CompiledCliApp[Any])]] = Expr.ofList(nonEmpty)
         '{ $itemsExpr.toMap }
   }
-
-  private def buildRunFn[A](
-      repr: RawCliAppRepr[A],
-      instanceExpr: Expr[A],
-      rootParserExpr: Expr[ArgsParser[?]],
-      subCommandsExpr: Expr[Map[String, CompiledCliApp[Any]]],
-  )(using Quotes, Type[A]): Expr[List[String] => URIO[Scope, ExitCode]] =
-    repr.executeDefs.headOption match
-      case Some(defRepr) =>
-        val envParserExprs: Expr[List[ArgsParser[?]]] = buildEnvParamParsers(repr)
-        val cmdParserExprs: Expr[List[ArgsParser[?]]] = buildCmdParamParsers(repr, defRepr)
-        val envParamTypeReprs: List[TypeRepr] = repr.envDef.fold(Nil)(_.params.map(_.typeRepr))
-        val cmdParamTypeReprs: List[TypeRepr] = defRepr.params.map(_.typeRepr)
-        val methodSym: oxygen.quoted.Symbol = defRepr.defDef.symbol
-        val envMethodSym: Option[oxygen.quoted.Symbol] = repr.envDef.map(_.defDef.symbol)
-        '{
-          (args: List[String]) =>
-            Args.parse(args) match
-              case Left(message) => Console.printLine(message).orDie.as(ExitCode.failure)
-              case Right(parsedArgs) =>
-                $rootParserExpr.parseArgs(parsedArgs) match
-                  case CliParseResult.Fail(_, help) => Console.printLine(help.toString).orDie.as(ExitCode.success)
-                  case CliParseResult.Success(_, remaining) =>
-                    DeriveCliAppRuntime.runParsedN(
-                      parsers = $envParserExprs,
-                      args = remaining,
-                      runParsed = { envValues =>
-                        DeriveCliAppRuntime.runParsedN(
-                          parsers = $cmdParserExprs,
-                          args = remaining,
-                          runParsed = { cmdValues =>
-                            ${ buildExecutionBody(instanceExpr, repr.effectTypeRepr, repr.envLayerTypeRepr, envMethodSym, methodSym, envParamTypeReprs, cmdParamTypeReprs, 'envValues, 'cmdValues) }
-                          },
-                        )
-                      },
-                    )
-        }
-      case None =>
-        '{
-          (args: List[String]) =>
-            DeriveCliAppRuntime.runWithSubCommands(
-              rootParser = $rootParserExpr,
-              subCommands = $subCommandsExpr,
-              args = args,
-            )
-        }
 
 }
