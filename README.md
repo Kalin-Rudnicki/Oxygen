@@ -20,19 +20,12 @@ libraryDependencies += "io.github.kalin-rudnicki" %% "oxygen-<sub-project>" % "<
 
 ## Documentation
 
-The official documentation for `Oxygen` is located within the repo's wiki:
+The official documentation is at [scala-oxygen.readthedocs.io/latest](https://scala-oxygen.readthedocs.io/latest/).
 
-[wiki home](https://github.com/Kalin-Rudnicki/Oxygen/wiki)
-
-## Projects
-
-- [oxygen-core](https://github.com/Kalin-Rudnicki/Oxygen/wiki/project__oxygen_core)
-- [oxygen-quoted](https://github.com/Kalin-Rudnicki/Oxygen/wiki/project__oxygen_quoted)
-- [oxygen-meta](https://github.com/Kalin-Rudnicki/Oxygen/wiki/project__oxygen_meta)
-- [oxygen-cli](https://github.com/Kalin-Rudnicki/Oxygen/wiki/project__oxygen_cli)
-- [oxygen-executable](https://github.com/Kalin-Rudnicki/Oxygen/wiki/project__oxygen_executable)
-- [oxygen-json](https://github.com/Kalin-Rudnicki/Oxygen/wiki/project__oxygen_json)
-- [oxygen-zio](https://github.com/Kalin-Rudnicki/Oxygen/wiki/project__oxygen_zio)
-- [oxygen-sql](https://github.com/Kalin-Rudnicki/Oxygen/wiki/project__oxygen_sql)
-- [oxygen-test](https://github.com/Kalin-Rudnicki/Oxygen/wiki/project__oxygen_test)
-- [oxygen-test-container](https://github.com/Kalin-Rudnicki/Oxygen/wiki/project__oxygen_test_container)
+Key sections:
+- [Metaprogramming](https://scala-oxygen.readthedocs.io/latest/metaprogramming/)
+- [SQL](https://scala-oxygen.readthedocs.io/latest/sql/)
+- [HTTP](https://scala-oxygen.readthedocs.io/latest/http/)
+- [UI](https://scala-oxygen.readthedocs.io/latest/ui/)
+- [Executable / CLI](https://scala-oxygen.readthedocs.io/latest/executable/)
+- [Future Plans](https://scala-oxygen.readthedocs.io/latest/future-plans/)
