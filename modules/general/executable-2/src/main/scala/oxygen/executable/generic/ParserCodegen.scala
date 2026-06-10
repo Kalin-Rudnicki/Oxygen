@@ -3,9 +3,21 @@ package oxygen.executable.generic
 import oxygen.cli.*
 import oxygen.executable.*
 import oxygen.quoted.*
+import oxygen.schema.{JsonSchema, PlainTextSchema}
 import scala.quoted.*
 
 private[generic] object ParserCodegen {
+
+  def unwrapOption(typeRepr: TypeRepr): Option[TypeRepr] = typeRepr match
+    case AppliedType(constructor, arg :: Nil) if constructor.typeSymbol.fullName == "scala.Option" => Some(arg)
+    case _                                                                                         => None
+
+  def summonPlainTextSchema[ParamT: Type](onMissing: => Nothing)(using Quotes): Expr[PlainTextSchema[ParamT]] =
+    Implicits.searchOption[PlainTextSchema[ParamT]].getOrElse {
+      Implicits.searchOption[JsonSchema[ParamT]] match
+        case Some(jsonSchema) => '{ PlainTextSchema.jsonString(using $jsonSchema) }
+        case None             => onMissing
+    }
 
   def subHelp(param: ParamRepr)(using Quotes): Expr[SubHelp] =
     param.docs match
@@ -54,17 +66,41 @@ private[generic] object ParserCodegen {
       defaultSyms: Map[(String, Int), Term],
   )(using Quotes): Expr[ArgsParser[?]] = param match
     case p: ParamRepr.Positional =>
-      type T = p.raw.T
-      val base: Expr[PositionalArgsParser[T]] =
-        '{ PositionalArgsParser.single(${ Expr(p.longName) }, ${ subHelp(p) })(using ${ p.schema }) }
-      withDefaultPositional(base, ownerName, p, defaultSyms)
+      unwrapOption(p.raw.typeRepr) match
+        case Some(inner) =>
+          inner.asTypeOf match
+            case '[t] =>
+              val schema: Expr[PlainTextSchema[t]] =
+                summonPlainTextSchema[t](report.errorAndAbort(s"Missing PlainTextSchema or JsonSchema for ${inner.showAnsiCode}", p.raw.valPosition))
+              val base: Expr[PositionalArgsParser[t]] =
+                '{ PositionalArgsParser.single(${ Expr(p.longName) }, ${ subHelp(p) })(using $schema) }
+              '{ $base.optional }
+            case _ => report.errorAndAbort(s"Unable to build optional positional param for ${p.raw.typeRepr.showAnsiCode}")
+        case None =>
+          type T = p.raw.T
+          val base: Expr[PositionalArgsParser[T]] =
+            '{ PositionalArgsParser.single(${ Expr(p.longName) }, ${ subHelp(p) })(using ${ p.schema }) }
+          withDefaultPositional(base, ownerName, p, defaultSyms)
     case p: ParamRepr.Named =>
-      type T = p.raw.T
-      val valueParser: Expr[PositionalArgsParser[T]] =
-        '{ PositionalArgsParser.single(${ Expr(p.longName) }, ${ subHelp(p) })(using ${ p.schema }) }
-      val base: Expr[NamedArgsParser[T]] =
-        '{ NamedArgsParser.named(${ Expr(p.longName) }, $valueParser, ${ shortNameExpr(p.shortName) }, ${ subHelp(p) }) }
-      withDefault(base, ownerName, p, defaultSyms)
+      unwrapOption(p.raw.typeRepr) match
+        case Some(inner) =>
+          inner.asTypeOf match
+            case '[t] =>
+              val schema: Expr[PlainTextSchema[t]] =
+                summonPlainTextSchema[t](report.errorAndAbort(s"Missing PlainTextSchema or JsonSchema for ${inner.showAnsiCode}", p.raw.valPosition))
+              val valueParser: Expr[PositionalArgsParser[t]] =
+                '{ PositionalArgsParser.single(${ Expr(p.longName) }, ${ subHelp(p) })(using $schema) }
+              val base: Expr[NamedArgsParser[Option[t]]] =
+                '{ NamedArgsParser.named(${ Expr(p.longName) }, $valueParser, ${ shortNameExpr(p.shortName) }, ${ subHelp(p) }).optional }
+              base
+            case _ => report.errorAndAbort(s"Unable to build optional named param for ${p.raw.typeRepr.showAnsiCode}")
+        case None =>
+          type T = p.raw.T
+          val valueParser: Expr[PositionalArgsParser[T]] =
+            '{ PositionalArgsParser.single(${ Expr(p.longName) }, ${ subHelp(p) })(using ${ p.schema }) }
+          val base: Expr[NamedArgsParser[T]] =
+            '{ NamedArgsParser.named(${ Expr(p.longName) }, $valueParser, ${ shortNameExpr(p.shortName) }, ${ subHelp(p) }) }
+          withDefault(base, ownerName, p, defaultSyms)
     case p: ParamRepr.Flag =>
       '{ NamedArgsParser.flag(${ Expr(p.longName) }, ${ Expr(p.absentValue) }, help = ${ subHelp(p) }) }
     case p: ParamRepr.Toggle =>
