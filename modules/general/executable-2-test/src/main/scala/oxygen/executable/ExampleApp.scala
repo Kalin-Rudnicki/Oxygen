@@ -32,7 +32,7 @@ final case class ExampleApp(
       @named port: Int = 8080,
   ): Effect =
     ZIO.serviceWithZIO[String] { host =>
-      ZIO.logInfo(s"Hello Server! (host: $host, port: $port)")
+      ZIO.logInfo(s"Hello Server! (host: $host, port: $port, myOpt: $myOpt)")
     }
 
   @command
