@@ -1,6 +1,7 @@
 package oxygen.executable
 
 import oxygen.cli.*
+import oxygen.predef.core.*
 import oxygen.schema.JsonSchema
 import oxygen.schema.instances.given
 import zio.*
@@ -17,8 +18,11 @@ final case class ExampleApp(
   def client(
       @config("APP_CONFIG") cfg: ClientConfig,
       @named i: Option[String],
+      @named p1: List[String],
+      @named p2: NonEmptyList[String],
+      @named p5: (String, Int),
   ): Effect =
-    ZIO.logInfo(s"Hello Client!\n$i\n$cfg")
+    ZIO.logInfo(s"Hello Client!\n$i\n$cfg\np1=$p1\np2=$p2\np5=$p5")
 
   @command
   def server(

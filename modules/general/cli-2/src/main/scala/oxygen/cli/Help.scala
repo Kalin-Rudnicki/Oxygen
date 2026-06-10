@@ -38,7 +38,13 @@ sealed trait Help {
     case Help.Positional(name, subHelp) => Help.Repr(color"[$name]".magentaFg :: Nil, Help.Repr.formatSubHelp(subHelp, extraHints), color"|    ") :: Nil
     case Help.Named(longName, shortName, valueHelp, subHelp) =>
       val main: ColorString = shortName.fold(color"--$longName".cyanFg)(s => color"--$longName, -${s.toString}".cyanFg)
-      Help.Repr(main :: Nil, Help.Repr.formatSubHelp(subHelp, extraHints), color"|    ") :: valueHelp.removeEmpties.toRepr(Nil).map(_.scoped)
+      ValueHelpRepr.inlineParts(valueHelp) match
+        case Some(valueParts) if !ValueHelpRepr.needsScopedChildren(valueHelp) =>
+          val hints = ValueHelpRepr.valueHints(valueHelp.removeEmpties)
+          val inlined: ColorString = valueParts.foldLeft(main) { (acc, part) => acc + color" " + part }
+          Help.Repr(inlined :: Nil, Help.Repr.formatSubHelp(subHelp, extraHints ::: hints), color"|    ") :: Nil
+        case _ =>
+          Help.Repr(main :: Nil, Help.Repr.formatSubHelp(subHelp, extraHints), color"|    ") :: valueHelp.removeEmpties.toRepr(Nil).map(_.scoped)
     case Help.Flag(longName, shortName, subHelp) =>
       val main: ColorString = shortName.fold(color"--$longName".cyanFg)(s => color"--$longName, -${s.toString}".cyanFg)
       Help.Repr(main :: Nil, Help.Repr.formatSubHelp(subHelp, extraHints), color"|    ") :: Nil

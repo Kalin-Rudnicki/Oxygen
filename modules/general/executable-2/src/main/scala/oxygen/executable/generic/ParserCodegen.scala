@@ -8,9 +8,112 @@ import scala.quoted.*
 
 private[generic] object ParserCodegen {
 
-  def unwrapOption(typeRepr: TypeRepr): Option[TypeRepr] = typeRepr match
+  def unwrapOption(typeRepr: TypeRepr): Option[TypeRepr] = typeRepr.dealias match
     case AppliedType(constructor, arg :: Nil) if constructor.typeSymbol.fullName == "scala.Option" => Some(arg)
     case _                                                                                         => None
+
+  def unwrapList(typeRepr: TypeRepr): Option[TypeRepr] = typeRepr.dealias match
+    case AppliedType(constructor, arg :: Nil) if constructor.typeSymbol.fullName == "scala.collection.immutable.List" => Some(arg)
+    case _                                                                                                            => None
+
+  def unwrapNel(typeRepr: TypeRepr): Option[TypeRepr] = typeRepr.dealias match
+    case AppliedType(constructor, arg :: Nil) if constructor.typeSymbol.fullName.endsWith(".NonEmptyList") => Some(arg)
+    case _                                                                                               => None
+
+  def unwrapTuple(typeRepr: TypeRepr): Option[List[TypeRepr]] = typeRepr.dealias match
+    case AppliedType(constructor, elems) if constructor.typeSymbol.fullName.startsWith("scala.Tuple") && elems.nonEmpty => Some(elems)
+    case _                                                                                                             => None
+
+  def singleValueParser(
+      name: String,
+      elem: TypeRepr,
+      param: ParamRepr,
+  )(using Quotes): Expr[PositionalArgsParser[?]] =
+    elem.asTypeOf match
+      case '[t] =>
+        val schema: Expr[PlainTextSchema[t]] =
+          summonPlainTextSchema[t](report.errorAndAbort(s"Missing PlainTextSchema or JsonSchema for ${elem.showAnsiCode}", param.raw.valPosition))
+        '{ PositionalArgsParser.single(${ Expr(name) }, ${ subHelp(param) })(using $schema) }
+      case _ => report.errorAndAbort(s"Unable to build value parser for ${elem.showAnsiCode}", param.raw.valPosition)
+
+  def combineTyped(
+      left: Expr[PositionalArgsParser[?]],
+      leftType: TypeRepr,
+      right: Expr[PositionalArgsParser[?]],
+      rightType: TypeRepr,
+  )(using Quotes): (Expr[PositionalArgsParser[?]], TypeRepr) =
+    (leftType.asTypeOf, rightType.asTypeOf) match
+      case ('[lt], '[rt]) =>
+        val l: Expr[PositionalArgsParser[lt]] = left.asExprOf[PositionalArgsParser[lt]]
+        val r: Expr[PositionalArgsParser[rt]] = right.asExprOf[PositionalArgsParser[rt]]
+        val combined: Expr[PositionalArgsParser[(lt, rt)]] = '{ $l ^>> $r }
+        (combined, TypeRepr.of[(lt, rt)])
+      case _ => report.errorAndAbort("Unable to combine positional parsers")
+
+  def tupleFlattenMapper(size: Int)(using Quotes): Expr[Any => Any] =
+    size match
+      case 3 => '{ (v: Any) => val ((v0, v1), v2) = v.asInstanceOf[((Any, Any), Any)]; (v0, v1, v2) }
+      case 4 => '{ (v: Any) => val (((v0, v1), v2), v3) = v.asInstanceOf[(((Any, Any), Any), Any)]; (v0, v1, v2, v3) }
+      case n => '{ (v: Any) => oxygen.executable.generic.DeriveCliAppRuntime.flattenTuple(v, ${ Expr(n) }).asInstanceOf[Any] }
+
+  def buildTupleParser(
+      longName: String,
+      elems: List[TypeRepr],
+      param: ParamRepr,
+  )(using Quotes): Expr[PositionalArgsParser[?]] =
+    elems match
+      case Nil => '{ PositionalArgsParser.unit }
+      case one :: Nil =>
+        val name = if elems.size == 1 then longName else s"$longName-0"
+        singleValueParser(name, one, param)
+      case _ :: _ =>
+        val parsers: List[(Expr[PositionalArgsParser[?]], TypeRepr)] =
+          elems.zipWithIndex.map { (elem, idx) =>
+            val name = if elems.size == 1 then longName else s"$longName-$idx"
+            (singleValueParser(name, elem, param), elem)
+          }
+        val (nested, _) = parsers.tail.foldLeft(parsers.head) { case ((acc, accType), (next, nextType)) =>
+          combineTyped(acc, accType, next, nextType)
+        }
+        if elems.size <= 2 then nested
+        else '{ $nested.map(${ tupleFlattenMapper(elems.size) }).asInstanceOf[PositionalArgsParser[Any]] }
+
+  def buildValueParser(
+      longName: String,
+      typeRepr: TypeRepr,
+      param: ParamRepr,
+  )(using Quotes): Expr[PositionalArgsParser[?]] =
+    unwrapList(typeRepr) match
+      case Some(inner) =>
+        inner.asTypeOf match
+          case '[t] =>
+            val schema: Expr[PlainTextSchema[t]] =
+              summonPlainTextSchema[t](report.errorAndAbort(s"Missing PlainTextSchema or JsonSchema for ${inner.showAnsiCode}", param.raw.valPosition))
+            val single: Expr[PositionalArgsParser[t]] =
+              '{ PositionalArgsParser.single(${ Expr(longName) }, ${ subHelp(param) })(using $schema) }
+            '{ $single.repeated }
+          case _ => report.errorAndAbort(s"Unable to build list param for ${typeRepr.showAnsiCode}", param.raw.valPosition)
+      case None =>
+        unwrapNel(typeRepr) match
+          case Some(inner) =>
+            inner.asTypeOf match
+              case '[t] =>
+                val schema: Expr[PlainTextSchema[t]] =
+                  summonPlainTextSchema[t](report.errorAndAbort(s"Missing PlainTextSchema or JsonSchema for ${inner.showAnsiCode}", param.raw.valPosition))
+                val single: Expr[PositionalArgsParser[t]] =
+                  '{ PositionalArgsParser.single(${ Expr(longName) }, ${ subHelp(param) })(using $schema) }
+                '{ $single.repeatedNel }
+              case _ => report.errorAndAbort(s"Unable to build nel param for ${typeRepr.showAnsiCode}", param.raw.valPosition)
+          case None =>
+            unwrapTuple(typeRepr) match
+              case Some(elems) => buildTupleParser(longName, elems, param)
+              case None =>
+                typeRepr.asTypeOf match
+                  case '[t] =>
+                    val schema: Expr[PlainTextSchema[t]] =
+                      summonPlainTextSchema[t](report.errorAndAbort(s"Missing PlainTextSchema or JsonSchema for ${typeRepr.showAnsiCode}", param.raw.valPosition))
+                    '{ PositionalArgsParser.single(${ Expr(longName) }, ${ subHelp(param) })(using $schema) }
+                  case _ => report.errorAndAbort(s"Unable to build value parser for ${typeRepr.showAnsiCode}", param.raw.valPosition)
 
   def summonPlainTextSchema[ParamT: Type](onMissing: => Nothing)(using Quotes): Expr[PlainTextSchema[ParamT]] =
     Implicits.searchOption[PlainTextSchema[ParamT]].getOrElse {
@@ -68,39 +171,33 @@ private[generic] object ParserCodegen {
     case p: ParamRepr.Positional =>
       unwrapOption(p.raw.typeRepr) match
         case Some(inner) =>
-          inner.asTypeOf match
-            case '[t] =>
-              val schema: Expr[PlainTextSchema[t]] =
-                summonPlainTextSchema[t](report.errorAndAbort(s"Missing PlainTextSchema or JsonSchema for ${inner.showAnsiCode}", p.raw.valPosition))
-              val base: Expr[PositionalArgsParser[t]] =
-                '{ PositionalArgsParser.single(${ Expr(p.longName) }, ${ subHelp(p) })(using $schema) }
-              '{ $base.optional }
-            case _ => report.errorAndAbort(s"Unable to build optional positional param for ${p.raw.typeRepr.showAnsiCode}")
+          val base: Expr[PositionalArgsParser[?]] =
+            buildValueParser(p.longName, inner, p)
+          '{ $base.optional }
         case None =>
-          type T = p.raw.T
-          val base: Expr[PositionalArgsParser[T]] =
-            '{ PositionalArgsParser.single(${ Expr(p.longName) }, ${ subHelp(p) })(using ${ p.schema }) }
-          withDefaultPositional(base, ownerName, p, defaultSyms)
+          p.raw.typeRepr.asTypeOf match
+            case '[t] =>
+              val valueParser: Expr[PositionalArgsParser[?]] =
+                buildValueParser(p.longName, p.raw.typeRepr, p)
+              val base: Expr[PositionalArgsParser[t]] =
+                '{ $valueParser.asInstanceOf[PositionalArgsParser[t]] }
+              withDefaultPositional(base, ownerName, p, defaultSyms)
+            case _ => report.errorAndAbort(s"Unable to build positional param for ${p.raw.typeRepr.showAnsiCode}", p.raw.valPosition)
     case p: ParamRepr.Named =>
       unwrapOption(p.raw.typeRepr) match
         case Some(inner) =>
-          inner.asTypeOf match
-            case '[t] =>
-              val schema: Expr[PlainTextSchema[t]] =
-                summonPlainTextSchema[t](report.errorAndAbort(s"Missing PlainTextSchema or JsonSchema for ${inner.showAnsiCode}", p.raw.valPosition))
-              val valueParser: Expr[PositionalArgsParser[t]] =
-                '{ PositionalArgsParser.single(${ Expr(p.longName) }, ${ subHelp(p) })(using $schema) }
-              val base: Expr[NamedArgsParser[Option[t]]] =
-                '{ NamedArgsParser.named(${ Expr(p.longName) }, $valueParser, ${ shortNameExpr(p.shortName) }, ${ subHelp(p) }).optional }
-              base
-            case _ => report.errorAndAbort(s"Unable to build optional named param for ${p.raw.typeRepr.showAnsiCode}")
+          val valueParser: Expr[PositionalArgsParser[?]] =
+            buildValueParser(p.longName, inner, p)
+          '{ NamedArgsParser.named(${ Expr(p.longName) }, $valueParser, ${ shortNameExpr(p.shortName) }, ${ subHelp(p) }).optional }
         case None =>
-          type T = p.raw.T
-          val valueParser: Expr[PositionalArgsParser[T]] =
-            '{ PositionalArgsParser.single(${ Expr(p.longName) }, ${ subHelp(p) })(using ${ p.schema }) }
-          val base: Expr[NamedArgsParser[T]] =
-            '{ NamedArgsParser.named(${ Expr(p.longName) }, $valueParser, ${ shortNameExpr(p.shortName) }, ${ subHelp(p) }) }
-          withDefault(base, ownerName, p, defaultSyms)
+          p.raw.typeRepr.asTypeOf match
+            case '[t] =>
+              val valueParser: Expr[PositionalArgsParser[?]] =
+                buildValueParser(p.longName, p.raw.typeRepr, p)
+              val base: Expr[NamedArgsParser[t]] =
+                '{ NamedArgsParser.named(${ Expr(p.longName) }, $valueParser.asInstanceOf[PositionalArgsParser[t]], ${ shortNameExpr(p.shortName) }, ${ subHelp(p) }) }
+              withDefault(base, ownerName, p, defaultSyms)
+            case _ => report.errorAndAbort(s"Unable to build named param for ${p.raw.typeRepr.showAnsiCode}", p.raw.valPosition)
     case p: ParamRepr.Flag =>
       '{ NamedArgsParser.flag(${ Expr(p.longName) }, ${ Expr(p.absentValue) }, help = ${ subHelp(p) }) }
     case p: ParamRepr.Toggle =>
