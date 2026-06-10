@@ -36,9 +36,13 @@ object ParamRepr {
         new Positional(raw)(longName, make)
       case named() =>
         val longName: String = raw.annot_longName.fold(raw.valDef.name)(_.name)
-        val shortName: Defaultable.Opt[Char] = ??? // FIX-PRE-MERGE (KR) :
-        val make: Expr[PositionalArgsParser.Builder[raw.T]] = doSummon
-        new Named(raw)(longName, shortName, make)
+        val resolvedShortName: Defaultable.Opt[Char] = raw.annot_shortName match
+          case None                              => Defaultable.Default
+          case Some(_: oxygen.cli.shortName.none) => Defaultable.Explicit(None)
+          case Some(_: oxygen.cli.shortName.auto) => Defaultable.Default
+          case Some(s: oxygen.cli.shortName)      => Defaultable.Explicit(Some(s.name))
+        val make: Expr[NamedArgsParser.Builder[raw.T]] = doSummon
+        new Named(raw)(longName, resolvedShortName, make)
       case config(env) =>
         val decoder: Expr[JsonDecoder[raw.T]] = doSummon
         new Config(raw)(env, decoder)
@@ -68,7 +72,7 @@ object ParamRepr {
   )(
       val longName: String,
       val shortName: Defaultable.Opt[Char],
-      val make: Expr[PositionalArgsParser.Builder[raw.T]],
+      val make: Expr[NamedArgsParser.Builder[raw.T]],
   ) extends ParamRepr
 
   final class Custom(
