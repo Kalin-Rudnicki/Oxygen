@@ -37,9 +37,9 @@ object Arg {
       rawAfter <- after.traverse(RawArg.parse)
       groupedBefore <- GroupedArg.parse(rawBefore)
       groupedAfter <- GroupedArg.parse(rawAfter)
-      (positional, named) <- classify(groupedBefore)
-      positionalAfter <- classifyPositional(groupedAfter)
-    } yield Args(PositionalArgs(positional ::: positionalAfter), NamedArgs(named))
+      (positionalBefore, namedBefore) <- classify(groupedBefore)
+      (positionalAfter, namedAfter) <- classify(groupedAfter)
+    } yield Args(PositionalArgs(positionalBefore ::: positionalAfter), NamedArgs(namedBefore ::: namedAfter))
 
   def splitOnRaw_--(stringArgs: List[String]): (Boolean, List[String], List[String]) = {
     @tailrec
@@ -91,9 +91,6 @@ object Arg {
 
     loop(grouped, Nil, Nil)
   }
-
-  private def classifyPositional(grouped: List[GroupedArg]): Either[String, List[PositionalArg]] =
-    classify(grouped).map(_._1)
 
   private def parseNamedValues(queue: List[GroupedArg]): Either[String, (List[PositionalArg], List[GroupedArg])] = {
     @tailrec
