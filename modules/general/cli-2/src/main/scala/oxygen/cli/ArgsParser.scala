@@ -178,6 +178,64 @@ object PositionalArgsParser {
   trait Builder[+A] {
     def build(name: String, help: SubHelp): PositionalArgsParser[A]
   }
+  object Builder extends BuilderLowPriority.LowPriority1
+
+  object BuilderLowPriority {
+
+    trait LowPriority1 extends LowPriority2 {
+
+      given option: [A] => (builder: Builder[A]) => Builder[Option[A]] = new Builder[Option[A]] {
+        override def build(name: String, help: SubHelp): PositionalArgsParser[Option[A]] =
+          builder.build(name, help).optional
+      }
+
+      given list: [A] => (builder: Builder[A]) => Builder[List[A]] = new Builder[List[A]] {
+        override def build(name: String, help: SubHelp): PositionalArgsParser[List[A]] =
+          builder.build(name, help).repeated
+      }
+
+      given nonEmptyList: [A] => (builder: Builder[A]) => Builder[NonEmptyList[A]] = new Builder[NonEmptyList[A]] {
+        override def build(name: String, help: SubHelp): PositionalArgsParser[NonEmptyList[A]] =
+          builder.build(name, help).repeatedNel
+      }
+
+      given tuple2: [A, B] => (ba: Builder[A], bb: Builder[B]) => Builder[(A, B)] = new Builder[(A, B)] {
+        override def build(name: String, help: SubHelp): PositionalArgsParser[(A, B)] =
+          ba.build(s"$name-0", help) ^>> bb.build(s"$name-1", help)
+      }
+
+      given tuple3: [A, B, C] => (ba: Builder[A], bb: Builder[B], bc: Builder[C]) => Builder[(A, B, C)] = new Builder[(A, B, C)] {
+        override def build(name: String, help: SubHelp): PositionalArgsParser[(A, B, C)] =
+          (ba.build(s"$name-0", help) ^>> bb.build(s"$name-1", help) ^>> bc.build(s"$name-2", help))
+            .map(TupleHelpers.fromNested3[A, B, C])
+      }
+
+      given tuple4: [A, B, C, D] => (ba: Builder[A], bb: Builder[B], bc: Builder[C], bd: Builder[D]) => Builder[(A, B, C, D)] =
+        new Builder[(A, B, C, D)] {
+          override def build(name: String, help: SubHelp): PositionalArgsParser[(A, B, C, D)] =
+            (ba.build(s"$name-0", help) ^>> bb.build(s"$name-1", help) ^>> bc.build(s"$name-2", help) ^>> bd.build(s"$name-3", help))
+              .map(TupleHelpers.fromNested4[A, B, C, D])
+        }
+
+    }
+
+    trait LowPriority2 extends LowPriority3 {
+
+      given plainText: [A: PlainTextSchema] => Builder[A] = new Builder[A] {
+        override def build(name: String, help: SubHelp): PositionalArgsParser[A] = single(name, help)
+      }
+
+    }
+
+    trait LowPriority3 {
+
+      given json: [A: JsonSchema] => Builder[A] = new Builder[A] {
+        override def build(name: String, help: SubHelp): PositionalArgsParser[A] = single(name, help)
+      }
+
+    }
+
+  }
 
   def single[A](name: String, help: SubHelp)(using schema: SchemaLike[A]): PositionalArgsParser[A] = Single(name, help, schema)
 
@@ -282,14 +340,6 @@ object PositionalArgsParser {
   val unit: PositionalArgsParser[Unit] = Empty
   def const[A](value: A): PositionalArgsParser[A] = Const(value)
 
-  given plainTextBuilder: [A: PlainTextSchema as schema] => Builder[A] = new Builder[A] {
-    override def build(name: String, help: SubHelp): PositionalArgsParser[A] = single(name, help)(using schema)
-  }
-
-  given jsonBuilder: [A: JsonSchema as schema] => Builder[A] = new Builder[A] {
-    override def build(name: String, help: SubHelp): PositionalArgsParser[A] = single(name, help)(using schema)
-  }
-
 }
 
 sealed trait NamedArgsParser[+A] extends ArgsParser[A] {
@@ -313,7 +363,7 @@ sealed trait NamedArgsParser[+A] extends ArgsParser[A] {
 object NamedArgsParser {
 
   trait Builder[+A] {
-    def build(name: String, help: SubHelp): NamedArgsParser[A]
+    def build(name: String, help: SubHelp, shortName: Option[Char] = None): NamedArgsParser[A]
   }
   object Builder extends BuilderLowPriority.LowPriority1
 
@@ -321,15 +371,29 @@ object NamedArgsParser {
 
     trait LowPriority1 extends LowPriority2 {
 
-      given option: [A] => NamedArgsParser.Builder[Option[A]] = ???
-      given list: [A] => NamedArgsParser.Builder[List[A]] = ???
-      given nonEmptyList: [A] => NamedArgsParser.Builder[NonEmptyList[A]] = ???
+      given option: [A] => (builder: Builder[A]) => Builder[Option[A]] = new Builder[Option[A]] {
+        override def build(name: String, help: SubHelp, shortName: Option[Char]): NamedArgsParser[Option[A]] =
+          builder.build(name, help, shortName).optional
+      }
+
+      given list: [A] => (pos: PositionalArgsParser.Builder[A]) => Builder[List[A]] = new Builder[List[A]] {
+        override def build(name: String, help: SubHelp, shortName: Option[Char]): NamedArgsParser[List[A]] =
+          named(name, pos.build(name, help).repeated, shortName, help).withDefault(Nil)
+      }
+
+      given nonEmptyList: [A] => (pos: PositionalArgsParser.Builder[A]) => Builder[NonEmptyList[A]] = new Builder[NonEmptyList[A]] {
+        override def build(name: String, help: SubHelp, shortName: Option[Char]): NamedArgsParser[NonEmptyList[A]] =
+          named(name, pos.build(name, help).repeatedNel, shortName, help)
+      }
 
     }
 
     trait LowPriority2 {
 
-      given id: [A] => NamedArgsParser.Builder[A] = ???
+      given fromPositional: [A] => (builder: PositionalArgsParser.Builder[A]) => Builder[A] = new Builder[A] {
+        override def build(name: String, help: SubHelp, shortName: Option[Char]): NamedArgsParser[A] =
+          named(name, builder.build(name, help), shortName, help)
+      }
 
     }
 
@@ -515,14 +579,6 @@ object NamedArgsParser {
         case head :: tail => loop(tail, head :: stack)
         case Nil          => None
     loop(args, Nil)
-  }
-
-  given plainTextBuilder: [A: PlainTextSchema as schema] => Builder[A] = new Builder[A] {
-    override def build(name: String, help: SubHelp): NamedArgsParser[A] = named(name, PositionalArgsParser.single(name, help)(using schema), help = help)
-  }
-
-  given jsonBuilder: [A: JsonSchema as schema] => Builder[A] = new Builder[A] {
-    override def build(name: String, help: SubHelp): NamedArgsParser[A] = named(name, PositionalArgsParser.single(name, help)(using schema), help = help)
   }
 
 }
