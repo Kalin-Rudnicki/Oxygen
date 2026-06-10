@@ -44,11 +44,14 @@ object AutoComplete {
        |$functionName() {
        |  local comp__join_str=$$'\\n-----separator-----\\n'
        |  local comp__num_words=$$(( $${#COMP_WORDS[@]} - 1 ))
+       |  local comp__command=""
        |  local comp__acc_args=""
        |  local comp__arg_idx=$$(( COMP_CWORD - 1 ))
        |
        |  for tmp_word in "$${COMP_WORDS[@]}"; do
-       |    if [[ -z "$$comp__acc_args" ]]; then
+       |    if [[ -z "$$comp__command" ]]; then
+       |      comp__command="$$tmp_word"
+       |    elif [[ -z "$$comp__acc_args" ]]; then
        |      comp__acc_args="$$tmp_word"
        |    else
        |      comp__acc_args="$$comp__acc_args$$comp__join_str$$tmp_word"

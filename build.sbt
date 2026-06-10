@@ -285,6 +285,27 @@ lazy val `oxygen-executable-2`: CrossProject =
       `oxygen-test` % Test,
     )
 
+// FIX-PRE-MERGE (KR) : remove
+lazy val `oxygen-executable-2-test`: Project =
+  project
+    .in(file("modules/general/executable-2-test"))
+    .enablePlugins(AssemblyPlugin)
+    .settings(
+      publishedProjectSettings,
+      name := "oxygen-executable-2",
+      description := "An entry-point for your ZIO applications that provides seamless integration with the `oxygen` ecosystem.",
+      mainClass := Some("oxygen.executable.ExampleApp"),
+      assemblyJarName := "../../../../../target/example-app.jar",
+      assemblyMergeStrategy := {
+        case PathList("META-INF", "native-image", _*) => MergeStrategy.concat
+        case PathList("META-INF", _*)                 => MergeStrategy.discard
+        case _                                        => MergeStrategy.first // Use default for other files
+      },
+    )
+    .dependsOn(
+      `oxygen-executable-2`.jvm % testAndCompile,
+    )
+
 lazy val `oxygen-json`: CrossProject =
   crossProject(JSPlatform, JVMPlatform, NativePlatform)
     .crossType(CrossType.Pure)
