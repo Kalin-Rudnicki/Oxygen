@@ -2,6 +2,7 @@ package oxygen.executable.generic
 
 import oxygen.cli.*
 import oxygen.executable.*
+import oxygen.json.JsonDecoder
 import oxygen.quoted.*
 import scala.quoted.*
 
@@ -27,6 +28,9 @@ object ParamRepr {
         val shortName: Defaultable.Opt[Char] = ??? // FIX-PRE-MERGE (KR) :
         val make: Expr[PositionalArgsParser.Builder[raw.T]] = doSummon
         new Named(raw)(longName, shortName, make)
+      case config(env) =>
+        val decoder: Expr[JsonDecoder[raw.T]] = doSummon
+        new Config(raw)(env, decoder)
       case flag()   => ???
       case toggle() => ???
       case custom() => ???
@@ -52,6 +56,13 @@ object ParamRepr {
       val raw: RawParamRepr,
   )(
       val make: Expr[ArgsParser[raw.T]],
+  ) extends ParamRepr
+
+  final class Config(
+      val raw: RawParamRepr,
+  )(
+      val envVar: String,
+      val decoder: Expr[JsonDecoder[raw.T]],
   ) extends ParamRepr
 
   ///////  ///////////////////////////////////////////////////////////////

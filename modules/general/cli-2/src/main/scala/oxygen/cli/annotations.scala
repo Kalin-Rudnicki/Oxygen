@@ -19,6 +19,7 @@ final case class positional() extends CliFunctionParamType.nonCustom
 final case class named() extends CliFunctionParamType.nonCustom
 final case class flag() extends CliFunctionParamType.nonCustom
 final case class toggle() extends CliFunctionParamType.nonCustom
+final case class config(env: String) extends CliFunctionParamType.nonCustom
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////
 //      Tweaks
