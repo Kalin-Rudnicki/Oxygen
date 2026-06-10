@@ -81,6 +81,22 @@ given CompletionOptions[Hostname] with
 @named host: Hostname
 ```
 
+### Path completion under a base directory
+
+`GlobalPath` is an opaque `String` wrapper whose completion root is a **compile-time string literal**
+(`String & Singleton`). `CompletionOptions` and `PlainTextSchema` givens are derived automatically —
+no boilerplate `given` at the use site.
+
+```scala
+@named config: GlobalPath["./configs"]
+```
+
+With `prod/app` on the command line, tab complete suggests matching entries under `./configs/prod/`.
+Directories get a trailing `/`; paths that escape the base directory are ignored.
+
+For a runtime-provided base, use `RelativePath.under("./configs")` or `CompletionOptions.underBasePath`
+with a plain `String` parameter.
+
 ### Custom parsers (`@custom`)
 
 For full control, provide `given ArgsParser[MyType]` and mark the parameter `@custom`.

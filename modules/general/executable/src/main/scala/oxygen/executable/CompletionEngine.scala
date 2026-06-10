@@ -21,12 +21,15 @@ object CompletionEngine {
 
   private def completeParser(app: CompiledCliApp[?], request: CompletionRequest, value: String): Task[List[String]] =
     if value.isEmpty then
-      ZIO.succeed(
-        CliHelp.mergeCompletions(
-          CliHelp.builtinFlagCompletions(value),
-          CliHelp.paramNameCompletions(app.helpParser.help, value),
-        ),
-      )
+      app.helpParser.complete(request, value).zipWith(app.rootParser.complete(request, value)) { (fromHelp, fromRoot) =>
+        val valueCompletions = (fromHelp ::: fromRoot).filterNot(_.startsWith("-")).distinct
+        if valueCompletions.nonEmpty then valueCompletions
+        else
+          CliHelp.mergeCompletions(
+            CliHelp.builtinFlagCompletions(value),
+            CliHelp.paramNameCompletions(app.helpParser.help, value),
+          )
+      }
     else if value.startsWith("-") then
       app.helpParser.complete(request, value).map(flagCompletions(value, _))
     else
