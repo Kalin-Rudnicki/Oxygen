@@ -13,11 +13,6 @@ object CompletionOptions extends CompletionOptionsLowPriority.LowPriority1 {
     val matched = values.filter(_.toLowerCase.startsWith(low))
     if matched.nonEmpty then matched else values
 
-  def completeList[A](completion: CompletionOptions[A], in: String): List[String] =
-    Unsafe.unsafely {
-      Runtime.default.unsafe.run(completion.completionOptions(in)).getOrThrowFiberFailure().toList
-    }
-
   def helpHints[A](completion: CompletionOptions[A]): List[HelpHint] = completion match
     case FromStrictEnum(se) => HelpHint.EnumValues(se.encodedValues) :: Nil
     case _                  => Nil

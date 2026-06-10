@@ -130,7 +130,7 @@ object AutoComplete {
       j <- getEnvVar[String](CompletionRequest.joinStrEnv)
       args = a.detailedSplit(scala.util.matching.Regex.quote(j).r, true, true).toList
       _ <- ZIO.fail(new RuntimeException(s"bad completion args: expected $n words, got ${args.length}")).unless(args.length == n && i < n)
-      out = app.complete(CompletionRequest(n, i, args, j)).distinct.sorted
+      out <- app.complete(CompletionRequest(n, i, args, j)).map(_.distinct.sorted)
       _ <- Console.printLine(out.mkString(j))
     } yield ()
 

@@ -7,7 +7,7 @@ sealed trait CompiledCliApp[R] {
   def rootParser: ArgsParser[?]
   def helpParser: ArgsParser[?]
   def subCommands: Map[String, CompiledCliApp[R]] = Map.empty
-  final def complete(request: CompletionRequest): List[String] = CompletionEngine.complete(this, request)
+  final def complete(request: CompletionRequest): Task[List[String]] = CompletionEngine.complete(this, request)
   def run(args: List[String]): URIO[Scope, ExitCode]
 }
 object CompiledCliApp {
