@@ -371,6 +371,25 @@ object NamedArgsParser {
 
     trait LowPriority1 extends LowPriority2 {
 
+      given option: [A: PlainTextSchema] => Builder[Option[A]] = new Builder[Option[A]] {
+        override def build(name: String, help: SubHelp, shortName: Option[Char]): NamedArgsParser[Option[A]] =
+          named(name, PositionalArgsParser.single(name, help), shortName, help).optional
+      }
+
+      given list: [A: PlainTextSchema] => Builder[List[A]] = new Builder[List[A]] {
+        override def build(name: String, help: SubHelp, shortName: Option[Char]): NamedArgsParser[List[A]] =
+          named(name, PositionalArgsParser.single(name, help).repeated, shortName, help).withDefault(Nil)
+      }
+
+      given nonEmptyList: [A: PlainTextSchema] => Builder[NonEmptyList[A]] = new Builder[NonEmptyList[A]] {
+        override def build(name: String, help: SubHelp, shortName: Option[Char]): NamedArgsParser[NonEmptyList[A]] =
+          named(name, PositionalArgsParser.single(name, help), shortName, help).repeatedNel
+      }
+
+    }
+
+    trait LowPriority2 extends LowPriority3 {
+
       given option: [A] => (builder: Builder[A]) => Builder[Option[A]] = new Builder[Option[A]] {
         override def build(name: String, help: SubHelp, shortName: Option[Char]): NamedArgsParser[Option[A]] =
           builder.build(name, help, shortName).optional
@@ -388,7 +407,7 @@ object NamedArgsParser {
 
     }
 
-    trait LowPriority2 {
+    trait LowPriority3 {
 
       given fromPositional: [A] => (builder: PositionalArgsParser.Builder[A]) => Builder[A] = new Builder[A] {
         override def build(name: String, help: SubHelp, shortName: Option[Char]): NamedArgsParser[A] =
@@ -450,7 +469,11 @@ object NamedArgsParser {
           valueParser.parsePositionalArgs(values) match
             case CliParseResult.Success(value, remaining) =>
               if remaining.args.isEmpty then CliParseResult.Success(value, NamedArgs(rest))
-              else CliParseResult.Fail(CliParseError.NamedUnexpectedValues(longName, NonEmptyList.unsafeFromList(remaining.args)), help)
+              else
+                CliParseResult.Fail(
+                  CliParseError.NamedUnexpectedValues(longName, NonEmptyList.unsafeFromList(remaining.args)),
+                  help.withHints(HelpHint.Error("Requires a single value") :: Nil),
+                )
             case fail @ CliParseResult.Fail(_, _) => fail
         case None => CliParseResult.Fail(CliParseError.MissingRequiredNamed(longName), help.withHints(HelpHint.Error("Missing required param") :: Nil))
     override def complete(request: CompletionRequest, value: String): List[String] =

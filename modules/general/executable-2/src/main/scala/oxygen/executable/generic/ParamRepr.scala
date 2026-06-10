@@ -3,6 +3,7 @@ package oxygen.executable.generic
 import oxygen.cli.*
 import oxygen.executable.*
 import oxygen.json.JsonDecoder
+import oxygen.predef.core.*
 import oxygen.quoted.*
 import oxygen.schema.PlainTextSchema
 import oxygen.schema.PlainTextSchema.given
@@ -36,10 +37,10 @@ object ParamRepr {
 
     raw.annot_paramType match {
       case positional() =>
-        val longName: String = raw.annot_longName.fold(raw.valDef.name)(_.name)
+        val longName: String = raw.annot_longName.fold(raw.valDef.name)(_.name.camelToDash)
         new Positional(raw)(longName)
       case named() =>
-        val longName: String = raw.annot_longName.fold(raw.valDef.name)(_.name)
+        val longName: String = raw.annot_longName.fold(raw.valDef.name)(_.name.camelToDash)
         val resolvedShortName: Defaultable.Opt[Char] = raw.annot_shortName match
           case None                               => Defaultable.Default
           case Some(_: oxygen.cli.shortName.none) => Defaultable.Explicit(None)
