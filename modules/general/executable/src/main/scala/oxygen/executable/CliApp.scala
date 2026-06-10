@@ -6,7 +6,7 @@ abstract class CliApp[RequiredEnv, ProvidedEnv] {
 
   final type FullEnv = RequiredEnv & ProvidedEnv
 
-  final type Effect = RIO[FullEnv, Unit | ExitCode]
+  final type Effect = RIO[FullEnv & Scope, Unit | ExitCode]
   final type EnvLayer = RLayer[RequiredEnv, ProvidedEnv]
   final type SubApp = CliApp[? <: FullEnv, ?]
 
