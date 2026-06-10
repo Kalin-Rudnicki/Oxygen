@@ -3,6 +3,7 @@ package oxygen.executable.generic
 import oxygen.executable.*
 import oxygen.meta.given
 import oxygen.meta.k0.*
+import oxygen.predef.core.*
 import oxygen.quoted.*
 import scala.quoted.*
 import zio.*
@@ -37,7 +38,16 @@ private[generic] final class RawCliAppRepr[A](val isRoot: Boolean)(using quotes:
       statement <- classDef.body
       defDef <- statement.narrowOpt[DefDef]
       annot <- defDef.symbol.annotations.optionalOfValue[CliFunctionAnnotation]
-    } yield new RawDefRepr(defDef, annot, gen.pos)
+    } yield new RawDefRepr(defDef, annot.some, gen.pos)
+
+  val envDef: Option[RawDefRepr] =
+    (for {
+      statement <- classDef.body
+      defDef <- statement.narrowOpt[DefDef] if defDef.name == "env"
+    } yield new RawDefRepr(defDef, None, gen.pos)) match
+      case head :: Nil => head.some
+      case Nil         => None
+      case _           => report.errorAndAbort("Multiple `def env` not allowed...")
 
   // TODO (KR) : these need to match [[CliApp]]
   type FullEnv = ProvidedEnv & RequiredEnv

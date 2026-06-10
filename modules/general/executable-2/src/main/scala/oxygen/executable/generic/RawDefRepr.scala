@@ -5,12 +5,14 @@ import oxygen.predef.core.*
 import oxygen.quoted.*
 import scala.quoted.*
 
-private[generic] final class RawDefRepr(val defDef: DefDef, val annot: CliFunctionAnnotation, val parentPos: Position)(using quotes: Quotes) {
+private[generic] final class RawDefRepr(val defDef: DefDef, val optAnnot: Option[CliFunctionAnnotation], val parentPos: Position)(using quotes: Quotes) {
 
   val defPosition: Position = defDef.symbol.pos.getOrElse(defDef.pos)
 
   def failAtDef(msg: String): Nothing = report.errorAndAbort(msg, defPosition)
 
+  def annot: CliFunctionAnnotation = optAnnot.getOrElse { report.errorAndAbort("Internal Defect : None.get on RawDefRepr without CliFunctionAnnotation")}
+  
   type ReturnType
 
   val returnTypeRepr: TypeRepr = defDef.returnTpt.tpe.dealiasKeepOpaques
