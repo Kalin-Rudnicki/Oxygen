@@ -78,22 +78,22 @@ object ToggleLongNameRepr {
     val hasNameAnnot: Boolean = trueName.isDefined || falseName.isDefined
 
     if hasPrefixAnnot && hasNameAnnot then
-      Left("Cannot combine longName prefix annotations (truePrefix/falsePrefix) with explicit longName annotations (trueName/falseName)")
+      "Cannot combine longName prefix annotations (truePrefix/falsePrefix) with explicit longName annotations (trueName/falseName)".asLeft
 
     else if hasNameAnnot then
       (trueName, falseName) match
         case (Some(t), Some(f)) => Explicit(t, f).asRight
-        case _                  => Left("Toggle requires both trueName and falseName when using explicit long names")
+        case _                  => "Toggle requires both trueName and falseName when using explicit long names".asLeft
 
     else if hasPrefixAnnot then
       (truePrefix, falsePrefix) match
-        case (Some(tp), None)    => PrefixTrue(tp, baseName).asRight
-        case (None, Some(fp))    => PrefixFalse(fp, baseName).asRight
+        case (Some(tp), None)     => PrefixTrue(tp, baseName).asRight
+        case (None, Some(fp))     => PrefixFalse(fp, baseName).asRight
         case (Some(tp), Some(fp)) => PrefixBoth(tp, fp, baseName).asRight
-        case (None, None)        => Left("Internal Defect : prefix annotations present but both are None")
+        case (None, None)         => "Internal Defect : prefix annotations present but both are None".asLeft
 
     else
-      Left("Toggle requires either prefix annotations (truePrefix/falsePrefix) or explicit long names (trueName/falseName)")
+      "Toggle requires either prefix annotations (truePrefix/falsePrefix) or explicit long names (trueName/falseName)".asLeft
 
   }
 

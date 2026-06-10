@@ -18,6 +18,17 @@ object ParamRepr {
     def doSummon[T: Type]: Expr[T] =
       Implicits.searchOption[T].getOrElse { raw.failAtVal(s"Missing given instance: ${TypeRepr.of[T].showAnsiCode}") }
 
+    def extractToggleLongName: ToggleLongNameRepr =
+      ToggleLongNameRepr
+        .resolve(
+          baseName = raw.annot_longName.fold(raw.valDef.name)(_.name),
+          truePrefix = raw.annot_longName_truePrefix.map(_.prefix),
+          falsePrefix = raw.annot_longName_falsePrefix.map(_.prefix),
+          trueName = raw.annot_longName_trueName.map(_.name),
+          falseName = raw.annot_longName_falseName.map(_.name),
+        )
+        .fold(raw.failAtVal(_), identity)
+
     raw.annot_paramType match {
       case positional() =>
         val longName: String = raw.annot_longName.fold(raw.valDef.name)(_.name)
@@ -32,7 +43,8 @@ object ParamRepr {
         val decoder: Expr[JsonDecoder[raw.T]] = doSummon
         new Config(raw)(env, decoder)
       case flag()   => ???
-      case toggle() => ???
+      case toggle() =>
+        new Toggle(raw)(extractToggleLongName)
       case custom() => ???
     }
   }
@@ -63,6 +75,12 @@ object ParamRepr {
   )(
       val envVar: String,
       val decoder: Expr[JsonDecoder[raw.T]],
+  ) extends ParamRepr
+
+  final class Toggle(
+      val raw: RawParamRepr,
+  )(
+      val longNames: ToggleLongNameRepr,
   ) extends ParamRepr
 
   ///////  ///////////////////////////////////////////////////////////////
