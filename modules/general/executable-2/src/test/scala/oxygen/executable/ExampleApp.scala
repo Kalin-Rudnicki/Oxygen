@@ -20,6 +20,7 @@ final case class ExampleApp(
   @command
   def server(
       @named port: Int = 8080,
+      @named port2: Int = 8080,
   ): Effect =
     ZIO.logInfo(s"Hello Server! (port: $port)")
 

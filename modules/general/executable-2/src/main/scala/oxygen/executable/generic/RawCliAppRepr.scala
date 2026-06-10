@@ -60,4 +60,20 @@ private[generic] final class RawCliAppRepr[A](val isRoot: Boolean)(using quotes:
   val envLayerTypeRepr: TypeRepr = TypeRepr.of[EnvLayer].simplified
   val subAppTypeRepr: TypeRepr = TypeRepr.of[SubApp].simplified
 
+  private val defaultReg = "^([^$]+)\\$default\\$(\\d+)$".r
+  val defaultSyms: Map[(String, Int), Tree] =
+    gen.sym.declaredMethods.flatMap { sym =>
+      sym.name match
+        case defaultReg(name, idx) =>
+          val defDef: DefDef = sym.tree.narrow[DefDef]
+          val rhs: Term = defDef.rhs.getOrElse { report.errorAndAbort("No default RHS?", sym.pos.getOrElse(gen.pos)) }
+          ((name, idx.toInt - 1), rhs).some
+        case _ =>
+          None
+    }.toMap
+
+  report.errorAndAbort(
+    defaultSyms.mkString(", "),
+  )
+
 }
