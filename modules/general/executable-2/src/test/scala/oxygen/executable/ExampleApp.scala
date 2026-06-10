@@ -31,7 +31,11 @@ final case class ExampleApp(
   def nested2(@named n2: Double): Nested2 = Nested2(n2)
 
   @command
-  def nested3(@positional @longName("n-3") n3: Double): Nested2 = Nested2(n3)
+  def nested3(
+      @positional @longName("n-3")
+      @doc("This is some", "documentation, ya know!?")
+      n3: Double,
+  ): Nested2 = Nested2(n3)
 
 }
 object ExampleApp extends CliApp.Executable[ExampleApp]

@@ -28,8 +28,9 @@ object CliApp {
     private final def runApp(args: List[String]): URIO[Scope, ExitCode] =
       app.app.run(args).catchAllCause(cause => Console.printLine(cause.prettyPrint).orDie.as(ExitCode.failure))
 
-    override final def run: URIO[ZIOAppArgs & Scope, Unit] = {
+    override final def run: URIO[ZIOAppArgs & Scope, Unit] =
       for {
+        _ <- CliAppLogging.install
         rawArgs <- ZIOAppArgs.getArgs
         exitCode <- rawArgs.toList match
           case "--:" :: builtinRest => runBuiltin(builtinRest)
@@ -40,7 +41,6 @@ object CliApp {
           case (false, ExitCode(0)) => ZIO.unit // TODO (KR) : do something different?
           case (false, _)           => ZIO.unit // TODO (KR) : do something different?
       } yield ()
-    }
 
   }
 
