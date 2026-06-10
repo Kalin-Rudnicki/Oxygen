@@ -676,6 +676,7 @@ lazy val `example`: Project =
       `example-domain`,
       `example-domain-impl`,
       `example-web-server`,
+      `example-app`,
       // js-only
       `example-ui-web`,
       `example-ui-electron`,
@@ -793,6 +794,28 @@ lazy val `example-web-server`: Project =
       `oxygen-executable`.jvm % testAndCompile,
       `example-api`.jvm % testAndCompile,
       `example-domain-impl` % testAndCompile,
+    )
+
+lazy val `example-app`: Project =
+  project
+    .in(file("example/apps/example-app"))
+    .enablePlugins(AssemblyPlugin)
+    .settings(
+      nonPublishedProjectSettings,
+      scalacOptions += "-experimental",
+      name := "oxygen-example-app",
+      description := "oxygen-example-app",
+      mainClass := Some("oxygen.example.exampleApp.ShowcaseApp"),
+      assemblyJarName := "../../../../../target/artifacts/jars/example-app.jar",
+      assemblyMergeStrategy := {
+        case PathList("META-INF", "native-image", _*) => MergeStrategy.concat
+        case PathList("META-INF", _*)                 => MergeStrategy.discard
+        case _                                        => MergeStrategy.first
+      },
+    )
+    .dependsOn(
+      `oxygen-executable`.jvm % testAndCompile,
+      `oxygen-schema`.jvm % testAndCompile,
     )
 
 val webComp: InputKey[Unit] = inputKey("webComp")

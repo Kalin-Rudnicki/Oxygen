@@ -1,6 +1,14 @@
 package oxygen.cli
 
-final case class CompletionRequest(numWords: Int, argIdx: Int, args: List[String], joinStr: String)
+final case class CompletionRequest(numWords: Int, argIdx: Int, args: List[String], joinStr: String) {
+
+  def currentValue: String = args.lift(argIdx).getOrElse("")
+
+  def prefixArgs: List[String] = args.take(argIdx)
+
+  def toArgs: Either[String, Args] = Args.parse(args)
+
+}
 object CompletionRequest {
   val numWordsEnv = "OXYGEN_CLI_COMPLETE__NUM_WORDS"
   val argIdxEnv = "OXYGEN_CLI_COMPLETE__ARG_IDX"

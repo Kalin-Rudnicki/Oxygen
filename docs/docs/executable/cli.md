@@ -13,6 +13,10 @@ and the `CliApp` base class.
 
 A class may have **either** one `@execute` **or** one or more `@command` methods — not both.
 
+Command methods return `Effect` (`RIO[…, Unit | ExitCode]`) or `EffectE[E]` (`ZIO[…, E, Unit | ExitCode]`
+with `E <: Throwable`) when you want a typed error channel. See
+[Command result types](index.md#command-result-types-effect-and-effecte) in the overview.
+
 ## Parameter annotations (`oxygen.cli`)
 
 | Annotation | CLI shape | Notes |
