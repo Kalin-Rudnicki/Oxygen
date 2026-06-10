@@ -251,6 +251,7 @@ lazy val `oxygen-cli-2`: CrossProject =
     )
     .dependsOn(
       `oxygen-schema` % testAndCompile,
+      `oxygen-zio` % testAndCompile,
       `oxygen-test` % Test,
     )
 
@@ -281,7 +282,6 @@ lazy val `oxygen-executable-2`: CrossProject =
     )
     .dependsOn(
       `oxygen-cli-2` % testAndCompile,
-      `oxygen-zio` % testAndCompile,
       `oxygen-test` % Test,
     )
 
