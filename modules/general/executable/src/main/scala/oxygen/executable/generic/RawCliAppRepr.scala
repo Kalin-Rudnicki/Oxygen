@@ -30,7 +30,7 @@ private[generic] final class RawCliAppRepr[A](val isRoot: Boolean)(using quotes:
 
   // TODO (KR) : these need to match [[CliApp]]
   type FullEnv = ProvidedEnv & RequiredEnv
-  type Effect = RIO[FullEnv, Unit | ExitCode]
+  type Effect = RIO[FullEnv & Scope, Unit | ExitCode]
   type EnvLayer = RLayer[RequiredEnv, ProvidedEnv]
   type SubApp = CliApp[? <: FullEnv, ?]
 
