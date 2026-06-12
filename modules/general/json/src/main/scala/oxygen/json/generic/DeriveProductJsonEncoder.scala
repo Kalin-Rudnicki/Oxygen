@@ -40,11 +40,46 @@ final class DeriveProductJsonEncoder[A](
     '{ ${ fields.seqToExpr }.flatten }
   }
 
-  override def derive: Expr[JsonEncoder.ObjectEncoder[A]] =
-    '{
-      new JsonEncoder.ObjectEncoder[A] {
-        override def encodeJsonObjectFields(value: A): Growable[(String, Json)] = ${ makeEncodeObjectFields('value) }
+  private def makeEncodeSplitObjectFields(value: Expr[A]): Expr[Growable[(String, Ior[PlainTextJson, SecretJson])]] = {
+    val fields: Growable[Expr[Growable[(String, Ior[PlainTextJson, SecretJson])]]] =
+      generic.mapChildren.mapExpr[Growable[(String, Ior[PlainTextJson, SecretJson])]] { [a] => (_, _) ?=> (field: generic.Field[a]) =>
+
+        val fieldNameExpr: Expr[String] = Expr(field.annotations.optionalOfValue[jsonField].fold(field.name)(_.name))
+        val instanceExpr: Expr[JsonEncoder[a]] = field.getExpr(instances)
+        val fieldExpr: Expr[a] = field.fromParent(value)
+        val isFlattened: Boolean = field.annotations.optionalOf[jsonFlatten].nonEmpty
+
+        if isFlattened then
+          // TODO (KR) : is there a more type-safe & compile-time way to do this?
+          '{
+            $instanceExpr.toObjectEncoderOrThrow.encodeSplitJsonObjectFields($fieldExpr)
+          }
+        else
+          '{
+            if $instanceExpr.addToObject($fieldExpr) then
+              Growable.single {
+                $fieldNameExpr ->
+                  $instanceExpr.encodeSplitJsonAST($fieldExpr)
+              }
+            else
+              Growable.empty
+          }
       }
-    }
+
+    '{ ${ fields.seqToExpr }.flatten }
+  }
+
+  override def derive: Expr[JsonEncoder.ObjectEncoder[A]] = {
+    val baseExpr: Expr[JsonEncoder.ObjectEncoder[A]] =
+      '{
+        new JsonEncoder.ObjectEncoder[A] {
+          override def encodeJsonObjectFields(value: A): Growable[(String, Json)] = ${ makeEncodeObjectFields('value) }
+          override def encodeSplitJsonObjectFields(value: A): Growable[(String, Ior[PlainTextJson, SecretJson])] = ${ makeEncodeSplitObjectFields('value) }
+        }
+      }
+    val isPlain: Boolean = generic.annotations.optionalOf[jsonSecret].isEmpty
+    if isPlain then baseExpr
+    else '{ $baseExpr.secret }
+  }
 
 }

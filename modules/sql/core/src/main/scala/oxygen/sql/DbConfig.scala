@@ -1,6 +1,6 @@
 package oxygen.sql
 
-import oxygen.json.JsonCodec
+import oxygen.json.{jsonSecret, JsonCodec}
 import oxygen.predef.core.*
 import oxygen.zio.instances.given
 import zio.*
@@ -22,6 +22,7 @@ object DbConfig {
     def jdbcUrl(dbUrlPrefix: String): String = s"jdbc:$dbUrlPrefix://$host:$port/$database"
   }
 
+  @jsonSecret
   final case class Credentials(
       username: String,
       password: String,
