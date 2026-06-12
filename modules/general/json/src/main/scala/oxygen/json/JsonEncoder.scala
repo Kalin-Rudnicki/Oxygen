@@ -8,12 +8,29 @@ import oxygen.core.typeclass.{NonEmpty, SeqOps}
 import oxygen.json.generic.*
 import oxygen.meta.k0.*
 import oxygen.predef.core.*
+import oxygen.quoted.ValDef
 import scala.quoted.*
 import scala.reflect.ClassTag
 
 trait JsonEncoder[A] {
 
   def encodeJsonAST(value: A): Json
+  def encodeSplitJsonAST(value: A): Ior[PlainTextJson, SecretJson]
+
+  final def encodeSplitRoot(value: A): (PlainTextJson, SecretJson) = encodeSplitJsonAST(value) match
+    case Ior.Both(left, right) => (left, right)
+    case Ior.Left(left)        => (left, SecretJsonObject(ArraySeq.empty))
+    case Ior.Right(right)      => (PlainTextJsonObject(ArraySeq.empty), right)
+
+  final def encodeSplitRootCompact(value: A): (PlainTextJsonFormattedString, SecretJsonFormattedString) = {
+    val (plainText, secret) = encodeSplitRoot(value)
+    (PlainTextJsonFormattedString.wrap(plainText.showCompact), SecretJsonFormattedString.wrap(secret.showCompact))
+  }
+
+  final def encodeSplitRootPretty(value: A): (PlainTextJsonFormattedString, SecretJsonFormattedString) = {
+    val (plainText, secret) = encodeSplitRoot(value)
+    (PlainTextJsonFormattedString.wrap(plainText.showPretty), SecretJsonFormattedString.wrap(secret.showPretty))
+  }
 
   def addToObject(value: A): Boolean = true
 
@@ -41,6 +58,8 @@ trait JsonEncoder[A] {
   final def toObjectEncoderOrThrow: JsonEncoder.ObjectEncoder[A] = this match
     case self: JsonEncoder.ObjectEncoder[A] => self
     case _                                  => throw new RuntimeException(s"Not a `JsonEncoder.ObjectEncoder`: ${this.getClass.getName}\n$this")
+
+  def secret: JsonEncoder.Secret[A] = JsonEncoder.Secret.fromJsonEncoder(this)
 
 }
 object JsonEncoder extends Derivable[JsonEncoder.ObjectEncoder], JsonEncoderLowPriority.LowPriority1 {
@@ -117,33 +136,42 @@ object JsonEncoder extends Derivable[JsonEncoder.ObjectEncoder], JsonEncoderLowP
   //      Instances
   //////////////////////////////////////////////////////////////////////////////////////////////////////
 
+  trait Plain[A] extends JsonEncoder[A] {
+    override def encodeSplitJsonAST(value: A): Ior[PlainTextJson, SecretJson] = Ior.Left(PlainTextJson.wrap(encodeJsonAST(value)))
+
+  }
+
   trait ObjectEncoder[A] extends JsonEncoder[A] {
 
     def encodeJsonObjectFields(value: A): Growable[(String, Json)]
+    def encodeSplitJsonObjectFields(value: A): Growable[(String, Ior[PlainTextJson, SecretJson])]
 
     override final def encodeJsonAST(value: A): Json.Obj = Json.Obj(encodeJsonObjectFields(value).toArraySeq)
+    override def encodeSplitJsonAST(value: A): Ior[PlainTextJsonObject, SecretJsonObject] = SecretUtil.splitObjectElems(encodeSplitJsonObjectFields(value).toArraySeq)
 
     override def contramap[B](f: B => A): JsonEncoder.ObjectEncoder[B] =
       JsonEncoder.ContramappedObject(this, f)
 
+    override def secret: JsonEncoder.Secret.ObjectEncoder[A] = JsonEncoder.Secret.fromJsonObjectEncoder(this)
+
   }
 
-  final class AnyJsonEncoder[A <: Json] extends JsonEncoder[A] {
+  final class AnyJsonEncoder[A <: Json] extends JsonEncoder.Plain[A] {
     override def encodeJsonAST(value: A): Json =
       value
   }
 
-  object BigDecimalEncoder extends JsonEncoder[BigDecimal] {
+  object BigDecimalEncoder extends JsonEncoder.Plain[BigDecimal] {
     override def encodeJsonAST(value: BigDecimal): Json =
       Json.number(value)
   }
 
-  object StringEncoder extends JsonEncoder[String] {
+  object StringEncoder extends JsonEncoder.Plain[String] {
     override def encodeJsonAST(value: String): Json =
       Json.string(value)
   }
 
-  object BooleanEncoder extends JsonEncoder[Boolean] {
+  object BooleanEncoder extends JsonEncoder.Plain[Boolean] {
     override def encodeJsonAST(value: Boolean): Json =
       Json.boolean(value)
   }
@@ -152,6 +180,9 @@ object JsonEncoder extends Derivable[JsonEncoder.ObjectEncoder], JsonEncoderLowP
     override def encodeJsonAST(value: Option[A]): Json = value match
       case Some(value) => encoder.encodeJsonAST(value)
       case None        => Json.Null
+    override def encodeSplitJsonAST(value: Option[A]): Ior[PlainTextJson, SecretJson] = value match
+      case Some(value) => encoder.encodeSplitJsonAST(value)
+      case None        => Ior.Left(PlainTextJson.Null)
     override def addToObject(value: Option[A]): Boolean =
       value.nonEmpty
   }
@@ -160,12 +191,18 @@ object JsonEncoder extends Derivable[JsonEncoder.ObjectEncoder], JsonEncoderLowP
     override def encodeJsonAST(value: Nullable[A]): Json = value.unwrap match
       case Some(value) => encoder.encodeJsonAST(value)
       case None        => Json.Null
+    override def encodeSplitJsonAST(value: Nullable[A]): Ior[PlainTextJson, SecretJson] = value.unwrap match
+      case Some(value) => encoder.encodeSplitJsonAST(value)
+      case None        => Ior.Left(PlainTextJson.Null)
   }
 
   final case class SpecifiedEncoder[A](encoder: JsonEncoder[A]) extends JsonEncoder[Specified[A]] {
     override def encodeJsonAST(value: Specified[A]): Json = value match
       case Specified.WasSpecified(value) => encoder.encodeJsonAST(value)
       case Specified.WasNotSpecified     => Json.Null
+    override def encodeSplitJsonAST(value: Specified[A]): Ior[PlainTextJson, SecretJson] = value match
+      case Specified.WasSpecified(value) => encoder.encodeSplitJsonAST(value)
+      case Specified.WasNotSpecified     => Ior.Left(PlainTextJson.Null)
     override def addToObject(value: Specified[A]): Boolean =
       value.toOption.nonEmpty
   }
@@ -173,16 +210,22 @@ object JsonEncoder extends Derivable[JsonEncoder.ObjectEncoder], JsonEncoderLowP
   final case class ArraySeqEncoder[A](encoder: JsonEncoder[A]) extends JsonEncoder[ArraySeq[A]] {
     override def encodeJsonAST(value: ArraySeq[A]): Json =
       Json.Arr(value.map(encoder.encodeJsonAST))
+    override def encodeSplitJsonAST(value: ArraySeq[A]): Ior[PlainTextJson, SecretJson] =
+      SecretUtil.splitArrayElems(value.map(encoder.encodeSplitJsonAST))
   }
 
   final case class MapEncoder[K, V](k: JsonFieldEncoder[K], v: JsonEncoder[V]) extends JsonEncoder[Map[K, V]] {
     override def encodeJsonAST(value: Map[K, V]): Json =
       Json.Obj(ArraySeq.from(value).map { case (_k, _v) => (k.encode(_k), v.encodeJsonAST(_v)) })
+    override def encodeSplitJsonAST(value: Map[K, V]): Ior[PlainTextJson, SecretJson] =
+      SecretUtil.splitObjectElems(ArraySeq.from(value).map { case (_k, _v) => (k.encode(_k), v.encodeSplitJsonAST(_v)) })
   }
 
   final case class OrderedMapEncoder[K, V](k: JsonFieldEncoder[K], v: JsonEncoder[V]) extends JsonEncoder[OrderedMap[K, V]] {
     override def encodeJsonAST(value: OrderedMap[K, V]): Json =
       Json.Obj(value.elements.map { case (_k, _v) => (k.encode(_k), v.encodeJsonAST(_v)) })
+    override def encodeSplitJsonAST(value: OrderedMap[K, V]): Ior[PlainTextJson, SecretJson] =
+      SecretUtil.splitObjectElems(value.elements.map { case (_k, _v) => (k.encode(_k), v.encodeSplitJsonAST(_v)) })
   }
 
   sealed trait TupleEncoder[A <: Tuple] extends JsonEncoder[A] {
@@ -190,6 +233,7 @@ object JsonEncoder extends Derivable[JsonEncoder.ObjectEncoder], JsonEncoderLowP
     val size: Int
 
     private[TupleEncoder] def append(value: A, offset: Int, array: Array[Json]): Unit
+    private[TupleEncoder] def appendSplit(value: A, offset: Int, array: Array[Ior[PlainTextJson, SecretJson]]): Unit
 
     override final def encodeJsonAST(value: A): Json = {
       val array: Array[Json] = new Array[Json](size)
@@ -198,6 +242,12 @@ object JsonEncoder extends Derivable[JsonEncoder.ObjectEncoder], JsonEncoderLowP
       Json.Arr(arraySeq)
     }
 
+    override final def encodeSplitJsonAST(value: A): Ior[PlainTextJson, SecretJson] = {
+      val array: Array[Ior[PlainTextJson, SecretJson]] = new Array[Ior[PlainTextJson, SecretJson]](size)
+      val arraySeq: ArraySeq[Ior[PlainTextJson, SecretJson]] = ArraySeq.unsafeWrapArray(array)
+      appendSplit(value, 0, array)
+      SecretUtil.splitArrayElems(arraySeq)
+    }
   }
   object TupleEncoder {
 
@@ -212,6 +262,13 @@ object JsonEncoder extends Derivable[JsonEncoder.ObjectEncoder], JsonEncoderLowP
             b.append(bValue, offset + 1, array)
         }
 
+      override private[TupleEncoder] def appendSplit(value: A *: B, offset: Int, array: Array[Ior[PlainTextJson, SecretJson]]): Unit =
+        value match {
+          case aValue *: bValue =>
+            array(offset) = a.encodeSplitJsonAST(aValue)
+            b.appendSplit(bValue, offset + 1, array)
+        }
+
     }
 
     case object Empty extends TupleEncoder[EmptyTuple] {
@@ -219,6 +276,9 @@ object JsonEncoder extends Derivable[JsonEncoder.ObjectEncoder], JsonEncoderLowP
       override val size: Int = 0
 
       override private[TupleEncoder] def append(value: EmptyTuple, offset: Int, array: Array[Json]): Unit =
+        ()
+
+      override private[TupleEncoder] def appendSplit(value: EmptyTuple, offset: Int, array: Array[Ior[PlainTextJson, SecretJson]]): Unit =
         ()
 
     }
@@ -235,6 +295,8 @@ object JsonEncoder extends Derivable[JsonEncoder.ObjectEncoder], JsonEncoderLowP
   final case class Contramapped[A, B](encoder: JsonEncoder[A], f: B => A) extends JsonEncoder[B] {
     override def encodeJsonAST(value: B): Json =
       encoder.encodeJsonAST(f(value))
+    override def encodeSplitJsonAST(value: B): Ior[PlainTextJson, SecretJson] =
+      encoder.encodeSplitJsonAST(f(value))
     override def addToObject(value: B): Boolean =
       encoder.addToObject(f(value))
   }
@@ -244,13 +306,71 @@ object JsonEncoder extends Derivable[JsonEncoder.ObjectEncoder], JsonEncoderLowP
       encoder.encodeJsonObjectFields(f(value))
     override def addToObject(value: B): Boolean =
       encoder.addToObject(f(value))
+    override def encodeSplitJsonAST(value: B): Ior[PlainTextJsonObject, SecretJsonObject] = encoder.encodeSplitJsonAST(f(value))
+    override def encodeSplitJsonObjectFields(value: B): Growable[(String, Ior[PlainTextJson, SecretJson])] = encoder.encodeSplitJsonObjectFields(f(value))
   }
 
   final case class MapJsonOutput[A](encoder: JsonEncoder[A], f: Json => Json) extends JsonEncoder[A] {
     override def encodeJsonAST(value: A): Json =
       f(encoder.encodeJsonAST(value))
+    override def encodeSplitJsonAST(value: A): Ior[PlainTextJson, SecretJson] =
+      encoder.encodeSplitJsonAST(value).bimap(
+        plain => PlainTextJson.wrap(f(plain)),
+        secret => SecretJson.wrap(f(secret)),
+      )
     override def addToObject(value: A): Boolean =
       encoder.addToObject(value)
+  }
+
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
+  //      Secret
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
+
+  sealed trait Secret[A] extends JsonEncoder[A] {
+    override def encodeSplitJsonAST(value: A): Ior.Right[SecretJson]
+    override def contramap[B](f: B => A): JsonEncoder.Secret[B] = JsonEncoder.Secret.Contramapped(this, f)
+  }
+  object Secret {
+
+    def fromJsonEncoder[A](underlying: JsonEncoder[A]): JsonEncoder.Secret[A] = underlying match
+      case underlying: JsonEncoder.Secret[A]        => underlying
+      case underlying: JsonEncoder.ObjectEncoder[A] => JsonEncoder.Secret.SecretizeObject(underlying)
+      case underlying                               => JsonEncoder.Secret.SecretizeJson(underlying)
+
+    def fromJsonObjectEncoder[A](underlying: JsonEncoder.ObjectEncoder[A]): JsonEncoder.Secret.ObjectEncoder[A] = underlying match
+      case underlying: JsonEncoder.Secret.ObjectEncoder[A] => underlying
+      case underlying                                      => JsonEncoder.Secret.SecretizeObject(underlying)
+
+    final case class SecretizeJson[A] private[Secret] (underlying: JsonEncoder[A]) extends JsonEncoder.Secret[A] {
+      override def encodeJsonAST(value: A): Json = underlying.encodeJsonAST(value)
+      override def encodeSplitJsonAST(value: A): Ior.Right[SecretJson] = Ior.Right(SecretJson.wrap(encodeJsonAST(value)))
+      override def addToObject(value: A): Boolean = underlying.addToObject(value)
+    }
+
+    final case class Contramapped[A, B](encoder: JsonEncoder.Secret[A], f: B => A) extends JsonEncoder.Secret[B] {
+      override def encodeJsonAST(value: B): Json = encoder.encodeJsonAST(f(value))
+      override def encodeSplitJsonAST(value: B): Ior.Right[SecretJson] = encoder.encodeSplitJsonAST(f(value))
+      override def addToObject(value: B): Boolean = encoder.addToObject(f(value))
+    }
+
+    sealed trait ObjectEncoder[A] extends JsonEncoder.Secret[A], JsonEncoder.ObjectEncoder[A] {
+      override final def encodeSplitJsonAST(value: A): Ior.Right[SecretJsonObject] = Ior.Right(SecretJsonObject.wrap(encodeJsonAST(value)))
+      override def contramap[B](f: B => A): JsonEncoder.Secret.ObjectEncoder[B] = JsonEncoder.Secret.ContramappedObject(this, f)
+    }
+
+    final case class SecretizeObject[A] private[Secret] (underlying: JsonEncoder.ObjectEncoder[A]) extends JsonEncoder.Secret.ObjectEncoder[A] {
+      override def encodeJsonObjectFields(value: A): Growable[(String, Json)] =
+        underlying.encodeJsonObjectFields(value)
+      override def encodeSplitJsonObjectFields(value: A): Growable[(String, Ior.Right[SecretJson])] =
+        underlying.encodeJsonObjectFields(value).map { (key, value) => (key, Ior.Right(SecretJson.wrap(value))) }
+      override def addToObject(value: A): Boolean = underlying.addToObject(value)
+    }
+
+    final case class ContramappedObject[A, B](encoder: JsonEncoder.Secret.ObjectEncoder[A], f: B => A) extends JsonEncoder.Secret.ObjectEncoder[B] {
+      override def encodeJsonObjectFields(value: B): Growable[(String, Json)] = encoder.encodeJsonObjectFields(f(value))
+      override def encodeSplitJsonObjectFields(value: B): Growable[(String, Ior[PlainTextJson, SecretJson])] = encoder.encodeSplitJsonObjectFields(f(value))
+      override def addToObject(value: B): Boolean = encoder.addToObject(f(value))
+    }
   }
 
   //////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -264,7 +384,17 @@ object JsonEncoder extends Derivable[JsonEncoder.ObjectEncoder], JsonEncoderLowP
       ProductGeneric[A],
       Derivable[JsonEncoder.ObjectEncoder],
   ): Derivable.ProductDeriver[JsonEncoder.ObjectEncoder, A] =
-    Derivable.ProductDeriver.withDisjointInstances[JsonEncoder.ObjectEncoder, JsonEncoder, A] { DeriveProductJsonEncoder[A](_) }
+    Derivable.ProductDeriver.withCustomDisjointInstances[JsonEncoder.ObjectEncoder, JsonEncoder, A] { _ ?=> (generic: ProductGeneric[A]) =>
+      generic.cacheVals[JsonEncoder](
+        valName = n => s"instance_$n",
+        valType = ValDef.ValType.LazyVal,
+      ) { [b] => (_, _) ?=> (field: generic.Field[b]) =>
+        val baseInstance: Expr[JsonEncoder[b]] = field.summonTypeClass[JsonEncoder]
+        val isPlain: Boolean = field.annotations.optionalOf[jsonSecret].isEmpty
+        if isPlain then baseInstance
+        else '{ $baseInstance.secret }
+      }
+    } { DeriveProductJsonEncoder[A](_) }
 
   override protected def sumDeriver[A](using
       Quotes,

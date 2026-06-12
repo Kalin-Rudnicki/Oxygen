@@ -36,6 +36,8 @@ sealed trait JsonSchema[A] extends SchemaLike[A] {
   final def <||[B](that: JsonSchema[B])(using j: JsonSchema.OrJoin[A, B]): JsonSchema[j.C] = JsonSchema.OrElse(this, that, j)
   final def ||>[B](that: JsonSchema[B])(using j: JsonSchema.OrJoin[B, A]): JsonSchema[j.C] = JsonSchema.OrElse(that, this, j)
 
+  def secret: JsonSchema[A]
+
 }
 object JsonSchema extends Derivable[JsonSchema.ObjectLike], JsonSchemaLowPriority.LowPriority1 {
 
@@ -136,6 +138,16 @@ object JsonSchema extends Derivable[JsonSchema.ObjectLike], JsonSchemaLowPriorit
     override final def transformOrFail[B: TypeTag as newTypeTag](ab: A => Either[String, B], ba: B => A)(using pos: SourcePosition): JsonSchema[B] =
       JsonSchema.TransformOrFail(this, newTypeTag, ab, ba, pos)
 
+    override def secret: JsonSchema[A] = JsonSchema.NonProductLikeSecret(this)
+
+  }
+
+  private[schema] final case class NonProductLikeSecret[A](underlying: JsonSchema.NonProductLike[A]) extends JsonSchema.NonProductLike[A] {
+    override protected def __internalReferenceOf(builder: SchemaLike.ReferenceBuilder): String = withHeader("Secret", "underlying" -> builder.referenceOf(underlying))
+    override val typeTag: TypeTag[A] = underlying.typeTag
+    override val jsonEncoder: JsonEncoder[A] = underlying.jsonEncoder.secret
+    override val jsonDecoder: JsonDecoder[A] = underlying.jsonDecoder
+    override def secret: JsonSchema[A] = this
   }
 
   private[schema] final case class StringSchema[A](underlying: PlainTextSchema[A]) extends NonProductLike[A] {
@@ -351,6 +363,9 @@ object JsonSchema extends Derivable[JsonSchema.ObjectLike], JsonSchemaLowPriorit
               override def encodeJsonAST(value: B): Json = value match
                 case aTT(value) => a.encodeJsonAST(value)
                 case _          => b.encodeJsonAST(value)
+              override def encodeSplitJsonAST(value: B): Ior[PlainTextJson, SecretJson] = value match
+                case aTT(value) => a.encodeSplitJsonAST(value)
+                case _          => b.encodeSplitJsonAST(value)
               override def addToObject(value: B): Boolean = value match
                 case aTT(value) => a.addToObject(value)
                 case _          => b.addToObject(value)
@@ -371,6 +386,9 @@ object JsonSchema extends Derivable[JsonSchema.ObjectLike], JsonSchemaLowPriorit
               override def encodeJsonAST(value: A | B): Json = value match
                 case aTT(value) => a.encodeJsonAST(value)
                 case bTT(value) => b.encodeJsonAST(value)
+              override def encodeSplitJsonAST(value: A | B): Ior[PlainTextJson, SecretJson] = value match
+                case aTT(value) => a.encodeSplitJsonAST(value)
+                case bTT(value) => b.encodeSplitJsonAST(value)
               override def addToObject(value: A | B): Boolean = value match
                 case aTT(value) => a.addToObject(value)
                 case bTT(value) => b.addToObject(value)
@@ -409,8 +427,11 @@ object JsonSchema extends Derivable[JsonSchema.ObjectLike], JsonSchemaLowPriorit
 
     final def root: ObjectLike.Root[?] = this match
       case root: ObjectLike.Root[?]                       => root
+      case secret: ProductLikeSecret[?]                   => secret.root
       case TransformObject(underlying = underlying)       => underlying.root
       case TransformOrFailObject(underlying = underlying) => underlying.root
+
+    override def secret: JsonSchema[A] = JsonSchema.ProductLikeSecret(this)
 
   }
   object ObjectLike {
@@ -421,6 +442,14 @@ object JsonSchema extends Derivable[JsonSchema.ObjectLike], JsonSchemaLowPriorit
 
     inline def derived[A]: JsonSchema.ObjectLike[A] = JsonSchema.derived[A]
 
+  }
+
+  private[schema] final case class ProductLikeSecret[A](underlying: JsonSchema.ObjectLike[A]) extends JsonSchema.ObjectLike[A] {
+    override protected def __internalReferenceOf(builder: SchemaLike.ReferenceBuilder): String = withHeader("Secret", "underlying" -> builder.referenceOf(underlying))
+    override val typeTag: TypeTag[A] = underlying.typeTag
+    override val jsonEncoder: JsonEncoder.ObjectEncoder[A] = underlying.jsonEncoder.secret
+    override val jsonDecoder: JsonDecoder.ObjectDecoder[A] = underlying.jsonDecoder
+    override def secret: JsonSchema[A] = this
   }
 
   trait ProductSchema[A] extends ObjectLike.Root[A] {
@@ -470,16 +499,26 @@ object JsonSchema extends Derivable[JsonSchema.ObjectLike], JsonSchemaLowPriorit
   //////////////////////////////////////////////////////////////////////////////////////////////////////
 
   override protected def productDeriver[A](using Quotes, Type[ObjectLike], Type[A], ProductGeneric[A], Derivable[ObjectLike]): Derivable.ProductDeriver[ObjectLike, A] =
-    Derivable.ProductDeriver.withDisjointInstances[JsonSchema.ObjectLike, JsonSchema, A] { instances =>
+    Derivable.ProductDeriver.withCustomDisjointInstances[JsonSchema.ObjectLike, JsonSchema, A] { _ ?=> (generic: ProductGeneric[A]) =>
+      generic.cacheVals[JsonSchema](
+        valName = n => s"instance_$n",
+        valType = ValDef.ValType.LazyVal,
+      ) { [b] => (_, _) ?=> (field: generic.Field[b]) =>
+        val baseInstance: Expr[JsonSchema[b]] = field.summonTypeClass[JsonSchema]
+        val isPlain: Boolean = field.annotations.optionalOf[jsonSecret].isEmpty
+        if isPlain then baseInstance
+        else '{ $baseInstance.secret }
+      }
+    } { instances =>
       new Derivable.ProductDeriver[JsonSchema.ObjectLike, A] {
 
         private val typeTagExpr: Expr[TypeTag[A]] = Implicits.companion.searchRequiredIgnoreExplanation[TypeTag[A]]
 
         private val jsonEncoderInstances: Expressions[JsonEncoder, A] =
-          instances.mapK { [a] => _ ?=> (expr: Expr[JsonSchema[a]]) => '{ $expr.jsonEncoder } }
+          instances.mapK { [a] => (_, _) ?=> (expr: Expr[JsonSchema[a]]) => '{ $expr.jsonEncoder } }
 
         private val jsonDecoderInstances: Expressions[JsonDecoder, A] =
-          instances.mapK { [a] => _ ?=> (expr: Expr[JsonSchema[a]]) => '{ $expr.jsonDecoder } }
+          instances.mapK { [a] => (_, _) ?=> (expr: Expr[JsonSchema[a]]) => '{ $expr.jsonDecoder } }
 
         private val derivedJsonEncoder: Expr[JsonEncoder.ObjectEncoder[A]] = DeriveProductJsonEncoder[A](jsonEncoderInstances).derive
         private val derivedJsonDecoder: Expr[JsonDecoder.ObjectDecoder[A]] = DeriveProductJsonDecoder[A](jsonDecoderInstances).derive
@@ -506,6 +545,8 @@ object JsonSchema extends Derivable[JsonSchema.ObjectLike], JsonSchemaLowPriorit
                   case _: JsonSchema.SumSchema[?]                 =>
                     // TODO (KR) : is there a more type-safe & compile-time way to do this?
                     throw new UnsupportedOperationException(${ Expr(flattenSumErrorString("sum schema")) })
+                  case _: JsonSchema.ProductLikeSecret[?] =>
+                    throw new UnsupportedOperationException(${ Expr(flattenSumErrorString("secret schema")) })
                   case _: (JsonSchema.TransformObject[?, ?] | JsonSchema.TransformOrFailObject[?, ?]) =>
                     // TODO (KR) : is there a more type-safe & compile-time way to do this?
                     throw new UnsupportedOperationException(${ Expr(flattenSumErrorString("transformed schema")) })
@@ -543,10 +584,10 @@ object JsonSchema extends Derivable[JsonSchema.ObjectLike], JsonSchemaLowPriorit
         private val typeTagExpr: Expr[TypeTag[A]] = Implicits.companion.searchRequiredIgnoreExplanation[TypeTag[A]]
 
         private val jsonEncoderInstances: Expressions[JsonEncoder.ObjectEncoder, A] =
-          instances.mapK { [a] => _ ?=> (expr: Expr[JsonSchema.ObjectLike[a]]) => '{ $expr.jsonEncoder } }
+          instances.mapK { [a] => (_, _) ?=> (expr: Expr[JsonSchema.ObjectLike[a]]) => '{ $expr.jsonEncoder } }
 
         private val jsonDecoderInstances: Expressions[JsonDecoder.ObjectDecoder, A] =
-          instances.mapK { [a] => _ ?=> (expr: Expr[JsonSchema.ObjectLike[a]]) => '{ $expr.jsonDecoder } }
+          instances.mapK { [a] => (_, _) ?=> (expr: Expr[JsonSchema.ObjectLike[a]]) => '{ $expr.jsonDecoder } }
 
         private val derivedJsonEncoder: Expr[JsonEncoder.ObjectEncoder[A]] = DeriveSumJsonEncoder[A](jsonEncoderInstances).derive
         private val derivedJsonDecoder: Expr[JsonDecoder.ObjectDecoder[A]] = DeriveSumJsonDecoder[A](jsonDecoderInstances).derive

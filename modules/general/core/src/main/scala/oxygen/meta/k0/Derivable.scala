@@ -88,9 +88,12 @@ object Derivable {
 
     def notSupported[F[_], A](using Quotes, Type[F], Type[A], ProductGeneric[A]): ProductDeriver[F, A] = new NotSupported[F, A]
 
-    final class WithInstances[F[_], A](f: Quotes ?=> Expressions[F, A] => ProductDeriver[F, A])(using Quotes, Type[F], Type[A], ProductGeneric[A]) extends ProductDeriver[F, A] {
+    final class WithInstances[F[_], A](
+        makeVals: Quotes ?=> ProductGeneric[A] => ValDefinitions[F, A],
+        f: Quotes ?=> Expressions[F, A] => ProductDeriver[F, A],
+    )(using Quotes, Type[F], Type[A], ProductGeneric[A]) extends ProductDeriver[F, A] {
 
-      override def derive: Expr[F[A]] = generic.cacheVals.summonTypeClasses[F]().defineAndUse { f(_).derive }
+      override def derive: Expr[F[A]] = makeVals(generic).defineAndUse { f(_).derive }
 
       override def deriveWithInstances(exprs: Expressions[F, A])(using quotes: Quotes): Expr[F[A]] =
         f(using quotes)(exprs).derive
@@ -98,9 +101,19 @@ object Derivable {
     }
 
     def withInstances[F[_], A](f: Quotes ?=> Expressions[F, A] => ProductDeriver[F, A])(using Quotes, Type[F], Type[A], ProductGeneric[A]) =
-      new WithInstances[F, A](f)
+      new WithInstances[F, A](_ ?=> generic => generic.cacheVals.summonTypeClasses[F](), f)
 
-    final class WithDisjointInstances[ParentF[_], ChildF[_], A](f: Quotes ?=> Expressions[ChildF, A] => ProductDeriver[ParentF, A])(using
+    def customWithInstances[F[_], A](
+        makeVals: Quotes ?=> ProductGeneric[A] => ValDefinitions[F, A],
+    )(
+        f: Quotes ?=> Expressions[F, A] => ProductDeriver[F, A],
+    )(using Quotes, Type[F], Type[A], ProductGeneric[A]) =
+      new WithInstances[F, A](makeVals, f)
+
+    final class WithDisjointInstances[ParentF[_], ChildF[_], A](
+        makeVals: Quotes ?=> ProductGeneric[A] => ValDefinitions[ChildF, A],
+        f: Quotes ?=> Expressions[ChildF, A] => ProductDeriver[ParentF, A],
+    )(using
         Quotes,
         Type[ParentF],
         Type[ChildF],
@@ -108,12 +121,19 @@ object Derivable {
         ProductGeneric[A],
     ) extends ProductDeriver[ParentF, A] {
 
-      override def derive: Expr[ParentF[A]] = generic.cacheVals.summonTypeClasses[ChildF]().defineAndUse { f(_).derive }
+      override def derive: Expr[ParentF[A]] = makeVals(generic).defineAndUse { f(_).derive }
 
     }
 
     def withDisjointInstances[ParentF[_], ChildF[_], A](f: Quotes ?=> Expressions[ChildF, A] => ProductDeriver[ParentF, A])(using Quotes, Type[ParentF], Type[ChildF], Type[A], ProductGeneric[A]) =
-      new WithDisjointInstances[ParentF, ChildF, A](f)
+      new WithDisjointInstances[ParentF, ChildF, A](_ ?=> generic => generic.cacheVals.summonTypeClasses[ChildF](), f)
+
+    def withCustomDisjointInstances[ParentF[_], ChildF[_], A](
+        makeVals: Quotes ?=> ProductGeneric[A] => ValDefinitions[ChildF, A],
+    )(
+        f: Quotes ?=> Expressions[ChildF, A] => ProductDeriver[ParentF, A],
+    )(using Quotes, Type[ParentF], Type[ChildF], Type[A], ProductGeneric[A]) =
+      new WithDisjointInstances[ParentF, ChildF, A](makeVals, f)
 
     final class Impl[F[_], A](value: () => Expr[F[A]])(using Quotes, Type[F], Type[A], ProductGeneric[A]) extends ProductDeriver[F, A] {
       override def derive: Expr[F[A]] = value()

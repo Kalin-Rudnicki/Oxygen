@@ -148,6 +148,10 @@ object IntermediateRepr {
         case schema: JsonSchema.TransformOrFailObject[?, ?] =>
           val gen = compileJson(schema.underlying, input)
           gen.withJson(schema, JsonTransform(gen.ref, schema.pos))
+        case schema: JsonSchema.NonProductLikeSecret[?] =>
+          compileJson(schema.underlying, input) // TODO (KR) : represent secret?
+        case schema: JsonSchema.ProductLikeSecret[?] =>
+          compileJson(schema.underlying, input) // TODO (KR) : represent secret?
 
         case schema: JsonSchema.OrElse[?, ?, ?] =>
           val flattened: NonEmptyList[JsonSchema[?]] = JsonSchema.OrElse.flatten(schema)

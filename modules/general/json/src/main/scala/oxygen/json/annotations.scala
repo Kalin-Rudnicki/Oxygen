@@ -16,3 +16,5 @@ final case class jsonFlatten() extends Annotation derives ToExprT, FromExprT
 final case class defaultJsonDiscriminator(name: String) extends Annotation derives ToExprT, FromExprT
 
 final case class jsonStrict() extends Annotation derives ToExprT, FromExprT
+
+final case class jsonSecret() extends Annotation derives ToExprT, FromExprT

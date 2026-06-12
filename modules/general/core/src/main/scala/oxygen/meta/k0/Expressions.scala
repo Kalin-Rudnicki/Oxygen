@@ -18,7 +18,7 @@ final class Expressions[F[_], A](
   def at[B: Type](idx: Int)(using Quotes): Expr[F[B]] =
     expressions(idx).expr.asExprOf[F[B]]
 
-  def mapK[G[_]: Type as gTpe](f: [b] => Type[b] ?=> Expr[F[b]] => Expr[G[b]]): Expressions[G, A] =
+  def mapK[G[_]: Type as gTpe](f: [b] => (Type[b], Quotes) ?=> Expr[F[b]] => Expr[G[b]]): Expressions[G, A] =
     Expressions[G, A](
       gTpe,
       aTpe,
@@ -35,8 +35,8 @@ object Expressions {
 
     def expr(using q: Quotes): Expr[F[B]] = ctxExpr(using q)
 
-    def mapK[G[_]](f: Type[B] ?=> Expr[F[B]] => Expr[G[B]]): Elem[G, B] =
-      Elem[G, B](bTpe, f(using bTpe)(expr))
+    def mapK[G[_]](f: (Type[B], Quotes) ?=> Expr[F[B]] => Expr[G[B]]): Elem[G, B] =
+      Elem[G, B](bTpe, quotes ?=> f(using bTpe, quotes)(expr))
 
   }
 

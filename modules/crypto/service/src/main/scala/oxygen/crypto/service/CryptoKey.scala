@@ -50,7 +50,7 @@ object CryptoKey {
     }
 
     given stringCodec: StringCodec[CryptoKey.HS256] = KeyFormat.DER.stringCodec.transformCatchFail(HS256.fromDER, _.toDER)
-    given jsonCodec: JsonCodec[CryptoKey.HS256] = JsonCodec.jsonStringUsingStringCodec
+    given jsonCodec: JsonCodec[CryptoKey.HS256] = JsonCodec.jsonStringUsingStringCodec[CryptoKey.HS256].secret
 
   }
 
@@ -100,7 +100,7 @@ object CryptoKey {
         RSA.Private.fromDER(key.toBase64.toDER)
 
       given stringCodec: StringCodec[RSA.Private] = KeyFormat.PKCS8PEM.stringCodec.transformCatchFail(RSA.Private.fromPKCS8, _.toPKCS8)
-      given jsonCodec: JsonCodec[RSA.Private] = JsonCodec.jsonStringUsingStringCodec
+      given jsonCodec: JsonCodec[RSA.Private] = JsonCodec.jsonStringUsingStringCodec[RSA.Private].secret
 
     }
 
@@ -162,7 +162,7 @@ object CryptoKey {
         RSA.Public.fromDER(key.toBase64.toDER)
 
       given stringCodec: StringCodec[RSA.Public] = KeyFormat.X509PEM.stringCodec.transformCatchFail(RSA.Public.fromX509, _.toX509)
-      given jsonCodec: JsonCodec[RSA.Public] = JsonCodec.jsonStringUsingStringCodec
+      given jsonCodec: JsonCodec[RSA.Public] = JsonCodec.jsonStringUsingStringCodec[RSA.Public].secret
 
     }
 
@@ -241,7 +241,7 @@ object CryptoKey {
     }
 
     given stringCodec: StringCodec[CryptoKey.AES] = KeyFormat.DER.stringCodec.transformCatchFail(AES.fromDER, _.toDER)
-    given jsonCodec: JsonCodec[CryptoKey.AES] = JsonCodec.jsonStringUsingStringCodec
+    given jsonCodec: JsonCodec[CryptoKey.AES] = JsonCodec.jsonStringUsingStringCodec[CryptoKey.AES].secret
 
   }
 

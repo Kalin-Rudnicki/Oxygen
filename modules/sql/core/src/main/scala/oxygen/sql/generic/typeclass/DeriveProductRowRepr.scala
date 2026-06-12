@@ -14,14 +14,14 @@ final class DeriveProductRowRepr[A](
     extends Derivable.ProductDeriver[RowRepr, A] {
 
   private def decoderInstances: Expressions[ResultDecoder, A] =
-    instances.mapK[ResultDecoder] { [i] => _ ?=> (v: Expr[RowRepr[i]]) =>
+    instances.mapK[ResultDecoder] { [i] => (_, _) ?=> (v: Expr[RowRepr[i]]) =>
       '{
         $v.decoder
       }
     }
 
   private def encoderInstances: Expressions[InputEncoder, A] =
-    instances.mapK[InputEncoder] { [i] => _ ?=> (v: Expr[RowRepr[i]]) =>
+    instances.mapK[InputEncoder] { [i] => (_, _) ?=> (v: Expr[RowRepr[i]]) =>
       '{
         $v.encoder
       }

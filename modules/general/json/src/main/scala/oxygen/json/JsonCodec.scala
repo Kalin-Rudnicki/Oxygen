@@ -31,6 +31,8 @@ final case class JsonCodec[A](
   def toStringCodecPretty: StringCodec[A] = StringCodec(encoder.toStringEncoderPretty, decoder.toStringDecoder)
   def toStringCodec: StringCodec[A] = toStringCodecCompact
 
+  def secret: JsonCodec[A] = JsonCodec(encoder.secret, decoder)
+
 }
 object JsonCodec extends JsonCodecLowPriority.LowPriority1 {
 
