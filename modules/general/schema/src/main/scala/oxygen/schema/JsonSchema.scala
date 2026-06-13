@@ -186,7 +186,7 @@ object JsonSchema extends Derivable[JsonSchema.ObjectLike], JsonSchemaLowPriorit
     override protected def __internalReferenceOf(builder: SchemaLike.ReferenceBuilder): String = withHeader("JsonNumber")
   }
 
-  private[schema] final case class WithDefaultSchema[A] private[JsonSchema] (default: A, underlying: JsonSchema[A]) extends JsonSchema.NonProductLike[A] {
+  final case class WithDefaultSchema[A] private[JsonSchema] (default: A, underlying: JsonSchema[A]) extends JsonSchema.NonProductLike[A] {
     override val typeTag: TypeTag[A] = underlying.typeTag
     override protected def __internalReferenceOf(builder: SchemaLike.ReferenceBuilder): String = builder.referenceOf(underlying)
     override val jsonEncoder: JsonEncoder[A] = underlying.jsonEncoder
@@ -440,7 +440,7 @@ object JsonSchema extends Derivable[JsonSchema.ObjectLike], JsonSchemaLowPriorit
       case TransformObject(underlying = underlying)       => underlying.root
       case TransformOrFailObject(underlying = underlying) => underlying.root
 
-    override def secret: JsonSchema[A] = JsonSchema.ProductLikeSecret(this)
+    override def secret: JsonSchema.ObjectLike[A] = JsonSchema.ProductLikeSecret(this)
 
   }
   object ObjectLike {
@@ -453,12 +453,12 @@ object JsonSchema extends Derivable[JsonSchema.ObjectLike], JsonSchemaLowPriorit
 
   }
 
-  private[schema] final case class ProductLikeSecret[A](underlying: JsonSchema.ObjectLike[A]) extends JsonSchema.ObjectLike[A] {
+  final case class ProductLikeSecret[A](underlying: JsonSchema.ObjectLike[A]) extends JsonSchema.ObjectLike[A] {
     override protected def __internalReferenceOf(builder: SchemaLike.ReferenceBuilder): String = withHeader("Secret", "underlying" -> builder.referenceOf(underlying))
     override val typeTag: TypeTag[A] = underlying.typeTag
     override val jsonEncoder: JsonEncoder.ObjectEncoder[A] = underlying.jsonEncoder.secret
     override val jsonDecoder: JsonDecoder.ObjectDecoder[A] = underlying.jsonDecoder
-    override def secret: JsonSchema[A] = this
+    override def secret: JsonSchema.ObjectLike[A] = this
   }
 
   trait ProductSchema[A] extends ObjectLike.Root[A] {
