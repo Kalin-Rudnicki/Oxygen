@@ -40,6 +40,11 @@ object DeriveSchemaSpec extends OxygenSpecDefault {
       updated: Updated,
   ) derives JsonSchema.ObjectLike
 
+  final case class Product4(
+      x: Int = 0,
+      y: List[String] = Nil,
+  ) derives JsonSchema.ObjectLike
+
   final case class Updated(at: Option[Instant])
   object Updated {
     given JsonSchema[Updated] = JsonSchema.option[Instant].transform(Updated(_), _.at)
@@ -121,6 +126,13 @@ object DeriveSchemaSpec extends OxygenSpecDefault {
           assertTrue(
             fields.map(_.name) == List("product"),
             fields.find(_.name == "product").exists(_.schema == JsonSchema[Product1]),
+          )
+        },
+      ),
+      suite("Product4")(
+        test("works") {
+          assertTrue(
+            JsonSchema[Product4].decode("""{}""") == Product4(0, Nil).asRight,
           )
         },
       ),

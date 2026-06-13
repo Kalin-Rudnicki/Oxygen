@@ -38,6 +38,8 @@ sealed trait JsonSchema[A] extends SchemaLike[A] {
 
   def secret: JsonSchema[A]
 
+  final def withDefault(default: A): JsonSchema[A] = JsonSchema.WithDefaultSchema(default, this)
+
 }
 object JsonSchema extends Derivable[JsonSchema.ObjectLike], JsonSchemaLowPriority.LowPriority1 {
 
@@ -182,6 +184,13 @@ object JsonSchema extends Derivable[JsonSchema.ObjectLike], JsonSchemaLowPriorit
   private[schema] final case class NumberSchema[A] private[JsonSchema] (typeTag: TypeTag[A], numberFormat: NumberFormat.Fractional, jsonEncoder: JsonEncoder[A], jsonDecoder: JsonDecoder[A])
       extends JsonNumber[A] {
     override protected def __internalReferenceOf(builder: SchemaLike.ReferenceBuilder): String = withHeader("JsonNumber")
+  }
+
+  private[schema] final case class WithDefaultSchema[A] private[JsonSchema] (default: A, underlying: JsonSchema[A]) extends JsonSchema.NonProductLike[A] {
+    override val typeTag: TypeTag[A] = underlying.typeTag
+    override protected def __internalReferenceOf(builder: SchemaLike.ReferenceBuilder): String = builder.referenceOf(underlying)
+    override val jsonEncoder: JsonEncoder[A] = underlying.jsonEncoder
+    override val jsonDecoder: JsonDecoder[A] = underlying.jsonDecoder.withDefault(default.some)
   }
 
   private[schema] final case class OptionSchema[A] private[JsonSchema] (
@@ -505,9 +514,14 @@ object JsonSchema extends Derivable[JsonSchema.ObjectLike], JsonSchemaLowPriorit
         valType = ValDef.ValType.LazyVal,
       ) { [b] => (_, _) ?=> (field: generic.Field[b]) =>
         val baseInstance: Expr[JsonSchema[b]] = field.summonTypeClass[JsonSchema]
-        val isPlain: Boolean = field.annotations.optionalOf[jsonSecret].isEmpty
-        if isPlain then baseInstance
-        else '{ $baseInstance.secret }
+        val appliedDefault: Expr[JsonSchema[b]] = field.constructorDefault match
+          case Some(default) => '{ $baseInstance.withDefault($default) }
+          case None          => baseInstance
+        val appliedSecret: Expr[JsonSchema[b]] =
+          if field.annotations.optionalOf[jsonSecret].isEmpty then appliedDefault
+          else '{ $appliedDefault.secret }
+
+        appliedSecret
       }
     } { instances =>
       new Derivable.ProductDeriver[JsonSchema.ObjectLike, A] {
