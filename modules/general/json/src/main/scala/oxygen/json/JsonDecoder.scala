@@ -8,6 +8,7 @@ import oxygen.core.typeclass.{NonEmpty, SeqOps}
 import oxygen.json.generic.*
 import oxygen.meta.k0.*
 import oxygen.predef.core.*
+import oxygen.quoted.ValDef
 import scala.quoted.*
 import scala.util.Try
 
@@ -46,6 +47,8 @@ trait JsonDecoder[A] {
   final def toObjectDecoderOrThrow: JsonDecoder.ObjectDecoder[A] = this match
     case self: JsonDecoder.ObjectDecoder[A] => self
     case _                                  => throw new RuntimeException(s"Not a `JsonDecoder.ObjectDecoder`: ${this.getClass.getName}\n$this")
+
+  def withDefault(default: Option[A]): JsonDecoder[A] = JsonDecoder.WithDefault(default, this)
 
 }
 object JsonDecoder extends Derivable[JsonDecoder.ObjectDecoder], JsonDecoderLowPriority.LowPriority1 {
@@ -154,6 +157,8 @@ object JsonDecoder extends Derivable[JsonDecoder.ObjectDecoder], JsonDecoderLowP
         case _             => JsonError(Nil, JsonError.Cause.InvalidType(Json.Type.Object, ast.tpe)).asLeft
       }
 
+    override def withDefault(default: Option[A]): JsonDecoder.ObjectDecoder[A] = JsonDecoder.ObjectWithDefault(default, this)
+
   }
 
   object StrDecoder extends JsonDecoder[String] {
@@ -214,6 +219,16 @@ object JsonDecoder extends Derivable[JsonDecoder.ObjectDecoder], JsonDecoderLowP
         else "Non decimal expected".asLeft
       }
 
+  }
+
+  final case class WithDefault[A](override val onMissingFromObject: Option[A], decoder: JsonDecoder[A]) extends JsonDecoder[A] {
+    override def decodeJsonAST(ast: Json): Either[JsonError, A] = decoder.decodeJsonAST(ast)
+  }
+
+  final case class ObjectWithDefault[A](override val onMissingFromObject: Option[A], decoder: JsonDecoder.ObjectDecoder[A]) extends JsonDecoder.ObjectDecoder[A] {
+    override val keys: Set[String] = decoder.keys
+    override val strict: Boolean = decoder.strict
+    override def decodeJsonObjectAST(ast: Json.Obj, fieldMap: Map[String, Json]): Either[JsonError, A] = decoder.decodeJsonObjectAST(ast, fieldMap)
   }
 
   final case class OptionDecoder[A](decoder: JsonDecoder[A]) extends JsonDecoder[Option[A]] {
@@ -378,7 +393,18 @@ object JsonDecoder extends Derivable[JsonDecoder.ObjectDecoder], JsonDecoderLowP
       ProductGeneric[A],
       Derivable[JsonDecoder.ObjectDecoder],
   ): Derivable.ProductDeriver[JsonDecoder.ObjectDecoder, A] =
-    Derivable.ProductDeriver.withDisjointInstances[JsonDecoder.ObjectDecoder, JsonDecoder, A] { DeriveProductJsonDecoder[A](_) }
+    Derivable.ProductDeriver.withCustomDisjointInstances[JsonDecoder.ObjectDecoder, JsonDecoder, A] { _ ?=> (generic: ProductGeneric[A]) =>
+      generic.cacheVals[JsonDecoder](
+        valName = n => s"instance_$n",
+        valType = ValDef.ValType.LazyVal,
+      ) { [b] => (_, _) ?=> (field: generic.Field[b]) =>
+        val baseInstance: Expr[JsonDecoder[b]] = field.summonTypeClass[JsonDecoder]
+        field.constructorDefault match {
+          case Some(default) => '{ $baseInstance.withDefault(Some($default)) }
+          case None          => baseInstance
+        }
+      }
+    } { DeriveProductJsonDecoder[A](_) }
 
   override protected def sumDeriver[A](using
       Quotes,
