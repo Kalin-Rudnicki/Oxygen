@@ -19,7 +19,7 @@ import zio.*
 
 final case class WebServerMain() extends CliApp[Any, WebServerMain.Env] {
 
-  def env(@config("APP_CONFIG") config: WebServerMain.Config): EnvLayer =
+  def env(@envConfig("APP_CONFIG") config: WebServerMain.Config): EnvLayer =
     WebServerMain.Env.layer(config)
 
   @execute
@@ -30,7 +30,7 @@ final case class WebServerMain() extends CliApp[Any, WebServerMain.Env] {
       ZIO.logInfo("Stopping...")
 
 }
-object WebServerMain extends CliApp.Executable[WebServerMain] {
+object WebServerMain extends CliApp.Executable[WebServerMain](CliApp.derive) {
 
   final case class Config(
       http: Config.Http,

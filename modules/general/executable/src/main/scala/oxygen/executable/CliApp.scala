@@ -1,5 +1,6 @@
 package oxygen.executable
 
+import oxygen.cli.*
 import zio.*
 
 abstract class CliApp[RequiredEnv, ProvidedEnv] {
@@ -14,16 +15,38 @@ abstract class CliApp[RequiredEnv, ProvidedEnv] {
 }
 object CliApp {
 
-  abstract class Executable[A](using app: DeriveCliApp.Root[A]) extends ZIOAppDefault {
+  /**
+    * Per-file derivation result. Each `CliApp` materializes its own `Derived` in its own file
+    * (`given CliApp.Derived[Foo, R] = CliApp.derive`); parents reference a child's `body` rather than
+    * recursively reflecting into the child class. `R` is the app's `RequiredEnv`, surfaced as a type
+    * parameter so it composes at every site.
+    *
+    *   - `body` — given an instance of `A`, the runnable app (this app's `def env` already prepended).
+    *   - `app`  — `body` with a zero-arg root instance; only valid for zero-arg roots (sub-apps that
+    *     take constructor params are built by their parent command, so their `app` is a runtime stub).
+    */
+  trait Derived[A, R] {
+    def body: CompiledCliApp[A, R]
+    def app: CompiledCliApp[Unit, R]
+  }
+
+  inline def derive[A, R]: Derived[A, R] = ${ oxygen.executable.generic.DeriveCliApp.derive[A, R] }
+
+  // `derived` is passed explicitly (`extends CliApp.Executable[Foo](CliApp.derive)`) rather than via a
+  // `using` so it can't be a self-referential given on the same object being constructed. `Derived[A, Any]`
+  // enforces that a runnable root requires no environment.
+  abstract class Executable[A](derived: CliApp.Derived[A, Any]) extends ZIOAppDefault {
 
     def defaultLoggerType: DefaultLoggerType = DefaultLoggerType.default
+
+    private val app: CompiledCliApp[Unit, Any] = derived.app
 
     /**
       * At this point, all [[zio.Cause]] should be caught, and any errors printed.
       */
     private final def runBuiltin(args: List[String]): URIO[Scope, ExitCode] =
       AutoComplete
-        .handleArgs(args, app.app).as(ExitCode.success)
+        .handleArgs(args, app).as(ExitCode.success)
         .catchAll {
           case AutoCompleteError.Help(m)         => Console.printLine(m).orDie.as(ExitCode.success)
           case AutoCompleteError.ProgramError(c) => Console.printLine(c.getMessage).orDie.as(ExitCode.failure)
@@ -32,14 +55,26 @@ object CliApp {
     /**
       * At this point, all [[zio.Cause]] should be caught, and any errors printed.
       */
-    private final def runApp(args: List[String]): URIO[Scope, ExitCode] =
-      app.app.run(args).catchAllCause { cause =>
-        ExecutableError.ExitWith.exitCodeFromCause(cause) match
-          case Some(code) => ZIO.succeed(code)
-          case None       =>
-            ZIO.logDebugCause("CLI app failed", cause) *>
-              Console.printLine(ExecutableError.ExitWith.messageFromCause(cause)).orDie.as(ExitCode.failure)
-      }
+    private final def runApp(rawArgs: List[String]): URIO[Scope, ExitCode] =
+      Args.parse(rawArgs) match
+        case Left(message) => Console.printLine(message).orDie.as(ExecutableError.usageErrorExitCode)
+        case Right(parsed) =>
+          // `peelArgs` strips any of --help / -h / --help-extra / -H from the named args and reports which
+          // (if any) was present; the leftover positional args are the command path to drill into.
+          CliHelp.peelArgs(parsed) match
+            case (stripped, Some(helpType)) =>
+              val path = stripped.positional.args.map(_.value)
+              val asJson = Option(java.lang.System.getenv(Constants.oxygenCliJson)).flatMap(_.toBooleanOption).getOrElse(false)
+              val rendered = if asJson then app.helpJson(Nil, path).showPretty else app.helpFor(Nil, path, helpType).toString
+              Console.printLine(rendered).orDie.as(ExitCode.success)
+            case (_, None) =>
+              app.execute((), parsed).catchAllCause { cause =>
+                ExecutableError.ExitWith.exitCodeFromCause(cause) match
+                  case Some(code) => ZIO.succeed(code)
+                  case None       =>
+                    ZIO.logDebugCause("CLI app failed", cause) *>
+                      Console.printLine(ExecutableError.ExitWith.messageFromCause(cause)).orDie.as(ExitCode.failure)
+              }
 
     override final def run: URIO[ZIOAppArgs & Scope, Unit] =
       for {

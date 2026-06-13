@@ -7,6 +7,10 @@ import zio.*
 sealed trait ExecutableError extends Throwable
 object ExecutableError {
 
+  // Exit code for usage errors (invalid/missing args, unknown/missing command), distinct from a genuine
+  // runtime failure (exit 1). Mirrors the conventional CLI meaning of exit 2.
+  val usageErrorExitCode: ExitCode = ExitCode(2)
+
   final case class ExitWith(code: ExitCode) extends ExecutableError
   object ExitWith {
     def exit(code: Int): UIO[Nothing] = ZIO.die(ExitWith(ExitCode(code)))

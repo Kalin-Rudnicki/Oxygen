@@ -22,8 +22,14 @@ final case class MyApp() extends CliApp[Any, Any] {
     ZIO.logInfo("Hello")
 
 }
-object MyApp extends CliApp.Executable[MyApp]
+object MyApp extends CliApp.Executable[MyApp](CliApp.derive)
 ```
+
+> **Per-file derivation.** Each `CliApp` is derived in its own file. The root passes `CliApp.derive`
+> to `Executable`; every **sub-app** referenced by a `@command` must publish a given in its companion:
+> `object Sub { given CliApp.Derived[Sub, R] = CliApp.derive }` (where `R` is the sub-app's
+> `RequiredEnv`). A parent references that given rather than reflecting into the child, so derivation
+> stays local to each file.
 
 Run:
 
@@ -37,10 +43,10 @@ java -jar my-app.jar
 
 | Previous API (pre-0.5) | Current API |
 |------------------------|-------------|
-| `object X extends ExecutableApp` | `object X extends CliApp.Executable[X]` |
+| `object X extends ExecutableApp` | `object X extends CliApp.Executable[X](CliApp.derive)` |
 | `Executable.withJsonConfig[...].withEnv(...).withExecute(...)` | Class extends `CliApp` + `@execute` / `@command` |
-| `oxygen.cli.Parser` / `Params` | Macro-generated `ArgsParser` from `@named`, `@positional`, etc. |
-| Bootstrap flags `-f` / `-j` / `-e` / `-r` before `--` | Per-parameter `@config("ENV_VAR")` |
+| `oxygen.cli.Parser` / `Params` | Macro-generated parser from `@named`, `@positional`, etc. |
+| Bootstrap flags `-f` / `-j` / `-e` / `-r` before `--` | Per-parameter `@envVar` / `@envConfig("ENV_VAR")` |
 | Logger CLI flags | Environment variables (see below) |
 
 See [Migrating from v1](migration-from-v1.md) for a full gap analysis.
@@ -55,7 +61,7 @@ One main entry point, no subcommands. Use for simple tools and for apps that pre
 ```scala
 final case class ServerApp() extends CliApp[Any, Env] {
 
-  def env(@config("APP_CONFIG") config: AppConfig): EnvLayer =
+  def env(@envConfig("APP_CONFIG") config: AppConfig): EnvLayer =
     Env.layer(config)
 
   @execute
@@ -63,7 +69,7 @@ final case class ServerApp() extends CliApp[Any, Env] {
     ZIO.logInfo("Server starting...")
 
 }
-object ServerApp extends CliApp.Executable[ServerApp]
+object ServerApp extends CliApp.Executable[ServerApp](CliApp.derive)
 ```
 
 ### Subcommands (`@command`)
@@ -71,42 +77,49 @@ object ServerApp extends CliApp.Executable[ServerApp]
 Multiple methods become subcommand names (camelCase → dash-case: `runServer` → `run-server`).
 
 ```scala
-final case class ToolApp(
-    @named verbose: Boolean = false,
-) extends CliApp[Any, Any] {
+final case class ToolApp() extends CliApp[Any, Any] {
 
   @command
-  def sync(): Effect = ZIO.logInfo(s"sync (verbose=$verbose)")
+  def sync(@flag verbose: Boolean = false): Effect = ZIO.logInfo(s"sync (verbose=$verbose)")
 
   @command("import-data")
   def importData(@named path: String): Effect =
     ZIO.logInfo(s"import $path")
 
 }
-object ToolApp extends CliApp.Executable[ToolApp]
+object ToolApp extends CliApp.Executable[ToolApp](CliApp.derive)
 ```
 
 Invocation:
 
 ```bash
-tool-app sync
+tool-app sync --verbose
 tool-app import-data --path ./data.json
 ```
 
-**Argument order:** the subcommand name must come **before** root constructor flags:
-
-```bash
-# correct
-tool-app sync --verbose
-
-# rejected
-tool-app --verbose sync
-```
+> **Roots are zero-arg.** A root `CliApp` is constructed by the runner, so it takes no constructor
+> parameters — put shared options on `def env`, and per-command options on the command method. (A
+> sub-app *may* take constructor params, but they're supplied by its parent `@command` method, not
+> parsed from the CLI.)
 
 ### Nested apps
 
 A `@command` method can return another `CliApp` type instead of an `Effect`. That type gets its own
-subcommands. See [CLI annotations](cli.md) for a full annotated example with nested apps.
+subcommands, and must publish its own derivation:
+
+```scala
+final case class Group() extends CliApp[Any, Any] {
+  @command def child(@positional x: Int): Effect = ZIO.logInfo(s"x=$x")
+}
+object Group { given CliApp.Derived[Group, Any] = CliApp.derive }
+
+final case class Root() extends CliApp[Any, Any] {
+  @command def group: Group = Group()
+}
+object Root extends CliApp.Executable[Root](CliApp.derive)
+```
+
+See [CLI annotations](cli.md) for a full annotated example with nested apps.
 
 ### Environment (`def env`)
 
@@ -159,11 +172,12 @@ These are read at startup by `CliApp.Executable` — they are **not** CLI flags.
 | `OXYGEN_LOG_LEVEL` | Minimum log level | `RichLogLevel` names: `info`, `debug`, `trace`, `error`, … |
 | `OXYGEN_LOGGER_TYPE` | Logger backend | `OXYGEN_ALL`, `OXYGEN_LEAN`, `ZIO` |
 | `OXYGEN_EXECUTABLE_EXIT` | Call `System.exit` | `true` (default) or `false` (keep JVM alive; for embedding/tests) |
+| `OXYGEN_CLI_JSON` | Emit `--help` as JSON instead of formatted text | `true` / `false` (default) |
 
 Override the default logger type in code:
 
 ```scala
-object MyApp extends CliApp.Executable[MyApp] {
+object MyApp extends CliApp.Executable[MyApp](CliApp.derive) {
   override def defaultLoggerType: DefaultLoggerType = DefaultLoggerType.OxygenAll
 }
 ```
@@ -181,29 +195,45 @@ def run(): Effect =
   else ZIO.succeed(ExitCode.success)
 ```
 
-## Config from environment (`@config`)
+## From the environment (`@envVar`, `@envConfig`)
 
-`@config("VAR")` loads JSON for a command or `env` parameter. The env var value can be:
+Two annotations read a command or `env` parameter from an environment variable instead of the CLI:
+
+### `@envVar` — decode the raw value
+
+`@envVar` reads the env var and decodes its raw string directly via the parameter's schema.
+
+```scala
+@envVar port: Int                 // env var name auto-derived: PORT
+@envVar("DB_URL") dbUrl: String   // explicit name
+@envVar token: Option[String]     // optional (absent var -> None)
+```
+
+The name is auto-derived from the parameter in `SCREAMING_SNAKE_CASE` when not given explicitly.
+
+### `@envConfig` — load JSON config from a path/value
+
+`@envConfig("VAR")` treats the env var value as a config source:
 
 1. **Raw JSON** — parsed directly
-2. **File path** — if the path is a file, its contents are parsed as JSON
+2. **File path** — if the value is a file path, its contents are parsed as JSON
 3. **Directory** — all `*.json` files in the directory are merged
 
 ```scala
 @command
-def client(@config("APP_CONFIG") cfg: ClientConfig): Effect =
+def client(@envConfig("APP_CONFIG") cfg: ClientConfig): Effect =
   ZIO.logInfo(cfg.toString)
 ```
 
-`ClientConfig` needs a `JsonDecoder` (typically `derives JsonSchema`).
-
-Optional config:
+`ClientConfig` needs a `JsonDecoder` (typically `derives JsonSchema`). Optional config and a fallback
+path are both supported:
 
 ```scala
-@config("OPTIONAL_CONFIG") extra: Option[ClientConfig]
+@envConfig("OPTIONAL_CONFIG") extra: Option[ClientConfig]      // absent -> None
+@envConfig("APP_CONFIG", "./config.json") cfg: ClientConfig    // fall back to ./config.json if unset
 ```
 
-There is **no** `-f=config.json` bootstrap flag. Point `APP_CONFIG` at a file path, or export JSON inline.
+There is **no** `-f=config.json` bootstrap flag. Point the env var at a file path, or export JSON inline.
 
 ## Help
 
@@ -212,7 +242,23 @@ Built-in flags (on every app):
 - `--help` / `-h` — usage for the current command
 - `--help-extra` / `-H` — includes nested subcommand help blocks
 
-`@doc("line one", "line two")` on parameters and methods appears in help output.
+`@doc("line one", "line two")` on parameters and on `@command`/`@execute` methods appears in help output.
+
+`--help` on a group of sub-commands lists each leaf command by its **full path** plus its `@doc`
+(no parameters) — e.g. `deep level down bottom`. Drill into a specific command to see its arguments:
+
+```bash
+my-app --help            # lists commands (path + doc)
+my-app deploy --help     # shows `deploy`'s arguments
+```
+
+Set `OXYGEN_CLI_JSON=true` to emit help as a JSON array (one object per leaf command: `command` path,
+`doc`, and a typed `params` list) for tooling.
+
+### Errors
+
+Parse errors are reported **all at once**, not one-at-a-time: a missing positional, a missing flag,
+and an unset required env var all surface together.
 
 ## Tab completion
 
@@ -222,7 +268,9 @@ Bash completion is built in via the `--:` protocol. See [Tab completion](complet
 
 The repo ships a migrated example at
 `example/apps/web-server/src/main/scala/oxygen/example/webServer/WebServerMain.scala`
-— a long-running server using `@execute`, `def env`, and `@config("APP_CONFIG")`.
+— a long-running server using `@execute`, `def env`, and `@envConfig("APP_CONFIG")`. A broader feature
+showcase (flat/nested commands, every annotation, env layers) lives at
+`example/apps/example-app/.../ShowcaseApp.scala`.
 
 ```bash
 APP_CONFIG=example/apps/web-server/src/main/resources/local.json sbt "example-web-server/run"

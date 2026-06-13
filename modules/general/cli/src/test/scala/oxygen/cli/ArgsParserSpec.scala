@@ -1,0 +1,99 @@
+package oxygen.cli
+
+import oxygen.predef.test.*
+
+object ArgsParserSpec extends OxygenSpecDefault {
+
+  private def makePositional[A: PositionalArgsParser.Builder as p](name: String): PositionalArgsParser[A] =
+    p.build(name, SubHelp.Empty)
+
+  private def parse[A](parser: ArgsParser[A], args: String*): CliParseResult[A, Args] =
+    Args.parse(args.toList) match
+      case Right(a)  => parser.parseArgs(a)
+      case Left(msg) => throw new RuntimeException(s"failed to tokenize args: $msg")
+
+  // Count the distinct leaf errors in a (possibly RootAnd/Or-combined) error tree.
+  private def leafErrorCount(error: CliParseError): Int = error match
+    case CliParseError.RootAnd(l, r)      => leafErrorCount(l) + leafErrorCount(r)
+    case CliParseError.RootOr(l, r)       => leafErrorCount(l) + leafErrorCount(r)
+    case CliParseError.PositionalOr(l, r) => leafErrorCount(l) + leafErrorCount(r)
+    case CliParseError.NamedOr(l, r)      => leafErrorCount(l) + leafErrorCount(r)
+    case _                                => 1
+
+  override def testSpec: TestSpec =
+    suite("ArgsParserSpec")(
+      suite("accumulates all errors (not just the first)")(
+        test("two missing positionals both reported") {
+          val p = makePositional[String]("first") ^>>&& makePositional[String]("second")
+          val n = parse(p) match
+            case CliParseResult.Fail(error, _) => leafErrorCount(error)
+            case _                             => 0
+          assertTrue(n == 2)
+        },
+        test("missing positional AND missing flag both reported") {
+          val parser: ArgsParser[(String, String)] =
+            makePositional[String]("name") ^>>&& NamedArgsParser.Named("token", Defaultable.Default, PositionalArgsParser.singlePlain[String]("token"), SubHelp.Empty)
+          val n = parse(parser) match
+            case CliParseResult.Fail(error, _) => leafErrorCount(error)
+            case _                             => 0
+          assertTrue(n == 2)
+        },
+      ),
+      suite("positional")(
+        test("required - present") {
+          val p = PositionalArgsParser.singlePlain[String]("name")
+          assertTrue(parse(p, "hello") == CliParseResult.Success("hello", Args.empty))
+        },
+        test("required - missing fails with MissingRequiredPositional") {
+          val p = PositionalArgsParser.singlePlain[String]("name")
+          val isExpected = parse(p) match
+            case CliParseResult.Fail(CliParseError.MissingRequiredPositional("name"), _) => true
+            case _                                                                       => false
+          assertTrue(isExpected)
+        },
+        test("optional - missing yields None") {
+          val p = PositionalArgsParser.Optional(PositionalArgsParser.singlePlain[Int]("count"))
+          assertTrue(parse(p) == CliParseResult.Success(None, Args.empty))
+        },
+        test("optional - present yields Some") {
+          val p = PositionalArgsParser.Optional(PositionalArgsParser.singlePlain[Int]("count"))
+          assertTrue(parse(p, "7") == CliParseResult.Success(Some(7), Args.empty))
+        },
+        test("withDefault - missing yields default") {
+          val p = PositionalArgsParser.singlePlain[String]("name").withDefault("anon")
+          assertTrue(parse(p) == CliParseResult.Success("anon", Args.empty))
+        },
+        test("withDefault - present overrides default") {
+          val p = PositionalArgsParser.singlePlain[String]("name").withDefault("anon")
+          assertTrue(parse(p, "kalin") == CliParseResult.Success("kalin", Args.empty))
+        },
+      ),
+      suite("named / flag")(
+        test("flag - present is true") {
+          val p = NamedArgsParser.Flag("verbose", Defaultable.Default, default = false, SubHelp.Empty)
+          assertTrue(parse(p, "--verbose") == CliParseResult.Success(true, Args.empty))
+        },
+        test("flag - absent is default") {
+          val p = NamedArgsParser.Flag("verbose", Defaultable.Default, default = false, SubHelp.Empty)
+          assertTrue(parse(p) == CliParseResult.Success(false, Args.empty))
+        },
+      ),
+      suite("combined positional + named (two independent passes)")(
+        test("positional then flag both parse") {
+          val parser: ArgsParser[(String, Boolean)] =
+            makePositional[String]("name") ^>>&& NamedArgsParser.Flag("verbose", Defaultable.Default, default = false, SubHelp.Empty)
+          assertTrue(parse(parser, "hello", "--verbose") == CliParseResult.Success(("hello", true), Args.empty))
+        },
+        test("named-before-positional still recombines correctly") {
+          // Order of the streams is independent: a missing positional should still fail cleanly.
+          val parser: ArgsParser[(String, Boolean)] =
+            makePositional[String]("name") ^>>&& NamedArgsParser.Flag("verbose", Defaultable.Default, default = false, SubHelp.Empty)
+          val isExpected = parse(parser, "--verbose") match
+            case CliParseResult.Fail(CliParseError.MissingRequiredPositional("name"), _) => true
+            case _                                                                       => false
+          assertTrue(isExpected)
+        },
+      ),
+    )
+
+}

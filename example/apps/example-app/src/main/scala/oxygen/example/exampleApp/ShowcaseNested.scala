@@ -2,6 +2,7 @@ package oxygen.example.exampleApp
 
 import oxygen.cli.*
 import oxygen.executable.*
+import oxygen.schema.instances.jsonCodecFromSchema
 import zio.*
 
 /** One level deep — several sibling subcommands with different param styles. */
@@ -58,7 +59,7 @@ final case class WorkspaceApp() extends CliApp[RootCtx, WorkspaceCtx] {
 
   @command
   def deploy(
-      @config("TASK_CONFIG") task: TaskConfig,
+      @envConfig("TASK_CONFIG") task: TaskConfig,
       @named @shortName('p') priority: Priority = Priority.Normal,
   ): Effect =
     ZIO.serviceWithZIO[WorkspaceCtx] { ws =>
@@ -121,3 +122,11 @@ final case class CapsuleApp(
     ZIO.logInfo(s"capsule seed=$seed label=$label sealed=$isSealed")
 
 }
+
+object CatalogApp { given oxygen.executable.CliApp.Derived[CatalogApp, RootCtx] = oxygen.executable.CliApp.derive }
+object WorkspaceApp { given oxygen.executable.CliApp.Derived[WorkspaceApp, RootCtx] = oxygen.executable.CliApp.derive }
+object DeepL1 { given oxygen.executable.CliApp.Derived[DeepL1, RootCtx] = oxygen.executable.CliApp.derive }
+object DeepL2 { given oxygen.executable.CliApp.Derived[DeepL2, RootCtx] = oxygen.executable.CliApp.derive }
+object DeepL3 { given oxygen.executable.CliApp.Derived[DeepL3, RootCtx] = oxygen.executable.CliApp.derive }
+object DeepL4 { given oxygen.executable.CliApp.Derived[DeepL4, RootCtx] = oxygen.executable.CliApp.derive }
+object CapsuleApp { given oxygen.executable.CliApp.Derived[CapsuleApp, RootCtx] = oxygen.executable.CliApp.derive }

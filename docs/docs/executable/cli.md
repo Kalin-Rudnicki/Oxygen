@@ -25,7 +25,8 @@ with `E <: Throwable`) when you want a typed error channel. See
 | `@positional` | positional arg | |
 | `@flag` | `--flag` / `--no-flag` | `Boolean`; default in Scala = absent value |
 | `@toggle` | `--enable-x` / `--disable-x` | Required boolean choice |
-| `@config("ENV_VAR")` | loaded from environment | JSON / file / directory (see [overview](index.md#config-from-environment-config)) |
+| `@envVar` / `@envVar("VAR")` | read from environment | decodes the raw env-var value; name auto-derived (`SCREAMING_SNAKE_CASE`) if omitted |
+| `@envConfig("VAR")` / `@envConfig("VAR", "fallback-path")` | JSON config from environment | value is raw JSON / a file path / a directory (see [overview](index.md#from-the-environment-envvar-envconfig)) |
 | `@custom` | custom parser | requires `given ArgsParser[T]` in scope |
 
 ### Tweaks
@@ -99,7 +100,15 @@ with a plain `String` parameter.
 
 ### Custom parsers (`@custom`)
 
-For full control, provide `given ArgsParser[MyType]` and mark the parameter `@custom`.
+For full control, provide `given ArgsParser[MyType]` and mark the parameter `@custom`. For example,
+a three-positional-int color:
+
+```scala
+given ArgsParser[RgbColor] =
+  (PositionalArgsParser.singlePlain[Int]("r") ^>>
+     PositionalArgsParser.singlePlain[Int]("g") ^>>
+     PositionalArgsParser.singlePlain[Int]("b")).map { case (r, g, b) => RgbColor(r, g, b) }
+```
 
 ## `CliApp` type parameters
 
@@ -111,18 +120,15 @@ abstract class CliApp[RequiredEnv, ProvidedEnv]
 - `ProvidedEnv` — what `def env` provides to commands
 - `FullEnv = RequiredEnv & ProvidedEnv` — available in `Effect`
 
-Nested sub-apps must have `RequiredEnv` subtype of the parent's `FullEnv`.
+A nested sub-app's `RequiredEnv` must line up with the env its parent runs commands at (the parent's
+`FullEnv`) — e.g. a sub-app under a root that provides `RootCtx` is `CliApp[RootCtx, …]`.
 
 ## Full example (abbreviated)
 
-Illustrative app showing subcommands, nested apps, `@config`, and `def env`:
+Illustrative app showing subcommands, a nested app (with its own `given`), `@envConfig`, and `def env`:
 
 ```scala
-final case class ExampleApp(
-    @named
-    @doc("Optional root-level", "configuration flag")
-    myOpt: Option[String],
-) extends CliApp[Any, String] {
+final case class ExampleApp() extends CliApp[Any, String] {
 
   @doc("Provides runtime environment", "for subcommands")
   def env(@named host: String = "localhost"): EnvLayer =
@@ -130,7 +136,7 @@ final case class ExampleApp(
 
   @command
   def client(
-      @config("APP_CONFIG") cfg: ClientConfig,
+      @envConfig("APP_CONFIG") cfg: ClientConfig,
       @named i: Option[String],
       @named p2: NonEmptyList[String],
   ): Effect =
@@ -142,13 +148,17 @@ final case class ExampleApp(
       @named mood: Mood = Mood.Chill,
   ): Effect =
     ZIO.serviceWithZIO[String] { host =>
-      ZIO.logInfo(s"host=$host port=$port mood=$mood myOpt=$myOpt")
+      ZIO.logInfo(s"host=$host port=$port mood=$mood")
     }
 
   @command
   def nested1: Nested1 = Nested1()
 }
-object ExampleApp extends CliApp.Executable[ExampleApp]
+object ExampleApp extends CliApp.Executable[ExampleApp](CliApp.derive)
+
+// the nested sub-app publishes its own derivation
+final case class Nested1() extends CliApp[String, Any] { @execute def run(): Effect = ZIO.unit }
+object Nested1 { given CliApp.Derived[Nested1, String] = CliApp.derive }
 ```
 
 ## `--` passthrough

@@ -89,6 +89,10 @@ object AutoComplete {
        |  done
        |  [[ -n "$$_rest" ]] && COMPREPLY+=("$$_rest")
        |
+       |  # Preserve the program's ordering (positional/commands before flags) instead of bash's
+       |  # default alphabetical menu sort. Ignored on bash < 4.4 (e.g. stock macOS bash).
+       |  compopt -o nosort 2>/dev/null
+       |
        |  local _comp
        |  for _comp in "$${COMPREPLY[@]}"; do
        |    if [[ "$$_comp" == */ ]]; then
@@ -130,7 +134,7 @@ object AutoComplete {
         case Left(error)  => ZIO.fail(new RuntimeException(s"Error decoding env-var '$key': $error"))
     }
 
-  private def autoComplete(app: CompiledCliApp[?]): Task[Unit] =
+  private def autoComplete(app: CompiledCliApp[?, ?]): Task[Unit] =
     for {
       n <- getEnvVar[Int](CompletionRequest.numWordsEnv)
       i <- getEnvVar[Int](CompletionRequest.argIdxEnv)
@@ -138,11 +142,16 @@ object AutoComplete {
       j <- getEnvVar[String](CompletionRequest.joinStrEnv)
       args = a.detailedSplit(scala.util.matching.Regex.quote(j).r, true, true).toList
       _ <- ZIO.fail(new RuntimeException(s"bad completion args: expected $n words, got ${args.length}")).unless(args.length == n && i < n)
-      out <- app.complete(CompletionRequest(n, i, args, j)).map(_.distinct.sorted)
+      // Positional suggestions (and sub-command names) first, then named/flag suggestions (`-`-prefixed),
+      // each group sorted — rather than one flat alphabetical sort that interleaves them.
+      out <- app.complete(CompletionRequest(n, i, args, j)).map { raw =>
+        val (named, positional) = raw.distinct.partition(_.startsWith("-"))
+        positional.sorted ::: named.sorted
+      }
       _ <- Console.printLine(out.mkString(j))
     } yield ()
 
-  def handleArgs(args: List[String], app: CompiledCliApp[?]): IO[AutoCompleteError, Unit] = args match
+  def handleArgs(args: List[String], app: CompiledCliApp[?, ?]): IO[AutoCompleteError, Unit] = args match
     case "generate" :: rest =>
       generateScript(rest match
         case "--oxygen-args" :: p => p :+ "--"

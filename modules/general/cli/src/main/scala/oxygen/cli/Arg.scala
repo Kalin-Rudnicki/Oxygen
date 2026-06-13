@@ -30,6 +30,7 @@ object NamedArgNested {
 }
 object Arg {
 
+  // TODO (KR) : WTF grok...
   def parse(stringArgs: List[String]): Either[String, Args] =
     for {
       (before, after) <- splitOn_--(stringArgs)

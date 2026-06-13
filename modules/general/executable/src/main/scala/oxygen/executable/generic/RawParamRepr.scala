@@ -23,7 +23,7 @@ private[generic] final class RawParamRepr(
   private val annotations: Annotations = valDef.symbol.annotations
 
   val annot_paramType: CliFunctionParamType = annotations.optionalOfValue[CliFunctionParamType].getOrElse {
-    failAtVal(s"Parameter ${valDef.name} requires exactly one of @positional, @named, @config, @flag, @toggle, or @custom")
+    failAtVal(s"Parameter ${valDef.name} requires exactly one of @positional, @named, @flag, @toggle, @custom, @envVar, or @envConfig")
   }
 
   val annot_longName: Option[longName] = annotations.optionalOfValue[longName]

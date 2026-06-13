@@ -14,7 +14,7 @@ final case class ShowcaseApp() extends CliApp[Any, RootCtx] {
 
   @doc("Root environment", "shared by every subcommand")
   def env(
-      @config("SHOWCASE_SETTINGS") settings: Option[ShowcaseSettings],
+      @envConfig("SHOWCASE_SETTINGS") settings: Option[ShowcaseSettings],
       @named host: String = "localhost",
       @toggle
       @longName.truePrefix("enable")
@@ -40,8 +40,8 @@ final case class ShowcaseApp() extends CliApp[Any, RootCtx] {
 
   @command("kitchen-sink")
   def kitchenSink(
-      @config("TASK_CONFIG") task: TaskConfig,
-      @config("OPTIONAL_TASK") extra: Option[TaskConfig],
+      @envConfig("TASK_CONFIG") task: TaskConfig,
+      @envConfig("OPTIONAL_TASK") extra: Option[TaskConfig],
       @named @shortName('i') ids: NonEmptyList[String],
       @named pair: (String, Int),
       @named batches: List[(Int, String)],
@@ -113,4 +113,4 @@ final case class ShowcaseApp() extends CliApp[Any, RootCtx] {
   ): CapsuleApp = CapsuleApp(seed)
 
 }
-object ShowcaseApp extends CliApp.Executable[ShowcaseApp]
+object ShowcaseApp extends CliApp.Executable[ShowcaseApp](CliApp.derive)
