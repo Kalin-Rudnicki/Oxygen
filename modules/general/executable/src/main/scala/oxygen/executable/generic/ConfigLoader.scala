@@ -6,7 +6,7 @@ import oxygen.predef.core.*
 import scala.io.Source
 import scala.util.Using
 
-private[generic] object ConfigLoader {
+private[executable] object ConfigLoader {
 
   def loadDecoded[T](raw: String, decoder: JsonDecoder[T]): Either[String, T] =
     resolveJson(raw).flatMap(json => decoder.decodeJsonAST(json).left.map(_.show))

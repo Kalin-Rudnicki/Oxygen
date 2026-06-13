@@ -44,12 +44,9 @@ object RgbColor {
 
   given ArgsParser[RgbColor] =
     (
-      PositionalArgsParser.single("r", SubHelp.Empty)(using PlainTextSchema.int, summon[CompletionOptions[Int]]) ^>>
-        PositionalArgsParser.single("g", SubHelp.Empty)(using PlainTextSchema.int, summon[CompletionOptions[Int]]) ^>>
-        PositionalArgsParser.single("b", SubHelp.Empty)(using PlainTextSchema.int, summon[CompletionOptions[Int]])
-    ).map[RgbColor] { (t: (Int, Int, Int)) =>
-      val (r, g, b) = t
-      RgbColor(r, g, b)
-    }
+      PositionalArgsParser.singlePlain[Int]("r") ^>>
+        PositionalArgsParser.singlePlain[Int]("g") ^>>
+        PositionalArgsParser.singlePlain[Int]("b")
+    ).map { case (r, g, b) => RgbColor(r, g, b) }
 
 }

@@ -7,7 +7,7 @@ annotation-driven `CliApp` model. The rewrite ships in the same Maven artifacts 
 !!! tip "When the new API is a good fit"
 
     - New apps with subcommands declared as methods
-    - Apps that configure via env vars (`@config`) rather than `-f` / `-e` bootstrap flags
+    - Apps that configure via env vars (`@envConfig`) rather than `-f` / `-e` bootstrap flags
     - Teams that want annotation-driven CLI with less boilerplate
 
 !!! warning "When you will feel pain"
@@ -44,13 +44,13 @@ annotation-driven `CliApp` model. The rewrite ships in the same Maven artifacts 
 
     final case class WebServerMain() extends CliApp[Any, WebServerMain.Env] {
 
-      def env(@config("APP_CONFIG") config: WebServerMain.Config): EnvLayer =
+      def env(@envConfig("APP_CONFIG") config: WebServerMain.Config): EnvLayer =
         WebServerMain.Env.layer(config)
 
       @execute
       def run(): Effect = ...
     }
-    object WebServerMain extends CliApp.Executable[WebServerMain]
+    object WebServerMain extends CliApp.Executable[WebServerMain](CliApp.derive)
     ```
 
 ### Subcommands
@@ -97,15 +97,15 @@ java -jar app.jar -f=config.json -e=SECRETS:APP_SECRETS -- server --port 9000
 | `-e` / `--env` | env var (optional `a.b.c:VAR` nesting) |
 | `-r` / `--raw` | inline JSON (optional nesting) |
 
-The current API has **no** equivalent bootstrap phase. Config is per-parameter `@config("ENV_VAR")`
+The current API has **no** equivalent bootstrap phase. Config is per-parameter `@envConfig("ENV_VAR")`
 only (`ConfigLoader`: raw JSON string, file path, or directory of `.json` files).
 
 **Impact:** Apps that relied on `-f` / merged JSON → `withJsonConfig` must either:
 
-- export merged JSON into one env var / file and use `@config("APP_CONFIG")`, or
+- export merged JSON into one env var / file and use `@envConfig("APP_CONFIG")`, or
 - add bootstrap support to the library (not implemented yet)
 
-The in-repo `WebServerMain` has been migrated to `@config("APP_CONFIG")`.
+The in-repo `WebServerMain` has been migrated to `@envConfig("APP_CONFIG")`.
 
 ### 2. Imperative `Executable` builder
 
@@ -157,9 +157,9 @@ my-app --my-opt=x client
 
 Update scripts and documentation.
 
-### `@config` vs v1 multi-source merge
+### `@envConfig` vs v1 multi-source merge
 
-Current API: one env var per `@config`, no `a.b.c:` nesting prefix, no JAR resources, no merging
+Current API: one env var per `@envConfig`, no `a.b.c:` nesting prefix, no JAR resources, no merging
 multiple independent bootstrap sources.
 
 **Workaround:** CI/k8s composes one JSON blob or file path into a single env var.
@@ -203,7 +203,7 @@ walking is different. Bootstrap-flag completion (`-f`/`-e` before subcommand) is
 
 1. **Bump dependencies** — same artifacts (`oxygen-executable`, `oxygen-cli`), new major/minor version.
 2. **Rewrite app class** — extend `CliApp`, add `@execute` or `@command` methods, `object extends CliApp.Executable`.
-3. **Replace `withJsonConfig`** — `@config("ENV")` on `env` or command params; ensure deploy sets env/file.
+3. **Replace `withJsonConfig`** — `@envConfig("ENV")` on `env` or command params; ensure deploy sets env/file.
 4. **Replace `withEnv`** — `def env(...): EnvLayer`.
 5. **Replace `withCLIParser`** — annotations, or `@custom` parsers.
 6. **Update invocations** — subcommand first; drop bootstrap flags or map them to env.

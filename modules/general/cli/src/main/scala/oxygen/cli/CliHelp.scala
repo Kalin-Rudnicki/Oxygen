@@ -1,9 +1,47 @@
 package oxygen.cli
 
-import oxygen.predef.core.*
+import oxygen.json.Json
 import scala.annotation.tailrec
 
 object CliHelp {
+
+  /** A machine-readable view of a parser's params, for `OXYGEN_CLI_JSON` help output. */
+  def paramsJson(help: Help): Json.Arr = {
+    def shortStr(c: Option[Char]): List[(String, Json)] = c.toList.map(ch => "short" -> Json.string(ch.toString))
+
+    def hintFields(subHelp: SubHelp, extra: List[HelpHint]): List[(String, Json)] = {
+      val hints: List[HelpHint] = extra ::: subHelp.hints
+      val docFields: List[(String, Json)] =
+        if subHelp.docs.nonEmpty then List("doc" -> Json.arr(subHelp.docs.map(Json.string)*)) else Nil
+      val hintFs: List[(String, Json)] = hints.flatMap {
+        case HelpHint.Default(v)     => List("default" -> Json.string(v))
+        case HelpHint.EnumValues(vs) => List("enum" -> Json.arr(vs.map(Json.string)*))
+        case HelpHint.Optional       => List("optional" -> Json.boolean(true))
+        case HelpHint.Repeated       => List("repeated" -> Json.boolean(true))
+        case HelpHint.RepeatedNel    => List("repeated" -> Json.boolean(true))
+        case _                       => Nil
+      }
+      (docFields ::: hintFs).distinctBy(_._1) // a hint can appear in both `subHelp.hints` and `extra`
+    }
+
+    def loop(h: Help, extra: List[HelpHint], acc: List[Json]): List[Json] = h match
+      case Help.And(l, r)             => loop(r, extra, loop(l, extra, acc))
+      case Help.Or(l, r)              => loop(r, extra, loop(l, extra, acc))
+      case Help.WithHints(base, msgs) => loop(base, extra ::: msgs.toList, acc)
+      case Help.Extra(inner)          => loop(inner, extra, acc)
+      case Help.Positional(name, sh)  =>
+        acc :+ Json.obj((List("kind" -> Json.string("positional"), "name" -> Json.string(name)) ::: hintFields(sh, extra))*)
+      case Help.Named(long, short, _, sh) =>
+        acc :+ Json.obj((List("kind" -> Json.string("named"), "long" -> Json.string(long)) ::: shortStr(short) ::: hintFields(sh, extra))*)
+      case Help.Flag(long, short, sh) =>
+        acc :+ Json.obj((List("kind" -> Json.string("flag"), "long" -> Json.string(long)) ::: shortStr(short) ::: hintFields(sh, extra))*)
+      case Help.Toggle(trueName, falseName, shortNames, sh) =>
+        val shorts: List[(String, Json)] = shortNames.toList.flatMap { case (t, f) => List("shortTrue" -> Json.string(t.toString), "shortFalse" -> Json.string(f.toString)) }
+        acc :+ Json.obj((List("kind" -> Json.string("toggle"), "trueName" -> Json.string(trueName), "falseName" -> Json.string(falseName)) ::: shorts ::: hintFields(sh, extra))*)
+      case _ => acc
+
+    Json.arr(loop(help, Nil, Nil)*)
+  }
 
   def peel(named: NamedArgs): (NamedArgs, Option[HelpType]) = {
     @tailrec
@@ -39,49 +77,6 @@ object CliHelp {
   def mergeCompletions(builtins: List[String], rest: List[String]): List[String] =
     val (flags, nonFlags) = (builtins ::: rest).distinct.partition(_.startsWith("-"))
     nonFlags.sorted ::: flags.sorted
-
-  def compose(
-      parser: ArgsParser[?],
-      helpType: HelpType,
-      subCommandNames: Set[String] = Set.empty,
-      title: Option[Help] = None,
-      expandedSubCommands: Option[Help] = None,
-  ): Help = {
-    val parserHelp: Help = helpType match
-      case HelpType.Help      => parser.help.stripDocs
-      case HelpType.HelpExtra => parser.help
-    val subCommandsSection: Option[Help] =
-      expandedSubCommands
-        .map(help => Help.And(Help.BlankLine, help))
-        .orElse(subCommandsHelp(subCommandNames))
-    val sections = List(
-      title,
-      Some(parserHelp),
-      subCommandsSection,
-      helpTypeExtra(helpType),
-    ).flatten
-    sections match
-      case Nil        => Help.Empty
-      case one :: Nil => one
-      case many       => many.reduceLeft(Help.And(_, _))
-  }
-
-  def printHelp(
-      parser: ArgsParser[?],
-      helpType: HelpType,
-      subCommandNames: Set[String] = Set.empty,
-      title: Option[Help] = None,
-      expandedSubCommands: Option[Help] = None,
-  ): String =
-    compose(parser, helpType, subCommandNames, title, expandedSubCommands).toString
-
-  private def helpTypeExtra(helpType: HelpType): Option[Help] = helpType match
-    case HelpType.HelpExtra => None
-    case HelpType.Help      => None
-
-  private def subCommandsHelp(subCommandNames: Set[String]): Option[Help] =
-    if subCommandNames.isEmpty then None
-    else Help.Raw(s"Commands:\n${subCommandNames.toList.sorted.map(name => s"  $name").mkString("\n")}").some
 
   def paramNameCompletions(help: Help, value: String): List[String] =
     mergeCompletions(builtinFlagCompletions(value), collectParamNames(help).filter(_.startsWith(value)))
