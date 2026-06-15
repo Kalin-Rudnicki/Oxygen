@@ -12,10 +12,12 @@ final class EventStream[-R, +E, +A](sourceName: String, supportsParallel: Boolea
       f(event.value) *> event.commit
     }
 
-  // TODO (KR) : support parallelization
-  // def foreachPar[R2 <: R, E2 >: E, K](n: Int, k: A => K)(f: A => ZIO[R2, E2, Unit]): ZIO[R2, E2, Unit] =
-  //   ZIO.dieMessage(s"Parallel stream not supported [source=$sourceName]").unlessDiscard(supportsParallel) *>
-  //     KeyedBuffer.run(raw, k, n, f)
+  // TODO (KR) : I would like to make a much more robust version of this, but this seems like a good MVP
+  def foreachPar[R2 <: R, E2 >: E, K](bufferSize: Int = 16)(k: A => K)(f: A => ZIO[R2, E2, Unit]): ZIO[R2, E2, Unit] =
+    ZIO.dieMessage(s"Parallel stream not supported [source=$sourceName]").unlessDiscard(supportsParallel) *>
+      raw.mapZIOParByKey(event => k(event.value), bufferSize) { event =>
+        f(event.value) *> event.commit
+      }.runDrain
 
   /////// effectless ///////////////////////////////////////////////////////////////
 
