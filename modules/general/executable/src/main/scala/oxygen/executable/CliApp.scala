@@ -3,6 +3,22 @@ package oxygen.executable
 import oxygen.cli.*
 import zio.*
 
+// FIX-PRE-MERGE (KR) : remove
+final case class MyThing1() extends CliApp[Any, Int & Boolean] derives CompiledCliApp.DeriveRootApp
+final case class MyThing2() extends CliApp[String, Int & Boolean] derives CompiledCliApp.DeriveSubApp.Aux
+object MyThing2 {
+  // given CompiledCliApp.DeriveSubApp.Extract[MyThing2] = CompiledCliApp.DeriveSubApp.derived[MyThing2]
+}
+
+object Other {
+
+  // oxygen.quoted.MacroUtil.showExpr { summon[CompiledCliApp.DeriveSubApp[MyThing2]] }
+  oxygen.quoted.MacroUtil.showExpr { CompiledCliApp.DeriveSubApp.derived[MyThing2] }
+  // summon[CompiledCliApp.DeriveSubApp[MyThing2]]
+  // summon[CompiledCliApp.DeriveSubApp.Aux[String, MyThing2]]
+
+}
+
 abstract class CliApp[RequiredEnv, ProvidedEnv] {
 
   final type FullEnv = RequiredEnv & ProvidedEnv
@@ -25,7 +41,7 @@ object CliApp {
     *   - `app`  — `body` with a zero-arg root instance; only valid for zero-arg roots (sub-apps that
     *     take constructor params are built by their parent command, so their `app` is a runtime stub).
     */
-  trait Derived[A, R] {
+  trait Derived[A, R] { // FIX-PRE-MERGE (KR) : remove
     def body: CompiledCliApp[A, R]
     def app: CompiledCliApp[Unit, R]
   }

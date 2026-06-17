@@ -44,6 +44,98 @@ sealed trait CompiledCliApp[In, RIn] {
 }
 object CompiledCliApp {
 
+  sealed trait CliAppType[_App <: CliApp[?, ?]] {
+    type RequiredEnv
+    type ProvidedEnv
+    type App <: _App & CliApp[RequiredEnv, ProvidedEnv]
+    inline def apply(app: _App): App
+  }
+  object CliAppType {
+
+    final class Impl[_RequiredEnv, _ProvidedEnv, _App <: CliApp[_RequiredEnv, _ProvidedEnv]] extends CliAppType[_App] {
+      override type RequiredEnv = _RequiredEnv
+      override type ProvidedEnv = _ProvidedEnv
+      override type App = _App
+      override inline def apply(app: _App): App = app
+    }
+
+    inline given instance: [_RequiredEnv, _ProvidedEnv, _App <: CliApp[_RequiredEnv, _ProvidedEnv]] => CliAppType.Impl[_RequiredEnv, _ProvidedEnv, _App] =
+      new CliAppType.Impl[_RequiredEnv, _ProvidedEnv, _App]
+
+  }
+
+  sealed trait Derive[In] {
+    type RIn
+    def compile(in: In): CompiledCliApp[In, RIn]
+  }
+
+  sealed trait DeriveSubApp[App <: CliApp[?, ?]] extends Derive[App]
+  object DeriveSubApp {
+
+    trait Impl[_RIn, App <: CliApp[_RIn, ?]] extends DeriveSubApp[App] {
+      override final type RIn = _RIn
+    }
+    object Impl {
+
+      transparent inline def derived[_App <: CliApp[?, ?]](using ev: CliAppType[_App]): DeriveSubApp.Impl[ev.RequiredEnv, ev.App] =
+        ${ derivedImpl[ev.RequiredEnv, ev.ProvidedEnv, ev.App] }
+
+    }
+
+    type Aux[_RIn, _App <: CliApp[_RIn, ?]] = DeriveSubApp[_App] { type RIn = _RIn }
+    object Aux {
+
+      transparent inline def derived[_App <: CliApp[?, ?]](using ev: CliAppType[_App]): DeriveSubApp.Impl[ev.RequiredEnv, ev.App] =
+        ${ derivedImpl[ev.RequiredEnv, ev.ProvidedEnv, ev.App] }
+
+    }
+
+    type Extract[_App <: CliApp[?, ?]] <: DeriveSubApp.Aux[?, _App] =
+      _App match { case CliApp[rIn, _] => DeriveSubApp.Aux[rIn, _App] }
+
+    // import oxygen.quoted.*
+    import scala.quoted.*
+    private def derivedImpl[
+        _RequiredEnv: Type,
+        _ProvidedEnv: Type,
+        _App <: CliApp[_RequiredEnv, _ProvidedEnv]: Type,
+    ](using Quotes): Expr[DeriveSubApp.Impl[_RequiredEnv, _App]] = {
+      /*
+      report.info(
+        str"""
+             |RequiredEnv: ${TypeRepr.of[_RequiredEnv].dealias.showAnsiCode}
+             |ProvidedEnv: ${TypeRepr.of[_ProvidedEnv].dealias.showAnsiCode}
+             |App: ${TypeRepr.of[_App].dealias.showAnsiCode}
+             |""".toString,
+      )
+       */
+
+      '{
+        new DeriveSubApp.Impl[_RequiredEnv, _App] {
+          override def compile(in: _App): CompiledCliApp[_App, _RequiredEnv] = ???
+        }
+      } // FIX-PRE-MERGE (KR) :
+    }
+
+    transparent inline def derived[_App <: CliApp[?, ?]](using ev: CliAppType[_App]): DeriveSubApp.Impl[ev.RequiredEnv, ev.App] =
+      ${ derivedImpl[ev.RequiredEnv, ev.ProvidedEnv, ev.App] }
+
+  }
+
+  trait DeriveRootApp[C <: CliApp[Any, ?]] extends Derive[Unit] {
+    override final type RIn = Any
+  }
+  object DeriveRootApp {
+
+    inline def derived[C <: CliApp[Any, ?]]: DeriveRootApp[C] =
+      ???
+
+  }
+
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
+  //
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
+
   // Parse failures are not part of the effect's error channel: they're rendered as help text and
   // mapped to a failing exit code, mirroring the old runtime's `printHelp`.
   private def renderParseFail(fail: CliParseResult.Fail): UIO[ExitCode] =
