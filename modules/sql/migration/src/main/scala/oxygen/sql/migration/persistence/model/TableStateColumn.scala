@@ -5,7 +5,7 @@ import scala.collection.immutable.ArraySeq
 
 final case class TableStateColumn(
     tableName: EntityRefColumn.TableRef,
-    primaryKeyColumns: Set[String],
+    primaryKeyColumns: ArraySeq[String],
     columns: ArraySeq[ColumnColumn],
     foreignKeys: Option[ArraySeq[MigrationForeignKeyColumn]],
     indices: Option[ArraySeq[IndexColumn]],

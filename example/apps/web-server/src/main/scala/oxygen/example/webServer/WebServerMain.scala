@@ -24,10 +24,9 @@ final case class WebServerMain() extends CliApp[Any, WebServerMain.Env] {
 
   @execute
   def run(): Effect =
-    MigrationService.migrate(oxygen.example.db.migrations.migrations) *>
-      ZIO.logInfo("Press space+enter to stop server") *>
-      ZIO.attempt(java.lang.System.in.read()).unit *>
-      ZIO.logInfo("Stopping...")
+    // verifies the committed migration files reproduce ExampleSchema, then applies any pending ones
+    MigrationService.migrate(oxygen.example.db.ExampleSchema.schema) *>
+      ZIO.never
 
 }
 object WebServerMain extends CliApp.Executable[WebServerMain](CliApp.derive) {
@@ -36,6 +35,7 @@ object WebServerMain extends CliApp.Executable[WebServerMain](CliApp.derive) {
       http: Config.Http,
       token: Config.Token,
       db: DbConfig,
+      migration: MigrationConfig,
       ui: UIApiImpl.Config,
   ) derives JsonCodec
   object Config {
@@ -79,7 +79,7 @@ object WebServerMain extends CliApp.Executable[WebServerMain](CliApp.derive) {
         Atomically.LiveDB.layer,
         MigrationService.layer,
         MigrationRepo.layer,
-        MigrationConfig.defaultLayer,
+        ZLayer.succeed(config.migration),
         // token
         ZLayer.succeed(config.token.key),
         ZLayer.succeed(JWTService.Issuer.Config(JWTService.Issuer.ValidAfter.Empty, JWTService.Issuer.Expiry.IssueDelay(config.token.timeToLive))),

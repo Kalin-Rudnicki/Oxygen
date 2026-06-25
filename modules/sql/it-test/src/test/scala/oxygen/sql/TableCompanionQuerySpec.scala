@@ -3,7 +3,6 @@ package oxygen.sql
 import java.util.UUID
 import oxygen.predef.test.*
 import oxygen.sql.migration.*
-import oxygen.sql.migration.model.*
 import oxygen.sql.migration.persistence.MigrationRepo
 import oxygen.sql.query.{PostgresCRUDRepo, TableCompanion}
 import oxygen.storage.CRUDRepo
@@ -152,12 +151,8 @@ object TableCompanionQuerySpec extends OxygenSpec[Database] {
       Helpers.testContainerLayer,
       Helpers.databaseLayer,
       MigrationService.layer,
-      MigrationConfig.defaultLayer,
-      MigrationService.migrateLayer(
-        Migrations(
-          PlannedMigration.auto(1)(Person.tableRepr, Note.tableRepr, Ints.tableRepr, MultiPK1.tableRepr, MultiPK2.tableRepr, Arrays.tableRepr),
-        ),
-      ),
+      MigrationTestUtil.stagedConfigLayer(Person.tableRepr, Note.tableRepr, Ints.tableRepr, MultiPK1.tableRepr, MultiPK2.tableRepr, Arrays.tableRepr),
+      MigrationService.migrateLayer,
       Atomically.LiveDB.layer,
       MigrationRepo.layer,
     )

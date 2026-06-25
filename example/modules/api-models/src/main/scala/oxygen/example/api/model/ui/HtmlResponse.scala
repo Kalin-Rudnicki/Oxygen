@@ -1,14 +1,27 @@
 package oxygen.example.api.model.ui
 
-import oxygen.http.core.partial.ResponseCodecNoStatus
+import oxygen.http.core.*
+import oxygen.http.model.RawResponseText
+import oxygen.predef.core.*
+import zio.http.{Headers, MediaType, Status}
 
 final case class HtmlResponse(response: String)
 object HtmlResponse {
 
-  given ResponseCodecNoStatus[HtmlResponse] =
-    ResponseCodecNoStatus.fromBody[String].transform(HtmlResponse(_), _.response) ++
-      ResponseCodecNoStatus.SetHeader("Cache-Control", "no-store, no-cache, must-revalidate") ++
-      ResponseCodecNoStatus.SetHeader("Pragma", "no-cache") ++
-      ResponseCodecNoStatus.SetHeader("Expires", "0")
+  given ResponseCodec[HtmlResponse] =
+    ResponseCodec[RawResponseText].transform(
+      raw => HtmlResponse(raw.body),
+      response =>
+        RawResponseText(
+          Status.Ok,
+          Headers(
+            ("Cache-Control", "no-store, no-cache, must-revalidate"),
+            ("Pragma", "no-cache"),
+            ("Expires", "0"),
+          ),
+          response.response,
+          MediaType.text.html.some,
+        ),
+    )
 
 }

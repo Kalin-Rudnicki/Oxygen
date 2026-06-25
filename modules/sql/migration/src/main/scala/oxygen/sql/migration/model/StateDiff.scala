@@ -28,6 +28,15 @@ sealed trait StateDiff { self: StateDiff.CoreType =>
     case _: AlterTable.DropTable                            => 17
     case _: AlterSchema.DropSchema                          => 18
 
+  /** The entity this diff targets -- used (with [[applicationOrder]]) for a deterministic total order. */
+  final lazy val entityRef: EntityRef = this match
+    case AlterExtension.CreateExtension(ext) => ExtensionRef(ext)
+    case d: AlterSchema                      => d.schemaRef
+    case d: AlterTable                       => d.tableRef
+    case d: AlterColumn                      => d.columnRef
+    case d: AlterForeignKey                  => d.fkRef
+    case d: AlterIndex                       => d.idxRef
+
   // TODO (KR) : improve
   final def toIndentedString: IndentedString = this.toString
 

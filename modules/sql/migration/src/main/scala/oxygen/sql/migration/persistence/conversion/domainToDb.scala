@@ -59,10 +59,19 @@ object domainToDb {
     def toDb: TableStateColumn =
       TableStateColumn(
         tableName = self.tableName.toDb,
-        primaryKeyColumns = self.primaryKeyColumns.iterator.map(_.name).toSet,
+        primaryKeyColumns = self.primaryKeyColumns.map(_.name),
         columns = self.columns.map(_.toDb),
         foreignKeys = self.foreignKeys.map(_.toDb).some,
         indices = self.indices.map(_.toDb).some,
+      )
+
+  extension (self: MigrationState)
+    def toDb: MigrationStateColumn =
+      MigrationStateColumn(
+        extensions = self.extensions,
+        schemas = self.schemas.map(_.schemaName),
+        // sorted for deterministic file output
+        tables = ArraySeq.from(self.tables.values).map(_.toDb).sortBy(t => (t.tableName.schema, t.tableName.table)),
       )
 
   extension (self: StateDiff)

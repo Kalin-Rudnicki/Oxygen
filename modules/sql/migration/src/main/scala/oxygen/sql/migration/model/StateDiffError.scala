@@ -59,6 +59,7 @@ object StateDiffError {
     case object ModificationToPublicSchema extends Cause
     case object CreateTableWithFK extends Cause
     case object CreateTableWithIdx extends Cause
+    case object DuplicateDiff extends Cause
     final case class TableStillInSchema(table: EntityRef.TableRef) extends Cause
   }
 
