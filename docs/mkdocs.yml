@@ -12,6 +12,10 @@ nav:
     - 'Oxygen Meta': 'metaprogramming/meta.md'
   - 'Oxygen SQL':
     - 'SQL Overview': 'sql/index.md'
+    - 'Models': 'sql/models.md'
+    - 'Queries': 'sql/queries.md'
+    - 'Database & Connection': 'sql/database.md'
+    - 'Migrations': 'sql/migrations.md'
   - 'Oxygen HTTP':
     - 'HTTP Overview': 'http/index.md'
     - 'Client': 'http/client/index.md'

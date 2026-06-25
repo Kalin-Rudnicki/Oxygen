@@ -6,11 +6,15 @@ import zio.{ULayer, ZLayer}
 
 final case class MigrationConfig(
     atomicity: MigrationConfig.Atomicity,
+    migrationsDir: String,
 ) derives JsonCodec
 object MigrationConfig {
 
-  val default: MigrationConfig = MigrationConfig(Atomicity.AllOrNothing)
+  val default: MigrationConfig = MigrationConfig(Atomicity.AllOrNothing, "migrations")
   val defaultLayer: ULayer[MigrationConfig] = ZLayer.succeed(default)
+
+  def layer(migrationsDir: String, atomicity: Atomicity = Atomicity.AllOrNothing): ULayer[MigrationConfig] =
+    ZLayer.succeed(MigrationConfig(atomicity, migrationsDir))
 
   /**
     * None : (Highly not recommended) Will run your migration outside a transaction.

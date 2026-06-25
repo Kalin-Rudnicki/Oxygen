@@ -3,7 +3,7 @@
     "errors": {
       "exposeInternalErrors": true
     },
-    "port": 3010
+    "port": 3210
   },
   "token": {
     "key": {
@@ -16,7 +16,7 @@
     "target": {
       "database": "oxygen_example",
       "host": "localhost",
-      "port": 5010
+      "port": 5210
     },
     "credentials": {
       "username": "oxygen_username",
@@ -35,6 +35,10 @@
       "bufferChunkSize": [16, 64, 64, 256],
       "bufferNumChunks": 2
     }
+  },
+  "migration": {
+    "atomicity": "AllOrNothing",
+    "migrationsDir": "example/apps/web-server/src/main/resources/migrations"
   },
   "ui": {
     "htmlPath": "example/apps/web-server/src/main/resources/res/html/index.html",

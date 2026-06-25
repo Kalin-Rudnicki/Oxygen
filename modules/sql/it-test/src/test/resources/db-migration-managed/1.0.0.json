@@ -1,0 +1,154 @@
+{
+  "formatVersion": 1,
+  "version": "1.0.0",
+  "compatibility": "BackwardsCompatible",
+  "diff": [
+    {
+      "stepNo": 1,
+      "derived": true,
+      "step": {
+        "CreateSchema": {
+          "schemaRef": {
+            "schema": "managed"
+          }
+        }
+      }
+    },
+    {
+      "stepNo": 2,
+      "derived": true,
+      "step": {
+        "CreateTable": {
+          "table": {
+            "tableName": {
+              "schema": "managed",
+              "table": "gadget"
+            },
+            "primaryKeyColumns": [
+              "id"
+            ],
+            "columns": [
+              {
+                "name": "id",
+                "columnType": "INT",
+                "nullable": false
+              },
+              {
+                "name": "label",
+                "columnType": "TEXT",
+                "nullable": false
+              }
+            ],
+            "foreignKeys": [
+            ],
+            "indices": [
+            ]
+          }
+        }
+      }
+    },
+    {
+      "stepNo": 3,
+      "derived": true,
+      "step": {
+        "CreateTable": {
+          "table": {
+            "tableName": {
+              "schema": "managed",
+              "table": "widget"
+            },
+            "primaryKeyColumns": [
+              "id"
+            ],
+            "columns": [
+              {
+                "name": "id",
+                "columnType": "UUID",
+                "nullable": false
+              },
+              {
+                "name": "name",
+                "columnType": "TEXT",
+                "nullable": false
+              },
+              {
+                "name": "description",
+                "columnType": "TEXT",
+                "nullable": true
+              }
+            ],
+            "foreignKeys": [
+            ],
+            "indices": [
+            ]
+          }
+        }
+      }
+    }
+  ],
+  "state": {
+    "extensions": [
+    ],
+    "schemas": [
+      "managed",
+      "public"
+    ],
+    "tables": [
+      {
+        "tableName": {
+          "schema": "managed",
+          "table": "gadget"
+        },
+        "primaryKeyColumns": [
+          "id"
+        ],
+        "columns": [
+          {
+            "name": "id",
+            "columnType": "INT",
+            "nullable": false
+          },
+          {
+            "name": "label",
+            "columnType": "TEXT",
+            "nullable": false
+          }
+        ],
+        "foreignKeys": [
+        ],
+        "indices": [
+        ]
+      },
+      {
+        "tableName": {
+          "schema": "managed",
+          "table": "widget"
+        },
+        "primaryKeyColumns": [
+          "id"
+        ],
+        "columns": [
+          {
+            "name": "id",
+            "columnType": "UUID",
+            "nullable": false
+          },
+          {
+            "name": "name",
+            "columnType": "TEXT",
+            "nullable": false
+          },
+          {
+            "name": "description",
+            "columnType": "TEXT",
+            "nullable": true
+          }
+        ],
+        "foreignKeys": [
+        ],
+        "indices": [
+        ]
+      }
+    ]
+  }
+}

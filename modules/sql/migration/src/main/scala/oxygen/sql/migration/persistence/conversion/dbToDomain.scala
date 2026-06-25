@@ -55,12 +55,24 @@ object dbToDomain {
       case ColumnColumn.Type.Vector(fixedSize) => Column.Type.Vector(fixedSize)
       case ColumnColumn.Type.Array(elemType)   => Column.Type.Array(elemType.toDomain)
 
+  extension (self: MigrationStateColumn)
+    def toDomain: MigrationState = {
+      val tables = self.tables.map(_.toDomain)
+      MigrationState(
+        extensions = self.extensions,
+        schemas = self.schemas.map(EntityRef.SchemaRef(_)),
+        tables = tables.map(t => (t.tableName, t)).toMap,
+      )
+    }
+
   extension (self: TableStateColumn)
     def toDomain: TableState = {
       val cols = self.columns.map(_.toDomain)
+      val byName = cols.iterator.map(c => (c.name, c)).toMap
       TableState(
         tableName = self.tableName.toDomain,
-        primaryKeyColumns = cols.filter(c => self.primaryKeyColumns.contains(c.name)),
+        // preserve the stored primary-key column order
+        primaryKeyColumns = self.primaryKeyColumns.flatMap(byName.get),
         columns = cols,
         foreignKeys = self.foreignKeys.getOrElse(ArraySeq.empty[MigrationForeignKeyColumn]).map(_.toDomain),
         indices = self.indices.getOrElse(ArraySeq.empty[IndexColumn]).map(_.toDomain),

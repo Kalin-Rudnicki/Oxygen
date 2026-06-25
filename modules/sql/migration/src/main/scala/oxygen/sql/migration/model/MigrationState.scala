@@ -24,12 +24,15 @@ object MigrationState {
   val empty: MigrationState = MigrationState(Set.empty, Set(SchemaRef("public")), Map.empty)
 
   def fromTables(schemas: ArraySeq[TableRepr[?]]): Either[DeriveError, MigrationState] =
-    schemas.traverse(TableState.fromTable).map { tables =>
-      MigrationState(
-        tables.flatMap(_.columns).flatMap(_.columnType.extension).toSet,
-        tables.map(_.tableName.schema).toSet + SchemaRef("public"),
-        tables.map(t => (t.tableName, t)).toMap,
-      )
-    }
+    for {
+      tables <- schemas.traverse(TableState.fromTable)
+      distinctTables <- tables.groupBy(_.tableName).toSeq.traverse { (ref, grouped) =>
+        Either.cond(grouped.sizeIs == 1, grouped.head, DeriveError(ref, Cause.AlreadyExists))
+      }
+    } yield MigrationState(
+      distinctTables.flatMap(_.columns).flatMap(_.columnType.extension).toSet,
+      distinctTables.map(_.tableName.schema).toSet + SchemaRef("public"),
+      distinctTables.map(t => (t.tableName, t)).toMap,
+    )
 
 }

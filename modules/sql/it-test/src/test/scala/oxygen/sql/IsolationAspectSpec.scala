@@ -2,7 +2,6 @@ package oxygen.sql
 
 import oxygen.predef.test.*
 import oxygen.sql.migration.*
-import oxygen.sql.migration.model.*
 import oxygen.sql.migration.persistence.MigrationRepo
 import oxygen.sql.test.SqlAspects
 import scala.annotation.experimental
@@ -65,12 +64,8 @@ object IsolationAspectSpec extends OxygenSpec[Database] {
       Helpers.testContainerLayer,
       Helpers.databaseLayer,
       MigrationService.layer,
-      MigrationConfig.defaultLayer,
-      MigrationService.migrateLayer(
-        Migrations(
-          PlannedMigration.auto(1)(Person.tableRepr),
-        ),
-      ),
+      MigrationTestUtil.stagedConfigLayer(Person.tableRepr),
+      MigrationService.migrateLayer,
       Atomically.LiveDB.layer,
       MigrationRepo.layer,
     )

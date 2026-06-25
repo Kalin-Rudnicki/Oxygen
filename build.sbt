@@ -556,6 +556,7 @@ lazy val `oxygen-sql-test`: Project =
     .dependsOn(
       `oxygen-test-container` % testAndCompile,
       `oxygen-sql` % testAndCompile,
+      `oxygen-sql-migration` % testAndCompile,
     )
 
 // TODO (KR) :
@@ -794,6 +795,7 @@ lazy val `example-web-server`: Project =
       `oxygen-executable`.jvm % testAndCompile,
       `example-api`.jvm % testAndCompile,
       `example-domain-impl` % testAndCompile,
+      `oxygen-sql-test` % Test,
     )
 
 lazy val `example-app`: Project =

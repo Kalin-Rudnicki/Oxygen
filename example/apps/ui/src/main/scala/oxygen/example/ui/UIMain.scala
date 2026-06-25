@@ -47,7 +47,8 @@ object UIMain extends PageApp[UIMain.Env] {
   override def layer: TaskLayer[Env] =
     ZLayer.make[Env](
       // clients
-      Client.layer.localPort(3010),
+      ZLayer.succeed { Client.Config.relativeUrl },
+      Client.layer.default,
       DeriveClient.clientLayer[UserApi],
       DeriveClient.clientLayer[ConnectionApi],
       DeriveClient.clientLayer[StreamApi],

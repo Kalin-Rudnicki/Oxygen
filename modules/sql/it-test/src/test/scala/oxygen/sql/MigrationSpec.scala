@@ -1,12 +1,15 @@
 package oxygen.sql
 
+import oxygen.core.Version
 import oxygen.predef.test.*
 import oxygen.sql.error.QueryError
 import oxygen.sql.migration.*
 import oxygen.sql.migration.model.*
 import oxygen.sql.migration.persistence.MigrationRepo
+import oxygen.sql.migration.persistence.model.PersistedMigrationFile
 import oxygen.sql.query.*
 import oxygen.sql.schema.*
+import scala.collection.immutable.ArraySeq
 
 object MigrationSpec extends OxygenSpec[Database & MigrationService] {
 
@@ -18,124 +21,86 @@ object MigrationSpec extends OxygenSpec[Database & MigrationService] {
   )
   object ModelA1 extends TableCompanion[ModelA1, Int](TableRepr.derived[ModelA1])
 
+  // adds a nullable column -> backwards-compatible follow-up migration
   @tableName("model_a")
   final case class ModelA2(
       @primaryKey id: Int,
       field1: String,
-      field2: Option[Boolean],
+      field2: Boolean,
       other: Option[Int],
   )
   object ModelA2 extends TableCompanion[ModelA2, Int](TableRepr.derived[ModelA2])
 
-  @tableName("model_a")
-  final case class ModelA3(
-      @primaryKey id: Int,
-      field1: Option[Int], // different field type
-      field2: Boolean,
-  )
-  object ModelA3 extends TableCompanion[ModelA3, Int](TableRepr.derived[ModelA3])
+  private def stateOf(tables: TableRepr[?]*): MigrationState =
+    MigrationState.fromTables(ArraySeq.from(tables)) match
+      case Right(s)    => s
+      case Left(error) => throw new RuntimeException(error.toString)
 
-  @tableName("model_a")
-  final case class ModelA4(
-      id: Int, // missing pk
-      field1: String,
-      field2: Boolean,
-  )
-  object ModelA4 extends TableCompanion.NoKey[ModelA4](TableRepr.derived[ModelA4])
+  private def fileFor(previous: Option[(Version, MigrationState)], tables: TableRepr[?]*): PersistedMigrationFile =
+    MigrationGenerator.generate(previous, stateOf(tables*)) match
+      case Right(MigrationGenerator.GenerateResult.Generated(file, _)) => file
+      case other                                                       => throw new RuntimeException(s"expected a generated migration, got: $other")
 
-  @tableName("model_b")
-  final case class ModelB1(
-      @primaryKey id: Int,
-      aId: Option[Int],
-  )
-  object ModelB1 extends TableCompanion[ModelB1, Int](TableRepr.derived[ModelB1])
-
-  @tableName("model_b")
-  final case class ModelB2(
-      @primaryKey id: Int,
-      @references[ModelA2] aId: Option[Int],
-  )
-  object ModelB2 extends TableCompanion[ModelB2, Int](TableRepr.derived[ModelB2])
-
-  @tableName("model_c") @index.unique[ModelC1](_.i3, _.i4)
-  final case class ModelC1(
-      @primaryKey id: Int,
-      aId: Option[Int],
-      @indexed.unique i1: Int,
-      i2: Int,
-      i3: Int,
-      i4: Int,
-  )
-  object ModelC1 extends TableCompanion[ModelC1, Int](TableRepr.derived[ModelC1])
-
-  @tableName("model_c") @index[ModelC2](_.i1, _.i2)
-  final case class ModelC2(
-      @primaryKey id: Int,
-      aId: Option[Int],
-      i1: Int,
-      i2: Int,
-      @indexed i3: Int,
-      i4: Int,
-  )
-  object ModelC2 extends TableCompanion[ModelC2, Int](TableRepr.derived[ModelC2])
+  private val v1: PersistedMigrationFile = fileFor(None, ModelA1.tableRepr)
+  private val v2: PersistedMigrationFile = fileFor(Some((Version("1.0.0"), stateOf(ModelA1.tableRepr))), ModelA2.tableRepr)
 
   override def testSpec: TestSpec =
     suite("MigrationSpec")(
-      test("simple migration works") {
+      test("applies genesis, is idempotent, and preserves data across a re-run") {
         for {
-          err1 <- ModelA1.selectAll.execute().arraySeq.exit
-          migration1 = PlannedMigration.auto(1)(ModelA1.tableRepr, ModelB1.tableRepr)
-          migration2 = PlannedMigration.auto(2)(ModelA2.tableRepr, ModelB2.tableRepr, ModelC1.tableRepr)
-          migration3 = PlannedMigration.auto(3)(ModelA2.tableRepr, ModelB1.tableRepr, ModelC2.tableRepr)
-
-          exe1 <- MigrationService.migrate(Migrations(migration1))
-          err2 <- MigrationService.migrate(Migrations()).exit
-          err3 <- MigrationService.migrate(Migrations(PlannedMigration.auto(1)(ModelA2.tableRepr, ModelB1.tableRepr))).exit
-          exe2 <- MigrationService.migrate(Migrations(migration1))
-
-          v1 = ModelA1(1, "value-1", true)
-          v2 = ModelA1(2, "value-2", false)
-
-          _ <- ModelA1.insert.all(v1, v2).unit
-          get1 <- ModelA1.selectAll.execute().to[Seq]
-
-          exe3 <- MigrationService.migrate(Migrations(migration1, migration2, migration3))
-          get2 <- ModelA2.selectAll.execute().to[Seq]
-
-          stage1 = Seq(v1, v2)
-          stage2 = stage1.map { a1 => ModelA2(a1.id, a1.field1, a1.field2.some, None) }
-
-        } yield assert(err1)(failsWithA[QueryError]) &&
-          assert(err2)(failsWithA[MigrationError.MissingPlannedMigration]) &&
-          assert(err3)(failsWithA[MigrationError.MigrationsDiffer]) &&
+          before <- ModelA1.selectAll.execute().arraySeq.exit
+          res1 <- MigrationService.applyMigrations(ArraySeq(v1))
+          _ <- ModelA1.insert.all(ModelA1(1, "a", true), ModelA1(2, "b", false)).unit
+          got1 <- ModelA1.selectAll.execute().to[Seq]
+          res2 <- MigrationService.applyMigrations(ArraySeq(v1))
+          got2 <- ModelA1.selectAll.execute().to[Seq]
+        } yield assert(before)(failsWithA[QueryError]) &&
           assertTrue(
-            exe1.executed.length == 1,
-            exe2.executed.length == 0,
-            exe3.executed.length == 2,
-            get1.sortBy(_.id) == stage1,
-            get2.sortBy(_.id) == stage2,
+            res1.executed.length == 1,
+            res2.executed.isEmpty,
+            got1.sortBy(_.id) == Seq(ModelA1(1, "a", true), ModelA1(2, "b", false)),
+            got2.sortBy(_.id) == got1.sortBy(_.id),
           )
       },
-      test("diff validations") {
+      test("applies a follow-up migration, preserving existing rows") {
         for {
-          err1 <- MigrationService.migrate(Migrations(PlannedMigration.auto(1)(ModelA1.tableRepr), PlannedMigration.auto(2)(ModelA3.tableRepr))).exit
-          err2 <- MigrationService.migrate(Migrations(PlannedMigration.auto(1)(ModelA1.tableRepr), PlannedMigration.auto(2)(ModelA4.tableRepr))).exit
-          _ <- MigrationService.migrate(
-            Migrations(
-              PlannedMigration.auto(1)(ModelA1.tableRepr),
-              PlannedMigration.make(2)(ModelA3.tableRepr)(
-                StateDiff.AlterColumn.DropColumn(EntityRef.ColumnRef("public", "model_a", "field_1")),
-                PlannedMigration.StepType.auto,
-              ),
-            ),
-          )
-        } yield assert(err1)(failsWithA[MigrationError.ErrorDiffingState]) &&
-          assert(err2)(failsWithA[MigrationError.ErrorDiffingState])
+          _ <- MigrationService.applyMigrations(ArraySeq(v1))
+          _ <- ModelA1.insert.all(ModelA1(1, "a", true)).unit
+          res <- MigrationService.applyMigrations(ArraySeq(v1, v2))
+          got <- ModelA2.selectAll.execute().to[Seq]
+        } yield assertTrue(
+          res.executed.length == 1,
+          res.executed.headOption.map(_.version) == Some(Version("1.1.0")),
+          got == Seq(ModelA2(1, "a", true, None)),
+        )
+      },
+      test("an executed migration absent from the filesystem -> MissingMigration") {
+        for {
+          _ <- MigrationService.applyMigrations(ArraySeq(v1))
+          err <- MigrationService.applyMigrations(ArraySeq.empty).exit
+        } yield assert(err)(failsWithA[MigrationError.MissingMigration])
+      },
+      test("a filesystem migration that diverges from what was executed -> MigrationsDiffer") {
+        // same version as v1, but a different diff (genesis for the 4-column table)
+        val v1Diverged = fileFor(None, ModelA2.tableRepr).copy(version = "1.0.0")
+        for {
+          _ <- MigrationService.applyMigrations(ArraySeq(v1))
+          err <- MigrationService.applyMigrations(ArraySeq(v1Diverged)).exit
+        } yield assert(err)(failsWithA[MigrationError.MigrationsDiffer])
+      },
+      test("verifyAgainst succeeds when the committed migrations match the current-code tables") {
+        for {
+          res <- MigrationService.applyMigrations(ArraySeq(v1), MigrationSchema.of(ModelA1.tableRepr))
+        } yield assertTrue(res.executed.length == 1)
+      },
+      test("verifyAgainst fails fast with MigrationsStale when code has drifted ahead of the filesystem") {
+        for {
+          err <- MigrationService.applyMigrations(ArraySeq(v1), MigrationSchema.of(ModelA2.tableRepr)).exit
+        } yield assert(err)(failsWithA[MigrationError.MigrationsStale])
       },
     )
 
-  // deliberately not shared.
-  // this is expensive, but all these tests should really run against their own fresh database
+  // deliberately not shared: each test runs against its own fresh database
   override def layerProvider: LayerProvider[R] =
     LayerProvider.providePerTest[Env](
       Helpers.databaseLayer,
@@ -145,8 +110,6 @@ object MigrationSpec extends OxygenSpec[Database & MigrationService] {
       Atomically.LiveDB.layer,
       MigrationRepo.layer,
     )
-
-  // override def defaultLogLevel: LogLevel = LogLevel.Trace
 
   override def testAspects: Chunk[TestSpecAspect] = Chunk(TestAspect.withLiveRandom, TestAspect.withLiveClock)
 
