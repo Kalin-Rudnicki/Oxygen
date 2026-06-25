@@ -37,7 +37,12 @@ object ResponseCodec {
   final case class Standard[A](statusCodes: StatusCodes[A], codec: ResponseCodecNoStatus[A]) extends ResponseCodec[A] {
 
     override def unsafeBuild(apiName: String, endpointName: String): ResponseSchema =
-      codec.schemaAggregator.unsafeBuild(apiName, endpointName, statusCodes.expectedStatuses)
+      codec.schemaAggregator.unsafeBuild(
+        apiName,
+        endpointName,
+        statusCodes.expectedStatuses,
+        statusCodes.caseStatuses.map(cs => (cs.caseName, cs.status)).toArraySeq,
+      )
 
     override def canLikelyDecode(status: Status): Boolean = statusCodes.expectedStatuses.contains(status)
     override def decode(response: ReceivedResponse): ZIO[Scope, ResponseDecodingFailure, A] = codec.decode(response.headers, response.body)

@@ -70,6 +70,7 @@ object WebServerMain extends CliApp.Executable[WebServerMain](CliApp.derive) {
         UIApiImpl.layer,
         StreamApiImpl.layer,
         CompiledEndpoints.endpointLayer(
+          endpointMiddleware = new ApiSpecEndpointMiddleware(),
         ),
         Server.layer.serving,
         ZLayer.succeed(config.ui),

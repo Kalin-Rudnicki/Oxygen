@@ -2,6 +2,7 @@ package oxygen.http.schema.partial
 
 import oxygen.http.schema.*
 import oxygen.predef.core.*
+import zio.http.Status
 
 // TODO (KR) : in the event that non-paths need to support an "or", the representation of those will need to be beefed up
 //           : right now, its implicitly an AND only
@@ -20,6 +21,7 @@ final case class ResponseSchemaAggregator private (
       apiName: String,
       routeName: String,
       statuses: ExpectedStatuses,
+      caseStatuses: ArraySeq[(String, Status)] = ArraySeq.empty,
   ): ResponseSchema =
     ResponseSchema(
       expectedStatuses = statuses,
@@ -32,6 +34,7 @@ final case class ResponseSchemaAggregator private (
         case _ =>
           throw ResponseSchemaAggregator.InvalidSchemaError(apiName, routeName, ResponseSchemaAggregator.InvalidSchemaError.Cause.MultipleBodies)
       },
+      caseStatuses = caseStatuses,
     )
 
 }
