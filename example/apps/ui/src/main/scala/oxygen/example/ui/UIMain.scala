@@ -5,6 +5,7 @@ import oxygen.example.ui.page as P
 import oxygen.example.ui.service.LocalService
 import oxygen.http.client.*
 import oxygen.ui.web.*
+import oxygen.ui.web.apispec.ApiSpecPage
 import oxygen.ui.web.create.*
 import oxygen.ui.web.defaults.*
 import oxygen.ui.web.service.LocalStorage
@@ -14,7 +15,7 @@ import zio.*
 object UIMain extends PageApp[UIMain.Env] {
 
   type Env =
-    UserApi & ConnectionApi & StreamApi & LocalService
+    UserApi & ConnectionApi & StreamApi & LocalService & RawClient
 
   // override val logLevel: LogLevel = LogLevel.Debug
 
@@ -40,6 +41,7 @@ object UIMain extends PageApp[UIMain.Env] {
     P.register.RegisterPage,
     P.home.HomePage,
     P.profile.ProfilePage,
+    ApiSpecPage,
     StylesPage,
     ComponentsPage,
   )
@@ -49,6 +51,7 @@ object UIMain extends PageApp[UIMain.Env] {
       // clients
       ZLayer.succeed { Client.Config.relativeUrl },
       Client.layer.default,
+      RawClient.default, // used directly by the ApiSpecPage to GET /oxygen/api-spec
       DeriveClient.clientLayer[UserApi],
       DeriveClient.clientLayer[ConnectionApi],
       DeriveClient.clientLayer[StreamApi],
