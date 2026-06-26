@@ -11,6 +11,7 @@ final case class EndpointSchema(
     successResponseSchema: ResponseSchema,
     errorResponseSchema: ResponseSchema,
     doc: Option[String],
+    mcp: Option[McpEndpointSchema],
 ) {
 
   val metricLabels: Set[MetricLabel] =

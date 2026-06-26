@@ -56,35 +56,27 @@ object CompiledEndpoints {
 
   def compile(
       endpoints: AppliedEndpoints,
-      requestMiddleware: RequestMiddleware = RequestMiddleware.Empty,
-      responseMiddleware: ResponseMiddleware = ResponseMiddleware.Empty,
-      endpointMiddleware: EndpointMiddleware = EndpointMiddleware.Empty,
+      middlewares: CompiledMiddlewares = CompiledMiddlewares.empty,
   ): URIO[Scope, CompiledEndpoints] =
-    endpointMiddleware(endpoints).map { finalEndpoints =>
-      CompiledEndpoints.TreeScan.fromEndpoints(finalEndpoints).withMiddleware(requestMiddleware, responseMiddleware)
+    middlewares.endpointMiddleware(endpoints).map { finalEndpoints =>
+      CompiledEndpoints.TreeScan.fromEndpoints(finalEndpoints).withMiddleware(middlewares.requestMiddleware, middlewares.responseMiddleware)
     }
 
-  def compileEndpoints(
-      requestMiddleware: RequestMiddleware = RequestMiddleware.Empty,
-      responseMiddleware: ResponseMiddleware = ResponseMiddleware.Empty,
-      endpointMiddleware: EndpointMiddleware = EndpointMiddleware.Empty,
-  ): URIO[AppliedEndpoints & Scope, CompiledEndpoints] =
-    ZIO.serviceWithZIO[AppliedEndpoints] { CompiledEndpoints.compile(_, requestMiddleware, responseMiddleware, endpointMiddleware) }
+  def compile: URIO[AppliedEndpoints & CompiledMiddlewares & Scope, CompiledEndpoints] =
+    for {
+      endpoints <- ZIO.service[AppliedEndpoints]
+      middlewares <- ZIO.service[CompiledMiddlewares]
+      res <- compile(endpoints, middlewares)
+    } yield res
 
   def layer(
       endpoints: AppliedEndpoints,
-      requestMiddleware: RequestMiddleware = RequestMiddleware.Empty,
-      responseMiddleware: ResponseMiddleware = ResponseMiddleware.Empty,
-      endpointMiddleware: EndpointMiddleware = EndpointMiddleware.Empty,
+      middlewares: CompiledMiddlewares = CompiledMiddlewares.empty,
   ): TaskLayer[CompiledEndpoints] =
-    ZLayer.scoped { CompiledEndpoints.compile(endpoints, requestMiddleware, responseMiddleware, endpointMiddleware) }
+    ZLayer.scoped { CompiledEndpoints.compile(endpoints, middlewares) }
 
-  def endpointLayer(
-      requestMiddleware: RequestMiddleware = RequestMiddleware.Empty,
-      responseMiddleware: ResponseMiddleware = ResponseMiddleware.Empty,
-      endpointMiddleware: EndpointMiddleware = EndpointMiddleware.Empty,
-  ): RLayer[AppliedEndpoints, CompiledEndpoints] =
-    ZLayer.scoped { CompiledEndpoints.compileEndpoints(requestMiddleware, responseMiddleware, endpointMiddleware) }
+  def layer: RLayer[AppliedEndpoints & CompiledMiddlewares, CompiledEndpoints] =
+    ZLayer.scoped { compile }
 
   //////////////////////////////////////////////////////////////////////////////////////////////////////
   //      Impls

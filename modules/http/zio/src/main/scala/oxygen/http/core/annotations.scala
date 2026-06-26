@@ -38,6 +38,27 @@ object route {
 }
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////
+//      mcp
+//////////////////////////////////////////////////////////////////////////////////////////////////////
+
+/**
+  * Opt a route in to being exposed as an MCP (Model Context Protocol) tool.
+  *
+  *   - `@mcp.tool` on a route function — expose it; tool name defaults to `apiName_endpointName`.
+  *   - `@mcp.tool("customName")` — same, with an explicit tool name.
+  *   - `@mcp.auth` on a param — that param is fed by the validated MCP bearer token (it is stripped
+  *     from the tool's input schema and injected from the session token); the tool requires auth.
+  *
+  * `@mcp.tool` on a streaming (SSE / LineStream) route is a compile error — `tools/call` returns a
+  * single result, which has no analog for a streaming endpoint.
+  */
+sealed abstract class mcp extends Annotation derives FromExprT
+object mcp {
+  final case class tool(name: String) extends mcp { def this() = this("<default>") }
+  final case class auth() extends mcp
+}
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////
 //      param
 //////////////////////////////////////////////////////////////////////////////////////////////////////
 

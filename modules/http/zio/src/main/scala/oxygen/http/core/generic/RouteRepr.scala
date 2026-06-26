@@ -75,7 +75,7 @@ sealed abstract class RouteRepr[Api](
     case (tpc: TermParamClause) :: Nil => tpc
     case _                             => fail("Function must have single parameter group with no type params")
 
-  private val valDefs: List[ValDef] = termParamClause.params
+  val valDefs: List[ValDef] = termParamClause.params
   private val (rawPath, rawQueryParams): (String, String) = routeAnnotValue.url.split('?').toList match
     case path :: Nil       => (path, "")
     case path :: qp :: Nil => (path, qp.trim)
@@ -84,6 +84,19 @@ sealed abstract class RouteRepr[Api](
   val queryParams: Option[QueryParams] = Option.when(rawQueryParams.nonEmpty)(QueryParams.decode(rawQueryParams))
 
   if pathList.contains("..") then report.errorAndAbort("path contains \"..\"")
+
+  def defaultMcpToolName: String = s"${derivedApiName}_${derivedEndpointName}"
+
+  /** `Some(toolName)` iff the route is annotated `@mcp.tool` (default name resolved). */
+  lazy val mcpToolName: Option[String] =
+    defDef.symbol.annotations.optionalOf[mcp] match
+      case None       => None
+      case Some(expr) =>
+        expr match
+          case '{ new oxygen.http.core.`mcp`.`tool`() }                => defaultMcpToolName.some
+          case '{ new oxygen.http.core.`mcp`.`tool`(${ Expr(name) }) } => (if name == "<default>" then defaultMcpToolName else name).some
+          case '{ new oxygen.http.core.`mcp`.`auth`() }                => fail("@mcp.auth cannot be applied to a route — put it on the param fed by the bearer token")
+          case _                                                       => fail(s"invalid @mcp.___ annotation on route\n\n${expr.showAnsiCode}")
 
   private val unsortedParamReprs: List[ParamRepr[?]] = {
     @tailrec

@@ -19,7 +19,8 @@ object ViaHttpSpec extends OxygenContractSpec[UserApi]("ViaHttpSpec", UserApiCon
       EndpointAndClientBuilder.layer {
         _.add[UserApi](UserApiImpl.layer)
       },
-      CompiledEndpoints.endpointLayer(),
+      CompiledEndpoints.layer,
+      Middlewares.empty.toLayer,
       Client.layer.localPort,
       Server.Config.defaultLayer,
       Server.layer.serving,

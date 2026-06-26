@@ -13,7 +13,7 @@ final case class AppliedEndpoints(endpoints: Growable[AppliedEndpoint]) {
       responseMiddleware: ResponseMiddleware,
       endpointMiddleware: EndpointMiddleware,
   ): URIO[Scope, CompiledEndpoints] =
-    CompiledEndpoints.compile(this, requestMiddleware, responseMiddleware, endpointMiddleware)
+    CompiledEndpoints.compile(this, CompiledMiddlewares(requestMiddleware, responseMiddleware, endpointMiddleware))
 
 }
 object AppliedEndpoints {

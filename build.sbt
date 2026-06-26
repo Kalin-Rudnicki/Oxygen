@@ -447,6 +447,8 @@ lazy val `oxygen-http`: CrossProject =
       `oxygen-zio` % testAndCompile,
       `oxygen-test` % Test,
     )
+    // MCP support (JVM server) validates JWT bearer tokens via oxygen-crypto-service.
+    .jvmConfigure(_.dependsOn(`oxygen-crypto-service` % testAndCompile))
 
 lazy val `oxygen-ui-electron`: Project =
   project

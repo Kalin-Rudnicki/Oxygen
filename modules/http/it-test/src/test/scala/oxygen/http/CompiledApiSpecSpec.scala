@@ -33,12 +33,14 @@ object CompiledApiSpecSpec extends OxygenSpecDefault {
         val userSchemaCount: Int = spec.schemas.all.count(_.fullTypeName.fullTypeName.endsWith("User"))
         assertTrue(spec.schemas.all.nonEmpty, userSchemaCount >= 1)
       },
-      test("captures per-case error status codes for sum-typed errors") {
+      test("captures per-case error status codes for sum-typed errors, keyed by full type name") {
         val ep = spec.apis.flatMap(_.endpoints).find(_.name == "userById").get
         val caseStatuses: Set[(String, Int)] = ep.errorResponse.caseStatuses.map(c => (c.caseName, c.code)).toSet
+        // caseName is the case's full type name (so it correlates with the schema case unambiguously),
+        // not the bare `NoSuchUser` — see StatusCodes.CaseStatus.
         assertTrue(
-          caseStatuses.contains(("NoSuchUser", 404)),
-          caseStatuses.contains(("InternalError", 500)),
+          caseStatuses.contains(("oxygen.http.ApiError.NoSuchUser", 404)),
+          caseStatuses.contains(("oxygen.http.ApiError.InternalError", 500)),
         )
       },
       test("round-trips through JSON") {
@@ -55,7 +57,7 @@ object CompiledApiSpecSpec extends OxygenSpecDefault {
         for {
           ref <- Ref.make(Map.empty[UUID, User])
           applied = summon[DeriveEndpoints[UserApi]].appliedEndpoints(UserApiImpl(ref))
-          augmented <- ZIO.scoped(new ApiSpecEndpointMiddleware().apply(applied))
+          augmented <- ZIO.scoped(ApiSpecEndpointMiddleware(ApiSpecEndpointMiddleware.Config.default).apply(applied))
           specEp = augmented.arraySeq.find(_.endpointName == "apiSpec").get
           request <- ReceivedRequest.fromRequest(Request.get(URL.decode("/oxygen/api-spec").toOption.get))
           input = EndpointInput(request, ServerErrorConfig(exposeInternalErrors = false))

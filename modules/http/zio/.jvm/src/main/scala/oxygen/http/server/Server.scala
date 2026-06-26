@@ -80,12 +80,10 @@ object Server {
     def serving(
         endpoints: AppliedEndpoints,
         config: Server.Config = Server.Config.default,
-        requestMiddleware: RequestMiddleware = RequestMiddleware.Empty,
-        responseMiddleware: ResponseMiddleware = ResponseMiddleware.Empty,
-        endpointMiddleware: EndpointMiddleware = EndpointMiddleware.Empty,
+        middlewares: CompiledMiddlewares = CompiledMiddlewares.empty,
     ): RLayer[Server, Unit] =
       (
-        CompiledEndpoints.layer(endpoints, requestMiddleware, responseMiddleware, endpointMiddleware) ++
+        CompiledEndpoints.layer(endpoints, middlewares) ++
           ZLayer.succeed(config)
       ) >>> serving
 

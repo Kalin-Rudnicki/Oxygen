@@ -1,6 +1,7 @@
 package oxygen.http.server
 
 import oxygen.http.schema.*
+import oxygen.http.server.mcp.AppliedMcpEndpoint
 import zio.*
 import zio.http.*
 import zio.metrics.MetricLabel
@@ -8,6 +9,7 @@ import zio.metrics.MetricLabel
 final case class AppliedEndpoint(
     schema: EndpointSchema,
     handle: EndpointInput => Option[URIO[Scope, Option[Response]]],
+    mcp: Option[AppliedMcpEndpoint],
 ) {
 
   val method: Option[Method] = schema.requestSchema.method
