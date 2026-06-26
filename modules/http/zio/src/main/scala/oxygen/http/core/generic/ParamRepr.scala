@@ -49,6 +49,9 @@ object ParamRepr {
     val valDef: ValDef
     val name: String
 
+    /** The param's `@httpDoc`, if any — surfaced in the API spec and the MCP tool input schema. */
+    def doc: Option[String]
+
     final lazy val typeRepr: TypeRepr = valDef.tpt.tpe.widen
 
   }
@@ -102,6 +105,7 @@ object ParamRepr {
         ParamRepr.FunctionArg[T] {
 
     val name: String = valDef.name
+    override val doc: Option[String] = None
 
     override def makeCodec(using Quotes): Expr[RequestCodec.PathLike[T]] = codec
 
@@ -193,6 +197,7 @@ object ParamRepr {
   ) extends NonPathLike[T] {
 
     val name: String = valDef.name
+    override val doc: Option[String] = None
 
     override def makeCodec(using Quotes): Expr[RequestCodec.NonPathLike[T]] = codec
 

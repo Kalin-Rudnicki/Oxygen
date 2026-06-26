@@ -8,8 +8,10 @@ import oxygen.example.api.service.*
 import oxygen.example.domain.repo.*
 import oxygen.example.domain.service.*
 import oxygen.example.webServer.api.{*, given}
+import oxygen.example.webServer.mcp.{NoteApi, NoteApiImpl}
 import oxygen.executable.*
 import oxygen.http.server.*
+import oxygen.http.server.mcp.{McpAuthService, McpEndpointMiddleware}
 import oxygen.json.JsonCodec
 import oxygen.schema.instances.jsonCodecFromSchema
 import oxygen.sql.{Atomically, Database, DbConfig}
@@ -55,8 +57,14 @@ object WebServerMain extends CliApp.Executable[WebServerMain](CliApp.derive) {
   type Env = Server & Server.Config & CompiledEndpoints & MigrationService
   object Env {
 
-    private val endpoints: Endpoints[UserApi & ConnectionApi & PostApi & UIApi & StreamApi] =
-      Endpoints.empty.add[UserApi].add[ConnectionApi].add[PostApi].add[UIApi].add[StreamApi]
+    // A tiny in-memory, auth-less API (NoteApi) exposed over HTTP *and* as MCP tools. Its impl is a
+    // normal Ref-backed ZLayer; the MCP middleware resolves it (and the McpAuthService) from the env.
+    private val endpoints: Endpoints[UserApi & ConnectionApi & PostApi & UIApi & StreamApi & NoteApi] =
+      Endpoints.empty.add[UserApi].add[ConnectionApi].add[PostApi].add[UIApi].add[StreamApi].add[NoteApi]
+
+    private val middlewares: Middlewares[McpAuthService] =
+      McpEndpointMiddleware.defaultMiddleware("oxygen-example") >>>
+        ApiSpecEndpointMiddleware.defaultMiddleware
 
     def layer(config: Config): TaskLayer[Env] =
       ZLayer.make[Env](
@@ -69,9 +77,10 @@ object WebServerMain extends CliApp.Executable[WebServerMain](CliApp.derive) {
         PostApiImpl.layer,
         UIApiImpl.layer,
         StreamApiImpl.layer,
-        CompiledEndpoints.endpointLayer(
-          endpointMiddleware = new ApiSpecEndpointMiddleware(),
-        ),
+        NoteApiImpl.layer,
+        ZLayer.succeed[McpAuthService](McpAuthService.NoAuth),
+        middlewares.toLayer,
+        CompiledEndpoints.layer,
         Server.layer.serving,
         ZLayer.succeed(config.ui),
         // db

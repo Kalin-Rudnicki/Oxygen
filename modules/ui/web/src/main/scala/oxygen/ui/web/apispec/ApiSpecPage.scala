@@ -2,6 +2,7 @@ package oxygen.ui.web.apispec
 
 import oxygen.core.syntax.string.*
 import oxygen.http.client.RawClient
+import oxygen.http.schema.McpEndpointSchema
 import oxygen.http.schema.compiled.*
 import oxygen.json.JsonCodec
 import oxygen.schema.compiled.{CompiledSchemaRef, FullCompiledJsonSchema, FullCompiledPlainSchema, FullCompiledSchema}
@@ -138,6 +139,20 @@ object ApiSpecPage extends RoutablePage.NoParams[RawClient] {
       textAlign.center,
     )
 
+  /** Violet badge marking an endpoint that's exposed as an MCP tool (with its tool name + a lock if authed). */
+  private def mcpBadge(mcp: McpEndpointSchema): Node =
+    span(
+      s"MCP · ${mcp.toolName}" + (if mcp.requiresAuth then "  🔒" else ""),
+      display.inlineBlock,
+      backgroundColor := "#7c3aed",
+      color := "#ffffff",
+      fontWeight._600,
+      fontSize := 11.px,
+      letterSpacing := "0.5px",
+      padding := "3px 9px",
+      borderRadius := 6.px,
+    )
+
   private def tagPill(text: String): Node =
     span(
       text,
@@ -250,7 +265,60 @@ object ApiSpecPage extends RoutablePage.NoParams[RawClient] {
       textDecoration := "none",
     )
 
-  private def typeChip(ref: CompiledSchemaRef): Node = typeLink(ref.showBase, ref)
+  private def typeChip(ref: CompiledSchemaRef): Node = typeLink(displayType(ref), ref)
+
+  /**
+    * Shorten one dotted type path: drop leading package segments (which by Scala/Java convention start
+    * lowercase) but keep object/type nesting — `oxygen.example.mcp.NoteError.NotFound` -> `NoteError.NotFound`,
+    * `java.lang.String` -> `String`. The exact package-vs-nesting split lives structurally in the schema
+    * layer (`SchemaType.simpleTypeName`), but only the flattened name reaches the ref, so reconstruct by casing.
+    */
+  private def shortenPath(path: String): String = {
+    val segs: List[String] = path.split('.').iterator.filter(_.nonEmpty).toList
+    segs.dropWhile(_.headOption.exists(_.isLower)) match
+      case Nil  => segs.lastOption.getOrElse(path) // all-lowercase (e.g. a primitive alias) — keep the last
+      case kept => kept.mkString(".")
+  }
+
+  /**
+    * Apply [[shortenPath]] to every FQN inside a possibly-generic type string, preserving `[`/`]`/`,`
+    * structure — so `scala...List[oxygen...Error]` becomes `List[Error]` rather than mangling to `Error]`.
+    */
+  private def simpleName(fullTypeName: String): String = {
+    val cleaned: String = fullTypeName.replaceAll("##\\d+", "")
+    val out: StringBuilder = new StringBuilder
+    val seg: StringBuilder = new StringBuilder
+    def flush(): Unit = if seg.nonEmpty then { out.append(shortenPath(seg.result())); seg.clear() }
+    cleaned.foreach {
+      case c @ ('[' | ']' | ',' | ' ') => flush(); out.append(c)
+      case c                           => seg.append(c)
+    }
+    flush()
+    out.result()
+  }
+
+  /** Strip the `##n` de-duplication index while keeping the full package path (for definition headings). */
+  private def cleanFullName(name: String): String = name.replaceAll("##\\d+", "")
+
+  /**
+    * A clean, reference-friendly type name for chips: simple names, the schema-internal `Json.PlainText`
+    * / encoding wrappers unwrapped to the underlying type, and structural wrappers (array/option/map)
+    * shown with familiar syntax. `showBase` is for debugging; this is for humans reading the docs.
+    */
+  private def displayType(ref: CompiledSchemaRef): String =
+    ref match
+      case CompiledSchemaRef.PlainRef(tpe)       => simpleName(tpe.fullTypeName)
+      case CompiledSchemaRef.JsonRef(tpe)        => simpleName(tpe.fullTypeName)
+      case CompiledSchemaRef.JsonString(r)       => displayType(r) // a scalar serialized as a JSON string — just the scalar
+      case CompiledSchemaRef.JsonEncodedText(r)  => displayType(r)
+      case CompiledSchemaRef.EncodedText(r, _)   => displayType(r)
+      case CompiledSchemaRef.FormattedText(r, _) => displayType(r)
+      case CompiledSchemaRef.BearerToken(p)      => s"BearerToken<${displayType(p)}>"
+      case CompiledSchemaRef.JsonArray(e)        => s"${displayType(e)}[]"
+      case CompiledSchemaRef.JsonMap(k, v)       => s"Map<${displayType(k)}, ${displayType(v)}>"
+      case CompiledSchemaRef.JsonOption(e)       => s"${displayType(e)}?"
+      case CompiledSchemaRef.JsonNullable(e)     => s"${displayType(e)}?"
+      case CompiledSchemaRef.JsonSpecified(e)    => displayType(e)
 
   private def subLabel(text: String): Node =
     div(
@@ -274,8 +342,11 @@ object ApiSpecPage extends RoutablePage.NoParams[RawClient] {
   /** One row of an attribute table: name, type, and presence/nullability pills (+ optional doc). */
   private final case class Attr(name: String, typeWidget: Widget, pills: Seq[Node], doc: Option[String])
 
-  /** Renders attributes (params / object fields) as an aligned 3-column table: name | type | pills. */
+  /** Renders attributes (params / object fields) as an aligned table: name | type | pills | description. */
   private def attrTable(rows: Seq[Attr]): Node = {
+    // Only carve out a description column when something is actually documented, so undocumented
+    // tables stay tight.
+    val anyDoc: Boolean = rows.exists(_.doc.exists(_.nonEmpty))
     def cell(rightPad: Boolean)(content: Widget*): Node =
       td(verticalAlign.top, padding := css(S.spacing._1, if rightPad then S.spacing._6 else "0", S.spacing._1, "0"))(content*)
     table(borderCollapse.collapse, margin := css(S.spacing._1, "0", S.spacing._2, "0"))(
@@ -283,11 +354,9 @@ object ApiSpecPage extends RoutablePage.NoParams[RawClient] {
         tr(
           cell(true)(span(r.name, mono, fontWeight.bold, fontSize := 13.px, color := S.color.fg.default)),
           cell(true)(r.typeWidget),
-          cell(false)(
-            div(display.flex, alignItems.center, flexWrap.wrap, gap := S.spacing._2)(
-              (r.pills ++ r.doc.toSeq.map(d => span(d, color := S.color.fg.subtle, fontSize := 12.px)))*,
-            ),
-          ),
+          cell(anyDoc)(div(display.flex, alignItems.center, flexWrap.wrap, gap := S.spacing._2)(r.pills*)),
+          if anyDoc then cell(false)(r.doc.fold(fragment: Widget)(d => span(d, color := S.color.fg.moderate, fontSize := 13.px)))
+          else fragment,
         )
       },
     )
@@ -308,9 +377,11 @@ object ApiSpecPage extends RoutablePage.NoParams[RawClient] {
     val pathStr: String = ep.request.paths.toList.map(renderPath).mkString("  |  ")
     card(
       row(
-        methodBadge(method),
-        span(humanize(ep.name), fontWeight.bold, fontSize := 16.px, color := S.color.fg.default),
-        span(pathStr, mono, fontSize := 14.px, color := S.color.fg.moderate),
+        (Seq[Widget](
+          methodBadge(method),
+          span(humanize(ep.name), fontWeight.bold, fontSize := 16.px, color := S.color.fg.default),
+          span(pathStr, mono, fontSize := 14.px, color := S.color.fg.moderate),
+        ) ++ ep.mcp.toSeq.map(mcpBadge))*,
       ),
       ep.doc.fold(fragment)(d => p(d, color := S.color.fg.moderate, margin := css(S.spacing._3, "0"))),
       paramBlock("Path parameters", ep.request.paths.toList.flatMap(pathParams)),
@@ -363,7 +434,12 @@ object ApiSpecPage extends RoutablePage.NoParams[RawClient] {
       case RawCompiledResponseBody.LineStream(r)       => Some(r)
     bodyRef.fold(Map.empty) { ref =>
       unwrapTransform(full.resolve(ref)) match
-        case sum: FullCompiledJsonSchema.JsonSum => sum.cases.map(c => c.caseName -> c.caseType.value.ref).toMap
+        // key by the case's full type name rather than its simple/discriminator name, which collides
+        // for e.g. `A.Simple` + `B.Simple` both extending the same sum. This matches StatusCodes'
+        // CaseStatus.caseName (TypeTag.prefixAll) for cases with distinct full paths; the one case it
+        // can't disambiguate is two cases sharing a byte-identical full path (the schema layer appends
+        // a `##n` index here that prefixAll lacks) — that row just renders unlinked, not wrong.
+        case sum: FullCompiledJsonSchema.JsonSum => sum.cases.map(c => c.caseType.value.ref.primaryReference.fullTypeName -> c.caseType.value.ref).toMap
         case _                                   => Map.empty
     }
   }
@@ -384,8 +460,8 @@ object ApiSpecPage extends RoutablePage.NoParams[RawClient] {
         div(margin := css(S.spacing._3, "0", "0", "0"))(
           Widget.foreach(resp.caseStatuses.toList.sortBy(_.code)) { cs =>
             val nameWidget: Node = caseRefs.get(cs.caseName) match
-              case Some(ref) => typeLink(cs.caseName, ref)
-              case None      => span(cs.caseName, mono, fontSize := 13.px, color := S.color.fg.moderate)
+              case Some(ref) => typeLink(simpleName(cs.caseName), ref)
+              case None      => span(simpleName(cs.caseName), mono, fontSize := 13.px, color := S.color.fg.moderate)
             row(statusCodePill(cs.code), nameWidget)
           },
         )
@@ -429,8 +505,11 @@ object ApiSpecPage extends RoutablePage.NoParams[RawClient] {
   private def renderSchema(schema: FullCompiledSchema): Node = {
     val actual: FullCompiledSchema = unwrapTransform(schema)
     val transformNote: Widget =
-      if actual ne schema then span(s"  transform of ${actual.ref.showBase}", i, color := S.color.fg.subtle, fontSize := 12.px)
+      if actual ne schema then span(s"  transform of ${displayType(actual.ref)}", i, color := S.color.fg.subtle, fontSize := 12.px)
       else fragment
+    // structured types keep their full package path (it is their identity); scalars get the clean name.
+    val isLeaf: Boolean = !isStructured(actual)
+    val headingText: String = if isLeaf then displayType(schema.ref) else cleanFullName(schema.ref.showBase)
     val body: Widget =
       actual match {
         case p: FullCompiledJsonSchema.JsonProduct =>
@@ -443,12 +522,12 @@ object ApiSpecPage extends RoutablePage.NoParams[RawClient] {
             i(s"one-of${s.discriminator.fold("")(d => s"  (discriminator: $d)")}", color := S.color.fg.subtle, fontSize := 12.px),
             attrTable(s.cases.map(c => Attr(c.caseName, typeChip(c.caseType.value.ref), Nil, None))),
           )
-        case leaf =>
-          div(span(leaf.ref.showCore, mono, fontSize := 13.px, color := S.color.fg.moderate))
+        case _ =>
+          fragment
       }
     card(
       id := anchorId(schema.ref),
-      div(span(schema.ref.showBase, mono, fontWeight.bold, fontSize := 15.px, color := S.color.fg.default), transformNote),
+      div(span(headingText, mono, fontWeight.bold, fontSize := 15.px, color := S.color.fg.default), transformNote),
       body,
     )
   }

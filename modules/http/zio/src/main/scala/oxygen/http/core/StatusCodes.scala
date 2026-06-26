@@ -1,5 +1,6 @@
 package oxygen.http.core
 
+import oxygen.core.TypeTag
 import oxygen.http.core.generic.given
 import oxygen.http.schema.ExpectedStatuses
 import oxygen.meta.given
@@ -11,7 +12,7 @@ import zio.http.Status
 trait StatusCodes[A] {
   val expectedStatuses: ExpectedStatuses
 
-  /** For sum-typed responses, the status code each case maps to (keyed by case name). Empty otherwise. */
+  /** For sum-typed responses, the status code each case maps to (keyed by full type name). Empty otherwise. */
   val caseStatuses: List[StatusCodes.CaseStatus]
   def status(value: A): Status
 }
@@ -19,7 +20,12 @@ object StatusCodes {
 
   inline def apply[A](using ev: StatusCodes[A]): StatusCodes[A] = ev
 
-  /** Associates a sum-case (by name) with the HTTP status it is encoded as. */
+  /**
+    * Associates a sum-case with the HTTP status it is encoded as. `caseName` is the case's full type
+    * name (e.g. `oxygen.example.NoteError.NotFound`) — not its simple/discriminator name — so a docs
+    * consumer can correlate it with the schema's case unambiguously even when two cases share a simple
+    * name (`A.Simple` + `B.Simple` both extending one sum). Strip it for display.
+    */
   final case class CaseStatus(caseName: String, status: Status)
 
   //////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -72,7 +78,9 @@ object StatusCodes {
           generic.mapChildren
             .map { [b <: A] => (_, _) ?=> (kase: generic.Case[b]) =>
               val code: statusCode = kase.annotations.requiredOfValue[statusCode]
-              '{ StatusCodes.CaseStatus(${ Expr(kase.name) }, ${ Expr(code.status) }) }
+              // key by the case's full type name (same string the schema ref carries), not its simple
+              // name — robust to simple-name collisions and to @jsonType discriminator overrides.
+              '{ StatusCodes.CaseStatus(summon[TypeTag[b]].prefixAll, ${ Expr(code.status) }) }
             }
             .to[List]
 

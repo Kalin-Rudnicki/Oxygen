@@ -16,9 +16,7 @@ import zio.http.{Server as _, *}
   * describes every endpoint present at that point but, by construction, not the spec endpoint itself.
   */
 final case class ApiSpecEndpointMiddleware(
-    path: List[String] = ApiSpecEndpointMiddleware.defaultPath,
-    apiName: Option[String] = "oxygen".some,
-    endpointName: String = "apiSpec",
+    config: ApiSpecEndpointMiddleware.Config,
 ) extends EndpointMiddleware {
 
   override def apply(endpoints: AppliedEndpoints): URIO[Scope, AppliedEndpoints] =
@@ -32,7 +30,7 @@ final case class ApiSpecEndpointMiddleware(
     val requestSchema: RequestSchema =
       RequestSchema(
         method = Method.GET.some,
-        paths = NonEmptyList.one(RequestPathsSchema(path.map(RequestPathsSchema.Const(_)).toArraySeq, None)),
+        paths = NonEmptyList.one(RequestPathsSchema(config.path.map(RequestPathsSchema.Const(_)).toArraySeq, None)),
         queryParams = ArraySeq.empty,
         headers = ArraySeq.empty,
         body = RequestBodySchema.Empty,
@@ -40,26 +38,57 @@ final case class ApiSpecEndpointMiddleware(
 
     val schema: EndpointSchema =
       EndpointSchema(
-        apiName = apiName,
-        endpointName = endpointName,
+        apiName = config.apiName,
+        endpointName = config.endpointName,
         requestSchema = requestSchema,
         successResponseSchema = ResponseSchema(ExpectedStatuses.Exact(Status.Ok), ArraySeq.empty, ResponseBodySchema.Empty),
         errorResponseSchema = ResponseSchema(ExpectedStatuses.None, ArraySeq.empty, ResponseBodySchema.Empty),
         doc = s"Serves the compiled oxygen-http API spec as JSON.".some,
+        mcp = None,
       )
 
-    val response: Response = Response(status = Status.Ok, body = BodyUtil.fromString(specJson, MediaType.application.json))
+    // Lift the body's media type into a real Content-Type header — building a Response directly
+    // bypasses ResponseCodec.encodeResponse, which is what normally does this.
+    val response: Response =
+      Response(status = Status.Ok, body = BodyUtil.fromString(specJson, MediaType.application.json))
+        .addHeader(Header.ContentType(MediaType.application.json))
 
     AppliedEndpoint(
       schema = schema,
       handle = input =>
         // routing already filters by method+path, but self-check keeps this correct under any scan strategy
-        if input.request.method == Method.GET && input.request.fullPath == path then Some(ZIO.succeed(Some(response)))
+        if input.request.method == Method.GET && input.request.fullPath == config.path then Some(ZIO.succeed(Some(response)))
         else None,
+      mcp = None,
     )
   }
 
 }
 object ApiSpecEndpointMiddleware {
-  val defaultPath: List[String] = List("oxygen", "api-spec")
+
+  val layer: URLayer[ApiSpecEndpointMiddleware.Config, ApiSpecEndpointMiddleware] =
+    ZLayer.fromFunction { ApiSpecEndpointMiddleware.apply }
+
+  def middleware: Middlewares[ApiSpecEndpointMiddleware.Config] =
+    Middlewares.endpointMiddlewareFromZLayer(layer)
+
+  def defaultMiddleware: Middlewares[Any] =
+    Middlewares.endpointMiddlewareFromZLayer(ZLayer.succeed(Config.default) >>> layer)
+
+  final case class Config(
+      path: List[String],
+      apiName: Option[String],
+      endpointName: String,
+  )
+  object Config {
+
+    val default: Config =
+      Config(
+        path = List("oxygen", "api-spec"),
+        apiName = "oxygen".some,
+        endpointName = "apiSpec",
+      )
+
+  }
+
 }

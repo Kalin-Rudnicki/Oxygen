@@ -54,7 +54,7 @@ object CompiledApiSpec {
       request <- compileRequest(es.requestSchema)
       success <- compileResponse(es.successResponseSchema)
       error <- compileResponse(es.errorResponseSchema)
-    } yield RawCompiledEndpoint(es.endpointName, es.doc, request, success, error)
+    } yield RawCompiledEndpoint(es.endpointName, es.doc, request, success, error, es.mcp)
 
   private def compileRequest(req: RequestSchema): Compiled[RawCompiledRequest] =
     for {
