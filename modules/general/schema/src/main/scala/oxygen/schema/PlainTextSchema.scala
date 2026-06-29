@@ -2,7 +2,7 @@ package oxygen.schema
 
 import java.time.*
 import java.util.{TimeZone, UUID}
-import oxygen.core.{SourcePosition, TypeTag}
+import oxygen.core.{SourcePosition, TypeTag, Version}
 import oxygen.core.model.{Email, IntOrString}
 import oxygen.core.model.compute.*
 import oxygen.crypto.model.{BearerToken, JWT, Password}
@@ -83,8 +83,8 @@ object PlainTextSchema extends PlainTextSchemaLowPriority.LowPriority1 {
   given networkSpec: PlainTextSchema[NetworkSpec] = PlainTextSchema.string.transformOption(NetworkSpec.parse, _.toString)
   given networkSpecMultiple: PlainTextSchema[NetworkSpec.Multiple] = PlainTextSchema.string.transformOption(NetworkSpec.Multiple.parse, _.toString)
 
-  given password: PlainTextSchema[Password.PlainText] =
-    PlainTextSchema.fromStringCodec
+  given password: PlainTextSchema[Password.PlainText] = PlainTextSchema.fromStringCodec
+  given version: PlainTextSchema[Version] = PlainTextSchema.fromStringCodec
 
   def fromStringCodec[A: StringCodec as codec](using pos: SourcePosition): PlainTextSchema[A] =
     PlainTextSchema.FromStringCodec(codec, pos)

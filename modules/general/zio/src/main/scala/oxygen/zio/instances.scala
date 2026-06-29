@@ -1,8 +1,8 @@
 package oxygen.zio
 
 import oxygen.core.typeclass.SeqOps
-import oxygen.json.JsonCodec
 import oxygen.meta.ExprMonad
+import oxygen.schema.JsonSchema
 import oxygen.zio.logging.RichLogLevel
 import scala.collection.mutable
 import scala.quoted.*
@@ -14,11 +14,11 @@ object instances {
 
   given traceClassTag: ClassTag[Trace] = summon[ClassTag[String]].asInstanceOf[ClassTag[Trace]]
 
-  given traceJsonCodec: JsonCodec[Trace] = JsonCodec[String].asInstanceOf[JsonCodec[Trace]]
-  given logSpanJsonCodec: JsonCodec[LogSpan] = JsonCodec.derived
-  given fiberIdJsonCodec: JsonCodec[FiberId] = JsonCodec.derived
-  given stackTraceJsonCodec: JsonCodec[StackTrace] = JsonCodec.derived
-  given logLevelJsonCodec: JsonCodec[LogLevel] = JsonCodec[RichLogLevel].transform(_.level, RichLogLevel.fromLogLevel)
+  given traceJsonCodec: JsonSchema[Trace] = JsonSchema[String].asInstanceOf[JsonSchema[Trace]]
+  given logSpanJsonCodec: JsonSchema[LogSpan] = JsonSchema.derived
+  given fiberIdJsonCodec: JsonSchema[FiberId] = JsonSchema.derived
+  given stackTraceJsonCodec: JsonSchema[StackTrace] = JsonSchema.derived
+  given logLevelJsonCodec: JsonSchema[LogLevel] = JsonSchema[RichLogLevel].transform(_.level, RichLogLevel.fromLogLevel)
 
   given chunkSeqOps: SeqOps[Chunk] =
     new SeqOps[Chunk] {

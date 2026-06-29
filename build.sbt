@@ -278,7 +278,6 @@ lazy val `oxygen-crypto-model`: CrossProject =
     )
     .dependsOn(
       `oxygen-json` % testAndCompile,
-      `oxygen-test` % Test,
     )
 
 lazy val `oxygen-crypto-service`: Project =
@@ -295,6 +294,7 @@ lazy val `oxygen-crypto-service`: Project =
     .dependsOn(
       `oxygen-crypto-model`.jvm % testAndCompile,
       `oxygen-zio`.jvm % testAndCompile,
+      `oxygen-test`.jvm % Test,
     )
 
 lazy val `oxygen-quoted`: CrossProject =
@@ -510,7 +510,7 @@ lazy val `oxygen-zio`: CrossProject =
       ),
     )
     .dependsOn(
-      `oxygen-json` % testAndCompile,
+      `oxygen-schema` % testAndCompile,
     )
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////

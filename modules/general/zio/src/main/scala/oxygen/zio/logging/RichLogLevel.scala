@@ -2,6 +2,7 @@ package oxygen.zio.logging
 
 import oxygen.predef.color.*
 import oxygen.predef.core.*
+import oxygen.schema.PlainTextSchema
 import zio.LogLevel
 
 final case class RichLogLevel(
@@ -51,5 +52,7 @@ object RichLogLevel {
     levels.getOrElse(level.label, simple(level))
 
   given strictEnum: StrictEnum[RichLogLevel] = StrictEnum.make[RichLogLevel](levels.values.toSeq, level => NonEmptyList.of(level.fullName, level.shortName).distinct)
+
+  given plainTextSchema: PlainTextSchema[RichLogLevel] = PlainTextSchema.`enum`
 
 }

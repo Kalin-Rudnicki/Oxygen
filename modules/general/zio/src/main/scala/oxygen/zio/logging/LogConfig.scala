@@ -4,6 +4,7 @@ import oxygen.core.ColorMode
 import oxygen.json.JsonFieldDecoder
 import oxygen.predef.core.*
 import oxygen.predef.json.*
+import oxygen.schema.instances.given
 import oxygen.zio.*
 import oxygen.zio.instances.given
 import oxygen.zio.syntax.log.*
