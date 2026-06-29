@@ -2,7 +2,6 @@ package oxygen.sql
 
 import oxygen.predef.test.*
 import oxygen.sql.migration.*
-import oxygen.sql.migration.persistence.MigrationRepo
 import oxygen.sql.test.SqlAspects
 import scala.annotation.experimental
 import zio.*
@@ -349,12 +348,8 @@ object CustomQuerySpec extends OxygenSpec[Database] {
   override def layerProvider: LayerProvider[R] =
     LayerProvider.provideShared[Env](
       Helpers.testContainerLayer,
-      Helpers.databaseLayer,
-      MigrationService.layer,
+      Helpers.databaseLayer >>> MigrationService.migrateUnverifiedLayer,
       MigrationTestUtil.stagedConfigLayer(Person.tableRepr, Note.tableRepr, Note2.tableRepr, Ints.tableRepr, MultiPK1.tableRepr, MultiPK2.tableRepr, LTreeEx.tableRepr),
-      MigrationService.migrateLayer,
-      Atomically.LiveDB.layer,
-      MigrationRepo.layer,
     )
 
 }

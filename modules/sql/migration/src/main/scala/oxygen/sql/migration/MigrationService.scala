@@ -25,15 +25,15 @@ final class MigrationService(
   //////////////////////////////////////////////////////////////////////////////////////////////////////
 
   /** Load the migration files from the configured directory, then apply any that have not yet run. */
-  def migrate: IO[MigrationError, MigrationResult] =
+  def migrateUnverified: IO[MigrationError, MigrationResult] =
     loadAndApply(None)
 
   /**
-    * Like [[migrate]], but first verifies (fail-fast) that the committed migrations reproduce the
+    * Like [[migrateUnverified]], but first verifies (fail-fast) that the committed migrations reproduce the
     * given current-code schema -- catching the "forgot to regenerate a migration" mistake at
     * startup rather than later at query time.
     */
-  def migrate(verifyAgainst: MigrationSchema): IO[MigrationError, MigrationResult] =
+  def migrateVerified(verifyAgainst: MigrationSchema): IO[MigrationError, MigrationResult] =
     loadAndApply(verifyAgainst.some)
 
   /** Filesystem-agnostic core: apply already-loaded migration files. */
@@ -147,20 +147,84 @@ final class MigrationService(
 }
 object MigrationService {
 
-  val layer: URLayer[Atomically & MigrationRepo & MigrationConfig, MigrationService] =
-    ZLayer.fromFunction { new MigrationService(_, _, _) }
+  /////// Effects ///////////////////////////////////////////////////////////////
 
-  def migrate: ZIO[MigrationService, MigrationError, MigrationResult] =
-    ZIO.serviceWithZIO[MigrationService](_.migrate)
+  def migrateUnverified: ZIO[MigrationService, MigrationError, MigrationResult] =
+    ZIO.serviceWithZIO[MigrationService](_.migrateUnverified)
 
-  def migrate(verifyAgainst: MigrationSchema): ZIO[MigrationService, MigrationError, MigrationResult] =
-    ZIO.serviceWithZIO[MigrationService](_.migrate(verifyAgainst))
+  def migrateVerified(verifyAgainst: MigrationSchema): ZIO[MigrationService, MigrationError, MigrationResult] =
+    ZIO.serviceWithZIO[MigrationService](_.migrateVerified(verifyAgainst))
 
   def applyMigrations(migrations: ArraySeq[PersistedMigrationFile]): ZIO[MigrationService, MigrationError, MigrationResult] =
     ZIO.serviceWithZIO[MigrationService](_.applyMigrations(migrations))
 
   def applyMigrations(migrations: ArraySeq[PersistedMigrationFile], verifyAgainst: MigrationSchema): ZIO[MigrationService, MigrationError, MigrationResult] =
     ZIO.serviceWithZIO[MigrationService](_.applyMigrations(migrations, verifyAgainst))
+
+  /////// Layers ///////////////////////////////////////////////////////////////
+
+  val layer: URLayer[Atomically & MigrationRepo & MigrationConfig, MigrationService] =
+    ZLayer.fromFunction { new MigrationService(_, _, _) }
+
+  /**
+    * You almost certainly want [[migrateUnverifiedLayer]]...
+    *
+    * The only reason to use this is if you want some special [[Atomically]]. Only real reason that would be the case would be for tests...
+    */
+  def customMigrateUnverifiedLayer: ZLayer[Database & Atomically & MigrationConfig, MigrationError, Database] =
+    ZLayer {
+      for {
+        db <- ZIO.service[Database]
+        atom <- ZIO.service[Atomically]
+        config <- ZIO.service[MigrationConfig]
+        repo = MigrationRepo.Live(db)
+        service = MigrationService(atom, repo, config)
+        _ <- service.migrateUnverified
+      } yield db
+    }
+
+  /**
+    * You almost certainly want [[migrateVerifiedLayer]]...
+    *
+    * The only reason to use this is if you want some special [[Atomically]].
+    *
+    * Only real reason that would be the case would be for tests... Even then, you should probably just be using ``
+    */
+  def customMigrateVerifiedLayer(verifyAgainst: MigrationSchema): ZLayer[Database & Atomically & MigrationConfig, MigrationError, Database] =
+    ZLayer {
+      for {
+        db <- ZIO.service[Database]
+        atom <- ZIO.service[Atomically]
+        config <- ZIO.service[MigrationConfig]
+        repo = MigrationRepo.Live(db)
+        service = MigrationService(atom, repo, config)
+        _ <- service.migrateVerified(verifyAgainst)
+      } yield db
+    }
+
+  /**
+    * It is recommended to use [[migrateVerifiedLayer]].
+    *
+    * Run a db migration using the FS as the source of truth. (Presumes that you want `Atomically.LiveDB` - aka: standard commit/rollback behavior).
+    *
+    * NO VERIFICATION against whether FS migration repr matches the current code.
+    *
+    * Usage: `Database.layer >>> MigrationService.migrateUnverifiedLayer`
+    */
+  def migrateUnverifiedLayer: ZLayer[Database & MigrationConfig, MigrationError, Database & Atomically] =
+    Atomically.LiveDB.layer >+> customMigrateUnverifiedLayer
+
+  /**
+    * Run a db migration using the FS as the source of truth. (Presumes that you want `Atomically.LiveDB` - aka: standard commit/rollback behavior).
+    *
+    * RUNS VERIFICATION against whether FS migration repr matches the current code.
+    *
+    * Usage: `Database.layer >>> MigrationService.migrateVerifiedLayer(mySchema)`
+    */
+  def migrateVerifiedLayer(verifyAgainst: MigrationSchema): ZLayer[Database & MigrationConfig, MigrationError, Database & Atomically] =
+    Atomically.LiveDB.layer >+> customMigrateVerifiedLayer(verifyAgainst)
+
+  /////// Helpers ///////////////////////////////////////////////////////////////
 
   /**
     * Pure helper: the diffs still needed to turn the latest persisted filesystem state into the
@@ -171,15 +235,5 @@ object MigrationService {
       codeState <- MigrationState.fromTables(schema.tables)
       pending <- MigrationPlanner.diffStates(latestFsState, codeState)
     } yield pending
-
-  val migrateLayer: ZLayer[MigrationService, MigrationError, Unit] =
-    ZLayer { migrate }.unit
-
-  def defaultMigrateLayer: ZLayer[Database & Atomically & MigrationConfig, MigrationError, Unit] =
-    ZLayer.makeSome[Database & Atomically & MigrationConfig, Unit](
-      MigrationService.layer,
-      MigrationRepo.layer,
-      migrateLayer,
-    )
 
 }

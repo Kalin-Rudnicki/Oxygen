@@ -3,7 +3,6 @@ package oxygen.sql
 import java.util.UUID
 import oxygen.predef.test.*
 import oxygen.sql.migration.*
-import oxygen.sql.migration.persistence.MigrationRepo
 import oxygen.sql.query.{PostgresCRUDRepo, TableCompanion}
 import oxygen.storage.CRUDRepo
 import scala.annotation.experimental
@@ -149,12 +148,8 @@ object TableCompanionQuerySpec extends OxygenSpec[Database] {
   override def layerProvider: LayerProvider[R] =
     LayerProvider.provideShared[Env](
       Helpers.testContainerLayer,
-      Helpers.databaseLayer,
-      MigrationService.layer,
+      Helpers.databaseLayer >>> MigrationService.migrateUnverifiedLayer,
       MigrationTestUtil.stagedConfigLayer(Person.tableRepr, Note.tableRepr, Ints.tableRepr, MultiPK1.tableRepr, MultiPK2.tableRepr, Arrays.tableRepr),
-      MigrationService.migrateLayer,
-      Atomically.LiveDB.layer,
-      MigrationRepo.layer,
     )
 
 }

@@ -40,7 +40,7 @@ object MigrationTestUtil {
         dir <- tempDir
         file <- genesisFile(tables*)
         _ <- MigrationFs(dir).write(file).orDieWith(e => new RuntimeException(e.toString))
-      } yield MigrationConfig(MigrationConfig.Atomicity.AllOrNothing, dir.toString)
+      } yield MigrationConfig(dir.toString, MigrationConfig.Atomicity.AllOrNothing)
     }
 
 }

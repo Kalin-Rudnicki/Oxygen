@@ -4,7 +4,6 @@ import oxygen.core.syntax.number.*
 import oxygen.predef.test.{*, given}
 import oxygen.sql.error.QueryError
 import oxygen.sql.migration.*
-import oxygen.sql.migration.persistence.MigrationRepo
 import scala.annotation.experimental
 import zio.*
 import zio.stream.*
@@ -241,12 +240,8 @@ object PerformanceQuerySpec extends OxygenSpec[Database] {
   override def layerProvider: LayerProvider[R] =
     LayerProvider.provideShared[Env](
       Helpers.testContainerLayer,
-      Helpers.databaseLayer,
-      MigrationService.layer,
+      Helpers.databaseLayer >>> MigrationService.migrateUnverifiedLayer,
       MigrationTestUtil.stagedConfigLayer(Person.tableRepr, PersonCache.tableRepr),
-      MigrationService.migrateLayer,
-      Atomically.LiveDB.layer,
-      MigrationRepo.layer,
     )
 
 }

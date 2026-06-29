@@ -5,6 +5,7 @@ import oxygen.crypto.service.{HashKey, JWTService, PasswordService}
 import oxygen.example.api.*
 import oxygen.example.api.model.user.User
 import oxygen.example.api.service.*
+import oxygen.example.db.ExampleSchema
 import oxygen.example.domain.repo.*
 import oxygen.example.domain.service.*
 import oxygen.example.webServer.api.{*, given}
@@ -14,9 +15,8 @@ import oxygen.http.server.*
 import oxygen.http.server.mcp.{McpAuthService, McpEndpointMiddleware}
 import oxygen.json.JsonCodec
 import oxygen.schema.instances.jsonCodecFromSchema
-import oxygen.sql.{Atomically, Database, DbConfig}
+import oxygen.sql.{Database, DbConfig}
 import oxygen.sql.migration.*
-import oxygen.sql.migration.persistence.MigrationRepo
 import zio.*
 
 final case class WebServerMain() extends CliApp[Any, WebServerMain.Env] {
@@ -26,9 +26,7 @@ final case class WebServerMain() extends CliApp[Any, WebServerMain.Env] {
 
   @execute
   def run(): Effect =
-    // verifies the committed migration files reproduce ExampleSchema, then applies any pending ones
-    MigrationService.migrate(oxygen.example.db.ExampleSchema.schema) *>
-      ZIO.never
+    ZIO.never
 
 }
 object WebServerMain extends CliApp.Executable[WebServerMain](CliApp.derive) {
@@ -54,7 +52,7 @@ object WebServerMain extends CliApp.Executable[WebServerMain](CliApp.derive) {
 
   }
 
-  type Env = Server & Server.Config & CompiledEndpoints & MigrationService
+  type Env = Server & Server.Config & CompiledEndpoints
   object Env {
 
     // A tiny in-memory, auth-less API (NoteApi) exposed over HTTP *and* as MCP tools. Its impl is a
@@ -85,10 +83,7 @@ object WebServerMain extends CliApp.Executable[WebServerMain](CliApp.derive) {
         ZLayer.succeed(config.ui),
         // db
         ZLayer.succeed(config.db),
-        Database.layer,
-        Atomically.LiveDB.layer,
-        MigrationService.layer,
-        MigrationRepo.layer,
+        Database.layer >>> MigrationService.migrateVerifiedLayer(ExampleSchema.schema),
         ZLayer.succeed(config.migration),
         // token
         ZLayer.succeed(config.token.key),
