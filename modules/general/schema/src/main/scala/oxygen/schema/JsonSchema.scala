@@ -4,6 +4,7 @@ import java.time.*
 import java.util.{TimeZone, UUID}
 import oxygen.core.SourcePosition
 import oxygen.core.model.{Email, IntOrString}
+import oxygen.crypto.model.RegisteredClaims
 import oxygen.json.*
 import oxygen.json.generic.*
 import oxygen.meta.{*, given}
@@ -56,6 +57,15 @@ object JsonSchema extends Derivable[JsonSchema.ObjectLike], JsonSchemaLowPriorit
   given jsonArray: JsonSchema[Json.Arr] = ASTSchema(TypeTag[Json.Arr], Json.Type.Array.some, JsonEncoder.json, JsonDecoder.jsonArray)
   given jsonObject: JsonSchema[Json.Obj] = ASTSchema(TypeTag[Json.Obj], Json.Type.Object.some, JsonEncoder.json, JsonDecoder.jsonObject)
   given jsonNull: JsonSchema[Json.Null.type] = ASTSchema(TypeTag[Json.Null.type], Json.Type.Null.some, JsonEncoder.json, JsonDecoder.jsonNull)
+
+  // Consumption shape for third-party (OAuth) access tokens: all RFC 7519 registered claims optional,
+  // plus an `otherClaims` catch-all. Decoding goes through RegisteredClaims.fromJsonAST/toJsonAST (the
+  // same logic backing its JsonCodec), so the `@mcp.auth` param decode and the resource-server gate
+  // can't disagree. Lives in the JsonSchema companion (not `instances`) so it is in implicit scope:
+  // that alone makes `JWT[RegisteredClaims]` resolve a PlainTextSchema (via the low-priority `jwt`
+  // given) and therefore a PartialParamCodec, i.e. a usable typed `@mcp.auth` param.
+  given registeredClaims: JsonSchema[RegisteredClaims] =
+    JsonSchema.json.transformOrFail(RegisteredClaims.fromJsonAST, RegisteredClaims.toJsonAST)
 
   given string: JsonSchema[String] = fromPlainText
   given text: JsonSchema[Text] = fromPlainText
