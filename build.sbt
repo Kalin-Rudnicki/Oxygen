@@ -152,6 +152,9 @@ lazy val `oxygen-modules-js`: Project =
       `oxygen-ui-electron`,
       `oxygen-ui-web`,
 
+      // oidc
+      `oxygen-oidc`,
+
       // jwt
       `oxygen-crypto-model`.js,
 
@@ -478,6 +481,20 @@ lazy val `oxygen-ui-web`: Project =
     )
     .dependsOn(
       `oxygen-http`.js % testAndCompile,
+    )
+
+lazy val `oxygen-oidc`: Project =
+  project
+    .in(file("modules/oidc"))
+    .enablePlugins(ScalaJSPlugin)
+    .settings(
+      publishedProjectSettings,
+      name := "oxygen-oidc",
+      description := "OpenID Connect relying-party client for Scala.js SPAs (Authorization Code + PKCE).",
+    )
+    .dependsOn(
+      `oxygen-http`.js % testAndCompile,
+      `oxygen-crypto-model`.js % testAndCompile,
     )
 
 lazy val `oxygen-yaml`: CrossProject =

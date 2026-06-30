@@ -52,7 +52,7 @@ object BearerTokenService {
           validator.validateBase64(token.`headerBase64.payloadBase64`, Signature.Base64(token.signatureBase64))
 
       override def issueToken(payload: String): UIO[BearerToken] = {
-        val header: JWTHeader = JWTHeader(signer.alg, JWTHeader.Type.JWT)
+        val header: JWTHeader = JWTHeader(signer.alg, Some(JWTHeader.Type.JWT))
         val headerStringPlain: String = header.toJsonStringCompact
         val headerStringBase64: String = Base64.urlEncoder.encodeToString(headerStringPlain.getBytes(StandardCharsets.UTF_8))
         val payloadBase64: String = Base64.urlEncoder.encodeToString(payload.getBytes(StandardCharsets.UTF_8))

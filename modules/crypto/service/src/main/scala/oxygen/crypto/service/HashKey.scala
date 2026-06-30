@@ -64,6 +64,13 @@ object HashKey {
     def pair(keys: CryptoKey.RSA.Pair): RsaPair = RsaPair(keys.publicKey, keys.privateKey)
   }
 
+  @jsonType("ec-public")
+  final case class EcPublic(publicKey: CryptoKey.EC.Public) extends HashKey.AsymmetricPublic {
+    override val alg: JWTHeader.Alg = publicKey.alg
+    override def validateRaw(value: String, signature: Signature.Raw): Boolean = publicKey.validateRaw(value, signature)
+    override def validateBase64(value: String, signature: Signature.Base64): Boolean = publicKey.validateBase64(value, signature)
+  }
+
   @jsonType("none")
   case object Noop extends HashKey.Symmetric {
     override val alg: JWTHeader.Alg = JWTHeader.Alg.none
