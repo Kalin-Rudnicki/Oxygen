@@ -49,9 +49,9 @@ sealed trait Help {
 
   private[cli] final def toRepr(extraHints: List[HelpHint]): List[Help.Repr] = this match
     case Help.Empty                                          => Nil
-    case Help.BlankLine                                      => Help.Repr(color"" :: Nil, Nil, color"") :: Nil
-    case Help.CommandTitle(path)                             => Help.Repr((color"[Command]".yellowFg + color" $path") :: Nil, Nil, color"") :: Nil
-    case Help.Raw(message)                                   => Help.Repr(message.detailedSplit("\n".r, true, true).toList.map(ColorString.make(_)), Nil, color"") :: Nil
+    case Help.BlankLine                                      => Help.Repr.Simple(color"" :: Nil, Nil, color"", alignsLeft = false) :: Nil
+    case Help.CommandTitle(path)                             => Help.Repr.Simple((color"[Command]".yellowFg + color" $path") :: Nil, Nil, color"", alignsLeft = false) :: Nil
+    case Help.Raw(message)                                   => Help.Repr.Simple(message.detailedSplit("\n".r, true, true).toList.map(ColorString.make(_)), Nil, color"", alignsLeft = false) :: Nil
     case Help.Positional(name, subHelp)                      => Help.Repr(color"[$name]".magentaFg :: Nil, Help.Repr.formatSubHelp(subHelp, extraHints), color"|    ") :: Nil
     case Help.Named(longName, shortName, valueHelp, subHelp) =>
       val main: ColorString = shortName.fold(color"--$longName".cyanFg)(s => color"--$longName, -${s.toString}".cyanFg)
@@ -111,8 +111,12 @@ object Help {
   sealed trait Repr {
     final def scoped: Repr = prefixLeft(color"|   ")
     final def prefixLeft(prefix: ColorString): Repr = Repr.PrefixLeft(prefix, this)
+    // whether this row's left column drives the shared left-column width; free-flowing docs/titles do not.
+    final def contributesToWidth: Boolean = this match
+      case Repr.Simple(_, _, _, alignsLeft) => alignsLeft
+      case Repr.PrefixLeft(_, child)        => child.contributesToWidth
     final def normalize(prefix: ColorString): (List[ColorString], List[ColorString]) = this match
-      case Repr.Simple(left, right, defaultLeft) =>
+      case Repr.Simple(left, right, defaultLeft, _) =>
         val newLeft = left.map(prefix + _)
         val leftSize = newLeft.size
         val rightSize = right.size
@@ -122,11 +126,19 @@ object Help {
       case Repr.PrefixLeft(childPrefix, child) => child.normalize(prefix + childPrefix)
   }
   object Repr {
-    final case class Simple(left: List[ColorString], right: List[ColorString], defaultLeft: ColorString) extends Repr
+    final case class Simple(left: List[ColorString], right: List[ColorString], defaultLeft: ColorString, alignsLeft: Boolean = true) extends Repr
     final case class PrefixLeft(prefix: ColorString, child: Repr) extends Repr
-    export Simple.apply
+    // explicit forwarder (an `export` would drop `Simple`'s default `alignsLeft`)
+    def apply(left: List[ColorString], right: List[ColorString], defaultLeft: ColorString): Simple = Simple(left, right, defaultLeft)
     def formatSubHelp(subHelp: SubHelp, hints: List[HelpHint]): List[ColorString] =
-      (subHelp.docs ::: hints.map(hintToColorString) ::: subHelp.hints.map(hintToColorString)).map(ColorString.make(_))
+      (subHelp.docs ::: normalizeHints(hints ::: subHelp.hints).map(hintToColorString)).map(ColorString.make(_))
+    // the same hint can be attached both by the builder (into `subHelp`) and by the wrapping parser's `help`,
+    // so collapse duplicates; a `None` default is meaningless for an optional param, so drop it.
+    private def normalizeHints(hints: List[HelpHint]): List[HelpHint] = {
+      val deduped = hints.distinct
+      if deduped.contains(HelpHint.Optional) then deduped.filterNot(_ == HelpHint.Default("None"))
+      else deduped
+    }
     def fromHints(hints: NonEmptyList[HelpHint]): Repr = Repr(hints.toList.map(hintToColorString), Nil, color"")
     def fromUnparsedPositional(args: NonEmptyList[PositionalArg]): Repr =
       Repr(args.toList.map(a => color"Unparsed value ${a.value.unesc.yellowFg} at index ${a.idx.toString.yellowFg}".redFg), Nil, color"")
@@ -145,12 +157,15 @@ object Help {
       case ShortNameArg(idx, name, _)           => color"Unparsed param -${name.toString.yellowFg} at index ${idx.toString.yellowFg}".redFg
       case MultiShortNameArg(idx, subIdx, name) => color"Unparsed param -${name.toString.yellowFg} at index ${idx.toString.yellowFg}.${subIdx.toString.yellowFg}".redFg
     def format(reprs: List[Repr]): String = {
-      val normalized = reprs.map(_.normalize(color""))
-      val lefts = normalized.flatMap(_._1)
-      val rights = normalized.flatMap(_._2)
-      val tmpLefts = lefts.map(s => (s, s.rawString.length))
-      val maxLeft = tmpLefts.map(_._2).maxOption.getOrElse(0)
-      tmpLefts.map { case (str, len) => str + (" " * (maxLeft - len)) }.zip(rights).map { case (left, right) => color"$left    $right" }.csMkString("\n").toString
+      val normalized = reprs.map(r => (r.contributesToWidth, r.normalize(color"")))
+      // only the `--xyz`-style param rows drive the left-column width; command title/docs lines are ignored.
+      val maxLeft = normalized.collect { case (true, (lefts, _)) => lefts }.flatten.map(_.rawString.length).maxOption.getOrElse(0)
+      val pairs = normalized.flatMap { case (_, (lefts, rights)) => lefts.zip(rights) }
+      pairs.map { case (left, right) =>
+        val len = left.rawString.length
+        val padded = if len < maxLeft then left + (" " * (maxLeft - len)) else left
+        color"$padded    $right"
+      }.csMkString("\n").toString
     }
   }
 
