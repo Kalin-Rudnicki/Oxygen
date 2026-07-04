@@ -5,52 +5,46 @@ import oxygen.predef.test.*
 import zio.*
 
 // Root app: constructor params are not parsed (roots are zero-arg) — `count` moves to @execute here.
-final case class V2Greeter() extends CliApp[Any, Any] {
+final case class V2Greeter() extends CliApp[Any, Any] derives CompiledCliApp.DeriveRootApp {
   @execute
   def run(@named count: Int, @positional name: String, @flag loud: Boolean): Effect =
     ZIO.succeed(ExitCode(count + name.length + (if loud then 1 else 0)))
 }
-object V2Greeter { given CliApp.Derived[V2Greeter, Any] = CliApp.derive }
 
 // Env layer: `def env` provides a service that the effect consumes.
 trait V2Greeting { def text: String }
-final case class V2EnvApp() extends CliApp[Any, V2Greeting] {
+final case class V2EnvApp() extends CliApp[Any, V2Greeting] derives CompiledCliApp.DeriveRootApp {
   def env: EnvLayer = ZLayer.succeed(new V2Greeting { def text = "hi" })
   @execute
   def run(): Effect = ZIO.serviceWith[V2Greeting](g => ExitCode(g.text.length))
 }
-object V2EnvApp { given CliApp.Derived[V2EnvApp, Any] = CliApp.derive }
 
 // Sub-commands.
-final case class V2Calc() extends CliApp[Any, Any] {
+final case class V2Calc() extends CliApp[Any, Any] derives CompiledCliApp.DeriveRootApp {
   @command def add(@positional a: Int, @positional b: Int): Effect = ZIO.succeed(ExitCode(a + b))
   @command def half(@positional a: Int): Effect = ZIO.succeed(ExitCode(a / 2))
 }
-object V2Calc { given CliApp.Derived[V2Calc, Any] = CliApp.derive }
 
 // Nested sub-app: a @command that returns another CliApp (which derives itself).
-final case class V2Inner() extends CliApp[Any, Any] {
+final case class V2Inner() extends CliApp[Any, Any] derives CompiledCliApp.DeriveSubApp {
   @execute
   def run(@positional x: Int, @flag verbose: Boolean): Effect = ZIO.succeed(ExitCode(if verbose then x + 1 else x))
 }
-object V2Inner { given CliApp.Derived[V2Inner, Any] = CliApp.derive }
 
-final case class V2Outer() extends CliApp[Any, Any] {
+final case class V2Outer() extends CliApp[Any, Any] derives CompiledCliApp.DeriveRootApp {
   @command def inner: V2Inner = V2Inner()
 }
-object V2Outer { given CliApp.Derived[V2Outer, Any] = CliApp.derive }
 
 // Three named params sharing a first char ('c'): auto short-name resolution must give `-c` to exactly one.
-final case class V2ShortCollision() extends CliApp[Any, Any] {
+final case class V2ShortCollision() extends CliApp[Any, Any] derives CompiledCliApp.DeriveRootApp {
   @execute
   def run(@named count: Int, @named color: String, @flag caps: Boolean): Effect =
     ZIO.succeed(ExitCode(count + color.length + (if caps then 1 else 0)))
 }
-object V2ShortCollision { given CliApp.Derived[V2ShortCollision, Any] = CliApp.derive }
 
 object DeriveCliAppSpec extends OxygenSpecDefault {
 
-  private def appOf[A](using d: CliApp.Derived[A, Any]): CompiledCliApp[Unit, Any] = d.app
+  private def appOf[A <: CliApp[Any, ?]](using d: CompiledCliApp.DeriveRootApp[A]): CompiledCliApp[Unit, Any] = d.app
 
   private def run(app: CompiledCliApp[Unit, Any], args: String*): ZIO[Scope, ExecutableError, ExitCode] =
     Args.parse(args.toList) match

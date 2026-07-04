@@ -15,21 +15,22 @@ import oxygen.cli.*
 import oxygen.executable.*
 import zio.*
 
-final case class MyApp() extends CliApp[Any, Any] {
+final case class MyApp() extends CliApp[Any, Any] derives CompiledCliApp.DeriveRootApp {
 
   @execute
   def run(): Effect =
     ZIO.logInfo("Hello")
 
 }
-object MyApp extends CliApp.Executable[MyApp](CliApp.derive)
+object MyApp extends CliApp.Executable[MyApp]
 ```
 
-> **Per-file derivation.** Each `CliApp` is derived in its own file. The root passes `CliApp.derive`
-> to `Executable`; every **sub-app** referenced by a `@command` must publish a given in its companion:
-> `object Sub { given CliApp.Derived[Sub, R] = CliApp.derive }` (where `R` is the sub-app's
-> `RequiredEnv`). A parent references that given rather than reflecting into the child, so derivation
-> stays local to each file.
+> **Per-file derivation via `derives`.** Each `CliApp` derives itself. A runnable root uses
+> `derives CompiledCliApp.DeriveRootApp` (its `RequiredEnv` must be `Any`) and its companion just
+> `extends CliApp.Executable[Root]`. Every **sub-app** referenced by a `@command` uses
+> `derives CompiledCliApp.DeriveSubApp` — no companion given needed; the env types are recovered from
+> the app's `CliApp[R, P]` supertype. A parent summons the child's derived given rather than reflecting
+> into the child, so derivation stays local to each file.
 
 Run:
 
@@ -43,7 +44,7 @@ java -jar my-app.jar
 
 | Previous API (pre-0.5) | Current API |
 |------------------------|-------------|
-| `object X extends ExecutableApp` | `object X extends CliApp.Executable[X](CliApp.derive)` |
+| `object X extends ExecutableApp` | `class X ... derives CompiledCliApp.DeriveRootApp` + `object X extends CliApp.Executable[X]` |
 | `Executable.withJsonConfig[...].withEnv(...).withExecute(...)` | Class extends `CliApp` + `@execute` / `@command` |
 | `oxygen.cli.Parser` / `Params` | Macro-generated parser from `@named`, `@positional`, etc. |
 | Bootstrap flags `-f` / `-j` / `-e` / `-r` before `--` | Per-parameter `@envVar` / `@envConfig("ENV_VAR")` |
@@ -59,7 +60,7 @@ One main entry point, no subcommands. Use for simple tools and for apps that pre
 `withExecute` only (e.g. a server that just runs).
 
 ```scala
-final case class ServerApp() extends CliApp[Any, Env] {
+final case class ServerApp() extends CliApp[Any, Env] derives CompiledCliApp.DeriveRootApp {
 
   def env(@envConfig("APP_CONFIG") config: AppConfig): EnvLayer =
     Env.layer(config)
@@ -69,7 +70,7 @@ final case class ServerApp() extends CliApp[Any, Env] {
     ZIO.logInfo("Server starting...")
 
 }
-object ServerApp extends CliApp.Executable[ServerApp](CliApp.derive)
+object ServerApp extends CliApp.Executable[ServerApp]
 ```
 
 ### Subcommands (`@command`)
@@ -77,7 +78,7 @@ object ServerApp extends CliApp.Executable[ServerApp](CliApp.derive)
 Multiple methods become subcommand names (camelCase → dash-case: `runServer` → `run-server`).
 
 ```scala
-final case class ToolApp() extends CliApp[Any, Any] {
+final case class ToolApp() extends CliApp[Any, Any] derives CompiledCliApp.DeriveRootApp {
 
   @command
   def sync(@flag verbose: Boolean = false): Effect = ZIO.logInfo(s"sync (verbose=$verbose)")
@@ -87,7 +88,7 @@ final case class ToolApp() extends CliApp[Any, Any] {
     ZIO.logInfo(s"import $path")
 
 }
-object ToolApp extends CliApp.Executable[ToolApp](CliApp.derive)
+object ToolApp extends CliApp.Executable[ToolApp]
 ```
 
 Invocation:
@@ -105,18 +106,17 @@ tool-app import-data --path ./data.json
 ### Nested apps
 
 A `@command` method can return another `CliApp` type instead of an `Effect`. That type gets its own
-subcommands, and must publish its own derivation:
+subcommands, and derives itself with `DeriveSubApp`:
 
 ```scala
-final case class Group() extends CliApp[Any, Any] {
+final case class Group() extends CliApp[Any, Any] derives CompiledCliApp.DeriveSubApp {
   @command def child(@positional x: Int): Effect = ZIO.logInfo(s"x=$x")
 }
-object Group { given CliApp.Derived[Group, Any] = CliApp.derive }
 
-final case class Root() extends CliApp[Any, Any] {
+final case class Root() extends CliApp[Any, Any] derives CompiledCliApp.DeriveRootApp {
   @command def group: Group = Group()
 }
-object Root extends CliApp.Executable[Root](CliApp.derive)
+object Root extends CliApp.Executable[Root]
 ```
 
 See [CLI annotations](cli.md) for a full annotated example with nested apps.
@@ -177,7 +177,7 @@ These are read at startup by `CliApp.Executable` — they are **not** CLI flags.
 Override the default logger type in code:
 
 ```scala
-object MyApp extends CliApp.Executable[MyApp](CliApp.derive) {
+object MyApp extends CliApp.Executable[MyApp] {
   override def defaultLoggerType: DefaultLoggerType = DefaultLoggerType.OxygenAll
 }
 ```

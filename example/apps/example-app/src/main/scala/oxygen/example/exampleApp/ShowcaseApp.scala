@@ -10,7 +10,7 @@ import zio.*
   * CLI feature showcase — flat commands, one-level groups, four-level nesting,
   * and a wide mix of parameter annotations/types.
   */
-final case class ShowcaseApp() extends CliApp[Any, RootCtx] {
+final case class ShowcaseApp() extends CliApp[Any, RootCtx] derives CompiledCliApp.DeriveRootApp {
 
   @doc("Root environment", "shared by every subcommand")
   def env(
@@ -113,4 +113,4 @@ final case class ShowcaseApp() extends CliApp[Any, RootCtx] {
   ): CapsuleApp = CapsuleApp(seed)
 
 }
-object ShowcaseApp extends CliApp.Executable[ShowcaseApp](CliApp.derive)
+object ShowcaseApp extends CliApp.Executable[ShowcaseApp]

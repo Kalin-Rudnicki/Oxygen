@@ -42,7 +42,7 @@ annotation-driven `CliApp` model. The rewrite ships in the same Maven artifacts 
     import oxygen.executable.*
     import zio.*
 
-    final case class WebServerMain() extends CliApp[Any, WebServerMain.Env] {
+    final case class WebServerMain() extends CliApp[Any, WebServerMain.Env] derives CompiledCliApp.DeriveRootApp {
 
       def env(@envConfig("APP_CONFIG") config: WebServerMain.Config): EnvLayer =
         WebServerMain.Env.layer(config)
@@ -50,7 +50,7 @@ annotation-driven `CliApp` model. The rewrite ships in the same Maven artifacts 
       @execute
       def run(): Effect = ...
     }
-    object WebServerMain extends CliApp.Executable[WebServerMain](CliApp.derive)
+    object WebServerMain extends CliApp.Executable[WebServerMain]
     ```
 
 ### Subcommands

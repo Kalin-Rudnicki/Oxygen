@@ -44,6 +44,51 @@ sealed trait CompiledCliApp[In, RIn] {
 }
 object CompiledCliApp {
 
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
+  //      Derivation
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
+
+  /**
+    * Recovers a `CliApp` subtype's env type params as type members. The `given instance` matches
+    * `App <: CliApp[R, P]`, so single-type-param derivation (`derives`, which only hands us the app
+    * type) can still pull `RequiredEnv` / `ProvidedEnv` out of the app's own supertype.
+    */
+  sealed trait CliAppType[App <: CliApp[?, ?]] {
+    type RequiredEnv
+    type ProvidedEnv
+  }
+  object CliAppType {
+    type Aux[App <: CliApp[?, ?], R, P] = CliAppType[App] { type RequiredEnv = R; type ProvidedEnv = P }
+    given instance: [R, P, App <: CliApp[R, P]] => CliAppType.Aux[App, R, P] =
+      new CliAppType[App] { type RequiredEnv = R; type ProvidedEnv = P }
+  }
+
+  /**
+    * Derivation for a sub-app — a `@command` whose return type is another `CliApp`. Keyed only on the
+    * app type; `RIn` (its `RequiredEnv`) is a type member. Scala's `derives` widens that member away on
+    * the generated `given`, so consumers don't read `RIn` off the summoned instance — they recover it
+    * structurally from the app's `CliApp[R, _]` supertype (which pins `RIn = R` by construction).
+    */
+  // NB: `App` is unbounded on the trait (the `App <: CliApp[?, ?]` constraint lives on `derived`, where
+  // `CliAppType` is summoned) so the derivation macro can name `DeriveSubApp[A]` for an abstract `A: Type`.
+  trait DeriveSubApp[App] {
+    type RIn
+    def body: CompiledCliApp[App, RIn]
+  }
+  object DeriveSubApp {
+    transparent inline def derived[App <: CliApp[?, ?]](using ev: CliAppType[App]): DeriveSubApp[App] { type RIn = ev.RequiredEnv } =
+      ${ generic.DeriveCliApp.deriveSubApp[App, ev.RequiredEnv, ev.ProvidedEnv] }
+  }
+
+  /** Derivation for a runnable root app. A root requires no environment, so `RequiredEnv` must be `Any`. */
+  trait DeriveRootApp[App] {
+    def app: CompiledCliApp[Unit, Any]
+  }
+  object DeriveRootApp {
+    transparent inline def derived[App <: CliApp[Any, ?]](using ev: CliAppType[App]): DeriveRootApp[App] =
+      ${ generic.DeriveCliApp.deriveRootApp[App, ev.ProvidedEnv] }
+  }
+
   // Parse failures are not part of the effect's error channel: they're rendered as help text and
   // mapped to a failing exit code, mirroring the old runtime's `printHelp`.
   private def renderParseFail(fail: CliParseResult.Fail): UIO[ExitCode] =

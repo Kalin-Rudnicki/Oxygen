@@ -15,32 +15,15 @@ abstract class CliApp[RequiredEnv, ProvidedEnv] {
 }
 object CliApp {
 
-  /**
-    * Per-file derivation result. Each `CliApp` materializes its own `Derived` in its own file
-    * (`given CliApp.Derived[Foo, R] = CliApp.derive`); parents reference a child's `body` rather than
-    * recursively reflecting into the child class. `R` is the app's `RequiredEnv`, surfaced as a type
-    * parameter so it composes at every site.
-    *
-    *   - `body` — given an instance of `A`, the runnable app (this app's `def env` already prepended).
-    *   - `app`  — `body` with a zero-arg root instance; only valid for zero-arg roots (sub-apps that
-    *     take constructor params are built by their parent command, so their `app` is a runtime stub).
-    */
-  // FIX-PRE-MERGE (KR) : remove
-  trait Derived[A, R] {
-    def body: CompiledCliApp[A, R]
-    def app: CompiledCliApp[Unit, R]
-  }
-
-  inline def derive[A, R]: Derived[A, R] = ${ oxygen.executable.generic.DeriveCliApp.derive[A, R] }
-
-  // `derived` is passed explicitly (`extends CliApp.Executable[Foo](CliApp.derive)`) rather than via a
-  // `using` so it can't be a self-referential given on the same object being constructed. `Derived[A, Any]`
-  // enforces that a runnable root requires no environment.
-  abstract class Executable[A](derived: CliApp.Derived[A, Any]) extends ZIOAppDefault {
+  // The runnable root is derived via `A derives CompiledCliApp.DeriveRootApp` (companion given), summoned
+  // here `using`. The `A <: CliApp[Any, ?]` bound enforces that a runnable root requires no environment.
+  // `derived` is by-name (+ `app` is lazy) because the given lives on the same companion object that
+  // `extends Executable[A]`, so eager capture in the super constructor would be an illegal self-reference.
+  abstract class Executable[A <: CliApp[Any, ?]](using derived: => CompiledCliApp.DeriveRootApp[A]) extends ZIOAppDefault {
 
     def defaultLoggerType: DefaultLoggerType = DefaultLoggerType.default
 
-    private val app: CompiledCliApp[Unit, Any] = derived.app
+    private lazy val app: CompiledCliApp[Unit, Any] = derived.app
 
     /**
       * At this point, all [[zio.Cause]] should be caught, and any errors printed.
