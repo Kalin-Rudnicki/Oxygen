@@ -724,8 +724,14 @@ object NamedArgsParser {
         case Defaultable.Explicit(_) => shortName
         case Defaultable.Default     =>
           longName.headOption match
-            case Some(c) if !used.contains(c) => used += c; Defaultable.Explicit(Some(c))
-            case _                            => Defaultable.Explicit(None)
+            case None => Defaultable.Explicit(None)
+            case Some(c) =>
+              // Try the first char as-is, then its case-flipped variant (`--host` -> -h, `--hotness` -> -H),
+              // else no short. Only these two candidates, so a third `h*` param simply gets nothing.
+              val flipped: Char = if c.isUpper then c.toLower else c.toUpper
+              List(c, flipped).distinct.find(!used.contains(_)) match
+                case Some(chosen) => used += chosen; Defaultable.Explicit(Some(chosen))
+                case None         => Defaultable.Explicit(None)
 
     def rewrite[X](p: NamedArgsParser[X]): NamedArgsParser[X] =
       (p match

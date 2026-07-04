@@ -79,13 +79,13 @@ object ArgsParserSpec extends OxygenSpecDefault {
         },
       ),
       suite("resolveAutoShortNames (global two-phase pass)")(
-        test("two autos sharing a first char: first wins the short, second gets none") {
+        test("two autos sharing a first char: first wins it, second gets the case-flipped char") {
           val parser =
             NamedArgsParser.Flag("verbose", Defaultable.Default, default = false, SubHelp.Empty) &&
               NamedArgsParser.Flag("version", Defaultable.Default, default = false, SubHelp.Empty)
           NamedArgsParser.resolveAutoShortNames(parser) match
             case NamedArgsParser.AndWith(a: NamedArgsParser.Flag, b: NamedArgsParser.Flag, _) =>
-              assertTrue(a.shortName == Defaultable.Explicit(Some('v')), b.shortName == Defaultable.Explicit(None))
+              assertTrue(a.shortName == Defaultable.Explicit(Some('v')), b.shortName == Defaultable.Explicit(Some('V')))
             case other => assertTrue(false).label(s"unexpected shape: $other")
         },
         test("explicit short is reserved and wins over a colliding auto, regardless of order") {
@@ -93,8 +93,23 @@ object ArgsParserSpec extends OxygenSpecDefault {
             NamedArgsParser.Flag("verbose", Defaultable.Default, default = false, SubHelp.Empty) &&
               NamedArgsParser.Flag("verify", Defaultable.Explicit(Some('v')), default = false, SubHelp.Empty)
           NamedArgsParser.resolveAutoShortNames(parser) match
+            // `verify` keeps its explicit -v; the auto `verbose` doesn't steal it, falling back to -V.
             case NamedArgsParser.AndWith(a: NamedArgsParser.Flag, b: NamedArgsParser.Flag, _) =>
-              assertTrue(a.shortName == Defaultable.Explicit(None), b.shortName == Defaultable.Explicit(Some('v')))
+              assertTrue(a.shortName == Defaultable.Explicit(Some('V')), b.shortName == Defaultable.Explicit(Some('v')))
+            case other => assertTrue(false).label(s"unexpected shape: $other")
+        },
+        test("colliding autos fall back to the case-flipped first char, then give up") {
+          val parser =
+            NamedArgsParser.Flag("host", Defaultable.Default, default = false, SubHelp.Empty) &&
+              NamedArgsParser.Flag("hotness", Defaultable.Default, default = false, SubHelp.Empty) &&
+              NamedArgsParser.Flag("height", Defaultable.Default, default = false, SubHelp.Empty)
+          NamedArgsParser.resolveAutoShortNames(parser) match
+            case NamedArgsParser.AndWith(NamedArgsParser.AndWith(a: NamedArgsParser.Flag, b: NamedArgsParser.Flag, _), c: NamedArgsParser.Flag, _) =>
+              assertTrue(
+                a.shortName == Defaultable.Explicit(Some('h')), // as-is
+                b.shortName == Defaultable.Explicit(Some('H')), // 'h' taken -> case-flipped
+                c.shortName == Defaultable.Explicit(None),      // both 'h' and 'H' taken -> none
+              )
             case other => assertTrue(false).label(s"unexpected shape: $other")
         },
         test("non-colliding autos each keep their first char") {
