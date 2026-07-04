@@ -108,7 +108,7 @@ object ArgsParserSpec extends OxygenSpecDefault {
               assertTrue(
                 a.shortName == Defaultable.Explicit(Some('h')), // as-is
                 b.shortName == Defaultable.Explicit(Some('H')), // 'h' taken -> case-flipped
-                c.shortName == Defaultable.Explicit(None),      // both 'h' and 'H' taken -> none
+                c.shortName == Defaultable.Explicit(None), // both 'h' and 'H' taken -> none
               )
             case other => assertTrue(false).label(s"unexpected shape: $other")
         },

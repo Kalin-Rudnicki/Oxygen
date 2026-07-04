@@ -724,7 +724,7 @@ object NamedArgsParser {
         case Defaultable.Explicit(_) => shortName
         case Defaultable.Default     =>
           longName.headOption match
-            case None => Defaultable.Explicit(None)
+            case None    => Defaultable.Explicit(None)
             case Some(c) =>
               // Try the first char as-is, then its case-flipped variant (`--host` -> -h, `--hotness` -> -H),
               // else no short. Only these two candidates, so a third `h*` param simply gets nothing.
