@@ -3,7 +3,9 @@ package oxygen.executable
 import oxygen.cli.*
 import zio.*
 
-abstract class CliApp[RequiredEnv, ProvidedEnv] {
+// A trait (not a class) so sub-apps can be plain `trait`s / abstract classes — a sub-app is instantiated
+// by its parent `@command`, never by the derivation macro, so it need not be a case class.
+trait CliApp[RequiredEnv, ProvidedEnv] {
 
   final type FullEnv = RequiredEnv & ProvidedEnv
 

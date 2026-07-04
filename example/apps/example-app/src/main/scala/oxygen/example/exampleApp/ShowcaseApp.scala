@@ -112,5 +112,16 @@ final case class ShowcaseApp() extends CliApp[Any, RootCtx] derives CompiledCliA
       @named @shortName('s') seed: Int,
   ): CapsuleApp = CapsuleApp(seed)
 
+  // ── non-case-class (trait) sub-app ────────────────────────────────────
+
+  @command
+  def gadget: GadgetApp = new GadgetApp {
+    override def run(name: String, loud: Boolean): Effect =
+      ZIO.serviceWithZIO[RootCtx] { root =>
+        val msg = s"gadget host=${root.host} name=$name"
+        if loud then ZIO.logInfo(msg.toUpperCase) else ZIO.logInfo(msg)
+      }
+  }
+
 }
 object ShowcaseApp extends CliApp.Executable[ShowcaseApp]

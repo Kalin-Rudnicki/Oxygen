@@ -109,6 +109,19 @@ final case class DeepL4() extends CliApp[RootCtx, Any] derives CompiledCliApp.De
 
 }
 
+/**
+  * Non-case-class sub-app (`showcase gadget …`): a plain `trait` with an *abstract* `@execute`. A sub-app
+  * is never instantiated by the derivation macro — the parent `@command` supplies the concrete instance —
+  * so it needn't be a case class. Only runnable *roots* must be an instantiable case class / object.
+  */
+trait GadgetApp extends CliApp[RootCtx, Any] derives CompiledCliApp.DeriveSubApp {
+  @execute
+  def run(
+      @named @shortName('n') name: String,
+      @flag loud: Boolean = false,
+  ): Effect
+}
+
 /** Constructor param passed into a nested app (`showcase capsule …`). */
 final case class CapsuleApp(
     seed: Int,

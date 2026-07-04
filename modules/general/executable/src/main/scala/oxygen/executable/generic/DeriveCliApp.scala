@@ -48,9 +48,7 @@ private[executable] object DeriveCliApp {
     }
   }
 
-  // isRoot = false: constructor params are never parsed from the CLI — a root is zero-arg (built by the
-  // runner) and a sub-app is built by its parent command. Avoids requiring ctor params to be annotated.
-  private def mkRepr[A: Type](using Quotes): RawCliAppRepr[A] = new RawCliAppRepr[A](isRoot = false)
+  private def mkRepr[A: Type](using Quotes): RawCliAppRepr[A] = new RawCliAppRepr[A]
 
   // `CliAppType` already reads `RequiredEnv` from the same supertype `RawCliAppRepr` does, so this is a
   // belt-and-suspenders check that the extracted env matches the app — it should never actually fire.
@@ -58,14 +56,14 @@ private[executable] object DeriveCliApp {
     if !(repr.requiredEnvTypeRepr =:= TypeRepr.of[R]) then
       report.errorAndAbort(
         s"CliApp derivation: RequiredEnv ${TypeRepr.of[R].showAnsiCode} does not match this app's RequiredEnv ${repr.requiredEnvTypeRepr.showAnsiCode}",
-        repr.gen.pos,
+        repr.pos,
       )
 
   /////// app body = inner (at FullEnv) wrapped with this app's own `def env` (-> R) ////////////////////
 
   private def buildApp[C: Type, R: Type, ProvidedEnv: Type](repr: RawCliAppRepr[C])(using Quotes): Expr[CompiledCliApp[C, R]] = {
     if !repr.providedIsEmpty && repr.envDef.isEmpty then
-      report.errorAndAbort("CliApp declares a ProvidedEnv but has no `def env` to provide it", repr.gen.pos)
+      report.errorAndAbort("CliApp declares a ProvidedEnv but has no `def env` to provide it", repr.pos)
     val inner: Expr[CompiledCliApp[C, R & ProvidedEnv]] = buildInner[C, R & ProvidedEnv](repr)
     prependEnv[C, R, ProvidedEnv](repr, inner)
   }
@@ -77,7 +75,7 @@ private[executable] object DeriveCliApp {
     else if repr.commandDefs.nonEmpty then
       buildSubCommands[C, FullEnv](repr)
     else
-      report.errorAndAbort("a v2 CLI app must have a single @execute or one-or-more @command methods", repr.gen.pos)
+      report.errorAndAbort("a v2 CLI app must have a single @execute or one-or-more @command methods", repr.pos)
 
   private def buildSubCommands[C: Type, FullEnv: Type](repr: RawCliAppRepr[C])(using Quotes): Expr[CompiledCliApp[C, FullEnv]] = {
     val entries: List[Expr[(String, Lazy[CompiledCliApp[C, FullEnv]])]] =
@@ -186,7 +184,7 @@ private[executable] object DeriveCliApp {
       case Some(envDef) =>
         val tagExpr: Expr[EnvironmentTag[ProvidedEnv]] =
           Expr.summon[EnvironmentTag[ProvidedEnv]].getOrElse {
-            report.errorAndAbort(s"Missing EnvironmentTag for ProvidedEnv ${TypeRepr.of[ProvidedEnv].showAnsiCode}", repr.gen.pos)
+            report.errorAndAbort(s"Missing EnvironmentTag for ProvidedEnv ${TypeRepr.of[ProvidedEnv].showAnsiCode}", repr.pos)
           }
         val envSym: oxygen.quoted.Symbol = envDef.defDef.symbol
         val envParamTypeReprs: List[TypeRepr] = envDef.params.map(_.typeRepr)
@@ -212,10 +210,12 @@ private[executable] object DeriveCliApp {
 
   /////// root instance construction (zero-arg only) //////////////////////////////////////////////////
 
+  // Root-only: a runnable root is built zero-arg, so here (and only here) we need `ProductGeneric` — the
+  // root really must be an instantiable case class / case object (sub-apps skip this path entirely).
   private def buildRootApp[A: Type, R: Type](repr: RawCliAppRepr[A], bodyExpr: Expr[CompiledCliApp[A, R]])(using Quotes): Expr[CompiledCliApp[Unit, R]] =
-    repr.gen match
-      case _: ProductGeneric.NoFieldsCaseClassGeneric[A] | _: ProductGeneric.CaseObjectGeneric[A] =>
-        val zeroArg: Expr[A] = instantiateZeroArg(repr)
+    ProductGeneric.of[A] match
+      case gen @ (_: ProductGeneric.NoFieldsCaseClassGeneric[A] | _: ProductGeneric.CaseObjectGeneric[A]) =>
+        val zeroArg: Expr[A] = instantiateZeroArg[A](gen)
         '{
           $bodyExpr.select[Unit, List[Any]](ExecutableParser.Empty.as(List.empty[Any])) { (_, args) =>
             val _ = args; $zeroArg
@@ -223,18 +223,18 @@ private[executable] object DeriveCliApp {
         }
       case _ =>
         // Has constructor params => only valid as a sub-command (built by its parent), never run directly.
-        val name: String = repr.gen.typeRepr.typeSymbol.name
+        val name: String = repr.typeSymbol.name
         '{
           $bodyExpr.select[Unit, List[Any]](ExecutableParser.Empty.as(List.empty[Any])) { (_, args) =>
             val _ = args; scala.sys.error(${ Expr(s"$name must be used as a sub-command, not run directly") })
           }
         }
 
-  private def instantiateZeroArg[A](repr: RawCliAppRepr[A])(using Quotes, Type[A]): Expr[A] =
-    repr.gen match
-      case gen: ProductGeneric.NoFieldsCaseClassGeneric[A] => gen.instantiate.instance
-      case gen: ProductGeneric.CaseObjectGeneric[A]        => gen.instantiate.instance
-      case _                                               => report.errorAndAbort(s"v2 CLI app must be a zero-arg or case class, found ${repr.gen.toIndentedString}", repr.gen.pos)
+  private def instantiateZeroArg[A: Type](gen: ProductGeneric[A])(using Quotes): Expr[A] =
+    gen match
+      case g: ProductGeneric.NoFieldsCaseClassGeneric[A] => g.instantiate.instance
+      case g: ProductGeneric.CaseObjectGeneric[A]        => g.instantiate.instance
+      case _                                             => report.errorAndAbort(s"v2 CLI app must be a zero-arg or case class, found ${gen.toIndentedString}", gen.pos)
 
   private def commandName(defRepr: RawDefRepr): String = defRepr.annot match
     case command(name) if name.nonEmpty => name.camelToDash

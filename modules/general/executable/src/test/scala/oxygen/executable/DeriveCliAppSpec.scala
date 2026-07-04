@@ -35,6 +35,18 @@ final case class V2Outer() extends CliApp[Any, Any] derives CompiledCliApp.Deriv
   @command def inner: V2Inner = V2Inner()
 }
 
+// Non-case-class sub-app: a plain trait with an *abstract* @execute, derived via DeriveSubApp. The parent
+// supplies the concrete instance, so the derivation never needs to instantiate it (no case-class required).
+trait V2TraitSub extends CliApp[Any, Any] derives CompiledCliApp.DeriveSubApp {
+  @execute def run(@positional x: Int, @flag doubled: Boolean): Effect
+}
+
+final case class V2TraitOuter() extends CliApp[Any, Any] derives CompiledCliApp.DeriveRootApp {
+  @command def sub: V2TraitSub = new V2TraitSub {
+    override def run(x: Int, doubled: Boolean): Effect = ZIO.succeed(ExitCode(if doubled then x * 2 else x))
+  }
+}
+
 // Three named params sharing a first char ('c'): auto short-name resolution must give `-c` to exactly one.
 final case class V2ShortCollision() extends CliApp[Any, Any] derives CompiledCliApp.DeriveRootApp {
   @execute
@@ -83,6 +95,9 @@ object DeriveCliAppSpec extends OxygenSpecDefault {
       suite("nested sub-app (@command returning a CliApp)")(
         test("dispatches into the nested app's @execute") {
           ZIO.scoped(run(appOf[V2Outer], "inner", "7")).map(ec => assertTrue(ec == ExitCode(7)))
+        },
+        test("sub-app may be a non-case-class trait with an abstract @execute") {
+          ZIO.scoped(run(appOf[V2TraitOuter], "sub", "5", "--doubled")).map(ec => assertTrue(ec == ExitCode(10)))
         },
       ),
       suite("auto short-name collision resolution")(
