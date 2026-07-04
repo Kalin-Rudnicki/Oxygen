@@ -73,8 +73,10 @@ object CompiledCliApp {
     lazy val layerParser: ExecutableParser[LayerArgs]
     lazy val effectParser: ExecutableParser[EffectArgs]
 
+    // `.resolveAutoShortNames` runs the global two-phase short-name pass over the whole command's named
+    // args (instances + layer + effect) exactly once, so two params can't silently both claim `-x`.
     final lazy val fullParser: ExecutableParser[(InstancesArgs, LayerArgs, EffectArgs)] =
-      instancesParser ^>>&&## layerParser ^>>&&## effectParser
+      (instancesParser ^>>&&## layerParser ^>>&&## effectParser).resolveAutoShortNames
 
     def instances(in: In, instancesArgs: InstancesArgs): Instances
     def effect(instances: Instances, effectArgs: EffectArgs): ZIO[FullR, ExecutableError, ExitCode]

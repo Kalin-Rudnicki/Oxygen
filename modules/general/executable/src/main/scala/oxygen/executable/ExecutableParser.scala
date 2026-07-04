@@ -51,6 +51,11 @@ sealed trait ExecutableParser[+A] { self: ExecutableParser.SelfT[A] =>
   def as[B](f: => B): ExecutableParser[B] = ExecutableParser.Mapped(this, _ => f)
   def map[B](f: A => B): ExecutableParser[B] = ExecutableParser.Mapped(this, f)
 
+  // Resolve the CLI side's auto short names with a global two-phase pass. Applied once at the
+  // fully-assembled command parser (see `CompiledCliApp.Single.fullParser`) so every named arg on the
+  // command line — instance, layer (`def env`), and effect params — shares one collision namespace.
+  final def resolveAutoShortNames: ExecutableParser[A] = ExecutableParser.CliShortNamesResolved(this)
+
 }
 object ExecutableParser {
 
@@ -157,6 +162,19 @@ object ExecutableParser {
     // TODO (KR) : could potentially support a `MapOrFail` here, only if `zipResult` was related to an `either`
     override def zipResult(cli: CliT, nonCli: NonCliT): B =
       f(a.zipResult(cli, nonCli))
+
+  }
+
+  // Exposes `inner` with its CLI parser's auto short names globally resolved; the non-CLI side and
+  // `zipResult` are delegated untouched, so parse results are identical to `inner`.
+  final case class CliShortNamesResolved[A](inner: ExecutableParser[A]) extends ExecutableParser.Root[A] {
+
+    override type CliT = inner.CliT
+    override type NonCliT = inner.NonCliT
+
+    override val cliParser: ArgsParser[CliT] = inner.cliParser.resolveAutoShortNames
+    override val nonCliParser: NonCLIExecutableParser[NonCliT] = inner.nonCliParser
+    override def zipResult(cli: CliT, nonCli: NonCliT): A = inner.zipResult(cli, nonCli)
 
   }
 

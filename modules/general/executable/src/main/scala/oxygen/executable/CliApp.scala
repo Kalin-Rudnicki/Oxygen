@@ -25,6 +25,7 @@ object CliApp {
     *   - `app`  — `body` with a zero-arg root instance; only valid for zero-arg roots (sub-apps that
     *     take constructor params are built by their parent command, so their `app` is a runtime stub).
     */
+  // FIX-PRE-MERGE (KR) : remove
   trait Derived[A, R] {
     def body: CompiledCliApp[A, R]
     def app: CompiledCliApp[Unit, R]

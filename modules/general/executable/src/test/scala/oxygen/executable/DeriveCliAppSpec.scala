@@ -40,6 +40,14 @@ final case class V2Outer() extends CliApp[Any, Any] {
 }
 object V2Outer { given CliApp.Derived[V2Outer, Any] = CliApp.derive }
 
+// Three named params sharing a first char ('c'): auto short-name resolution must give `-c` to exactly one.
+final case class V2ShortCollision() extends CliApp[Any, Any] {
+  @execute
+  def run(@named count: Int, @named color: String, @flag caps: Boolean): Effect =
+    ZIO.succeed(ExitCode(count + color.length + (if caps then 1 else 0)))
+}
+object V2ShortCollision { given CliApp.Derived[V2ShortCollision, Any] = CliApp.derive }
+
 object DeriveCliAppSpec extends OxygenSpecDefault {
 
   private def appOf[A](using d: CliApp.Derived[A, Any]): CompiledCliApp[Unit, Any] = d.app
@@ -81,6 +89,24 @@ object DeriveCliAppSpec extends OxygenSpecDefault {
       suite("nested sub-app (@command returning a CliApp)")(
         test("dispatches into the nested app's @execute") {
           ZIO.scoped(run(appOf[V2Outer], "inner", "7")).map(ec => assertTrue(ec == ExitCode(7)))
+        },
+      ),
+      suite("auto short-name collision resolution")(
+        test("only the first colliding param wins `-c`; it parses to that param") {
+          // `-c 4` must set `count` (the first 'c' param), not `color`.
+          ZIO.scoped(run(appOf[V2ShortCollision], "-c", "4", "--color", "red")).map(ec => assertTrue(ec == ExitCode(7)))
+        },
+        test("the losing params are still reachable by their long names") {
+          ZIO.scoped(run(appOf[V2ShortCollision], "--count", "4", "--color", "red", "--caps")).map(ec => assertTrue(ec == ExitCode(8)))
+        },
+        test("help shows a single `-c`, on `--count` only") {
+          val help = appOf[V2ShortCollision].helpFor(Nil, Nil, HelpType.Help).toString
+          assertTrue(
+            help.contains("--count, -c"),
+            help.contains("--color"),
+            !help.contains("--color, -c"),
+            !help.contains("--caps, -c"),
+          )
         },
       ),
       suite("completion")(
