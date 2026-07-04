@@ -123,5 +123,17 @@ final case class ShowcaseApp() extends CliApp[Any, RootCtx] derives CompiledCliA
       }
   }
 
+  // ── trait sub-app with its own env layer (requires RootCtx, provides GizmoCtx) ──
+
+  @command
+  def widget: WidgetApp = new WidgetApp {
+    override def run(power: Int): Effect =
+      for {
+        root <- ZIO.service[RootCtx]
+        gizmo <- ZIO.service[GizmoCtx]
+        _ <- ZIO.logInfo(s"widget host=${root.host} gizmo=$gizmo power=$power")
+      } yield ()
+  }
+
 }
 object ShowcaseApp extends CliApp.Executable[ShowcaseApp]

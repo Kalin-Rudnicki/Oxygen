@@ -122,6 +122,24 @@ trait GadgetApp extends CliApp[RootCtx, Any] derives CompiledCliApp.DeriveSubApp
   ): Effect
 }
 
+/**
+  * Non-case-class sub-app that also has an env layer (`showcase widget …`): a `trait` requiring `RootCtx`
+  * and providing `GizmoCtx` via a (concrete) `def env`, with an *abstract* `@execute`. The env params are
+  * parsed and the layer prepended just like a case-class app; only the effect body comes from the parent.
+  */
+trait WidgetApp extends CliApp[RootCtx, GizmoCtx] derives CompiledCliApp.DeriveSubApp {
+
+  def env(
+      @named @shortName('g') gizmoId: String,
+      @flag calibrated: Boolean = false,
+  ): EnvLayer =
+    ZLayer.succeed(GizmoCtx(gizmoId, calibrated))
+
+  @execute
+  def run(@named @shortName('p') power: Int = 1): Effect
+
+}
+
 /** Constructor param passed into a nested app (`showcase capsule …`). */
 final case class CapsuleApp(
     seed: Int,
