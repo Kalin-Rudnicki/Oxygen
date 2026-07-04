@@ -112,6 +112,22 @@ object ArgsParserSpec extends OxygenSpecDefault {
               )
             case other => assertTrue(false).label(s"unexpected shape: $other")
         },
+        test("two params explicitly claiming the same short are rejected") {
+          val parser =
+            NamedArgsParser.Flag("foo", Defaultable.Explicit(Some('f')), default = false, SubHelp.Empty) &&
+              NamedArgsParser.Flag("bar", Defaultable.Explicit(Some('f')), default = false, SubHelp.Empty)
+          val err = scala.util.Try(NamedArgsParser.resolveAutoShortNames(parser)).failed.toOption
+          assertTrue(err.exists(e => e.getMessage.contains("-f") && e.getMessage.contains("--foo") && e.getMessage.contains("--bar")))
+        },
+        test("an explicit short colliding with an auto is fine (auto yields, no error)") {
+          val parser =
+            NamedArgsParser.Flag("foo", Defaultable.Explicit(Some('f')), default = false, SubHelp.Empty) &&
+              NamedArgsParser.Flag("force", Defaultable.Default, default = false, SubHelp.Empty)
+          NamedArgsParser.resolveAutoShortNames(parser) match
+            case NamedArgsParser.AndWith(a: NamedArgsParser.Flag, b: NamedArgsParser.Flag, _) =>
+              assertTrue(a.shortName == Defaultable.Explicit(Some('f')), b.shortName == Defaultable.Explicit(Some('F')))
+            case other => assertTrue(false).label(s"unexpected shape: $other")
+        },
         test("non-colliding autos each keep their first char") {
           val parser =
             NamedArgsParser.Flag("verbose", Defaultable.Default, default = false, SubHelp.Empty) &&

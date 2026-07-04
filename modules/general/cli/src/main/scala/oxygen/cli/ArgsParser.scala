@@ -712,12 +712,19 @@ object NamedArgsParser {
 
   // Two-phase auto short-name resolution over a fully-assembled named parser tree (D2):
   //   phase 1 — reserve every *explicitly* set short (`Explicit(Some)` on Named/Flag, both chars of a Toggle),
-  //   phase 2 — walk left-to-right giving each `Default` the first char of its long name, but only if that
-  //             char is still free; otherwise it gets no short (`Explicit(None)`).
-  // Explicit names always win over autos, and earlier autos win over later ones. This replaces the old
-  // per-node fallback that silently let two params both claim `-x`.
+  //             and reject two params that explicitly claim the *same* short (a developer bug, not user input);
+  //   phase 2 — walk left-to-right giving each `Default` the first char of its long name (then its
+  //             case-flipped variant), but only if still free; otherwise it gets no short (`Explicit(None)`).
+  // Explicit names always win over autos, and earlier autos win over later ones. This runs once per command,
+  // lazily, when that command's parser is assembled — not eagerly for the whole app.
   def resolveAutoShortNames[A](parser: NamedArgsParser[A]): NamedArgsParser[A] = {
-    val used: scala.collection.mutable.Set[Char] = scala.collection.mutable.Set.from(collectExplicitShorts(parser))
+    val explicitClaims: List[(Char, String)] = explicitShortClaims(parser)
+    explicitClaims.groupBy(_._1).toList.sortBy(_._1).collectFirst { case (c, claims) if claims.sizeIs > 1 => (c, claims.map(_._2).sorted) }.foreach { (c, names) =>
+      throw new IllegalArgumentException(
+        s"CLI parser assigns the short name -$c to more than one param (${names.mkString(", ")}); explicit short names must be unique.",
+      )
+    }
+    val used: scala.collection.mutable.Set[Char] = scala.collection.mutable.Set.from(explicitClaims.iterator.map(_._1))
 
     def claimAuto(longName: String, shortName: Defaultable.Opt[Char]): Defaultable.Opt[Char] =
       shortName match
@@ -754,14 +761,16 @@ object NamedArgsParser {
     rewrite(parser)
   }
 
-  private def collectExplicitShorts(parser: NamedArgsParser[?]): Set[Char] = {
-    def loop(p: NamedArgsParser[?], acc: Set[Char]): Set[Char] =
+  // Every explicitly-set short and the label of the param claiming it (for the duplicate-collision error).
+  private def explicitShortClaims(parser: NamedArgsParser[?]): List[(Char, String)] = {
+    def loop(p: NamedArgsParser[?], acc: List[(Char, String)]): List[(Char, String)] =
       p match
         case Empty                 => acc
         case _: Const[?]           => acc
-        case n: Named[?]           => n.shortName match { case Defaultable.Explicit(Some(c)) => acc + c; case _ => acc }
-        case f: Flag               => f.shortName match { case Defaultable.Explicit(Some(c)) => acc + c; case _ => acc }
-        case t: Toggle             => t.shortNames match { case Some((a, b)) => acc + a + b; case None => acc }
+        case n: Named[?]           => n.shortName match { case Defaultable.Explicit(Some(c)) => (c, s"--${n.longName}") :: acc; case _ => acc }
+        case f: Flag               => f.shortName match { case Defaultable.Explicit(Some(c)) => (c, s"--${f.longName}") :: acc; case _ => acc }
+        case t: Toggle             =>
+          t.shortNames match { case Some((a, b)) => (a, s"--${t.longNames.trueLongName}") :: (b, s"--${t.longNames.falseLongName}") :: acc; case None => acc }
         case a: AndWith[?, ?, ?]   => loop(a.b, loop(a.a, acc))
         case m: Mapped[?, ?]       => loop(m.a, acc)
         case m: MappedOrFail[?, ?] => loop(m.a, acc)
@@ -770,7 +779,7 @@ object NamedArgsParser {
         case r: Repeated[?]        => loop(r.inner, acc)
         case r: RepeatedNel[?]     => loop(r.inner, acc)
         case w: WithDefault[?]     => loop(w.inner, acc)
-    loop(parser, Set.empty)
+    loop(parser, Nil)
   }
 
   extension [A](self: NamedArgsParser[A])
