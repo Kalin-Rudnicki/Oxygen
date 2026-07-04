@@ -135,5 +135,19 @@ final case class ShowcaseApp() extends CliApp[Any, RootCtx] derives CompiledCliA
       } yield ()
   }
 
+  // ── trait sub-app whose `def env` is abstract too (child implements both) ──
+
+  @command
+  def contraption: ContraptionApp = new ContraptionApp {
+    override def env(gizmoId: String, calibrated: Boolean): EnvLayer =
+      ZLayer.succeed(GizmoCtx(s"contraption-$gizmoId", calibrated))
+    override def run(power: Int): Effect =
+      for {
+        root <- ZIO.service[RootCtx]
+        gizmo <- ZIO.service[GizmoCtx]
+        _ <- ZIO.logInfo(s"contraption host=${root.host} gizmo=$gizmo power=$power")
+      } yield ()
+  }
+
 }
 object ShowcaseApp extends CliApp.Executable[ShowcaseApp]

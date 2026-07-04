@@ -140,6 +140,24 @@ trait WidgetApp extends CliApp[RootCtx, GizmoCtx] derives CompiledCliApp.DeriveS
 
 }
 
+/**
+  * Like [[WidgetApp]], but the env layer itself is *abstract* (`showcase contraption …`): the trait only
+  * declares `def env(...): EnvLayer` (with its CLI param annotations) and leaves both `env` and `@execute`
+  * for the parent to implement. The derivation reads the env params off the abstract declaration and calls
+  * the (parent-supplied) `env` at runtime — so the child decides how the parsed params become a layer.
+  */
+trait ContraptionApp extends CliApp[RootCtx, GizmoCtx] derives CompiledCliApp.DeriveSubApp {
+
+  def env(
+      @named @shortName('g') gizmoId: String,
+      @flag calibrated: Boolean = false,
+  ): EnvLayer
+
+  @execute
+  def run(@named @shortName('p') power: Int = 1): Effect
+
+}
+
 /** Constructor param passed into a nested app (`showcase capsule …`). */
 final case class CapsuleApp(
     seed: Int,
