@@ -45,7 +45,7 @@ object CliApp {
       Args.parse(rawArgs) match
         case Left(message) => Console.printLine(message).orDie.as(ExecutableError.usageErrorExitCode)
         case Right(parsed) =>
-          // `peelArgs` strips any of --help / -h / --help-extra / -H from the named args and reports which
+          // `peelArgs` strips any of --help / --help-extra from the named args and reports which
           // (if any) was present; the leftover positional args are the command path to drill into.
           CliHelp.peelArgs(parsed) match
             case (stripped, Some(helpType)) =>

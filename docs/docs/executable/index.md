@@ -239,8 +239,8 @@ There is **no** `-f=config.json` bootstrap flag. Point the env var at a file pat
 
 Built-in flags (on every app):
 
-- `--help` / `-h` — usage for the current command
-- `--help-extra` / `-H` — includes nested subcommand help blocks
+- `--help` — usage for the current command
+- `--help-extra` — includes nested subcommand help blocks
 
 `@doc("line one", "line two")` on parameters and on `@command`/`@execute` methods appears in help output.
 
