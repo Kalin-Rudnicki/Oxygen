@@ -765,11 +765,11 @@ object NamedArgsParser {
   private def explicitShortClaims(parser: NamedArgsParser[?]): List[(Char, String)] = {
     def loop(p: NamedArgsParser[?], acc: List[(Char, String)]): List[(Char, String)] =
       p match
-        case Empty                 => acc
-        case _: Const[?]           => acc
-        case n: Named[?]           => n.shortName match { case Defaultable.Explicit(Some(c)) => (c, s"--${n.longName}") :: acc; case _ => acc }
-        case f: Flag               => f.shortName match { case Defaultable.Explicit(Some(c)) => (c, s"--${f.longName}") :: acc; case _ => acc }
-        case t: Toggle             =>
+        case Empty       => acc
+        case _: Const[?] => acc
+        case n: Named[?] => n.shortName match { case Defaultable.Explicit(Some(c)) => (c, s"--${n.longName}") :: acc; case _ => acc }
+        case f: Flag     => f.shortName match { case Defaultable.Explicit(Some(c)) => (c, s"--${f.longName}") :: acc; case _ => acc }
+        case t: Toggle   =>
           t.shortNames match { case Some((a, b)) => (a, s"--${t.longNames.trueLongName}") :: (b, s"--${t.longNames.falseLongName}") :: acc; case None => acc }
         case a: AndWith[?, ?, ?]   => loop(a.b, loop(a.a, acc))
         case m: Mapped[?, ?]       => loop(m.a, acc)
