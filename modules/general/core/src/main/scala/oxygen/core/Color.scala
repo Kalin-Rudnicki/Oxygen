@@ -47,6 +47,16 @@ object Color {
   final case class Cased(extended: Color.RGB, simple: Color.Simple) extends Color
 
   sealed trait Simple extends Color.Concrete
+  object Simple {
+
+    given toExpr: ToExpr[Simple] =
+      new ToExpr[Simple] {
+        override def apply(x: Simple)(using Quotes): Expr[Simple] = x match
+          case Default      => '{ Default }
+          case named: Named => Expr(named)
+      }
+
+  }
 
   case object Default extends Color.Simple {
     override val fgMod: String = "39"
@@ -76,6 +86,19 @@ object Color {
 
     given stringCodec: StringCodec[Named] = StringCodec.strictEnum
 
+    given namedToExpr: ToExpr[Color.Named] =
+      new ToExpr[Named] {
+        override def apply(x: Named)(using Quotes): Expr[Named] = x match
+          case Black   => '{ Black }
+          case Red     => '{ Red }
+          case Green   => '{ Green }
+          case Yellow  => '{ Yellow }
+          case Blue    => '{ Blue }
+          case Magenta => '{ Magenta }
+          case Cyan    => '{ Cyan }
+          case White   => '{ White }
+      }
+
   }
 
   final case class RGB(r: Int, g: Int, b: Int) extends Color.Concrete {
@@ -103,7 +126,7 @@ object Color {
     private val rgbInt: Unapply[String, Int] = _.toIntOption.filter(i => i >= 0 && i <= 255)
     private val rgbReg = "^RGB\\([ ]*(\\d+)[ ]*,[ ]*(\\d+)[ ]*,[ ]*(\\d+)[ ]*\\)$".r
 
-    private given rgbToExpr: ToExpr[Color.RGB] =
+    given rgbToExpr: ToExpr[Color.RGB] =
       new ToExpr[RGB] {
         override def apply(x: Color.RGB)(using quotes: Quotes): Expr[RGB] =
           '{ Color.RGB(${ Expr(x.r) }, ${ Expr(x.g) }, ${ Expr(x.b) }) }
@@ -190,7 +213,7 @@ object Color {
     object parse {
 
       def apply(hexOrRgbStr: String): Option[Color.RGB] =
-        Color.RGB.rgb.parse(hexOrRgbStr).orElse(Color.RGB.rgb.parse(hexOrRgbStr))
+        Color.RGB.rgb.parse(hexOrRgbStr).orElse(Color.RGB.hex.parse(hexOrRgbStr))
 
       def unapply(hexOrRgbStr: String): Option[Color.RGB] = Color.RGB.parse(hexOrRgbStr)
 
@@ -208,4 +231,11 @@ object Color {
 
   }
 
+  given toExpr: ToExpr[Color] =
+    new ToExpr[Color] {
+      override def apply(x: Color)(using Quotes): Expr[Color] = x match
+        case simple: Simple          => Expr(simple)
+        case rgb: RGB                => Expr(rgb)
+        case Cased(extended, simple) => '{ Cased(${ Expr(extended) }, ${ Expr(simple) }) }
+    }
 }

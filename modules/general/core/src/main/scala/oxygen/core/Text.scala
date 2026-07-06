@@ -92,9 +92,19 @@ object Text {
     */
   opaque type Auto <: Text = Text
   object Auto {
+
     given Conversion[Text, Text.Auto] = ConversionUtils.id[Text]
     given Conversion[Showable, Text.Auto] = _.show
     given Conversion[String, Text.Auto] = Text.fromString(_)
+
+    given Conversion[Int, Text.Auto] = Text.fromAny(_)
+    given Conversion[Long, Text.Auto] = Text.fromAny(_)
+    given Conversion[BigInt, Text.Auto] = Text.fromAny(_)
+    given Conversion[Float, Text.Auto] = Text.fromAny(_)
+    given Conversion[Double, Text.Auto] = Text.fromAny(_)
+    given Conversion[BigDecimal, Text.Auto] = Text.fromAny(_)
+    given Conversion[Boolean, Text.Auto] = Text.fromAny(_)
+
   }
 
   // =====|  |=====
@@ -118,6 +128,7 @@ object Text {
     * call this for `abc` and `def`
     * it handles strange scala un-escape behavior, as well as multiline |
     */
+  @deprecated
   def stringContextConst(str: String): Text =
     if str.exists { c => c == '\\' || c == '\n' } then Text.impl.InterpolatedConstStr(str)
     else Text.impl.Str(str, false)
@@ -157,12 +168,58 @@ object Text {
     Text.impl.Concat.SurroundLazyStrings(seqRead, in, prefix, join, suffix)
 
   def interpolateStrInternal(sc: Expr[StringContext], args: Expr[Seq[Text.Auto]])(using Quotes): Expr[Text] = {
-    val scPos: Position = sc.toTerm.pos
-    val isMultiLine: Boolean = scPos.startLine != scPos.endLine
+    val stringExprs: Seq[Expr[String]] =
+      sc match {
+        case '{ StringContext.apply(${ Varargs(exprs) }*) } => exprs
+        case _                                              => report.errorAndAbort("Unable to extract `str\"\"` string constants")
+      }
+    val extractedStringPairs: Seq[(const: InterpConstString, fg: Specified[Color], bg: Specified[Color])] =
+      stringExprs.map { stringExpr =>
+        val string: String = Expr.unapply[String](stringExpr).getOrElse { report.errorAndAbort("Unable to extract `str\"\"` string constant") }
+        val extracted: InterpConstString = InterpConstString.parse(string)
+        extracted.extractFormat
+      }
+    val extractedArgs: Seq[Expr[Text]] =
+      Varargs.unapply[Text](args).getOrElse { report.errorAndAbort("Unable to extract `str\"\"` interpolation arg expressions") }
 
-    '{ Text.interpolateStr($sc, $args, ${ Expr(isMultiLine) }) }
+    extension (self: Color)
+      def toSpecExpr: Expr[Specified[Color]] =
+        '{ Specified.WasSpecified(${ Expr[Color](self) }) }
+
+    val zipped: Seq[(const: InterpConstString, interp: Expr[Text])] =
+      extractedStringPairs.zip(extractedArgs).map {
+        case ((const, Specified.WasNotSpecified, Specified.WasNotSpecified), interp)     => (const, interp)
+        case ((const, Specified.WasSpecified(fgC), Specified.WasNotSpecified), interp)   => (const, '{ $interp.colorizeFg(${ fgC.toSpecExpr }) })
+        case ((const, Specified.WasNotSpecified, Specified.WasSpecified(bgC)), interp)   => (const, '{ $interp.colorizeBg(${ bgC.toSpecExpr }) })
+        case ((const, Specified.WasSpecified(fgC), Specified.WasSpecified(bgC)), interp) => (const, '{ $interp.colorizeFgBg(${ fgC.toSpecExpr }, ${ bgC.toSpecExpr }) })
+      }
+    val lastConst: InterpConstString =
+      extractedStringPairs.last.const
+
+    val flattened: List[Expr[Text]] =
+      (
+        zipped.flatMap { case (const, interp) =>
+          const.toTextExpr match {
+            case Some(constExpr) => constExpr :: interp :: Nil
+            case None            => interp :: Nil
+          }
+        } ++ lastConst.toTextExpr.toList
+      ).toList
+
+    val res: Expr[Text] =
+      flattened match
+        case Nil                   => '{ Text.empty }
+        case t1 :: Nil             => t1
+        case t1 :: t2 :: Nil       => '{ $t1 ++ $t2 }
+        case t1 :: t2 :: t3 :: Nil => '{ $t1 ++ $t2 ++ $t3 }
+        case ts                    => '{ Text.mkString(${ Expr.ofSeq(ts) }) }
+
+    // report.info(res.showAnsiCode)
+
+    res
   }
 
+  @deprecated
   def interpolateStr(sc: StringContext, args: Seq[Text.Auto], multiline: Boolean): Text = {
     if sc.parts.length == 1 then {
       val tmpStr: String = sc.parts.head
@@ -268,6 +325,7 @@ object Text {
 
     }
 
+    @deprecated
     final case class InterpolatedConstStr(value: String) extends Text {
 
       private def shared(builder: StringBuilder, onNewLine: () => Unit): Unit = {
@@ -593,6 +651,169 @@ object Text {
       }
 
     }
+
+  }
+
+  ///////  ///////////////////////////////////////////////////////////////
+
+  private sealed trait InterpConstString {
+
+    def contains(str: String): Boolean
+
+    def extractFormat(using Quotes): (const: InterpConstString, fg: Specified[Color], bg: Specified[Color])
+
+    def toTextExpr(using Quotes): Option[Expr[Text]]
+
+  }
+  private object InterpConstString {
+    import oxygen.core.syntax.string.unesc
+
+    case object Empty extends InterpConstString {
+
+      override def contains(str: String): Boolean = false
+
+      override def extractFormat(using Quotes): (const: InterpConstString, fg: Specified[Color], bg: Specified[Color]) = (this, ___, ___)
+
+      override def toTextExpr(using Quotes): Option[Expr[Text]] = None
+
+    }
+
+    final case class Single(string: String) extends InterpConstString {
+
+      override def contains(str: String): Boolean = string.contains(str)
+
+      override def extractFormat(using Quotes): (const: InterpConstString, fg: Specified[Color], bg: Specified[Color]) =
+        extractFormat1(string) match
+          case (_, Specified.WasNotSpecified, Specified.WasNotSpecified) => (this, ___, ___)
+          case (newString, fgC, bgC)                                     => (singleOrEmpty(newString), fgC, bgC)
+
+      override def toTextExpr(using Quotes): Option[Expr[Text]] = Some('{ Text.fromString(${ Expr(string) }) })
+
+      override def toString: String = s"Single(${string.unesc})"
+
+    }
+
+    final case class Multi(strings: NonEmptyList[String]) extends InterpConstString {
+
+      override def contains(str: String): Boolean = strings.exists(_.contains(str))
+
+      override def extractFormat(using Quotes): (const: InterpConstString, fg: Specified[Color], bg: Specified[Color]) =
+        extractFormat1(strings.last) match
+          case (_, Specified.WasNotSpecified, Specified.WasNotSpecified) => (this, ___, ___)
+          case (newString, fgC, bgC)                                     => (Multi(NonEmptyList(strings.head, strings.tail.init :+ newString)), fgC, bgC)
+
+      override def toTextExpr(using Quotes): Option[Expr[Text]] = Some('{ Text.fromString(${ Expr(strings.mkString("\n")) }) })
+
+      override def toString: String = s"Multi(${strings.map(_.unesc).mkString(", ")})"
+
+    }
+
+    def singleOrEmpty(string: String): Single | Empty.type = string match
+      case "" => Empty
+      case _  => Single(string)
+
+    // =====|  |=====
+
+    def parse(value: String): InterpConstString = {
+      val listBuilder = List.newBuilder[String]
+      var builder: StringBuilder = StringBuilder.emptyThreadUnsafe
+
+      def onNewLine(): Unit = {
+        listBuilder.addOne(builder.build())
+        builder = StringBuilder.emptyThreadUnsafe
+      }
+
+      val len: Int = value.length
+      var idx: Int = 0
+      while idx < len do {
+        value(idx) match {
+          case '\\' =>
+            idx = idx + 1
+            if idx < len then
+              value(idx) match {
+                case 'n' => onNewLine()
+                case 't' => builder.append('\t')
+                case 'r' => builder.append('\r')
+                case 'b' => builder.append('\b')
+                case 'f' => builder.append('\f')
+                case c   => builder.append(c)
+              }
+            else
+              builder.append('\\')
+            idx = idx + 1
+          case '\n' =>
+            idx = idx + 1
+            var tmpIdx: Int = idx
+            var loop: Boolean = true
+
+            onNewLine()
+
+            while loop do
+              if tmpIdx < len then
+                value(tmpIdx) match {
+                  case ' ' | '\t' =>
+                    tmpIdx = tmpIdx + 1
+                  case '|' =>
+                    idx = tmpIdx + 1
+                    loop = false
+                  case _ =>
+                    loop = false
+                    while idx <= tmpIdx do {
+                      builder.append(value(idx))
+                      idx = idx + 1
+                    }
+                }
+              else {
+                loop = false
+                while idx < tmpIdx do {
+                  builder.append(value(idx))
+                  idx = idx + 1
+                }
+              }
+          case c =>
+            builder.append(c)
+            idx = idx + 1
+        }
+      }
+
+      listBuilder.addOne(builder.build())
+
+      listBuilder.result() match
+        case Nil                => InterpConstString.Empty
+        case "" :: Nil          => InterpConstString.Empty
+        case string :: Nil      => InterpConstString.Single(string)
+        case stringH :: stringT => InterpConstString.Multi(NonEmptyList(stringH, stringT))
+    }
+
+    private enum FgBg { case Fg, Bg }
+
+    private def extractFormat1(prefix: String)(using Quotes): (String, Specified[Color], Specified[Color]) =
+      prefix.lastIndexOf("%{") match {
+        case -1  => (prefix, ___, ___)
+        case idx =>
+          val before = prefix.substring(0, idx)
+          val after = prefix.substring(idx + 2)
+          val parts: List[(FgBg, Color)] =
+            after.split(';').iterator.filter(_.nonEmpty)
+              .map {
+                case s"fg:$str" => (FgBg.Fg, str)
+                case s"bg:$str" => (FgBg.Bg, str)
+                case str        => (FgBg.Fg, str)
+              }
+              .map {
+                case (fgBg, Color.parse(c)) => (fgBg, c)
+                case (_, str)               => report.errorAndAbort(s"Invalid fmt: ${str.unesc}")
+              }
+              .toList
+
+          parts match
+            case Nil                                     => (before, ___, ___)
+            case (FgBg.Fg, fgC) :: Nil                   => (before, fgC, ___)
+            case (FgBg.Bg, bgC) :: Nil                   => (before, ___, bgC)
+            case (FgBg.Fg, fgC) :: (FgBg.Bg, bgC) :: Nil => (before, fgC, bgC)
+            case (FgBg.Bg, bgC) :: (FgBg.Fg, fgC) :: Nil => (before, fgC, bgC)
+            case _                                       => report.errorAndAbort(s"malformed formatter....\n$parts")
+      }
 
   }
 
