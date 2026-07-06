@@ -38,6 +38,16 @@ object TextSpec extends OxygenSpecDefault {
              | def${"ghi"}
              |ghi1"""
       },
+      makeTest("abc\n defghi[[fg:red]]jkl[[fg:default]]\nghi1", showColor) {
+        str"""abc
+             | def${"ghi"}%{red${"jkl"}
+             |ghi1"""
+      },
+      makeTest("abc\n defghi[[fg:rgb(18, 52, 86)]]jkl[[fg:default]]\nghi1", showColor) {
+        str"""abc
+             | def${"ghi"}%{#123456${"jkl"}
+             |ghi1"""
+      },
       makeTest("abc\n defghi\nghi2", showColor) {
         str"""abc
              | defghi
