@@ -1,7 +1,6 @@
 package oxygen.example.domain.model.error
 
-import oxygen.example.core.model.post.*
-import oxygen.example.core.model.user.*
+import oxygen.example.core.model.*
 
 sealed trait DomainError
 object DomainError {

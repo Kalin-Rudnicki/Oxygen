@@ -1,8 +1,9 @@
 package oxygen.example.domain.repo
 
-import oxygen.example.conversion.dbToDomain.{given, *}
+import oxygen.core.model.Email
+import oxygen.example.conversion.dbToDomain.{*, given}
 import oxygen.example.conversion.domainToDb.given
-import oxygen.example.core.model.user.*
+import oxygen.example.core.model.*
 import oxygen.example.db.model.*
 import oxygen.example.domain.model.user.*
 import oxygen.sql.*
@@ -15,7 +16,7 @@ final case class PostgresUserRepo(
       PostgresCRUDRepo.TransformInfallible[UserId, FullUser, UserRow](UserRow) {
 
   override def findUserByEmail(email: Email): UIO[Option[FullUser]] =
-    UserRow.userByEmail.map(_.toDomain).execute(email.referenceEmail).option.orDie.usingDb(db)
+    UserRow.userByEmail.map(_.toDomain).execute(email.normalize).option.orDie.usingDb(db)
 
 }
 object PostgresUserRepo {

@@ -1,6 +1,6 @@
 package oxygen.example.api.model.error
 
-import oxygen.example.core.model.user.{*, given}
+import oxygen.core.model.Email
 import oxygen.http.client.ClientErrorHandler
 import oxygen.http.core.*
 import oxygen.http.model.ServerErrors

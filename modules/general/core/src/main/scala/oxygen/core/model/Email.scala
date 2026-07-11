@@ -3,7 +3,7 @@ package oxygen.core.model
 import oxygen.core.{str, Text}
 import oxygen.core.error.Error
 import oxygen.core.syntax.option.*
-import oxygen.core.typeclass.{Showable, StringCodec}
+import oxygen.core.typeclass.{Show, Showable, StringCodec}
 
 final case class Email private (
     username: String,
@@ -32,5 +32,7 @@ object Email {
   def unsafe(email: String): Email = fromString(email).getOrElse { throw Error(s"Invalid email: $email") }
 
   given stringCodec: StringCodec[Email] = StringCodec.string.transformOption(Email.fromString, _.toString)
+
+  given show: Show[Email] = Show.usingToString
 
 }

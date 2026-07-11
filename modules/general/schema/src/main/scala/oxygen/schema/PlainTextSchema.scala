@@ -3,7 +3,7 @@ package oxygen.schema
 import java.time.*
 import java.util.{TimeZone, UUID}
 import oxygen.core.{SourcePosition, TypeTag, Version}
-import oxygen.core.model.{Email, IntOrString}
+import oxygen.core.model.{Email, IntOrString, StringNewType}
 import oxygen.core.model.compute.*
 import oxygen.crypto.model.{BearerToken, JWT, Password}
 import oxygen.meta.k0.*
@@ -60,6 +60,7 @@ object PlainTextSchema extends PlainTextSchemaLowPriority.LowPriority1 {
   given localDate: PlainTextSchema[LocalDate] = standardJavaTime.localDate
   given localTime: PlainTextSchema[LocalTime] = standardJavaTime.localTime
   given localDateTime: PlainTextSchema[LocalDateTime] = standardJavaTime.localDateTime
+  given yearMonth: PlainTextSchema[YearMonth] = standardJavaTime.yearMonth
 
   given bearerToken: PlainTextSchema[BearerToken] =
     PlainTextSchema.BearerTokenSchema[BearerToken](TypeTag.derived, PlainTextSchema.string, _.asRight, identity)
@@ -86,6 +87,9 @@ object PlainTextSchema extends PlainTextSchemaLowPriority.LowPriority1 {
   given password: PlainTextSchema[Password.PlainText] = PlainTextSchema.fromStringCodec
   given version: PlainTextSchema[Version] = PlainTextSchema.fromStringCodec
 
+  given stringNewType: [A <: StringNewType: TypeTag] => PlainTextSchema[A] = PlainTextSchema.string.transform[A](_.asInstanceOf[A], identity)
+  given uuidNewType: [A <: UUIDNewType: TypeTag] => PlainTextSchema[A] = PlainTextSchema.uuid.transform[A](_.asInstanceOf[A], identity)
+
   def fromStringCodec[A: StringCodec as codec](using pos: SourcePosition): PlainTextSchema[A] =
     PlainTextSchema.FromStringCodec(codec, pos)
   def fromStringCodecWithFormat[A: StringCodec as codec](format0: String, formatN: String*)(using pos: SourcePosition): PlainTextSchema[A] =
@@ -109,6 +113,7 @@ object PlainTextSchema extends PlainTextSchemaLowPriority.LowPriority1 {
     given localDate: PlainTextSchema[LocalDate] = PlainTextSchema.fromStringCodecWithFormat("ISO 8601 (Date)")(using StringCodec.standardJavaTime.localDate)
     given localTime: PlainTextSchema[LocalTime] = PlainTextSchema.fromStringCodecWithFormat("ISO 8601 (Time)")(using StringCodec.standardJavaTime.localTime)
     given localDateTime: PlainTextSchema[LocalDateTime] = PlainTextSchema.fromStringCodecWithFormat("ISO 8601 (Date Time)")(using StringCodec.standardJavaTime.localDateTime)
+    given yearMonth: PlainTextSchema[YearMonth] = PlainTextSchema.fromStringCodec(using StringCodec.standardJavaTime.yearMonth)
 
   }
 

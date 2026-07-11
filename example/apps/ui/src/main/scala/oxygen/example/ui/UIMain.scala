@@ -4,6 +4,7 @@ import oxygen.example.api.*
 import oxygen.example.ui.page as P
 import oxygen.example.ui.service.LocalService
 import oxygen.http.client.*
+import oxygen.payments.stripe.ui.service.StripeService
 import oxygen.ui.web.*
 import oxygen.ui.web.apispec.ApiSpecPage
 import oxygen.ui.web.create.*
@@ -15,7 +16,7 @@ import zio.*
 object UIMain extends PageApp[UIMain.Env] {
 
   type Env =
-    UserApi & ConnectionApi & StreamApi & LocalService & RawClient
+    UserApi & ConnectionApi & StreamApi & PaymentApi & LocalService & RawClient & StripeService
 
   // override val logLevel: LogLevel = LogLevel.Debug
 
@@ -41,6 +42,7 @@ object UIMain extends PageApp[UIMain.Env] {
     P.register.RegisterPage,
     P.home.HomePage,
     P.profile.ProfilePage,
+    P.payment.AddPaymentMethodPage,
     ApiSpecPage,
     StylesPage,
     ComponentsPage,
@@ -55,9 +57,11 @@ object UIMain extends PageApp[UIMain.Env] {
       DeriveClient.clientLayer[UserApi],
       DeriveClient.clientLayer[ConnectionApi],
       DeriveClient.clientLayer[StreamApi],
+      DeriveClient.clientLayer[PaymentApi],
       // other
       LocalStorage.live,
       LocalService.layer,
+      StripeService.live,
     )
 
 }

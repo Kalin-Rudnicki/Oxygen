@@ -3,8 +3,7 @@ package oxygen.example.api
 import oxygen.example.api.model.error.*
 import oxygen.example.api.model.post.*
 import oxygen.example.api.model.user.*
-import oxygen.example.core.model.post.{*, given}
-import oxygen.example.core.model.user.{UserId, given}
+import oxygen.example.core.model.*
 import oxygen.http.client.DeriveClient
 import oxygen.http.core.*
 import zio.*
