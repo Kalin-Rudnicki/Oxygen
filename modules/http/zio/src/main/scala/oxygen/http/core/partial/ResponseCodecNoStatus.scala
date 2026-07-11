@@ -1,7 +1,9 @@
 package oxygen.http.core.partial
 
 import oxygen.http.core.{DecodingFailureCause, ReadOnlyCachedHttpBody, ResponseDecodingFailure}
+import oxygen.http.core.ZioHttpCompat.*
 import oxygen.http.core.partial.{PartialBodyCodec, PartialParamCodec}
+import oxygen.http.model.{ByteContentWithType, ContentWithType}
 import oxygen.http.schema.{ResponseBodySchema, ResponseHeaderSchema}
 import oxygen.http.schema.partial.ResponseSchemaAggregator
 import oxygen.meta.k0.*
@@ -39,7 +41,7 @@ object ResponseCodecNoStatus {
   //////////////////////////////////////////////////////////////////////////////////////////////////////
 
   private final case class Builder(
-      headers: Growable[Header.Custom],
+      headers: Growable[Header],
       body: Body,
   ) {
     def build: (Headers, Body) = (Headers(headers.toArraySeq), body)
@@ -53,7 +55,10 @@ object ResponseCodecNoStatus {
   //////////////////////////////////////////////////////////////////////////////////////////////////////
 
   given unit: ResponseCodecNoStatus[Unit] = ResponseCodecNoStatus.Empty
+  given contentWithType: ResponseCodecNoStatus[ContentWithType] = ResponseCodecNoStatus.BodyContentWithType
+  given byteContentWithType: ResponseCodecNoStatus[ByteContentWithType] = ResponseCodecNoStatus.BodyByteContentWithType
   given fromBody: [A: PartialBodyCodec as codec] => ResponseCodecNoStatus[A] = ResponseCodecNoStatus.ApplyPartialBody(codec)
+  given rawHeaders: ResponseCodecNoStatus[Headers] = ResponseCodecNoStatus.RawHeaders
 
   def ssePlainBody[A: PlainTextSchema as codec]: ResponseCodecNoStatus[Stream[ResponseDecodingFailure, ServerSentEvent[A]]] =
     ResponseCodecNoStatus.ApplyPartialBodySSE(PartialBodyCodec.ServerSentEvents(codec))
@@ -65,6 +70,9 @@ object ResponseCodecNoStatus {
     ResponseCodecNoStatus.ApplyPartialBodyLines(PartialBodyCodec.LineStream(codec))
 
   object header {
+
+    def raw: ResponseCodecNoStatus[Headers] = ResponseCodecNoStatus.RawHeaders
+    def setConst(key: String, value: String): ResponseCodecNoStatus[Unit] = ResponseCodecNoStatus.SetHeader(key, value)
 
     object plain {
 
@@ -101,8 +109,18 @@ object ResponseCodecNoStatus {
   }
 
   object body {
+
     def plain[A: PlainTextSchema]: ResponseCodecNoStatus[A] = ResponseCodecNoStatus.ApplyPartialBodySingle(PartialBodyCodec.Plain.fromSchema[A])
     def json[A: JsonSchema]: ResponseCodecNoStatus[A] = ResponseCodecNoStatus.ApplyPartialBodySingle(PartialBodyCodec.Json.fromSchema[A])
+
+    def constContentType(contentType: Option[MediaType]): ResponseCodecNoStatus[String] = ResponseCodecNoStatus.BodyConstContentType(contentType)
+    def constContentType(contentType: MediaType): ResponseCodecNoStatus[String] = ResponseCodecNoStatus.BodyConstContentType(contentType.some)
+    def contentWithType: ResponseCodecNoStatus[ContentWithType] = ResponseCodecNoStatus.BodyContentWithType
+
+    def constByteContentType(contentType: Option[MediaType]): ResponseCodecNoStatus[Array[Byte]] = ResponseCodecNoStatus.BodyBytesConstContentType(contentType)
+    def constByteContentType(contentType: MediaType): ResponseCodecNoStatus[Array[Byte]] = ResponseCodecNoStatus.BodyBytesConstContentType(contentType.some)
+    def byteContentWithType: ResponseCodecNoStatus[ByteContentWithType] = ResponseCodecNoStatus.BodyByteContentWithType
+
   }
 
   //////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -137,6 +155,13 @@ object ResponseCodecNoStatus {
       else acc
     }
 
+  }
+
+  case object RawHeaders extends ResponseCodecNoStatus[Headers] {
+    override val sources: List[ResponseDecodingFailure.Source] = Nil
+    override val schemaAggregator: ResponseSchemaAggregator = ResponseSchemaAggregator.empty
+    override def decode(headers: Headers, body: ReadOnlyCachedHttpBody): ZIO[Scope, ResponseDecodingFailure, Headers] = ZIO.succeed(headers)
+    override private[ResponseCodecNoStatus] def encodeInternal(value: Headers, acc: Builder): Builder = acc.copy(headers = acc.headers ++ Growable.many(value.toSeq))
   }
 
   final case class SetHeader(name: String, value: String) extends ResponseCodecNoStatus[Unit] {
@@ -189,6 +214,58 @@ object ResponseCodecNoStatus {
 
     override private[ResponseCodecNoStatus] def encodeInternal(value: A, acc: Builder): Builder =
       acc.copy(body = partial.encode(value))
+
+  }
+
+  final case class BodyConstContentType(contentType: Option[MediaType]) extends ApplyPartialBody[String] {
+
+    override val sources: List[ResponseDecodingFailure.Source] = ResponseDecodingFailure.Source.Body :: Nil
+    override val schemaAggregator: ResponseSchemaAggregator = ResponseSchemaAggregator.body(ResponseBodySchema.Single(PlainTextSchema.string))
+
+    override def decode(headers: Headers, body: ReadOnlyCachedHttpBody): ZIO[Scope, ResponseDecodingFailure, String] =
+      body.asString.convertBodyTask(sources)
+
+    override private[ResponseCodecNoStatus] def encodeInternal(value: String, acc: Builder): Builder =
+      acc.copy(body = Body.fromString(value).optMediaType(contentType))
+
+  }
+
+  final case class BodyBytesConstContentType(contentType: Option[MediaType]) extends ApplyPartialBody[Array[Byte]] {
+
+    override val sources: List[ResponseDecodingFailure.Source] = ResponseDecodingFailure.Source.Body :: Nil
+    override val schemaAggregator: ResponseSchemaAggregator = ResponseSchemaAggregator.body(ResponseBodySchema.Single(PlainTextSchema.string))
+
+    override def decode(headers: Headers, body: ReadOnlyCachedHttpBody): ZIO[Scope, ResponseDecodingFailure, Array[Byte]] =
+      body.asArray.convertBodyTask(sources)
+
+    override private[ResponseCodecNoStatus] def encodeInternal(value: Array[Byte], acc: Builder): Builder =
+      acc.copy(body = Body.fromArray(value).optMediaType(contentType))
+
+  }
+
+  case object BodyContentWithType extends ApplyPartialBody[ContentWithType] {
+
+    override val sources: List[ResponseDecodingFailure.Source] = ResponseDecodingFailure.Source.Body :: Nil
+    override val schemaAggregator: ResponseSchemaAggregator = ResponseSchemaAggregator.body(ResponseBodySchema.Single(PlainTextSchema.string))
+
+    override def decode(headers: Headers, body: ReadOnlyCachedHttpBody): ZIO[Scope, ResponseDecodingFailure, ContentWithType] =
+      body.asString.convertBodyTask(sources).map(ContentWithType(_, body.contentType.map(_.mediaType)))
+
+    override private[ResponseCodecNoStatus] def encodeInternal(value: ContentWithType, acc: Builder): Builder =
+      acc.copy(body = Body.fromString(value.body).optMediaType(value.contentType))
+
+  }
+
+  case object BodyByteContentWithType extends ApplyPartialBody[ByteContentWithType] {
+
+    override val sources: List[ResponseDecodingFailure.Source] = ResponseDecodingFailure.Source.Body :: Nil
+    override val schemaAggregator: ResponseSchemaAggregator = ResponseSchemaAggregator.body(ResponseBodySchema.Single(PlainTextSchema.string))
+
+    override def decode(headers: Headers, body: ReadOnlyCachedHttpBody): ZIO[Scope, ResponseDecodingFailure, ByteContentWithType] =
+      body.asArray.convertBodyTask(sources).map(ByteContentWithType(_, body.contentType.map(_.mediaType)))
+
+    override private[ResponseCodecNoStatus] def encodeInternal(value: ByteContentWithType, acc: Builder): Builder =
+      acc.copy(body = Body.fromArray(value.body).optMediaType(value.contentType))
 
   }
 
@@ -263,5 +340,15 @@ object ResponseCodecNoStatus {
       a.encodeInternal(ba(value), acc)
 
   }
+
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
+  //      Helpers
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
+
+  extension [A](parseBody: Task[A])
+    private def convertBodyTask(sources: List[ResponseDecodingFailure.Source]): IO[ResponseDecodingFailure, A] =
+      parseBody
+        .mapError(DecodingFailureCause.ExecutionFailure(_))
+        .mapError(ResponseDecodingFailure(sources, _))
 
 }

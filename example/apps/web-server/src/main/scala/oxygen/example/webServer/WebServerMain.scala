@@ -11,6 +11,7 @@ import oxygen.example.domain.service.*
 import oxygen.example.webServer.api.{*, given}
 import oxygen.example.webServer.mcp.{NoteApi, NoteApiImpl}
 import oxygen.executable.*
+import oxygen.http.api.{given, *}
 import oxygen.http.server.*
 import oxygen.http.server.mcp.{McpAuthService, McpEndpointMiddleware}
 import oxygen.json.JsonCodec
@@ -36,7 +37,8 @@ object WebServerMain extends CliApp.Executable[WebServerMain](CliApp.derive) {
       token: Config.Token,
       db: DbConfig,
       migration: MigrationConfig,
-      ui: UIApiImpl.Config,
+      ui: LiveUIApi.Config,
+      resources: FileSystemResourceApi.Config,
   ) derives JsonCodec
   object Config {
 
@@ -57,8 +59,8 @@ object WebServerMain extends CliApp.Executable[WebServerMain](CliApp.derive) {
 
     // A tiny in-memory, auth-less API (NoteApi) exposed over HTTP *and* as MCP tools. Its impl is a
     // normal Ref-backed ZLayer; the MCP middleware resolves it (and the McpAuthService) from the env.
-    private val endpoints: Endpoints[UserApi & ConnectionApi & PostApi & UIApi & StreamApi & NoteApi] =
-      Endpoints.empty.add[UserApi].add[ConnectionApi].add[PostApi].add[UIApi].add[StreamApi].add[NoteApi]
+    private val endpoints: Endpoints[UIApi & ResourceApi & UserApi & ConnectionApi & PostApi & StreamApi & NoteApi] =
+      Endpoints.empty.add[UserApi].add[ConnectionApi].add[PostApi].add[StreamApi].add[NoteApi].add[UIApi].add[ResourceApi]
 
     private val middlewares: Middlewares[McpAuthService] =
       McpEndpointMiddleware.defaultMiddleware("oxygen-example") >>>
@@ -68,19 +70,21 @@ object WebServerMain extends CliApp.Executable[WebServerMain](CliApp.derive) {
       ZLayer.make[Env](
         // server
         ZLayer.succeed(Server.Config(config.http.errors)),
+        ZLayer.succeed(config.ui),
+        ZLayer.succeed(config.resources),
         Server.layer.simple(config.http.port),
         endpoints.toLayer,
         UserApiImpl.layer,
         ConnectionApiImpl.layer,
         PostApiImpl.layer,
-        UIApiImpl.layer,
+        FileSystemResourceApi.layer,
+        LiveUIApi.layer.withoutCustomUIConfig,
         StreamApiImpl.layer,
         NoteApiImpl.layer,
         ZLayer.succeed[McpAuthService](McpAuthService.NoAuth),
         middlewares.toLayer,
         CompiledEndpoints.layer,
         Server.layer.serving,
-        ZLayer.succeed(config.ui),
         // db
         ZLayer.succeed(config.db),
         Database.layer >>> MigrationService.migrateVerifiedLayer(ExampleSchema.schema),

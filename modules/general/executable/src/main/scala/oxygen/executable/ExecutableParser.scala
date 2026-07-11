@@ -1,6 +1,8 @@
 package oxygen.executable
 
 import oxygen.cli.*
+import oxygen.executable.generic.ConfigLoader
+import oxygen.json.JsonDecoder
 import oxygen.predef.core.*
 import oxygen.schema.*
 import zio.*
@@ -220,21 +222,6 @@ object NonCLIExecutableParser {
 
   ///////  ///////////////////////////////////////////////////////////////
 
-  private def envValue(varName: String): Option[String] = Option(java.lang.System.getenv(varName))
-
-  // Decode the raw env-var string directly via whichever arm of the `AnySchemaT` union we hold.
-  private def decodeEnv[A](schema: AnySchemaT[A], raw: String): Either[String, A] =
-    schema match
-      case s: PlainTextSchema[A @unchecked] => s.decode(raw)
-      case s: JsonSchema[A @unchecked]      => s.decode(raw)
-
-  // Resolve a config value/path (inline JSON / file / merged dir) and decode it via the param's JsonDecoder
-  // (which `derives JsonCodec` or `derives JsonSchema` both provide — matching the old `@config`).
-  private def loadConfig[A](decoder: oxygen.json.JsonDecoder[A], raw: String): Either[String, A] =
-    oxygen.executable.generic.ConfigLoader.loadDecoded(raw, decoder)
-
-  ///////  ///////////////////////////////////////////////////////////////
-
   case object Empty extends NonCLIExecutableParser[Unit] {
     override def load: IO[String, Unit] = ZIO.unit
   }
@@ -259,60 +246,59 @@ object NonCLIExecutableParser {
   // `read` carries presence: `None` means the underlying env var is unset (a valid state that
   // `Optional`/`Default` can recover from); `load` then treats a bare `EnvVar` as required.
   sealed trait EnvVar[A] extends NonCLIExecutableParser[A] {
+    val varName: String
     def read: IO[String, Option[A]]
-    protected def missingMessage: String = "Required environment variable is not set"
-    override final def load: IO[String, A] =
-      read.flatMap {
-        case Some(value) => ZIO.succeed(value)
-        case None        => ZIO.fail(missingMessage)
-      }
+    override final def load: IO[String, A] = read.someOrFail { s"Required environment variable [$varName] is not set" }
   }
 
   final case class SingleEnvVar[A](varName: String, schema: AnySchemaT[A]) extends EnvVar[A] {
-    override protected def missingMessage: String = s"Environment variable $varName is not set"
     override def read: IO[String, Option[A]] =
-      ZIO.succeed(envValue(varName)).flatMap {
-        case None      => ZIO.none
-        case Some(raw) => ZIO.fromEither(decodeEnv(schema, raw)).asSome
-      }
+      System.env(varName)
+        .mapError(_.safeGetMessage)
+        .flatMap {
+          case None      => ZIO.none
+          case Some(raw) => ZIO.fromEither(schema.decode(raw)).asSome
+        }
+        .mapError { e => s"Unable to extract environment variable [$varName]: $e" }
   }
 
   final case class OptionalEnvVar[A](inner: EnvVar[A]) extends EnvVar[Option[A]] {
+    override val varName: String = inner.varName
     override def read: IO[String, Option[Option[A]]] = inner.read.asSome
   }
 
   final case class DefaultEnvVar[A](inner: EnvVar[A], default: A) extends EnvVar[A] {
-    override def read: IO[String, Option[A]] = inner.read.map(opt => opt.getOrElse(default).some)
+    override val varName: String = inner.varName
+    override def read: IO[String, Option[A]] = inner.read.map(_.getOrElse(default).some)
   }
 
   /////// EnvVarConfig ///////////////////////////////////////////////////////////////
 
   sealed trait EnvVarConfig[A] extends NonCLIExecutableParser[A] {
+    val varName: EnvVar[String]
     def read: IO[String, Option[A]]
-    protected def missingMessage: String = "Required config environment variable is not set"
     override final def load: IO[String, A] =
       read.flatMap {
         case Some(value) => ZIO.succeed(value)
-        case None        => ZIO.fail(missingMessage)
+        case None        => ZIO.fail(s"Required environment variable [${varName.varName}] is not set")
       }
   }
 
-  final case class SingleEnvConfig[A](varName: EnvVar[String], decoder: oxygen.json.JsonDecoder[A]) extends EnvVarConfig[A] {
-    override protected def missingMessage: String = varName match
-      case SingleEnvVar(name, _) => s"Environment variable $name is not set"
-      case _                     => "Required config environment variable is not set"
+  final case class SingleEnvConfig[A](varName: EnvVar[String], decoder: JsonDecoder[A]) extends EnvVarConfig[A] {
     override def read: IO[String, Option[A]] =
       varName.read.flatMap {
+        case Some(rawPath) => ConfigLoader.loadDecoded[A](varName.varName, rawPath)(using decoder).asSome
         case None          => ZIO.none
-        case Some(rawPath) => ZIO.fromEither(loadConfig(decoder, rawPath)).asSome
       }
   }
 
   final case class OptionalEnvConfig[A](inner: EnvVarConfig[A]) extends EnvVarConfig[Option[A]] {
+    override val varName: EnvVar[String] = inner.varName
     override def read: IO[String, Option[Option[A]]] = inner.read.asSome
   }
 
   final case class DefaultEnvConfig[A](inner: EnvVarConfig[A], default: A) extends EnvVarConfig[A] {
+    override val varName: EnvVar[String] = inner.varName
     override def read: IO[String, Option[A]] = inner.read.map(opt => opt.getOrElse(default).some)
   }
 

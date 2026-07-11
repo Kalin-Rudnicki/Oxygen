@@ -153,26 +153,25 @@ private[generic] object ParserCodegen {
   }
 
   private def buildEnvConfig(raw: RawParamRepr, envName: String, defaultPath: String, ownerName: String)(using Quotes): Expr[ExecutableParser[?]] = {
-    val stringSchema: Expr[oxygen.schema.AnySchemaT[String]] = '{ summon[oxygen.schema.PlainTextSchema[String]]: oxygen.schema.AnySchemaT[String] }
+    val stringSchema: Expr[oxygen.schema.AnySchemaT[String]] = '{ oxygen.schema.PlainTextSchema.string }
     def pathVar: Expr[NonCLIExecutableParser.EnvVar[String]] =
       if defaultPath.nonEmpty then '{ NonCLIExecutableParser.DefaultEnvVar(NonCLIExecutableParser.SingleEnvVar[String](${ Expr(envName) }, $stringSchema), ${ Expr(defaultPath) }) }
       else '{ NonCLIExecutableParser.SingleEnvVar[String](${ Expr(envName) }, $stringSchema) }
     def jsonDecoder[t: Type]: Expr[oxygen.json.JsonDecoder[t]] =
       Implicits.searchRequired[oxygen.json.JsonDecoder[t]](s"Missing JsonDecoder for @envConfig ${raw.typeRepr.showAnsiCode}", raw.valPosition)
-    raw.typeRepr.dealias match
-      case AppliedType(constructor, inner :: Nil) if constructor.typeSymbol.fullName == "scala.Option" =>
-        inner.asTypeOf match
-          case '[t] =>
-            '{ NonCLIExecutableParser.OptionalEnvConfig(NonCLIExecutableParser.SingleEnvConfig[t]($pathVar, ${ jsonDecoder[t] })) }
-          case _ => raw.failAtVal(s"Unable to build optional @envConfig for ${raw.typeRepr.showAnsiCode}")
+
+    type T
+    given tType: Type[T] = raw.typeRepr.dealias.asTypeOf
+
+    tType match {
+      case '[Option[t]] =>
+        '{ NonCLIExecutableParser.OptionalEnvConfig(NonCLIExecutableParser.SingleEnvConfig[t]($pathVar, ${ jsonDecoder[t] })) }
       case _ =>
-        raw.typeRepr.asTypeOf match
-          case '[t] =>
-            val single = '{ NonCLIExecutableParser.SingleEnvConfig[t]($pathVar, ${ jsonDecoder[t] }) }
-            defaultTerm(raw, ownerName) match
-              case Some(rhs) => '{ NonCLIExecutableParser.DefaultEnvConfig($single, ${ rhs.asExprOf[t] }) }
-              case None      => single
-          case _ => raw.failAtVal(s"Unable to build @envConfig for ${raw.typeRepr.showAnsiCode}")
+        val single = '{ NonCLIExecutableParser.SingleEnvConfig[T]($pathVar, ${ jsonDecoder[T] }) }
+        defaultTerm(raw, ownerName) match
+          case Some(rhs) => '{ NonCLIExecutableParser.DefaultEnvConfig($single, ${ rhs.asExprOf[T] }) }
+          case None      => single
+    }
   }
 
   /** Combine boxed param parsers into a single parser that yields the values as a `List[Any]`. */

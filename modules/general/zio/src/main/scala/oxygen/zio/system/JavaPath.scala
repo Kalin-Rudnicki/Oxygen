@@ -3,6 +3,7 @@ package oxygen.zio.system
 import java.nio.file as J
 import java.time.Instant
 import oxygen.predef.core.*
+import oxygen.zio.ZioCauses
 import oxygen.zio.error.FileSystemError
 import oxygen.zio.syntax.error.*
 import zio.*
@@ -64,6 +65,11 @@ final case class JavaPath(javaPath: J.Path) extends Path {
   override def readBytes: IO[FileSystemError, Array[Byte]] =
     FileSystem.attempt(pathName, "read bytes from path") { J.Files.readAllBytes(javaPath) }
 
+  override def readByteStream: Stream[FileSystemError, Byte] =
+    ZStream.fromZIO { FileSystem.attempt(pathName, "create read stream") { J.Files.newInputStream(javaPath) } }.flatMap { inputStream =>
+      ZStream.fromInputStream { inputStream }.mapErrorCause { c => Cause.fail(FileSystemError.GenericOperationError(pathName, "read byte stream", ZioCauses.fromCause(c))) }
+    }
+
   override def status: IO[FileSystemError, Path.Status] =
     FileSystem.attempt(pathName, "detect path status") {
       if !J.Files.exists(javaPath) then Path.Status.DoesNotExist
@@ -77,6 +83,8 @@ final case class JavaPath(javaPath: J.Path) extends Path {
   override def notExists: IO[FileSystemError, Boolean] = FileSystem.attempt(pathName, "detect file existence") { J.Files.notExists(javaPath) }
 
   override def lastModifiedAt: IO[FileSystemError, Instant] = FileSystem.attempt(pathName, "read file timestamp") { J.Files.getLastModifiedTime(javaPath).toInstant }
+
+  override def size: IO[FileSystemError, Long] = FileSystem.attempt(pathName, "read file size") { J.Files.size(javaPath) }
 
   override def childStream: Stream[FileSystemError, Path] =
     for {

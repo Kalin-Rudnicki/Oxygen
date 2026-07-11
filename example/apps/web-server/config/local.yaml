@@ -1,0 +1,40 @@
+
+http:
+  errors:
+    exposeInternalErrors: true
+  port: 3210
+
+token:
+  key:
+    keyType: "hmac"
+    key: "HS256ExampleKey"
+  timeToLive: "P3650D"
+
+db:
+  target:
+    database: "oxygen_example"
+    host: "localhost"
+    port: 5210
+  credentials:
+    username: "oxygen_username"
+    password: "oxygen_password"
+  pool:
+    minConnections: "2"
+    maxConnections: "16"
+    duration:  "PT5M"
+
+migration:
+  atomicity: "AllOrNothing"
+  migrationsDir: "example/apps/web-server/migrations"
+
+ui:
+  indexRedirect: "/page"
+  scriptPath: "/res/js/main.js"
+  initialTitle: "Oxygen Example"
+  favicon:
+    type: "HREF"
+    href: "/res/favicon.svg"
+
+resources:
+  basePath: "example/apps/web-server/res"
+  responseMode: "Stream"
