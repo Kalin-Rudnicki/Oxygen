@@ -117,6 +117,10 @@ lazy val `oxygen-modules-jvm`: Project =
       `oxygen-crypto-model`.jvm,
       `oxygen-crypto-service`,
 
+      // payments
+      `oxygen-payments-stripe-core`.jvm,
+      `oxygen-payments-stripe-service`,
+
       // Testing
       `oxygen-test`.jvm,
       `oxygen-test-container`,
@@ -157,6 +161,10 @@ lazy val `oxygen-modules-js`: Project =
 
       // jwt
       `oxygen-crypto-model`.js,
+
+      // payments
+      `oxygen-payments-stripe-core`.js,
+      `oxygen-payments-stripe-ui`,
 
       // Testing
       `oxygen-test`.js,
@@ -391,6 +399,46 @@ lazy val `oxygen-storage-in-memory`: Project =
     )
     .dependsOn(
       `oxygen-storage` % testAndCompile,
+    )
+
+lazy val `oxygen-payments-stripe-core`: CrossProject =
+  crossProject(JSPlatform, JVMPlatform)
+    .crossType(CrossType.Pure)
+    .in(file("modules/payments/stripe-core"))
+    .settings(
+      publishedProjectSettings,
+      name := "oxygen-payments-stripe-core",
+      description := "Core stripe models",
+    )
+    .dependsOn(
+      `oxygen-schema` % testAndCompile,
+    )
+
+lazy val `oxygen-payments-stripe-ui`: Project =
+  project
+    .in(file("modules/payments/stripe-ui"))
+    .enablePlugins(ScalaJSPlugin)
+    .settings(
+      publishedProjectSettings,
+      name := "oxygen-payments-stripe-ui",
+      description := "Stripe UI integration",
+    )
+    .dependsOn(
+      `oxygen-ui-web` % testAndCompile,
+      `oxygen-payments-stripe-core`.js % testAndCompile,
+    )
+
+lazy val `oxygen-payments-stripe-service`: Project =
+  project
+    .in(file("modules/payments/stripe-service"))
+    .settings(
+      publishedProjectSettings,
+      name := "oxygen-payments-stripe-service",
+      description := "Stripe backend integration",
+    )
+    .dependsOn(
+      `oxygen-http`.jvm % testAndCompile,
+      `oxygen-payments-stripe-core`.jvm % testAndCompile,
     )
 
 lazy val `oxygen-sql`: Project =
