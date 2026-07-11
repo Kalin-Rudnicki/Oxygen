@@ -1,4 +1,4 @@
-package oxygen.payments.stripe.model
+package oxygen.stripe.model
 
 import oxygen.schema.{JsonSchema, PlainTextSchema}
 
