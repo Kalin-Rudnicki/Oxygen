@@ -436,6 +436,9 @@ lazy val `oxygen-payments-stripe-service`: Project =
       name := "oxygen-payments-stripe-service",
       description := "Stripe backend integration",
       scalacOptions += "-experimental",
+      libraryDependencies ++= Seq(
+        "com.stripe" % "stripe-java" % "33.1.0",
+      ),
     )
     .dependsOn(
       `oxygen-http`.jvm % testAndCompile,
