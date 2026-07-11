@@ -14,6 +14,7 @@ final case class LiveStripeService(
     config: LiveStripeService.Config,
     client: StripeClient,
 ) extends StripeService {
+  import LiveStripeService.*
 
   override def createCustomer(req: CreateCustomerRequest): IO[StripeError, CreateCustomerResponse] =
     ??? // FIX-PRE-MERGE (KR) :
@@ -22,10 +23,12 @@ final case class LiveStripeService(
     ??? // FIX-PRE-MERGE (KR) :
 
   override def createPayment(req: CreatePaymentRequest): IO[StripeError, CreatePaymentResponse] =
-    for {
-      params: P.PaymentIntentCreateParams <- LiveStripeService.buildPaymentIntent(req)
-      response: M.PaymentIntent <- LiveStripeService.attemptSend("payment", "create") { client.v1().paymentIntents().create(params) }
-    } yield ??? // FIX-PRE-MERGE (KR) :
+    (
+      for {
+        params: P.PaymentIntentCreateParams <- buildPaymentIntent(req)
+        response: M.PaymentIntent <- attemptSend { client.v1().paymentIntents().create(params) }
+      } yield ??? // FIX-PRE-MERGE (KR) :
+    ).mapError(_.withTarget(StripeError.Target("payment", "create")))
 
 }
 object LiveStripeService {
@@ -35,31 +38,31 @@ object LiveStripeService {
       publishableKey: StripePublishableKey,
   ) derives JsonSchema
 
-  val layer: RLayer[LiveStripeService.Config, LiveStripeService] =
+  val layer: ZLayer[LiveStripeService.Config, StripeError, LiveStripeService] =
     ZLayer {
       for {
         config <- ZIO.service[LiveStripeService.Config]
         client <- buildClient(config)
       } yield LiveStripeService(config, client)
-    }
+    }.mapError(_.withTarget(StripeError.Target("payment", "create")))
 
   //////////////////////////////////////////////////////////////////////////////////////////////////////
   //      Builders
   //////////////////////////////////////////////////////////////////////////////////////////////////////
 
   extension [A](self: A)
-    def setOpt[B](opt: Option[B])(mod: B => A => A): A =
+    private def setOpt[B](opt: Option[B])(mod: B => A => A): A =
       opt match
         case Some(value) => mod(value)(self)
         case None        => self
 
   private def attemptBuild[A: TypeTag as tt](thunk: => A): IO[StripeError.BuildError, A] =
-    ZIO.attempt { thunk }.mapError(StripeError.BuildError(tt, _))
+    ZIO.attempt { thunk }.mapError(StripeError.BuildError(None, tt, _))
 
-  private def attemptSend[A](objectType: String, action: String)(thunk: => A): IO[StripeError.SendError, A] =
-    ZIO.attemptBlocking { thunk }.mapError(StripeError.SendError(objectType, action, _))
+  private def attemptSend[A](thunk: => A): IO[StripeError.SendError, A] =
+    ZIO.attemptBlocking { thunk }.mapError(StripeError.SendError(_))
 
-  private def buildClient(config: LiveStripeService.Config): Task[StripeClient] =
+  private def buildClient(config: LiveStripeService.Config): IO[StripeError, StripeClient] =
     attemptBuild[StripeClient] {
       ??? // FIX-PRE-MERGE (KR) :
     }

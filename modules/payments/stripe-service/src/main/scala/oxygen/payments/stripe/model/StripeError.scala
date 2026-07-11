@@ -2,37 +2,39 @@ package oxygen.payments.stripe.model
 
 import oxygen.predef.core.*
 
-sealed trait StripeError extends Error
+sealed trait StripeError extends Error {
+  val target: Option[StripeError.Target]
+  def withTarget(target: StripeError.Target): StripeError
+}
 object StripeError {
 
-  sealed trait SendError extends StripeError
+  final case class Target(objectType: String, action: String)
+
+  sealed trait SendError extends StripeError {
+    override def withTarget(target: StripeError.Target): SendError
+  }
   object SendError {
 
-    def apply(objectType: String, action: String, error: Throwable): SendError =
+    def apply(error: Throwable): SendError =
       ApiError.from(error) match
-        case Some(apiError) => SendApiError(objectType, action, apiError)
-        case None           => SendDefect(objectType, action, error)
+        case Some(apiError) => apiError
+        case None           => SendDefect(None, error)
 
   }
 
-  final case class SendApiError(objectType: String, action: String, error: ApiError) extends SendError {
+  final case class SendDefect(target: Option[Target], error: Throwable) extends SendError {
+    override def withTarget(target: Target): SendDefect = copy(target = target.some)
     override def errorMessage: Text = ??? // FIX-PRE-MERGE (KR) :
   }
 
-  final case class SendDefect(objectType: String, action: String, error: Throwable) extends SendError {
+  final case class BuildError(target: Option[Target], attemptType: TypeTag[?], error: Throwable) extends StripeError {
+    override def withTarget(target: Target): BuildError = copy(target = target.some)
     override def errorMessage: Text = ??? // FIX-PRE-MERGE (KR) :
   }
 
-  final case class BuildError(attemptType: TypeTag[?], error: Throwable) extends StripeError {
-    override def errorMessage: Text = ??? // FIX-PRE-MERGE (KR) :
+  sealed trait ApiError extends SendError {
+    override def withTarget(target: StripeError.Target): ApiError
   }
-
-  //////////////////////////////////////////////////////////////////////////////////////////////////////
-  //      ApiError
-  //////////////////////////////////////////////////////////////////////////////////////////////////////
-
-  // FIX-PRE-MERGE (KR) :
-  sealed trait ApiError
   object ApiError {
 
     def from(error: Throwable): Option[ApiError] =
