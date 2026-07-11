@@ -14,13 +14,13 @@ final case class LiveStripeService(
     client: StripeClient,
 ) extends StripeService {
 
-  override def createCustomer(req: CreateCustomerRequest): IO[StripeError, StripeCustomerId] =
+  override def createCustomer(req: CreateCustomerRequest): IO[StripeError, CreateCustomerResponse] =
     ??? // FIX-PRE-MERGE (KR) :
 
   override def createSetupIntent(customerId: StripeCustomerId): IO[StripeError, StripeSetupIntentClientSecret] =
     ??? // FIX-PRE-MERGE (KR) :
 
-  override def createPayment(req: CreatePaymentRequest): IO[StripeError, Any] =
+  override def createPayment(req: CreatePaymentRequest): IO[StripeError, CreatePaymentResponse] =
     for {
       stripeReq <- LiveStripeService.buildPaymentIntent(req)
     } yield ???

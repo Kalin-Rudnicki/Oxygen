@@ -6,11 +6,10 @@ import zio.*
 
 trait StripeService {
 
-  def createCustomer(req: CreateCustomerRequest): IO[StripeError, StripeCustomerId]
+  def createCustomer(req: CreateCustomerRequest): IO[StripeError, CreateCustomerResponse]
 
   def createSetupIntent(customerId: StripeCustomerId): IO[StripeError, StripeSetupIntentClientSecret]
 
-  // FIX-PRE-MERGE (KR) : 
-  def createPayment(req: CreatePaymentRequest): IO[StripeError, Any]
+  def createPayment(req: CreatePaymentRequest): IO[StripeError, CreatePaymentResponse]
 
 }
