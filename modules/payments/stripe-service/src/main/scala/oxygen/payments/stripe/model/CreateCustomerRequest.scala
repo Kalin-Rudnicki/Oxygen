@@ -1,9 +1,8 @@
 package oxygen.payments.stripe.model
 
 import oxygen.core.model.Email
-import oxygen.schema.JsonSchema
 
-final case class CreateCustomer(
+final case class CreateCustomerRequest(
     name: Option[String],
     email: Option[Email],
-) derives JsonSchema
+)
