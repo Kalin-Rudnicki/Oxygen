@@ -118,7 +118,7 @@ lazy val `oxygen-modules-jvm`: Project =
       `oxygen-crypto-service`,
 
       // payments
-      `oxygen-payments-stripe-core`.jvm,
+      `oxygen-stripe-models`.jvm,
       `oxygen-payments-stripe-service`,
 
       // Testing
@@ -163,7 +163,7 @@ lazy val `oxygen-modules-js`: Project =
       `oxygen-crypto-model`.js,
 
       // payments
-      `oxygen-payments-stripe-core`.js,
+      `oxygen-stripe-models`.js,
       `oxygen-payments-stripe-ui`,
 
       // Testing
@@ -401,13 +401,13 @@ lazy val `oxygen-storage-in-memory`: Project =
       `oxygen-storage` % testAndCompile,
     )
 
-lazy val `oxygen-payments-stripe-core`: CrossProject =
+lazy val `oxygen-stripe-models`: CrossProject =
   crossProject(JSPlatform, JVMPlatform)
     .crossType(CrossType.Pure)
-    .in(file("modules/payments/stripe-core"))
+    .in(file("modules/payments/stripe-models"))
     .settings(
       publishedProjectSettings,
-      name := "oxygen-payments-stripe-core",
+      name := "oxygen-payments-stripe-models",
       description := "Core stripe models",
     )
     .dependsOn(
@@ -425,7 +425,7 @@ lazy val `oxygen-payments-stripe-ui`: Project =
     )
     .dependsOn(
       `oxygen-ui-web` % testAndCompile,
-      `oxygen-payments-stripe-core`.js % testAndCompile,
+      `oxygen-stripe-models`.js % testAndCompile,
     )
 
 lazy val `oxygen-payments-stripe-service`: Project =
@@ -438,7 +438,7 @@ lazy val `oxygen-payments-stripe-service`: Project =
     )
     .dependsOn(
       `oxygen-http`.jvm % testAndCompile,
-      `oxygen-payments-stripe-core`.jvm % testAndCompile,
+      `oxygen-stripe-models`.jvm % testAndCompile,
     )
 
 lazy val `oxygen-sql`: Project =
@@ -1041,7 +1041,7 @@ lazy val `example-ui-electron`: Project =
                      |  "description": "$appName",
                      |  "author": {
                      |    "name": "Oxygen",
-                     |    "email": "oxygen@gmeila.com"
+                     |    "email": "oxygen@gmail.com"
                      |  },
                      |  "homepage": "https://github.com/Kalin-Rudnicki/Oxygen",
                      |  "scripts": {
