@@ -1,0 +1,19 @@
+<svg width="200" height="200" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+    <!-- Bold red O -->
+    <circle
+            cx="100"
+            cy="100"
+            r="80"
+            fill="none"
+            stroke="#e74c3c"
+            stroke-width="35"/>
+
+    <!-- Slight inner shading for depth -->
+    <circle
+            cx="100"
+            cy="100"
+            r="65"
+            fill="none"
+            stroke="#c0392b"
+            stroke-width="8"/>
+</svg>

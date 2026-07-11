@@ -41,6 +41,7 @@ trait Path {
 
   def read: IO[FileSystemError, String]
   def readBytes: IO[FileSystemError, Array[Byte]]
+  def readByteStream: Stream[FileSystemError, Byte]
 
   def status: IO[FileSystemError, Path.Status]
 
@@ -48,6 +49,7 @@ trait Path {
   def notExists: IO[FileSystemError, Boolean]
 
   def lastModifiedAt: IO[FileSystemError, Instant]
+  def size: IO[FileSystemError, Long]
 
   def childStream: Stream[FileSystemError, Path]
 

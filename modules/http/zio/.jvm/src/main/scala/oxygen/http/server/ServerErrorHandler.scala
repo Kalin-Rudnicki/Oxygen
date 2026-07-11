@@ -1,6 +1,7 @@
 package oxygen.http.server
 
 import oxygen.http.core.{HttpDecodingFailure, RequestDecodingFailure}
+import oxygen.http.model.*
 import oxygen.zio.ExtractedCauses
 
 trait ServerErrorHandler[A] {
@@ -37,5 +38,10 @@ object ServerErrorHandler {
   given string: ServerErrorHandler[String] = notHandled
 
   given nothing: ServerErrorHandler[Nothing] = notHandled
+
+  given ServerErrorHandler[RawResponse] = notHandled
+  given ServerErrorHandler[RawResponseText] = notHandled
+  given ServerErrorHandler[RawErrorResponse] = notHandled
+  given ServerErrorHandler[RawErrorResponseText] = notHandled
 
 }

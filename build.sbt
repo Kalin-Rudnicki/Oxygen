@@ -254,6 +254,7 @@ lazy val `oxygen-executable`: CrossProject =
     )
     .dependsOn(
       `oxygen-cli` % testAndCompile,
+      `oxygen-yaml` % testAndCompile,
       `oxygen-test` % Test,
     )
 
@@ -854,7 +855,7 @@ lazy val `example-ui-web`: Project =
       scalaJSUseMainModuleInitializer := true,
       // webComp
       webCompDirs := Seq(
-        file("example/apps/web-server/src/main/resources/res/js"),
+        file("example/apps/web-server/res/js"),
       ),
       webComp :=
         Def.inputTaskDyn {

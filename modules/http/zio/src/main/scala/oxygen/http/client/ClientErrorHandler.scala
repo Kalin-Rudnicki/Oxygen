@@ -1,6 +1,7 @@
 package oxygen.http.client
 
 import oxygen.http.core.{HttpDecodingFailure, RequestDecodingFailure, ResponseDecodingFailure}
+import oxygen.http.model.*
 import oxygen.predef.core.*
 import scala.reflect.TypeTest
 import zio.*
@@ -62,5 +63,10 @@ object ClientErrorHandler {
     }
 
   given nothing: ClientErrorHandler[Nothing] = notHandled
+
+  given ClientErrorHandler[RawResponse] = notHandled
+  given ClientErrorHandler[RawResponseText] = notHandled
+  given ClientErrorHandler[RawErrorResponse] = notHandled
+  given ClientErrorHandler[RawErrorResponseText] = notHandled
 
 }

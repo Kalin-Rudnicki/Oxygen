@@ -25,7 +25,7 @@ object ExecutableParserSpec extends OxygenSpecDefault {
         test("required env var, unset -> effect fails with a message") {
           val parser = NonCLIExecutableParser.SingleEnvVar(unsetVar, stringSchema)
           parser.load.either.map { result =>
-            assertTrue(result == Left(s"Environment variable $unsetVar is not set"))
+            assertTrue(result == Left(s"Required environment variable [$unsetVar] is not set"))
           }
         },
         test("optional env var, unset -> effect succeeds with None") {
