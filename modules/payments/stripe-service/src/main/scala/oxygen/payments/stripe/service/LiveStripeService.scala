@@ -1,7 +1,8 @@
 package oxygen.payments.stripe.service
 
 import com.stripe.StripeClient
-import com.stripe.model as STRIPE
+import com.stripe.model as M
+import com.stripe.param as P
 import oxygen.payments.stripe.model.*
 import oxygen.predef.core.*
 import oxygen.schema.JsonSchema
@@ -22,8 +23,9 @@ final case class LiveStripeService(
 
   override def createPayment(req: CreatePaymentRequest): IO[StripeError, CreatePaymentResponse] =
     for {
-      stripeReq <- LiveStripeService.buildPaymentIntent(req)
-    } yield ???
+      params: P.PaymentIntentCreateParams <- LiveStripeService.buildPaymentIntent(req)
+      response: M.PaymentIntent <- LiveStripeService.attemptSend("payment", "create") { client.v1().paymentIntents().create(params) }
+    } yield ??? // FIX-PRE-MERGE (KR) :
 
 }
 object LiveStripeService {
@@ -45,20 +47,37 @@ object LiveStripeService {
   //      Builders
   //////////////////////////////////////////////////////////////////////////////////////////////////////
 
+  extension [A](self: A)
+    def setOpt[B](opt: Option[B])(mod: B => A => A): A =
+      opt match
+        case Some(value) => mod(value)(self)
+        case None        => self
+
   private def attemptBuild[A: TypeTag as tt](thunk: => A): IO[StripeError.BuildError, A] =
     ZIO.attempt { thunk }.mapError(StripeError.BuildError(tt, _))
 
-  private def attemptSend[A]()(thunk: => A): IO[StripeError.ApiError, A] =
-    ZIO.attempt { thunk }.orDie // FIX-PRE-MERGE (KR) :
+  private def attemptSend[A](objectType: String, action: String)(thunk: => A): IO[StripeError.SendError, A] =
+    ZIO.attemptBlocking { thunk }.mapError(StripeError.SendError(objectType, action, _))
 
   private def buildClient(config: LiveStripeService.Config): Task[StripeClient] =
     attemptBuild[StripeClient] {
       ??? // FIX-PRE-MERGE (KR) :
     }
 
-  private def buildPaymentIntent(in: CreatePaymentRequest): IO[StripeError.BuildError, STRIPE.PaymentIntent] =
-    attemptBuild[STRIPE.PaymentIntent] {
-      ??? // FIX-PRE-MERGE (KR) :
-    }
+  private def buildPaymentIntent(req: CreatePaymentRequest): IO[StripeError.BuildError, P.PaymentIntentCreateParams] =
+    ZIO.dieMessage("What are you doing trying to charge a negative amount....").unlessDiscard { req.amount.positive } *>
+      attemptBuild[P.PaymentIntentCreateParams] {
+        P.PaymentIntentCreateParams
+          .builder()
+          .setCurrency(req.amount.currencyCode.code)
+          .setAmount(req.amount.unsignedFractionalUnits)
+          .setCustomer(req.customerId.unwrap)
+          .setPaymentMethod(req.paymentMethodId.unwrap)
+          .setDescription(req.description)
+          .setOpt(req.email) { email => _.setReceiptEmail(email.toString) }
+          .setConfirm(true)
+          .setOffSession(true)
+          .build()
+      }
 
 }

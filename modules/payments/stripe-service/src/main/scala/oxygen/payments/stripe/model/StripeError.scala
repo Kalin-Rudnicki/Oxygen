@@ -6,12 +6,20 @@ sealed trait StripeError extends Error
 object StripeError {
 
   sealed trait SendError extends StripeError
+  object SendError {
 
-  final case class SendApiError(endpoint: String, error: ApiError) extends SendError {
+    def apply(objectType: String, action: String, error: Throwable): SendError =
+      ApiError.from(error) match
+        case Some(apiError) => SendApiError(objectType, action, apiError)
+        case None           => SendDefect(objectType, action, error)
+
+  }
+
+  final case class SendApiError(objectType: String, action: String, error: ApiError) extends SendError {
     override def errorMessage: Text = ??? // FIX-PRE-MERGE (KR) :
   }
 
-  final case class SendDefect(endpoint: String, error: Throwable) extends SendError {
+  final case class SendDefect(objectType: String, action: String, error: Throwable) extends SendError {
     override def errorMessage: Text = ??? // FIX-PRE-MERGE (KR) :
   }
 
@@ -23,7 +31,13 @@ object StripeError {
   //      ApiError
   //////////////////////////////////////////////////////////////////////////////////////////////////////
 
-  // FIX-PRE-MERGE (KR) : 
+  // FIX-PRE-MERGE (KR) :
   sealed trait ApiError
+  object ApiError {
+
+    def from(error: Throwable): Option[ApiError] =
+      None // FIX-PRE-MERGE (KR) :
+
+  }
 
 }

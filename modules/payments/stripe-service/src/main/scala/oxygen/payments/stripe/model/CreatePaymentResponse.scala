@@ -1,5 +1,8 @@
 package oxygen.payments.stripe.model
 
-final case class CreatePaymentResponse(
-    // FIX-PRE-MERGE (KR) :
-)
+sealed trait CreatePaymentResponse
+object CreatePaymentResponse {
+
+  // FIX-PRE-MERGE (KR) :
+
+}
