@@ -1,0 +1,231 @@
+{
+  "formatVersion": 1,
+  "version": "1.1.0",
+  "previousVersion": "1.0.0",
+  "compatibility": "BackwardsCompatible",
+  "diff": [
+    {
+      "stepNo": 1,
+      "derived": true,
+      "step": {
+        "CreateColumn": {
+          "tableRef": {
+            "schema": "public",
+            "table": "user"
+          },
+          "column": {
+            "name": "stripe_customer_id",
+            "columnType": "TEXT",
+            "nullable": true
+          }
+        }
+      }
+    }
+  ],
+  "state": {
+    "extensions": [
+    ],
+    "schemas": [
+      "public"
+    ],
+    "tables": [
+      {
+        "tableName": {
+          "schema": "public",
+          "table": "comment"
+        },
+        "primaryKeyColumns": [
+          "id"
+        ],
+        "columns": [
+          {
+            "name": "id",
+            "columnType": "UUID",
+            "nullable": false
+          },
+          {
+            "name": "post_id",
+            "columnType": "UUID",
+            "nullable": false
+          },
+          {
+            "name": "user_id",
+            "columnType": "UUID",
+            "nullable": false
+          },
+          {
+            "name": "comment",
+            "columnType": "TEXT",
+            "nullable": false
+          },
+          {
+            "name": "created_at",
+            "columnType": "TIMESTAMP WITH TIME ZONE",
+            "nullable": false
+          }
+        ],
+        "foreignKeys": [
+        ],
+        "indices": [
+        ]
+      },
+      {
+        "tableName": {
+          "schema": "public",
+          "table": "connection"
+        },
+        "primaryKeyColumns": [
+          "current_user_id",
+          "other_user_id"
+        ],
+        "columns": [
+          {
+            "name": "current_user_id",
+            "columnType": "UUID",
+            "nullable": false
+          },
+          {
+            "name": "other_user_id",
+            "columnType": "UUID",
+            "nullable": false
+          },
+          {
+            "name": "created_at",
+            "columnType": "TIMESTAMP WITH TIME ZONE",
+            "nullable": false
+          }
+        ],
+        "foreignKeys": [
+        ],
+        "indices": [
+        ]
+      },
+      {
+        "tableName": {
+          "schema": "public",
+          "table": "connection_request"
+        },
+        "primaryKeyColumns": [
+          "current_user_id",
+          "other_user_id"
+        ],
+        "columns": [
+          {
+            "name": "current_user_id",
+            "columnType": "UUID",
+            "nullable": false
+          },
+          {
+            "name": "other_user_id",
+            "columnType": "UUID",
+            "nullable": false
+          },
+          {
+            "name": "created_at",
+            "columnType": "TIMESTAMP WITH TIME ZONE",
+            "nullable": false
+          }
+        ],
+        "foreignKeys": [
+        ],
+        "indices": [
+        ]
+      },
+      {
+        "tableName": {
+          "schema": "public",
+          "table": "post"
+        },
+        "primaryKeyColumns": [
+          "id"
+        ],
+        "columns": [
+          {
+            "name": "id",
+            "columnType": "UUID",
+            "nullable": false
+          },
+          {
+            "name": "user_id",
+            "columnType": "UUID",
+            "nullable": false
+          },
+          {
+            "name": "title",
+            "columnType": "TEXT",
+            "nullable": false
+          },
+          {
+            "name": "body",
+            "columnType": "TEXT",
+            "nullable": false
+          },
+          {
+            "name": "created_at",
+            "columnType": "TIMESTAMP WITH TIME ZONE",
+            "nullable": false
+          }
+        ],
+        "foreignKeys": [
+        ],
+        "indices": [
+        ]
+      },
+      {
+        "tableName": {
+          "schema": "public",
+          "table": "user"
+        },
+        "primaryKeyColumns": [
+          "user_id"
+        ],
+        "columns": [
+          {
+            "name": "user_id",
+            "columnType": "UUID",
+            "nullable": false
+          },
+          {
+            "name": "email",
+            "columnType": "TEXT",
+            "nullable": false
+          },
+          {
+            "name": "reference_email",
+            "columnType": "TEXT",
+            "nullable": false
+          },
+          {
+            "name": "first_name",
+            "columnType": "TEXT",
+            "nullable": false
+          },
+          {
+            "name": "last_name",
+            "columnType": "TEXT",
+            "nullable": false
+          },
+          {
+            "name": "hashed_password",
+            "columnType": "TEXT",
+            "nullable": false
+          },
+          {
+            "name": "stripe_customer_id",
+            "columnType": "TEXT",
+            "nullable": true
+          },
+          {
+            "name": "created_at",
+            "columnType": "TIMESTAMP WITH TIME ZONE",
+            "nullable": false
+          }
+        ],
+        "foreignKeys": [
+        ],
+        "indices": [
+        ]
+      }
+    ]
+  }
+}

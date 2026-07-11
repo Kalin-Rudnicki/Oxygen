@@ -19,6 +19,7 @@ def signedInNavBar(user: User): NavBar.Const =
     _.simplePush("Oxygen Example")(P.index.IndexPage)(()),
     _.simplePush("Home")(P.home.HomePage)(()),
   )(
+    _.simplePush("Add Payment Method")(P.payment.AddPaymentMethodPage)(()),
     _.simplePush(user.firstName)(P.profile.ProfilePage)(()),
   )
 

@@ -7,8 +7,7 @@ import oxygen.example.api.model.user.*
 import oxygen.example.api.service.TokenService
 import oxygen.example.conversion.apiToDomain.*
 import oxygen.example.conversion.domainToApi.*
-import oxygen.example.core.model.post.PostId
-import oxygen.example.core.model.user.UserId
+import oxygen.example.core.model.*
 import oxygen.example.domain.model.error.DomainError
 import oxygen.example.domain.service.*
 import oxygen.http.server.CurrentRequest

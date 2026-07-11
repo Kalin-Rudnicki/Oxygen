@@ -16,6 +16,9 @@ object ExampleSchema {
       ConnectionRequestRow,
       PostRow,
       CommentRow,
+      InitPaymentMethodRow,
+      PaymentMethodRow,
+      PaymentRow,
     )
 
 }

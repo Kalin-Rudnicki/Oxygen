@@ -51,4 +51,17 @@ object RenderedEntity {
       classes: Set[String],
   ) extends RenderedEntity.WithTagAndChildren
 
+  final case class ForeignHost(
+      preRendered: DOMElement.ForeignHost,
+      rendered: Element,
+      cssStr: Option[String],
+      htmlAttrMap: Map[String, String],
+      objectAttrMap: Map[String, js.Any],
+      classes: Set[String],
+      foreign: ForeignElement,
+  ) extends RenderedEntity.WithTagAndChildren {
+    // Not allowed
+    override val children: ArraySeq[RenderedEntity] = ArraySeq.empty
+  }
+
 }

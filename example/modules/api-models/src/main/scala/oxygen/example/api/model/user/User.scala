@@ -1,7 +1,8 @@
 package oxygen.example.api.model.user
 
 import java.time.Instant
-import oxygen.example.core.model.user.{*, given}
+import oxygen.core.model.Email
+import oxygen.example.core.model.*
 import oxygen.schema.JsonSchema
 
 final case class User(

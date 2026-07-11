@@ -3,8 +3,7 @@ package oxygen.example.webServer.api
 import oxygen.example.api.*
 import oxygen.example.api.model.error.*
 import oxygen.example.conversion.domainToApi.*
-import oxygen.example.core.model.post.{*, given}
-import oxygen.example.core.model.user.{*, given}
+import oxygen.example.core.model.*
 import oxygen.example.domain.model as DM
 import oxygen.http.core.RequestDecodingFailure
 import oxygen.http.server.{DeriveEndpoints, ErrorConverter, ServerErrorConfig, ServerErrorHandler}
@@ -65,16 +64,13 @@ given DeriveEndpoints[UserApi] = DeriveEndpoints.derived
 given DeriveEndpoints[ConnectionApi] = DeriveEndpoints.derived
 given DeriveEndpoints[PostApi] = DeriveEndpoints.derived
 given DeriveEndpoints[StreamApi] = DeriveEndpoints.derived
+given DeriveEndpoints[PaymentApi] = DeriveEndpoints.derived
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////
 //      Show
 //////////////////////////////////////////////////////////////////////////////////////////////////////
 
 // TODO (KR) : move to companion objects?
-given Show[Email] = _.email
-given Show[UserId] = _.id.toString
-given Show[PostId] = _.id.toString
-given Show[CommentId] = _.id.toString
 given Show[DM.error.RegistrationError] = Show.derived
 given Show[DM.error.LoginError] = Show.derived
 given Show[DM.error.ConnectionError] = Show.derived

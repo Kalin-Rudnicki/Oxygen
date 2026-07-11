@@ -678,6 +678,49 @@ object PWidget {
 
   }
 
+  final case class ForeignHost[-Env, +Action, -StateGet, +StateSet <: StateGet](
+      xmlns: Option[String],
+      tag: String,
+      stableId: String,
+      foreign: ForeignElement,
+      children: Growable[PWidget[Env, Action, StateGet, StateSet]],
+  ) extends PWidget[Env, Action, StateGet, StateSet] {
+
+    override private[web] def build[Env2 <: Env: HasNoScope](
+        state: PWidgetState[StateGet, StateSet],
+        rh: RaiseHandler[Env2, Action],
+        pageInstance: PageInstance.Untyped,
+        uiRuntime: UIRuntime[Env2],
+    ): Growable[DOMElement] =
+      Growable.single(DOMElement.ForeignHost(xmlns, tag, stableId, foreign, children.flatMap(_.build(state, rh, pageInstance, uiRuntime)).toArraySeq))
+
+    def apply[Env2 <: Env, Action2 >: Action, StateGet2 <: StateGet, StateSet2 >: StateSet <: StateGet2](
+        addChildren: PWidget[Env2, Action2, StateGet2, StateSet2]*,
+    ): ForeignHost[Env2, Action2, StateGet2, StateSet2] =
+      if addChildren.isEmpty then this
+      else ForeignHost(xmlns, tag, stableId, foreign, children ++ Growable.many(addChildren))
+
+    def apply(mod: NodeModifier): PWidget.ForeignHost[Env, Action, StateGet, StateSet] =
+      PWidget.ForeignHost(
+        xmlns,
+        tag,
+        stableId,
+        foreign,
+        Growable.single(mod.before) ++ children ++ Growable.single(mod.after),
+      )
+
+  }
+  object ForeignHost {
+
+    type Const = Stateless[Any, Nothing]
+    type Stateless[-Env, +Action] = ForeignHost[Env, Action, Any, Nothing]
+    type Stateful[-Env, +Action, State] = ForeignHost[Env, Action, State, State]
+
+    def empty(xmlns: String, tag: String, stableId: String, foreign: ForeignElement): ForeignHost.Const = ForeignHost(xmlns.some, tag, stableId, foreign, Growable.empty)
+    def empty(tag: String, stableId: String, foreign: ForeignElement): ForeignHost.Const = ForeignHost(None, tag, stableId, foreign, Growable.empty)
+
+  }
+
   final case class Fragment[-Env, +Action, -StateGet, +StateSet <: StateGet](
       elements: Growable[PWidget[Env, Action, StateGet, StateSet]],
   ) extends PWidget[Env, Action, StateGet, StateSet] {

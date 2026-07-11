@@ -1,7 +1,8 @@
 package oxygen.example.domain.model.user
 
 import java.time.Instant
-import oxygen.example.core.model.user.*
+import oxygen.core.model.Email
+import oxygen.example.core.model.*
 
 final case class SimpleUser(
     id: UserId,
@@ -12,7 +13,7 @@ final case class SimpleUser(
 ) {
   lazy val fullName: String = s"$firstName $lastName"
 
-  lazy val show: String = s"User[id = ${id.id}, name = $fullName]"
+  lazy val show: String = s"User[id = $id, name = $fullName]"
 
   override def toString: String = show
 

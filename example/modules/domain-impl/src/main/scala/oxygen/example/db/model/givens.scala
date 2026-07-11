@@ -1,11 +1,12 @@
 package oxygen.example.db.model
 
-import oxygen.example.core.model.post.*
-import oxygen.example.core.model.user.*
-import oxygen.sql.schema.*
+import oxygen.core.model.currency.CurrencyCode
+import oxygen.sql.schema.RowRepr
+import oxygen.stripe.model.*
 
-given userIdRowRepr: RowRepr[UserId] = RowRepr.uuid.transform(UserId(_), _.id)
-given postIdRowRepr: RowRepr[PostId] = RowRepr.uuid.transform(PostId(_), _.id)
-given commentIdRowRepr: RowRepr[CommentId] = RowRepr.uuid.transform(CommentId(_), _.id)
+given RowRepr[StripeCustomerId] = RowRepr.string.transform(StripeCustomerId.wrap, _.unwrap)
+given RowRepr[StripeSetupIntentId] = RowRepr.string.transform(StripeSetupIntentId.wrap, _.unwrap)
+given RowRepr[StripePaymentMethodId] = RowRepr.string.transform(StripePaymentMethodId.wrap, _.unwrap)
+given RowRepr[StripeSetupIntentClientSecret] = RowRepr.string.transform(StripeSetupIntentClientSecret.wrap, _.unwrap)
 
-given emailRowRepr: RowRepr[Email] = RowRepr.string.transform(Email.unsafeWrapWithoutValidation, _.email)
+given RowRepr[CurrencyCode] = RowRepr.fromPlainTextSchema

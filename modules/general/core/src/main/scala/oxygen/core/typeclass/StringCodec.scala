@@ -3,6 +3,7 @@ package oxygen.core.typeclass
 import java.time.*
 import java.util.{Base64, TimeZone, UUID}
 import oxygen.core.TypeTag
+import oxygen.core.model.{StringNewType, UUIDNewType}
 import oxygen.core.syntax.either.*
 import oxygen.core.syntax.string.*
 import scala.util.Try
@@ -147,6 +148,9 @@ object StringCodec {
   given localDateTime: StringCodec[LocalDateTime] = oxygenTime.localDateTime
   given duration: StringCodec[Duration] = oxygenTime.duration
 
+  given stringNewType: [A <: StringNewType: TypeTag] => StringCodec[A] = StringCodec.string.transform[A](_.asInstanceOf[A], identity)
+  given uuidNewType: [A <: UUIDNewType: TypeTag] => StringCodec[A] = StringCodec.uuid.transform[A](_.asInstanceOf[A], identity)
+
   given `class`: StringCodec[Class[?]] =
     StringCodec.string.transform(str => Try { Class.forName(str) }.getOrElse { classOf[Any] }, _.getName)
 
@@ -168,6 +172,7 @@ object StringCodec {
     given localTime: StringCodec[LocalTime] = StringCodec(StringEncoder.usingToString, StringDecoder.localTime)
     given localDate: StringCodec[LocalDate] = StringCodec(StringEncoder.usingToString, StringDecoder.string.mapCatchOption(LocalDate.parse(_)))
     given localDateTime: StringCodec[LocalDateTime] = StringCodec(StringEncoder.usingToString, StringDecoder.string.mapCatchOption(LocalDateTime.parse(_)))
+    given yearMonth: StringCodec[YearMonth] = StringCodec(StringEncoder.usingToString, StringDecoder.string.mapCatchOption(YearMonth.parse(_)))
     given duration: StringCodec[Duration] = StringCodec(StringEncoder.usingToString, StringDecoder.duration <> StringDecoder.string.mapCatchOption(Duration.parse))
 
   }

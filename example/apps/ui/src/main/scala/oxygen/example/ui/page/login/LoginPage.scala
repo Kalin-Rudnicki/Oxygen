@@ -1,10 +1,10 @@
 package oxygen.example.ui.page.login
 
+import oxygen.core.model.Email
 import oxygen.crypto.model.Password
 import oxygen.example.api.*
 import oxygen.example.api.model.user.*
 import oxygen.example.conversion.apiToUI.*
-import oxygen.example.core.model.user.Email
 import oxygen.example.ui.common.*
 import oxygen.example.ui.page as P
 import oxygen.example.ui.service.LocalService
@@ -72,9 +72,13 @@ object LoginPage extends RoutablePage[UserApi & LocalService] {
           for {
             _ <- ZIO.logInfo("submitting form...")
             req = LoginRequest(email, Password.PlainText.wrap(password))
-            res <- UserApi.login(req).toUILogged(_.toUI)
+            _ <- ZIO.logInfo("1")
+            res <- UserApi.login(req).debug("oops").toUILogged(_.toUI)
+            _ <- ZIO.logInfo("2")
             _ <- ZIO.serviceWithZIO[LocalService](_.userToken.set(res.authorization))
+            _ <- ZIO.logInfo("3")
             _ <- P.home.HomePage.navigate.push(())
+            _ <- ZIO.logInfo("4")
           } yield ()
         },
       ),

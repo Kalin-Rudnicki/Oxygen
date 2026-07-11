@@ -5,7 +5,7 @@ import oxygen.example.api.model.error.ApiError
 import oxygen.example.api.model.user.*
 import oxygen.example.api.service.TokenService
 import oxygen.example.conversion.domainToApi.*
-import oxygen.example.core.model.user.*
+import oxygen.example.core.model.*
 import oxygen.example.domain.model as DM
 import oxygen.example.domain.service.ConnectionService
 import oxygen.http.server.CurrentRequest

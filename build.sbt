@@ -117,6 +117,11 @@ lazy val `oxygen-modules-jvm`: Project =
       `oxygen-crypto-model`.jvm,
       `oxygen-crypto-service`,
 
+      // payments
+      `oxygen-payment-models`.jvm,
+      `oxygen-stripe-models`.jvm,
+      `oxygen-payments-stripe-service`,
+
       // Testing
       `oxygen-test`.jvm,
       `oxygen-test-container`,
@@ -157,6 +162,11 @@ lazy val `oxygen-modules-js`: Project =
 
       // jwt
       `oxygen-crypto-model`.js,
+
+      // payments
+      `oxygen-payment-models`.js,
+      `oxygen-stripe-models`.js,
+      `oxygen-payments-stripe-ui`,
 
       // Testing
       `oxygen-test`.js,
@@ -391,6 +401,63 @@ lazy val `oxygen-storage-in-memory`: Project =
     )
     .dependsOn(
       `oxygen-storage` % testAndCompile,
+    )
+
+lazy val `oxygen-payment-models`: CrossProject =
+  crossProject(JSPlatform, JVMPlatform)
+    .crossType(CrossType.Pure)
+    .in(file("modules/payments/models"))
+    .settings(
+      publishedProjectSettings,
+      name := "oxygen-payments-models",
+      description := "Core payment models",
+    )
+    .dependsOn(
+      `oxygen-schema` % testAndCompile,
+    )
+
+lazy val `oxygen-stripe-models`: CrossProject =
+  crossProject(JSPlatform, JVMPlatform)
+    .crossType(CrossType.Pure)
+    .in(file("modules/payments/stripe-models"))
+    .settings(
+      publishedProjectSettings,
+      name := "oxygen-payments-stripe-models",
+      description := "Core stripe models",
+    )
+    .dependsOn(
+      `oxygen-payment-models` % testAndCompile,
+    )
+
+lazy val `oxygen-payments-stripe-ui`: Project =
+  project
+    .in(file("modules/payments/stripe-ui"))
+    .enablePlugins(ScalaJSPlugin)
+    .settings(
+      publishedProjectSettings,
+      name := "oxygen-payments-stripe-ui",
+      description := "Stripe UI integration",
+    )
+    .dependsOn(
+      `oxygen-ui-web` % testAndCompile,
+      `oxygen-stripe-models`.js % testAndCompile,
+    )
+
+lazy val `oxygen-payments-stripe-service`: Project =
+  project
+    .in(file("modules/payments/stripe-service"))
+    .settings(
+      publishedProjectSettings,
+      name := "oxygen-payments-stripe-service",
+      description := "Stripe backend integration",
+      scalacOptions += "-experimental",
+      libraryDependencies ++= Seq(
+        "com.stripe" % "stripe-java" % "33.1.0",
+      ),
+    )
+    .dependsOn(
+      `oxygen-http`.jvm % testAndCompile,
+      `oxygen-stripe-models`.jvm % testAndCompile,
     )
 
 lazy val `oxygen-sql`: Project =
@@ -716,7 +783,7 @@ lazy val `example-core`: CrossProject =
       description := "oxygen-example-core",
     )
     .dependsOn(
-      `oxygen-core` % testAndCompile,
+      `oxygen-schema` % testAndCompile,
     )
 
 lazy val `example-api-models`: CrossProject =
@@ -732,6 +799,7 @@ lazy val `example-api-models`: CrossProject =
     .dependsOn(
       `example-core` % testAndCompile,
       `oxygen-http` % testAndCompile,
+      `oxygen-stripe-models` % testAndCompile,
     )
 
 lazy val `example-api`: CrossProject =
@@ -760,6 +828,7 @@ lazy val `example-domain-models`: Project =
     .dependsOn(
       `example-core`.jvm % testAndCompile,
       `oxygen-crypto-model`.jvm % testAndCompile,
+      `oxygen-stripe-models`.jvm % testAndCompile,
     )
 
 lazy val `example-domain`: Project =
@@ -778,6 +847,7 @@ lazy val `example-domain`: Project =
       `example-domain-models` % testAndCompile,
       `oxygen-crypto-service` % testAndCompile,
       `oxygen-storage` % testAndCompile,
+      `oxygen-payments-stripe-service` % testAndCompile,
     )
 
 lazy val `example-domain-impl`: Project =
@@ -907,8 +977,9 @@ lazy val `example-ui-web`: Project =
         }.evaluated,
     )
     .dependsOn(
-      `example-api`.js,
-      `oxygen-ui-web`,
+      `example-api`.js % testAndCompile,
+      `oxygen-ui-web` % testAndCompile,
+      `oxygen-payments-stripe-ui` % testAndCompile,
     )
 
 lazy val `example-ui-electron`: Project =
@@ -995,7 +1066,7 @@ lazy val `example-ui-electron`: Project =
                      |  "description": "$appName",
                      |  "author": {
                      |    "name": "Oxygen",
-                     |    "email": "oxygen@gmeila.com"
+                     |    "email": "oxygen@gmail.com"
                      |  },
                      |  "homepage": "https://github.com/Kalin-Rudnicki/Oxygen",
                      |  "scripts": {

@@ -1,7 +1,7 @@
 package oxygen.example.domain.service
 
 import oxygen.crypto.service.PasswordService
-import oxygen.example.core.model.user.*
+import oxygen.example.core.model.*
 import oxygen.example.domain.model.error.*
 import oxygen.example.domain.model.user.*
 import oxygen.example.domain.repo.UserRepo
@@ -16,7 +16,7 @@ final class UserService(userRepo: UserRepo, passwordService: PasswordService) {
       id <- Random.nextUUID
       now <- Clock.instant
       hashedPassword <- passwordService.hashPassword(req.password)
-      user = FullUser(
+      user = FullUser.WithoutStripe(
         id = UserId(id),
         email = req.email,
         firstName = req.firstName,
@@ -35,6 +35,16 @@ final class UserService(userRepo: UserRepo, passwordService: PasswordService) {
       passwordIsValid <- passwordService.validate(req.password, user.hashedPassword)
       _ <- ZIO.fail(LoginError.InvalidPassword(req.email)).unless(passwordIsValid)
     } yield user.toSimple
+
+  def getFullUser(userId: UserId): IO[DomainError.UserIdDoesNotExist, FullUser] =
+    userRepo.getUserById(userId)
+
+  /** Only call this in places where the user is known to already be stripe initialized */
+  def getFullStripeUser(userId: UserId): IO[DomainError.UserIdDoesNotExist, FullUser.WithStripe] =
+    userRepo.getUserById(userId).flatMap {
+      case user: FullUser.WithStripe => ZIO.succeed { user }
+      case user                      => ZIO.dieMessage { s"User does not have stripe? ${user.show}" }
+    }
 
   def getUser(userId: UserId): IO[DomainError.UserIdDoesNotExist, SimpleUser] =
     userRepo.getUserById(userId).map(_.toSimple)

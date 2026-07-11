@@ -57,7 +57,7 @@ object ProfilePage extends RoutablePage.NoParams[LocalService] {
       SectionWithHeader.section1("Profile Actions")(
         Button(_.destructive.minimal)(
           "Sign Out",
-          onClick := { ZIO.serviceWithZIO[LocalService](_.userToken.clear) *> P.login.LoginPage.navigate.push(P.login.LoginPage.PageParams(state.user.email.email.some)) },
+          onClick := { ZIO.serviceWithZIO[LocalService](_.userToken.clear) *> P.login.LoginPage.navigate.push(P.login.LoginPage.PageParams(state.user.email.toString.some)) },
         ),
       )
     }

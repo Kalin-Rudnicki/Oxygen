@@ -1,8 +1,7 @@
 package oxygen.example.domain.model.post
 
 import java.time.Instant
-import oxygen.example.core.model.post.*
-import oxygen.example.core.model.user.*
+import oxygen.example.core.model.*
 
 final case class Comment(
     id: CommentId,
