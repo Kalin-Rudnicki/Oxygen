@@ -113,6 +113,7 @@ final class StripeComponent private (
       }
     }
 
+  // FIX-PRE-MERGE (KR) : remove
   private def undefToOption[A](value: js.UndefOr[A]): Option[A] =
     if js.isUndefined(value) then None
     else Some(value.asInstanceOf[A])
