@@ -118,6 +118,7 @@ lazy val `oxygen-modules-jvm`: Project =
       `oxygen-crypto-service`,
 
       // payments
+      `oxygen-payment-models`.jvm,
       `oxygen-stripe-models`.jvm,
       `oxygen-payments-stripe-service`,
 
@@ -163,6 +164,7 @@ lazy val `oxygen-modules-js`: Project =
       `oxygen-crypto-model`.js,
 
       // payments
+      `oxygen-payment-models`.js,
       `oxygen-stripe-models`.js,
       `oxygen-payments-stripe-ui`,
 
@@ -401,6 +403,19 @@ lazy val `oxygen-storage-in-memory`: Project =
       `oxygen-storage` % testAndCompile,
     )
 
+lazy val `oxygen-payment-models`: CrossProject =
+  crossProject(JSPlatform, JVMPlatform)
+    .crossType(CrossType.Pure)
+    .in(file("modules/payments/models"))
+    .settings(
+      publishedProjectSettings,
+      name := "oxygen-payments-models",
+      description := "Core payment models",
+    )
+    .dependsOn(
+      `oxygen-schema` % testAndCompile,
+    )
+
 lazy val `oxygen-stripe-models`: CrossProject =
   crossProject(JSPlatform, JVMPlatform)
     .crossType(CrossType.Pure)
@@ -411,7 +426,7 @@ lazy val `oxygen-stripe-models`: CrossProject =
       description := "Core stripe models",
     )
     .dependsOn(
-      `oxygen-schema` % testAndCompile,
+      `oxygen-payment-models` % testAndCompile,
     )
 
 lazy val `oxygen-payments-stripe-ui`: Project =

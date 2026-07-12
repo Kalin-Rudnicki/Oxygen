@@ -60,6 +60,7 @@ object PlainTextSchema extends PlainTextSchemaLowPriority.LowPriority1 {
   given localDate: PlainTextSchema[LocalDate] = standardJavaTime.localDate
   given localTime: PlainTextSchema[LocalTime] = standardJavaTime.localTime
   given localDateTime: PlainTextSchema[LocalDateTime] = standardJavaTime.localDateTime
+  given yearMonth: PlainTextSchema[YearMonth] = standardJavaTime.yearMonth
 
   given bearerToken: PlainTextSchema[BearerToken] =
     PlainTextSchema.BearerTokenSchema[BearerToken](TypeTag.derived, PlainTextSchema.string, _.asRight, identity)
@@ -109,6 +110,7 @@ object PlainTextSchema extends PlainTextSchemaLowPriority.LowPriority1 {
     given localDate: PlainTextSchema[LocalDate] = PlainTextSchema.fromStringCodecWithFormat("ISO 8601 (Date)")(using StringCodec.standardJavaTime.localDate)
     given localTime: PlainTextSchema[LocalTime] = PlainTextSchema.fromStringCodecWithFormat("ISO 8601 (Time)")(using StringCodec.standardJavaTime.localTime)
     given localDateTime: PlainTextSchema[LocalDateTime] = PlainTextSchema.fromStringCodecWithFormat("ISO 8601 (Date Time)")(using StringCodec.standardJavaTime.localDateTime)
+    given yearMonth: PlainTextSchema[YearMonth] = PlainTextSchema.fromStringCodec(using StringCodec.standardJavaTime.yearMonth)
 
   }
 

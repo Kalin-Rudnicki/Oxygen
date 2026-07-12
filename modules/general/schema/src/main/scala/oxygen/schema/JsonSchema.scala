@@ -108,6 +108,7 @@ object JsonSchema extends Derivable[JsonSchema.ObjectLike], JsonSchemaLowPriorit
   given localDate: JsonSchema[LocalDate] = standardJavaTime.localDate
   given localTime: JsonSchema[LocalTime] = standardJavaTime.localTime
   given localDateTime: JsonSchema[LocalDateTime] = standardJavaTime.localDateTime
+  given yearMonth: JsonSchema[YearMonth] = standardJavaTime.yearMonth
 
   object standardJavaTime {
 
@@ -123,6 +124,7 @@ object JsonSchema extends Derivable[JsonSchema.ObjectLike], JsonSchemaLowPriorit
     given localDate: JsonSchema[LocalDate] = JsonSchema.fromPlainText(using PlainTextSchema.standardJavaTime.localDate)
     given localTime: JsonSchema[LocalTime] = JsonSchema.fromPlainText(using PlainTextSchema.standardJavaTime.localTime)
     given localDateTime: JsonSchema[LocalDateTime] = JsonSchema.fromPlainText(using PlainTextSchema.standardJavaTime.localDateTime)
+    given yearMonth: JsonSchema[YearMonth] = JsonSchema.fromPlainText(using PlainTextSchema.standardJavaTime.yearMonth)
 
   }
 

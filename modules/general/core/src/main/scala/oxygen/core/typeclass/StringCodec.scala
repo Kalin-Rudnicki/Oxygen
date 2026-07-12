@@ -168,6 +168,7 @@ object StringCodec {
     given localTime: StringCodec[LocalTime] = StringCodec(StringEncoder.usingToString, StringDecoder.localTime)
     given localDate: StringCodec[LocalDate] = StringCodec(StringEncoder.usingToString, StringDecoder.string.mapCatchOption(LocalDate.parse(_)))
     given localDateTime: StringCodec[LocalDateTime] = StringCodec(StringEncoder.usingToString, StringDecoder.string.mapCatchOption(LocalDateTime.parse(_)))
+    given yearMonth: StringCodec[YearMonth] = StringCodec(StringEncoder.usingToString, StringDecoder.string.mapCatchOption(YearMonth.parse(_)))
     given duration: StringCodec[Duration] = StringCodec(StringEncoder.usingToString, StringDecoder.duration <> StringDecoder.string.mapCatchOption(Duration.parse))
 
   }
