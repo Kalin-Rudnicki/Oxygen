@@ -68,7 +68,7 @@ object ForeignElement {
   }
 
   /** Allows for creation of a [[ForeignElement]]. Element will de [[ForeignElement.destroy]]ed upon [[Scope]] close. */
-  def register(f: Register ?=> ForeignElement): URIO[Scope, ForeignElement] =
+  def register[A <: ForeignElement](f: Register ?=> A): URIO[Scope, A] =
     ZIO.succeed { f(using Register.Instance) }.withFinalizer { elem => ZIO.succeed { elem.destroy() } }
 
 }

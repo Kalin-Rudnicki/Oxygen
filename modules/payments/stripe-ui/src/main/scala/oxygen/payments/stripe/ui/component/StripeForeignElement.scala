@@ -3,6 +3,7 @@ package oxygen.payments.stripe.ui.component
 import org.scalajs.dom.Element
 import oxygen.payments.stripe.ui.facades as F
 import oxygen.ui.web.internal.*
+import zio.*
 
 final class StripeForeignElement private (stripe: F.StripeElement)(using ForeignElement.Register) extends ForeignElement {
 
@@ -14,7 +15,8 @@ final class StripeForeignElement private (stripe: F.StripeElement)(using Foreign
 
 }
 object StripeForeignElement {
-  
-  // def make(): 
-  
+
+  def register(stripe: F.StripeElement): URIO[Scope, StripeForeignElement] =
+    ForeignElement.register { new StripeForeignElement(stripe) }
+
 }
