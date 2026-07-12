@@ -1,10 +1,10 @@
 package oxygen.payments.stripe.ui.component
 
 import org.scalajs.dom.Element
-import oxygen.payments.stripe.ui.facades.StripeElement
+import oxygen.payments.stripe.ui.facades as F
 import oxygen.ui.web.internal.*
 
-final class StripeForeignElement(stripe: StripeElement)(using ForeignElement.Register) extends ForeignElement {
+final class StripeForeignElement private (stripe: F.StripeElement)(using ForeignElement.Register) extends ForeignElement {
 
   override val name: String = "Stripe Element"
 
@@ -12,4 +12,9 @@ final class StripeForeignElement(stripe: StripeElement)(using ForeignElement.Reg
   override protected def unmountInternal(): Unit = stripe.unmount()
   override protected def destroyInternal(): Unit = stripe.destroy()
 
+}
+object StripeForeignElement {
+  
+  // def make(): 
+  
 }
