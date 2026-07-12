@@ -2,12 +2,15 @@ package oxygen.payments.stripe.ui.component
 
 import org.scalajs.dom.Element
 import oxygen.payments.stripe.ui.facades as F
+import oxygen.stripe.model.StripeSetupIntentClientSecret
 import oxygen.ui.web.internal.*
 import zio.*
 
 final class StripeForeignElement private (
+    private[stripe] val stripe: F.Stripe,
     private[stripe] val elements: F.StripeElements,
     private[stripe] val element: F.StripeElement,
+    private[stripe] val clientSecret: StripeSetupIntentClientSecret,
 )(using ForeignElement.Register) extends ForeignElement {
 
   override val name: String = "Stripe Element"
@@ -19,7 +22,12 @@ final class StripeForeignElement private (
 }
 object StripeForeignElement {
 
-  def register(elements: F.StripeElements, element: F.StripeElement): URIO[Scope, StripeForeignElement] =
-    ForeignElement.register { new StripeForeignElement(elements, element) }
+  def register(
+      stripe: F.Stripe,
+      elements: F.StripeElements,
+      element: F.StripeElement,
+      clientSecret: StripeSetupIntentClientSecret,
+  ): URIO[Scope, StripeForeignElement] =
+    ForeignElement.register { new StripeForeignElement(stripe, elements, element, clientSecret) }
 
 }

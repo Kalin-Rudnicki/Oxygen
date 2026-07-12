@@ -139,14 +139,14 @@ object StripeService {
             Option(e.getMessage).filter(_.nonEmpty).getOrElse("Failed to load Stripe.js"),
           )
         }
-        (_, stripeElems, stripeElem) <- makeElements(
+        (stripe, stripeElems, stripeElem) <- makeElements(
           _publishableKey = publishableKey,
           _clientSecret = clientSecret,
           _currency = currency,
           _appearance = appearance,
           _elementOptions = elementOptions,
         ).orDie // TODO (KR) :
-        oxygenElem <- StripeForeignElement.register(stripeElems, stripeElem)
+        oxygenElem <- StripeForeignElement.register(stripe, stripeElems, stripeElem, clientSecret)
       } yield oxygenElem
 
   }
