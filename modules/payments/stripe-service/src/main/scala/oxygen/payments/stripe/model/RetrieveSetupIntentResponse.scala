@@ -2,10 +2,7 @@ package oxygen.payments.stripe.model
 
 import oxygen.stripe.model.*
 
-/**
-  * After FE `confirmSetup`, retrieve the SetupIntent to learn which `pm_…` was attached.
-  * Prefer this (or webhooks) over listing all payment methods when you know the SetupIntent id.
-  */
+/** Lightweight SetupIntent view; prefer [[oxygen.payments.stripe.service.StripeService.getPaymentMethodFromSetupIntent]] when you need the full PM. */
 final case class RetrieveSetupIntentResponse(
     id: StripeSetupIntentId,
     status: String,

@@ -4,45 +4,41 @@ import java.time.YearMonth
 import oxygen.stripe.model.*
 
 /**
-  * How this payment method presents to the user / what Stripe `type` it is.
+  * Vaulted payment method from Stripe.
   *
-  * Apple Pay / Google Pay are not separate PM types — they are card PMs with a wallet.
-  * PayPal is `type = "paypal"`.
+  * Apple Pay / Google Pay are not separate PM types — they are `type=card` with a wallet.
+  * PayPal is `type=paypal`.
   */
 sealed trait PaymentMethodInfo {
   val id: StripePaymentMethodId
 }
 object PaymentMethodInfo {
 
+  /** Shared display fields for card-backed methods (plain card or wallet). */
   sealed trait CardLike extends PaymentMethodInfo {
     val brand: String
     val last4: String
     val expiry: YearMonth
   }
 
-  /**
-    * Stripe `type = "card"`.
-    */
+  /** Stripe `type=card` without a digital wallet. */
   final case class Card(
       id: StripePaymentMethodId,
       brand: String,
       last4: String,
       expiry: YearMonth,
-  ) extends PaymentMethodInfo.CardLike
+  ) extends CardLike
 
-  /**
-    * Stripe `type = "card"`.
-    * @param wallet set when the card was collected via a digital wallet (Apple Pay, Google Pay, …)
-    */
+  /** Stripe `type=card` collected via a digital wallet (`card.wallet`). */
   final case class WalletCard(
       id: StripePaymentMethodId,
       brand: String,
       last4: String,
       expiry: YearMonth,
       wallet: CardWallet,
-  ) extends PaymentMethodInfo.CardLike
+  ) extends CardLike
 
-  /** Stripe `type = "paypal"`. */
+  /** Stripe `type=paypal`. */
   final case class PayPal(
       id: StripePaymentMethodId,
       payerEmail: Option[String],
@@ -50,32 +46,32 @@ object PaymentMethodInfo {
       country: Option[String],
   ) extends PaymentMethodInfo
 
-  /** Any other Stripe payment method type we don't model yet. */
+  /** Any other Stripe payment method type not modeled yet. */
   final case class Other(
       id: StripePaymentMethodId,
       typeName: String,
   ) extends PaymentMethodInfo
 
-}
+  /** Wallet used when collecting a card (`card.wallet.type`). */
+  sealed trait CardWallet
+  object CardWallet {
 
-/** Wallet used when collecting a card (Stripe `card.wallet.type`). */
-sealed trait CardWallet
-object CardWallet {
+    case object GooglePay extends CardWallet
+    case object ApplePay extends CardWallet
+    case object Link extends CardWallet
+    case object SamsungPay extends CardWallet
 
-  case object GooglePay extends CardWallet
-  case object ApplePay extends CardWallet
-  case object Link extends CardWallet
-  case object SamsungPay extends CardWallet
+    final case class Other(typeName: String) extends CardWallet
 
-  final case class Other(typeName: String) extends CardWallet
+    def fromStripeType(typeName: String): CardWallet =
+      typeName match {
+        case "google_pay"  => GooglePay
+        case "apple_pay"   => ApplePay
+        case "link"        => Link
+        case "samsung_pay" => SamsungPay
+        case other         => Other(other)
+      }
 
-  def fromStripeType(typeName: String): CardWallet =
-    typeName match {
-      case "google_pay"  => GooglePay
-      case "apple_pay"   => ApplePay
-      case "link"        => Link
-      case "samsung_pay" => SamsungPay
-      case other         => Other(other)
-    }
+  }
 
 }

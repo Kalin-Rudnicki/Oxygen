@@ -160,7 +160,6 @@ object LiveStripeService {
 
   private def buildListPaymentMethods(customerId: StripeCustomerId): IO[StripeError.BuildError, P.PaymentMethodListParams] =
     attemptBuild[P.PaymentMethodListParams] {
-      // No type filter: cards (incl. Apple/Google Pay) and PayPal, etc.
       P.PaymentMethodListParams
         .builder()
         .setCustomer(customerId.unwrap)
@@ -175,10 +174,6 @@ object LiveStripeService {
         .build()
     }
 
-  /**
-    * Prefer expanded PaymentMethod on the SetupIntent; otherwise retrieve by id.
-    * Fails if the SetupIntent has not attached a payment method yet.
-    */
   private def resolvePaymentMethodFromSetupIntent(
       client: StripeClient,
       setupIntent: M.SetupIntent,
@@ -186,15 +181,14 @@ object LiveStripeService {
     val setupIntentId = StripeSetupIntentId.wrap(requireNonNull("id", setupIntent.getId))
     val status = Option(setupIntent.getStatus).getOrElse("unknown")
 
-    Option(setupIntent.getPaymentMethodObject) match {
-      case Some(expanded) =>
-        ZIO.succeed(expanded)
-      case None =>
-        Option(setupIntent.getPaymentMethod) match {
-          case Some(paymentMethodId) => attemptSend { client.v1().paymentMethods().retrieve(paymentMethodId) }
-          case None                  => ZIO.fail(StripeError.SetupIntentMissingPaymentMethod(None, setupIntentId, status))
+    Option(setupIntent.getPaymentMethodObject)
+      .map(ZIO.succeed(_))
+      .orElse {
+        Option(setupIntent.getPaymentMethod).map { paymentMethodId =>
+          attemptSend { client.v1().paymentMethods().retrieve(paymentMethodId) }
         }
-    }
+      }
+      .getOrElse(ZIO.fail(StripeError.SetupIntentMissingPaymentMethod(None, setupIntentId, status)))
   }
 
   private def buildPaymentIntent(
@@ -262,39 +256,38 @@ object LiveStripeService {
 
   private def decodePaymentMethodInfo(pm: M.PaymentMethod): PaymentMethodInfo = {
     val id = StripePaymentMethodId.wrap(requireNonNull("id", pm.getId))
-    val typeName = requireNonNull("type", pm.getType)
 
-    val details: PaymentMethodDetails =
-      typeName match {
-        case "card" =>
-          val card = Option(pm.getCard).getOrElse {
-            throw new IllegalArgumentException("payment method type=card but card object is missing")
-          }
-          val year = requireNonNullLong("card.exp_year", card.getExpYear)
-          val month = requireNonNullLong("card.exp_month", card.getExpMonth)
-          val wallet =
-            Option(card.getWallet).flatMap(w => Option(w.getType)).map(CardWallet.fromStripeType)
+    requireNonNull("type", pm.getType) match {
+      case "card" =>
+        val card = Option(pm.getCard).getOrElse {
+          throw new IllegalArgumentException("payment method type=card but card object is missing")
+        }
+        val brand = requireNonNull("card.brand", card.getBrand)
+        val last4 = requireNonNull("card.last4", card.getLast4)
+        val expiry = YearMonth.of(
+          requireNonNullLong("card.exp_year", card.getExpYear).toInt,
+          requireNonNullLong("card.exp_month", card.getExpMonth).toInt,
+        )
+        val wallet =
+          Option(card.getWallet).flatMap(w => Option(w.getType)).map(PaymentMethodInfo.CardWallet.fromStripeType)
 
-          PaymentMethodDetails.Card(
-            brand = requireNonNull("card.brand", card.getBrand),
-            last4 = requireNonNull("card.last4", card.getLast4),
-            expiry = YearMonth.of(year.toInt, month.toInt),
-            wallet = wallet,
-          )
+        wallet match {
+          case Some(w) => PaymentMethodInfo.WalletCard(id, brand, last4, expiry, w)
+          case None    => PaymentMethodInfo.Card(id, brand, last4, expiry)
+        }
 
-        case "paypal" =>
-          val paypal = Option(pm.getPaypal)
-          PaymentMethodDetails.PayPal(
-            payerEmail = paypal.flatMap(p => Option(p.getPayerEmail)),
-            payerId = paypal.flatMap(p => Option(p.getPayerId)),
-            country = paypal.flatMap(p => Option(p.getCountry)),
-          )
+      case "paypal" =>
+        val paypal = Option(pm.getPaypal)
+        PaymentMethodInfo.PayPal(
+          id = id,
+          payerEmail = paypal.flatMap(p => Option(p.getPayerEmail)),
+          payerId = paypal.flatMap(p => Option(p.getPayerId)),
+          country = paypal.flatMap(p => Option(p.getCountry)),
+        )
 
-        case other =>
-          PaymentMethodDetails.Other(other)
-      }
-
-    PaymentMethodInfo(id = id, details = details)
+      case other =>
+        PaymentMethodInfo.Other(id, other)
+    }
   }
 
   private def decodePaymentResponse(response: M.PaymentIntent): IO[StripeError.DecodeError, CreatePaymentIntentResponse] =
