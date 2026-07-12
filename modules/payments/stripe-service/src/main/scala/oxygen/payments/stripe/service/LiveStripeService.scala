@@ -33,7 +33,7 @@ final case class LiveStripeService(
       } yield decodedResponse
     ).mapError(_.withTarget(StripeError.Target("setupIntent", "create")))
 
-  override def createPaymentIntent(req: CreatePaymentRequest): IO[StripeError, CreatePaymentIntentResponse] =
+  override def createPaymentIntent(req: CreatePaymentIntentRequest): IO[StripeError, CreatePaymentIntentResponse] =
     (
       for {
         params: P.PaymentIntentCreateParams <- buildPaymentIntent(req)
@@ -109,7 +109,7 @@ object LiveStripeService {
         .build()
     }
 
-  private def buildPaymentIntent(req: CreatePaymentRequest): IO[StripeError.ChargeNegativeAmount | StripeError.BuildError, P.PaymentIntentCreateParams] =
+  private def buildPaymentIntent(req: CreatePaymentIntentRequest): IO[StripeError.ChargeNegativeAmount | StripeError.BuildError, P.PaymentIntentCreateParams] =
     ZIO.fail(StripeError.ChargeNegativeAmount(None, req.amount)).unlessDiscard { req.amount.positive } *>
       attemptBuild[P.PaymentIntentCreateParams] {
         P.PaymentIntentCreateParams

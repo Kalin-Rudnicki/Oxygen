@@ -9,6 +9,6 @@ trait StripeService {
 
   def createSetupIntent(req: CreateSetupIntentRequest): IO[StripeError, CreateSetupIntentResponse]
 
-  def createPaymentIntent(req: CreatePaymentRequest): IO[StripeError, CreatePaymentIntentResponse]
+  def createPaymentIntent(req: CreatePaymentIntentRequest): IO[StripeError, CreatePaymentIntentResponse]
 
 }
