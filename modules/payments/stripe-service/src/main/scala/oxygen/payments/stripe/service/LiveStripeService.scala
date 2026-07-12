@@ -132,7 +132,7 @@ object LiveStripeService {
   private def decodeCreateCustomerResponse(response: M.Customer): IO[StripeError.DecodeError, CreateCustomerResponse] =
     attemptDecode[CreateCustomerResponse] {
       CreateCustomerResponse(
-        id = StripeCustomerId.wrap(response.getId),
+        id = StripeCustomerId.wrap(requireNonNull("id", response.getId)),
       )
     }
 
@@ -140,6 +140,42 @@ object LiveStripeService {
     ??? // FIX-PRE-MERGE (KR) :
 
   private def decodePaymentResponse(response: M.PaymentIntent): IO[StripeError.DecodeError, CreatePaymentIntentResponse] =
-    ??? // FIX-PRE-MERGE (KR) :
+    attemptDecode {
+      val paymentIntentId = StripePaymentIntentId.wrap(requireNonNull("id", response.getId))
+      val status = requireNonNull("status", response.getStatus)
+
+      status match {
+        case "succeeded" =>
+          CreatePaymentIntentResponse.Succeeded(paymentIntentId)
+
+        case "processing" =>
+          CreatePaymentIntentResponse.Processing(paymentIntentId)
+
+        case "requires_action" =>
+          CreatePaymentIntentResponse.RequiresAction(
+            paymentIntentId = paymentIntentId,
+            clientSecret = StripePaymentIntentClientSecret.wrap(requireNonNull("client_secret", response.getClientSecret)),
+          )
+
+        case "requires_payment_method" =>
+          val lastError = Option(response.getLastPaymentError)
+          CreatePaymentIntentResponse.RequiresPaymentMethod(
+            paymentIntentId = paymentIntentId,
+            failureCode = lastError.flatMap(e => Option(e.getCode)),
+            failureMessage = lastError.flatMap(e => Option(e.getMessage)),
+          )
+
+        case "canceled" =>
+          CreatePaymentIntentResponse.Canceled(paymentIntentId)
+
+        case other =>
+          CreatePaymentIntentResponse.UnexpectedStatus(paymentIntentId, other)
+      }
+    }
+
+  private def requireNonNull(field: String, value: String): String =
+    Option(value).getOrElse {
+      throw new IllegalArgumentException(s"missing required field: $field")
+    }
 
 }
