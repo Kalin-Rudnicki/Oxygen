@@ -110,7 +110,7 @@ object StripeService {
         _currency: CurrencyCode,
         _appearance: F.StripeAppearance,
         _elementOptions: F.StripeElementOptions,
-    ): Task[(F.Stripe, F.StripeElement)] = {
+    ): Task[(F.Stripe, F.StripeElements, F.StripeElement)] = {
       val _elementsOptions: F.StripeElementsOptions =
         new F.StripeElementsOptions {
           this.mode = "setup"
@@ -123,7 +123,7 @@ object StripeService {
         stripe <- ZIO.attempt { F.StripeGlobal.Stripe(_publishableKey.unwrap) }
         elements <- ZIO.attempt { stripe.elements(_elementsOptions) }
         element <- ZIO.attempt { elements.create("payment", _elementOptions) }
-      } yield (stripe, element)
+      } yield (stripe, elements, element)
     }
 
     override def elements(
@@ -139,14 +139,14 @@ object StripeService {
             Option(e.getMessage).filter(_.nonEmpty).getOrElse("Failed to load Stripe.js"),
           )
         }
-        (_, stripeElem) <- makeElements(
+        (_, stripeElems, stripeElem) <- makeElements(
           _publishableKey = publishableKey,
           _clientSecret = clientSecret,
           _currency = currency,
           _appearance = appearance,
           _elementOptions = elementOptions,
         ).orDie // TODO (KR) :
-        oxygenElem <- StripeForeignElement.register(stripeElem)
+        oxygenElem <- StripeForeignElement.register(stripeElems, stripeElem)
       } yield oxygenElem
 
   }
