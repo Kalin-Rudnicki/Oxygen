@@ -17,7 +17,13 @@ final case class LiveStripeService(
   import LiveStripeService.*
 
   override def createCustomer(req: CreateCustomerRequest): IO[StripeError, CreateCustomerResponse] =
-    ??? // FIX-PRE-MERGE (KR) :
+    (
+      for {
+        params: P.CustomerCreateParams <- buildCreateCustomer(req)
+        rawResponse: M.Customer <- attemptSend { client.v1().customers().create(params) }
+        decodedResponse: CreateCustomerResponse <- attemptDecodeIO { decodeCreateCustomerResponse(rawResponse) }
+      } yield decodedResponse
+    ).mapError(_.withTarget(StripeError.Target("customer", "create")))
 
   override def createSetupIntent(req: CreateSetupIntentRequest): IO[StripeError, CreateSetupIntentResponse] =
     (
@@ -87,7 +93,16 @@ object LiveStripeService {
         .build()
     }
 
-  private def buildSetupIntent(req: CreateSetupIntentRequest): IO[StripeError.ChargeNegativeAmount | StripeError.BuildError, P.SetupIntentCreateParams] =
+  private def buildCreateCustomer(req: CreateCustomerRequest): IO[StripeError.BuildError, P.CustomerCreateParams] =
+    attemptBuild[P.CustomerCreateParams] {
+      P.CustomerCreateParams
+        .builder()
+        .setOpt(req.name) { name => _.setName(name) }
+        .setOpt(req.email) { email => _.setEmail(email.toString) }
+        .build()
+    }
+
+  private def buildSetupIntent(req: CreateSetupIntentRequest): IO[StripeError.BuildError, P.SetupIntentCreateParams] =
     attemptBuild[P.SetupIntentCreateParams] {
       P.SetupIntentCreateParams
         .builder()
@@ -114,6 +129,9 @@ object LiveStripeService {
   //////////////////////////////////////////////////////////////////////////////////////////////////////
   //      Decoders
   //////////////////////////////////////////////////////////////////////////////////////////////////////
+
+  private def decodeCreateCustomerResponse(response: M.Customer): IO[StripeError.ValidationError, CreateCustomerResponse] =
+    ??? // FIX-PRE-MERGE (KR) :
 
   private def decodeSetupIntentResponse(response: M.SetupIntent): IO[StripeError.ValidationError, CreateSetupIntentResponse] =
     ??? // FIX-PRE-MERGE (KR) :
