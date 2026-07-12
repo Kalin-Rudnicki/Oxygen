@@ -7,6 +7,13 @@ import oxygen.predef.core.*
 sealed trait StripeError extends Error {
   val target: Option[StripeError.Target]
   def withTarget(target: StripeError.Target): StripeError
+
+  protected def targetlessErrorMessage: Text
+
+  override final def errorMessage: Text = target match
+    case Some(target) => str"""${??? : String}\n$targetlessErrorMessage""" // FIX-PRE-MERGE (KR) :
+    case None         => targetlessErrorMessage
+
 }
 object StripeError {
 
