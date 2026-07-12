@@ -4,6 +4,7 @@ import java.time.*
 import java.util.{TimeZone, UUID}
 import oxygen.core.*
 import oxygen.core.collection.*
+import oxygen.core.model.{StringNewType, UUIDNewType}
 import oxygen.core.syntax.common.*
 import oxygen.meta.{*, given}
 import oxygen.meta.k0.*
@@ -79,6 +80,9 @@ object Show extends ShowLowPriority.LowPriority1, Derivable[Show] {
 
   given strictEnum: [A: StrictEnum as e] => Show[A] = e.encode(_)
   given enumWithOther: [A: EnumWithOther as e] => Show[A] = e.encode(_)
+
+  given stringNewType: [A <: StringNewType] => Show[A] = Show.usingToString
+  given uuidNewType: [A <: UUIDNewType] => Show[A] = Show.usingToString
 
   def showOption[A: Show as showA](
       somePrefix: String,

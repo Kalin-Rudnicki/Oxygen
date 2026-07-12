@@ -1,7 +1,6 @@
 package oxygen.example.domain.service
 
-import oxygen.example.core.model.post.*
-import oxygen.example.core.model.user.*
+import oxygen.example.core.model.*
 import oxygen.example.domain.model.error.*
 import oxygen.example.domain.model.post.*
 import oxygen.example.domain.model.user.*

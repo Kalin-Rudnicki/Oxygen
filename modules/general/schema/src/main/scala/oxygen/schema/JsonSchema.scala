@@ -4,7 +4,7 @@ import java.time.*
 import java.util.{TimeZone, UUID}
 import oxygen.core.SourcePosition
 import oxygen.core.model.{Email, IntOrString}
-import oxygen.crypto.model.RegisteredClaims
+import oxygen.crypto.model.{Password, RegisteredClaims}
 import oxygen.json.*
 import oxygen.json.generic.*
 import oxygen.meta.{*, given}
@@ -91,10 +91,14 @@ object JsonSchema extends Derivable[JsonSchema.ObjectLike], JsonSchemaLowPriorit
   given orderedMap: [K: {PlainTextSchema as keySchema, TypeTag}, V: {JsonSchema as valueSchema, TypeTag}] => JsonSchema[OrderedMap[K, V]] = OrderedMapSchema(TypeTag.derived, keySchema, valueSchema)
 
   given email: JsonSchema[Email] = JsonSchema.fromPlainText
+  given password: JsonSchema[Password.PlainText] = JsonSchema.fromPlainText[Password.PlainText].secret
   given intOrString: JsonSchema[IntOrString] =
     (
       JsonSchema.int <|| JsonSchema.string.transform(IntOrString(_).unwrap, _.toString)
     ).transform(IntOrString(_), _.unwrap)
+
+  given stringNewType: [A <: StringNewType: TypeTag] => JsonSchema[A] = JsonSchema.fromPlainText[A]
+  given uuidNewType: [A <: UUIDNewType: TypeTag] => JsonSchema[A] = JsonSchema.fromPlainText[A]
 
   given period: JsonSchema[Period] = standardJavaTime.period
   given instant: JsonSchema[Instant] = standardJavaTime.instant

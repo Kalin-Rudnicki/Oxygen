@@ -36,7 +36,7 @@ object TokenService {
           case e                                  => ZIO.die(e)
         }
         .as(token.user.toDomain)
-        .tap { user => ZIO.logAnnotateScoped("userId", user.id.id.toString) }
+        .tap { user => ZIO.logAnnotateScoped("userId", user.id.toString) }
 
   }
 

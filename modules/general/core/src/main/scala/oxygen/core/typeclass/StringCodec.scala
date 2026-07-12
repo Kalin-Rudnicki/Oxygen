@@ -3,6 +3,7 @@ package oxygen.core.typeclass
 import java.time.*
 import java.util.{Base64, TimeZone, UUID}
 import oxygen.core.TypeTag
+import oxygen.core.model.{StringNewType, UUIDNewType}
 import oxygen.core.syntax.either.*
 import oxygen.core.syntax.string.*
 import scala.util.Try
@@ -146,6 +147,9 @@ object StringCodec {
   given localDate: StringCodec[LocalDate] = oxygenTime.localDate
   given localDateTime: StringCodec[LocalDateTime] = oxygenTime.localDateTime
   given duration: StringCodec[Duration] = oxygenTime.duration
+
+  given stringNewType: [A <: StringNewType: TypeTag] => StringCodec[A] = StringCodec.string.transform[A](_.asInstanceOf[A], identity)
+  given uuidNewType: [A <: UUIDNewType: TypeTag] => StringCodec[A] = StringCodec.uuid.transform[A](_.asInstanceOf[A], identity)
 
   given `class`: StringCodec[Class[?]] =
     StringCodec.string.transform(str => Try { Class.forName(str) }.getOrElse { classOf[Any] }, _.getName)

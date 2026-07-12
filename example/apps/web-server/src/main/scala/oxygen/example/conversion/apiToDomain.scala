@@ -1,7 +1,7 @@
 package oxygen.example.conversion
 
 import oxygen.example.api.model as Api
-import oxygen.example.core.model.post.*
+import oxygen.example.core.model.*
 import oxygen.example.domain.model as Domain
 import oxygen.transform.*
 

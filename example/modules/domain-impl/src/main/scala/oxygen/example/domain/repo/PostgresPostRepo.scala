@@ -2,8 +2,7 @@ package oxygen.example.domain.repo
 
 import oxygen.example.conversion.dbToDomain.*
 import oxygen.example.conversion.domainToDb.*
-import oxygen.example.core.model.post.*
-import oxygen.example.core.model.user.*
+import oxygen.example.core.model.*
 import oxygen.example.db.model.*
 import oxygen.example.domain.model.post.*
 import oxygen.sql.{Connection as _, *}

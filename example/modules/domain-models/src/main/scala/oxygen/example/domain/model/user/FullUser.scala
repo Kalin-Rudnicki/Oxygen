@@ -1,8 +1,9 @@
 package oxygen.example.domain.model.user
 
 import java.time.Instant
+import oxygen.core.model.Email
 import oxygen.crypto.model.Password
-import oxygen.example.core.model.user.*
+import oxygen.example.core.model.*
 
 final case class FullUser(
     id: UserId,

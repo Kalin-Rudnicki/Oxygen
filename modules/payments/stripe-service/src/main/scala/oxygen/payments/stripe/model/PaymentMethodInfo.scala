@@ -1,6 +1,5 @@
 package oxygen.payments.stripe.model
 
-import java.time.YearMonth
 import oxygen.payments.model.*
 import oxygen.stripe.model.*
 
@@ -10,15 +9,18 @@ final case class PaymentMethodInfo(
 )
 object PaymentMethodInfo {
 
+  /** Stripe `card.funding` → core [[PaymentMethodType.CardFunding]]. */
   def parseCardFunding(value: String): PaymentMethodType.CardFunding =
     Option(value).map(_.toLowerCase) match {
       case Some("credit")  => PaymentMethodType.CardFunding.Credit
       case Some("debit")   => PaymentMethodType.CardFunding.Debit
       case Some("prepaid") => PaymentMethodType.CardFunding.Prepaid
+      case Some("unknown") => PaymentMethodType.CardFunding.Unknown
       case Some(otherType) => PaymentMethodType.CardFunding.Other(otherType)
       case None            => PaymentMethodType.CardFunding.Unknown
     }
 
+  /** Stripe `card.wallet.type` → core [[PaymentMethodType.CardWallet]]. */
   def parseCardWallet(typeName: String): PaymentMethodType.CardWallet =
     typeName match {
       case "google_pay"  => PaymentMethodType.CardWallet.GooglePay

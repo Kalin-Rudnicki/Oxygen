@@ -3,7 +3,7 @@ package oxygen.schema
 import java.time.*
 import java.util.{TimeZone, UUID}
 import oxygen.core.{SourcePosition, TypeTag, Version}
-import oxygen.core.model.{Email, IntOrString}
+import oxygen.core.model.{Email, IntOrString, StringNewType}
 import oxygen.core.model.compute.*
 import oxygen.crypto.model.{BearerToken, JWT, Password}
 import oxygen.meta.k0.*
@@ -86,6 +86,9 @@ object PlainTextSchema extends PlainTextSchemaLowPriority.LowPriority1 {
 
   given password: PlainTextSchema[Password.PlainText] = PlainTextSchema.fromStringCodec
   given version: PlainTextSchema[Version] = PlainTextSchema.fromStringCodec
+
+  given stringNewType: [A <: StringNewType: TypeTag] => PlainTextSchema[A] = PlainTextSchema.string.transform[A](_.asInstanceOf[A], identity)
+  given uuidNewType: [A <: UUIDNewType: TypeTag] => PlainTextSchema[A] = PlainTextSchema.uuid.transform[A](_.asInstanceOf[A], identity)
 
   def fromStringCodec[A: StringCodec as codec](using pos: SourcePosition): PlainTextSchema[A] =
     PlainTextSchema.FromStringCodec(codec, pos)

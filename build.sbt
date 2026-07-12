@@ -781,7 +781,7 @@ lazy val `example-core`: CrossProject =
       description := "oxygen-example-core",
     )
     .dependsOn(
-      `oxygen-core` % testAndCompile,
+      `oxygen-schema` % testAndCompile,
     )
 
 lazy val `example-api-models`: CrossProject =
@@ -797,6 +797,7 @@ lazy val `example-api-models`: CrossProject =
     .dependsOn(
       `example-core` % testAndCompile,
       `oxygen-http` % testAndCompile,
+      `oxygen-stripe-models` % testAndCompile,
     )
 
 lazy val `example-api`: CrossProject =
@@ -843,6 +844,7 @@ lazy val `example-domain`: Project =
       `example-domain-models` % testAndCompile,
       `oxygen-crypto-service` % testAndCompile,
       `oxygen-storage` % testAndCompile,
+      `oxygen-payments-stripe-service` % testAndCompile,
     )
 
 lazy val `example-domain-impl`: Project =
@@ -972,8 +974,9 @@ lazy val `example-ui-web`: Project =
         }.evaluated,
     )
     .dependsOn(
-      `example-api`.js,
-      `oxygen-ui-web`,
+      `example-api`.js % testAndCompile,
+      `oxygen-ui-web` % testAndCompile,
+      `oxygen-payments-stripe-ui` % testAndCompile,
     )
 
 lazy val `example-ui-electron`: Project =

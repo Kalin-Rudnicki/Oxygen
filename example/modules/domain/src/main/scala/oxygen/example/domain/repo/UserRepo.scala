@@ -1,6 +1,7 @@
 package oxygen.example.domain.repo
 
-import oxygen.example.core.model.user.*
+import oxygen.core.model.Email
+import oxygen.example.core.model.*
 import oxygen.example.domain.model.error.*
 import oxygen.example.domain.model.user.*
 import oxygen.storage.CRUDRepo

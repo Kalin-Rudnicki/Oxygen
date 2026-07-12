@@ -1,6 +1,6 @@
 package oxygen.example.domain.model.error
 
-import oxygen.example.core.model.user.*
+import oxygen.example.core.model.*
 
 sealed trait ConnectionError
 object ConnectionError {

@@ -1,6 +1,6 @@
 package oxygen.example.domain.model.error
 
-import oxygen.example.core.model.user.Email
+import oxygen.core.model.Email
 
 sealed trait LoginError
 object LoginError {

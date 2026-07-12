@@ -1,10 +1,10 @@
 package oxygen.example.ui.page.register
 
+import oxygen.core.model.Email
 import oxygen.crypto.model.Password
 import oxygen.example.api.*
 import oxygen.example.api.model.user.*
 import oxygen.example.conversion.apiToUI.*
-import oxygen.example.core.model.user.Email
 import oxygen.example.ui.common.*
 import oxygen.example.ui.page as P
 import oxygen.example.ui.service.LocalService

@@ -5,6 +5,7 @@ import com.stripe.model as M
 import com.stripe.net.RequestOptions
 import com.stripe.param as P
 import java.time.YearMonth
+import oxygen.payments.model.PaymentMethodType
 import oxygen.payments.stripe.model.*
 import oxygen.predef.core.*
 import oxygen.schema.JsonSchema
@@ -256,39 +257,40 @@ object LiveStripeService {
 
   private def decodePaymentMethodInfo(pm: M.PaymentMethod): PaymentMethodInfo = {
     val id = StripePaymentMethodId.wrap(requireNonNull("id", pm.getId))
+    val methodType: PaymentMethodType =
+      requireNonNull("type", pm.getType) match {
+        case "card" =>
+          val card = Option(pm.getCard).getOrElse {
+            throw new IllegalArgumentException("payment method type=card but card object is missing")
+          }
+          val brand = requireNonNull("card.brand", card.getBrand)
+          val last4 = requireNonNull("card.last4", card.getLast4)
+          val expiry = YearMonth.of(
+            requireNonNullLong("card.exp_year", card.getExpYear).toInt,
+            requireNonNullLong("card.exp_month", card.getExpMonth).toInt,
+          )
+          val funding = PaymentMethodInfo.parseCardFunding(card.getFunding)
+          val wallet =
+            Option(card.getWallet).flatMap(w => Option(w.getType)).map(PaymentMethodInfo.parseCardWallet)
 
-    requireNonNull("type", pm.getType) match {
-      case "card" =>
-        val card = Option(pm.getCard).getOrElse {
-          throw new IllegalArgumentException("payment method type=card but card object is missing")
-        }
-        val brand = requireNonNull("card.brand", card.getBrand)
-        val last4 = requireNonNull("card.last4", card.getLast4)
-        val expiry = YearMonth.of(
-          requireNonNullLong("card.exp_year", card.getExpYear).toInt,
-          requireNonNullLong("card.exp_month", card.getExpMonth).toInt,
-        )
-        val funding = PaymentMethodInfo.CardFunding.fromStripe(card.getFunding)
-        val wallet =
-          Option(card.getWallet).flatMap(w => Option(w.getType)).map(PaymentMethodInfo.CardWallet.fromStripeType)
+          wallet match {
+            case Some(w) => PaymentMethodType.WalletCard(brand, last4, expiry, funding, w)
+            case None    => PaymentMethodType.Card(brand, last4, expiry, funding)
+          }
 
-        wallet match {
-          case Some(w) => PaymentMethodInfo.WalletCard(id, brand, last4, expiry, funding, w)
-          case None    => PaymentMethodInfo.Card(id, brand, last4, expiry, funding)
-        }
+        case "paypal" =>
+          val paypal = Option(pm.getPaypal)
+          PaymentMethodType.PayPal(
+            payerEmail = paypal.flatMap(p => Option(p.getPayerEmail)),
+            payerId = paypal.flatMap(p => Option(p.getPayerId)),
+            country = paypal.flatMap(p => Option(p.getCountry)),
+          )
 
-      case "paypal" =>
-        val paypal = Option(pm.getPaypal)
-        PaymentMethodInfo.PayPal(
-          id = id,
-          payerEmail = paypal.flatMap(p => Option(p.getPayerEmail)),
-          payerId = paypal.flatMap(p => Option(p.getPayerId)),
-          country = paypal.flatMap(p => Option(p.getCountry)),
-        )
+        case other =>
+          PaymentMethodType.Other(other)
+      }
 
-      case other =>
-        PaymentMethodInfo.Other(id, other)
-    }
+    PaymentMethodInfo(id = id, methodType = methodType)
   }
 
   private def decodePaymentResponse(response: M.PaymentIntent): IO[StripeError.DecodeError, CreatePaymentIntentResponse] =

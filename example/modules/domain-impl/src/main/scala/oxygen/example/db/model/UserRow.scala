@@ -1,7 +1,8 @@
 package oxygen.example.db.model
 
 import java.time.Instant
-import oxygen.example.core.model.user.*
+import oxygen.core.model.Email
+import oxygen.example.core.model.*
 import oxygen.sql.query.*
 import oxygen.sql.query.dsl.Q.*
 import oxygen.sql.query.dsl.compile

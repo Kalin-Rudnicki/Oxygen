@@ -15,7 +15,7 @@ object domainToDb {
       Db.UserRow(
         id = self.id,
         email = self.email,
-        referenceEmail = self.email.referenceEmail,
+        referenceEmail = self.email.normalize,
         firstName = self.firstName,
         lastName = self.lastName,
         hashedPassword = self.hashedPassword.getPasswordHash,

@@ -3,9 +3,12 @@ package oxygen.sql.schema
 import java.time.*
 import java.util.UUID
 import org.postgresql.util.PGobject
+import oxygen.core.Version
+import oxygen.core.model.Email
 import oxygen.meta.k0.*
 import oxygen.predef.core.*
 import oxygen.predef.json.*
+import oxygen.schema.PlainTextSchema
 import oxygen.sql.error.*
 import oxygen.sql.generic.typeclass.*
 import scala.quoted.*
@@ -239,6 +242,14 @@ object RowRepr extends RowReprLowPriority.LowPriority1 {
       identity,
     )
 
+  given stringNewType: [A <: StringNewType] => RowRepr[A] = RowRepr.string.transform[A](_.asInstanceOf[A], identity)
+
+  given email: RowRepr[Email] = RowRepr.fromPlainTextSchema
+  given version: RowRepr[Version] = RowRepr.fromPlainTextSchema
+
+  def fromStringCodec[A: StringCodec as codec]: RowRepr[A] = RowRepr.string.transformOrFail(codec.decoder.decodeSimple, codec.encoder.encode)
+  def fromPlainTextSchema[A: PlainTextSchema as codec]: RowRepr[A] = RowRepr.string.transformOrFail(codec.decode, codec.encode)
+
   // =====| Date/Time Types |=====
 
   given instant: RowRepr[Instant] =
@@ -290,6 +301,8 @@ object RowRepr extends RowReprLowPriority.LowPriority1 {
       { case value: UUID => value },
       identity,
     )
+
+  given uuidNewType: [A <: UUIDNewType] => RowRepr[A] = RowRepr.uuid.transform[A](_.asInstanceOf[A], identity)
 
   // =====| Json Types |=====
 
@@ -415,8 +428,7 @@ object RowReprLowPriority {
 
     // import [[RowRepr.extras.enable]] to enable this
     // it the future, this might be allowed by default, but it seems a little TOO auto
-    given stringEncoded: [A: StringCodec as codec] => (ex: RowRepr.extras) => RowRepr[A] =
-      RowRepr.string.transformOrFail(codec.decoder.decodeSimple, codec.encoder.encode)
+    given stringEncoded: [A: StringCodec] => (ex: RowRepr.extras) => RowRepr[A] = RowRepr.fromStringCodec[A]
 
   }
 

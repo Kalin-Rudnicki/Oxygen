@@ -1,7 +1,7 @@
 package oxygen.example.domain.repo
 
 import java.time.Instant
-import oxygen.example.core.model.user.UserId
+import oxygen.example.core.model.*
 import oxygen.example.domain.model.connection.*
 import oxygen.example.domain.model.user.SimpleUser
 import oxygen.storage.{Atomically, CRUDRepo}
