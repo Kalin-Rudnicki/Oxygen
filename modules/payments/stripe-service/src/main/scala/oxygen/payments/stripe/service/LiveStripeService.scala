@@ -44,7 +44,7 @@ object LiveStripeService {
         config <- ZIO.service[LiveStripeService.Config]
         client <- buildClient(config)
       } yield LiveStripeService(config, client)
-    }.mapError(_.withTarget(StripeError.Target("payment", "create")))
+    }.mapError(_.withTarget(StripeError.Target("layer", "init")))
 
   //////////////////////////////////////////////////////////////////////////////////////////////////////
   //      Builders
@@ -59,16 +59,22 @@ object LiveStripeService {
   private def attemptBuild[A: TypeTag as tt](thunk: => A): IO[StripeError.BuildError, A] =
     ZIO.attempt { thunk }.mapError(StripeError.BuildError(None, tt, _))
 
+  private def attemptDecode[A: TypeTag as tt](thunk: => A): IO[StripeError.DecodeError, A] =
+    ZIO.attempt { thunk }.mapError(StripeError.DecodeError(None, tt, _))
+
+  private def attemptDecodeIO[A: TypeTag as tt](thunk: => IO[StripeError, A]): IO[StripeError, A] =
+    ZIO.attempt { thunk }.mapError(StripeError.DecodeError(None, tt, _)).flatten.catchAllDefect { e => ZIO.fail(StripeError.DecodeError(None, tt, e)) }
+
   private def attemptSend[A](thunk: => A): IO[StripeError.SendError, A] =
     ZIO.attemptBlocking { thunk }.mapError(StripeError.SendError(_))
 
-  private def buildClient(config: LiveStripeService.Config): IO[StripeError, StripeClient] =
+  private def buildClient(config: LiveStripeService.Config): IO[StripeError.BuildError, StripeClient] =
     attemptBuild[StripeClient] {
       ??? // FIX-PRE-MERGE (KR) :
     }
 
-  private def buildPaymentIntent(req: CreatePaymentRequest): IO[StripeError.BuildError, P.PaymentIntentCreateParams] =
-    ZIO.dieMessage("What are you doing trying to charge a negative amount....").unlessDiscard { req.amount.positive } *>
+  private def buildPaymentIntent(req: CreatePaymentRequest): IO[StripeError.ChargeNegativeAmount | StripeError.BuildError, P.PaymentIntentCreateParams] =
+    ZIO.fail(StripeError.ChargeNegativeAmount(None, req.amount)).unlessDiscard { req.amount.positive } *>
       attemptBuild[P.PaymentIntentCreateParams] {
         P.PaymentIntentCreateParams
           .builder()

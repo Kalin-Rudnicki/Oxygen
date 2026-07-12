@@ -1,5 +1,6 @@
 package oxygen.payments.stripe.model
 
+import oxygen.core.model.currency.PreciseMoney
 import oxygen.predef.core.*
 
 sealed trait StripeError extends Error {
@@ -32,6 +33,15 @@ object StripeError {
     override def errorMessage: Text = ??? // FIX-PRE-MERGE (KR) :
   }
 
+  final case class DecodeError(target: Option[Target], attemptType: TypeTag[?], error: Throwable) extends StripeError {
+    override def withTarget(target: Target): DecodeError = copy(target = target.some)
+    override def errorMessage: Text = ??? // FIX-PRE-MERGE (KR) :
+  }
+
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
+  //      ApiError
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
+
   sealed trait ApiError extends SendError {
     override def withTarget(target: StripeError.Target): ApiError
   }
@@ -40,6 +50,19 @@ object StripeError {
     def from(error: Throwable): Option[ApiError] =
       None // FIX-PRE-MERGE (KR) :
 
+  }
+
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
+  //      ValidationError
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
+
+  sealed trait ValidationError extends StripeError {
+    override def withTarget(target: StripeError.Target): ValidationError
+  }
+  
+  final case class ChargeNegativeAmount(target: Option[Target], amount: PreciseMoney) extends ValidationError {
+    override def withTarget(target: Target): ChargeNegativeAmount = copy(target = target.some)
+    override def errorMessage: Text = ??? // FIX-PRE-MERGE (KR) : 
   }
 
 }
