@@ -11,7 +11,7 @@ import zio.*
 
 trait StripeService {
 
-  def elements(
+  def create(
       publishableKey: StripePublishableKey,
       clientSecret: StripeSetupIntentClientSecret,
       currency: CurrencyCode,
@@ -126,7 +126,7 @@ object StripeService {
       } yield (stripe, elements, element)
     }
 
-    override def elements(
+    override def create(
         publishableKey: StripePublishableKey,
         clientSecret: StripeSetupIntentClientSecret,
         currency: CurrencyCode,
