@@ -26,8 +26,9 @@ final case class LiveStripeService(
     (
       for {
         params: P.PaymentIntentCreateParams <- buildPaymentIntent(req)
-        response: M.PaymentIntent <- attemptSend { client.v1().paymentIntents().create(params) }
-      } yield ??? // FIX-PRE-MERGE (KR) :
+        rawResponse: M.PaymentIntent <- attemptSend { client.v1().paymentIntents().create(params) }
+        decodedResponse: CreatePaymentResponse <- attemptDecodeIO { decodePaymentResponse(rawResponse) }
+      } yield decodedResponse
     ).mapError(_.withTarget(StripeError.Target("payment", "create")))
 
 }
@@ -47,7 +48,7 @@ object LiveStripeService {
     }.mapError(_.withTarget(StripeError.Target("layer", "init")))
 
   //////////////////////////////////////////////////////////////////////////////////////////////////////
-  //      Builders
+  //      Helpers
   //////////////////////////////////////////////////////////////////////////////////////////////////////
 
   extension [A](self: A)
@@ -67,6 +68,10 @@ object LiveStripeService {
 
   private def attemptSend[A](thunk: => A): IO[StripeError.SendError, A] =
     ZIO.attemptBlocking { thunk }.mapError(StripeError.SendError(_))
+
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
+  //      Builders
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
 
   private def buildClient(config: LiveStripeService.Config): IO[StripeError.BuildError, StripeClient] =
     attemptBuild[StripeClient] {
@@ -88,5 +93,12 @@ object LiveStripeService {
           .setOffSession(true)
           .build()
       }
+
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
+  //      Decoders
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
+
+  private def decodePaymentResponse(response: M.PaymentIntent): IO[StripeError.ValidationError, CreatePaymentResponse] =
+    ??? // FIX-PRE-MERGE (KR) :
 
 }
