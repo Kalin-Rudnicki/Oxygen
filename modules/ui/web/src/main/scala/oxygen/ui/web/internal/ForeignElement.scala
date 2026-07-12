@@ -6,7 +6,7 @@ import oxygen.core.PlatformCompat
 import scala.annotation.implicitNotFound
 import zio.*
 
-abstract class ForeignElement(@scala.annotation.unused reg: ForeignElement.Register) {
+abstract class ForeignElement(using @scala.annotation.unused reg: ForeignElement.Register) {
 
   final val instanceId: UUID = PlatformCompat.randomUUID()
   val name: String
