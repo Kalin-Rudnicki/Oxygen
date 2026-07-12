@@ -38,7 +38,7 @@ trait StripeElementsOptions extends js.Object {
   /** When creating Elements bound to an existing Intent. */
   var clientSecret: js.UndefOr[String] = js.undefined
 
-  var appearance: js.UndefOr[js.Object] = js.undefined
+  var appearance: js.UndefOr[StripeAppearance] = js.undefined
 
   var loader: js.UndefOr[String] = js.undefined
 
