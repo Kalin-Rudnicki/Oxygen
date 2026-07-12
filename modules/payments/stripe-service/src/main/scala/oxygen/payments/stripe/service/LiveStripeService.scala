@@ -19,17 +19,23 @@ final case class LiveStripeService(
   override def createCustomer(req: CreateCustomerRequest): IO[StripeError, CreateCustomerResponse] =
     ??? // FIX-PRE-MERGE (KR) :
 
-  override def createSetupIntent(customerId: StripeCustomerId): IO[StripeError, StripeSetupIntentClientSecret] =
-    ??? // FIX-PRE-MERGE (KR) :
+  override def createSetupIntent(req: CreateSetupIntentRequest): IO[StripeError, CreateSetupIntentResponse] =
+    (
+      for {
+        params: P.SetupIntentCreateParams <- buildSetupIntent(req)
+        rawResponse: M.SetupIntent <- attemptSend { client.v1().setupIntents().create(params) }
+        decodedResponse: CreateSetupIntentResponse <- attemptDecodeIO { decodeSetupIntentResponse(rawResponse) }
+      } yield decodedResponse
+    ).mapError(_.withTarget(StripeError.Target("setupIntent", "create")))
 
-  override def createPayment(req: CreatePaymentRequest): IO[StripeError, CreatePaymentResponse] =
+  override def createPaymentIntent(req: CreatePaymentRequest): IO[StripeError, CreatePaymentIntentResponse] =
     (
       for {
         params: P.PaymentIntentCreateParams <- buildPaymentIntent(req)
         rawResponse: M.PaymentIntent <- attemptSend { client.v1().paymentIntents().create(params) }
-        decodedResponse: CreatePaymentResponse <- attemptDecodeIO { decodePaymentResponse(rawResponse) }
+        decodedResponse: CreatePaymentIntentResponse <- attemptDecodeIO { decodePaymentResponse(rawResponse) }
       } yield decodedResponse
-    ).mapError(_.withTarget(StripeError.Target("payment", "create")))
+    ).mapError(_.withTarget(StripeError.Target("paymentIntent", "create")))
 
 }
 object LiveStripeService {
@@ -75,7 +81,18 @@ object LiveStripeService {
 
   private def buildClient(config: LiveStripeService.Config): IO[StripeError.BuildError, StripeClient] =
     attemptBuild[StripeClient] {
-      ??? // FIX-PRE-MERGE (KR) :
+      StripeClient
+        .builder()
+        .setApiKey(config.secretKey.unwrap)
+        .build()
+    }
+
+  private def buildSetupIntent(req: CreateSetupIntentRequest): IO[StripeError.ChargeNegativeAmount | StripeError.BuildError, P.SetupIntentCreateParams] =
+    attemptBuild[P.SetupIntentCreateParams] {
+      P.SetupIntentCreateParams
+        .builder()
+        .setCustomer(req.customerId.unwrap)
+        .build()
     }
 
   private def buildPaymentIntent(req: CreatePaymentRequest): IO[StripeError.ChargeNegativeAmount | StripeError.BuildError, P.PaymentIntentCreateParams] =
@@ -98,7 +115,10 @@ object LiveStripeService {
   //      Decoders
   //////////////////////////////////////////////////////////////////////////////////////////////////////
 
-  private def decodePaymentResponse(response: M.PaymentIntent): IO[StripeError.ValidationError, CreatePaymentResponse] =
+  private def decodeSetupIntentResponse(response: M.SetupIntent): IO[StripeError.ValidationError, CreateSetupIntentResponse] =
+    ??? // FIX-PRE-MERGE (KR) :
+
+  private def decodePaymentResponse(response: M.PaymentIntent): IO[StripeError.ValidationError, CreatePaymentIntentResponse] =
     ??? // FIX-PRE-MERGE (KR) :
 
 }

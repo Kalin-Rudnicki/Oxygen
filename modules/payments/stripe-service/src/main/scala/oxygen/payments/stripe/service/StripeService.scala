@@ -8,8 +8,8 @@ trait StripeService {
 
   def createCustomer(req: CreateCustomerRequest): IO[StripeError, CreateCustomerResponse]
 
-  def createSetupIntent(customerId: StripeCustomerId): IO[StripeError, StripeSetupIntentClientSecret]
+  def createSetupIntent(req: CreateSetupIntentRequest): IO[StripeError, CreateSetupIntentResponse]
 
-  def createPayment(req: CreatePaymentRequest): IO[StripeError, CreatePaymentResponse]
+  def createPaymentIntent(req: CreatePaymentRequest): IO[StripeError, CreatePaymentIntentResponse]
 
 }
