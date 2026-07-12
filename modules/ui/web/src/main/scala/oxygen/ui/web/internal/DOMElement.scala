@@ -44,6 +44,19 @@ object DOMElement {
     override val tag: String = "canvas"
   }
 
+  final case class ForeignHost(
+      xmlns: Option[String],
+      tag: String,
+      stableId: String,
+      foreign: ForeignElement,
+      children: ArraySeq[DOMElement],
+  ) extends DOMElement.WithTagAndChildren {
+
+    def isSameHost(that: ForeignHost): Boolean =
+      this.xmlns == that.xmlns && this.tag == that.tag && this.stableId == that.stableId && this.foreign.instanceId == that.foreign.instanceId
+
+  }
+
   sealed trait Attr extends DOMElement
   final case class CSSAttr(key: String, value: Lazy[String]) extends DOMElement.Attr
   final case class HtmlAttr(key: String, value: String) extends DOMElement.Attr

@@ -11,6 +11,7 @@ object Renderer {
   //      API
   //////////////////////////////////////////////////////////////////////////////////////////////////////
 
+  // FIX-PRE-MERGE (KR) : need to more correctly handle `unmount` if a node disappears
   def renderBody(elements: => Growable[DOMElement]): URIO[Scope, Unit] =
     currentBody.update {
       case Some(currentBody) =>
@@ -48,6 +49,11 @@ object Renderer {
         val newChildren = patch(currentEntity, newEntity)
         newEntity.draw(currentEntity.ctx)
         RenderedEntity.Canvas(newEntity, currentEntity.rendered, currentEntity.ctx, newChildren, newEntity.cssStr, newEntity.htmlAttrMap, newEntity.objectAttrMap, newEntity.classes)
+      case (currentEntity: RenderedEntity.ForeignHost, newEntity: DOMElement.ForeignHost) if currentEntity.preRendered.isSameHost(newEntity) =>
+        val newChildren = patch(currentEntity, newEntity)
+        if newChildren.nonEmpty then
+          throw new RuntimeException(s"ForeignHost nodes are not allowed to have element children [${newEntity.stableId} : ${newEntity.foreign.name}]")
+        RenderedEntity.ForeignHost(newEntity, currentEntity.rendered, newEntity.cssStr, newEntity.htmlAttrMap, newEntity.objectAttrMap, newEntity.classes, newEntity.foreign)
       case _ =>
         val newRendered: RenderedEntity = render(newEntity)
         currentEntity.rendered.parentNode.replaceChild(newRendered.rendered, currentEntity.rendered)
@@ -159,6 +165,21 @@ object Renderer {
           tac.htmlAttrMap,
           tac.objectAttrMap,
           tac.classes,
+        )
+      case tac: DOMElement.ForeignHost =>
+        if builtChildren.nonEmpty then
+          throw new RuntimeException(s"ForeignHost nodes are not allowed to have element children [${tac.stableId} : ${tac.foreign.name}]")
+
+        tac.foreign.mount(tac.stableId, node)
+
+        RenderedEntity.ForeignHost(
+          tac,
+          node,
+          tac.cssStr,
+          tac.htmlAttrMap,
+          tac.objectAttrMap,
+          tac.classes,
+          tac.foreign,
         )
     }
   }
