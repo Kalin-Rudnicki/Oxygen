@@ -45,6 +45,18 @@ final case class LiveStripeService(
       } yield decodedResponse
     ).mapError(_.withTarget(StripeError.Target("setupIntent", "retrieve")))
 
+  override def getPaymentMethodFromSetupIntent(setupIntentId: StripeSetupIntentId): IO[StripeError, PaymentMethodInfo] =
+    (
+      for {
+        retrieveParams: P.SetupIntentRetrieveParams <- buildRetrieveSetupIntentExpandPaymentMethod
+        setupIntent: M.SetupIntent <- attemptSend {
+          client.v1().setupIntents().retrieve(setupIntentId.unwrap, retrieveParams)
+        }
+        paymentMethod: M.PaymentMethod <- resolvePaymentMethodFromSetupIntent(client, setupIntent)
+        decoded: PaymentMethodInfo <- attemptDecode { decodePaymentMethodInfo(paymentMethod) }
+      } yield decoded
+    ).mapError(_.withTarget(StripeError.Target("setupIntent", "getPaymentMethod")))
+
   override def listPaymentMethods(customerId: StripeCustomerId): IO[StripeError, ListPaymentMethodsResponse] =
     (
       for {
@@ -154,6 +166,36 @@ object LiveStripeService {
         .setType(P.PaymentMethodListParams.Type.CARD)
         .build()
     }
+
+  private def buildRetrieveSetupIntentExpandPaymentMethod: IO[StripeError.BuildError, P.SetupIntentRetrieveParams] =
+    attemptBuild[P.SetupIntentRetrieveParams] {
+      P.SetupIntentRetrieveParams
+        .builder()
+        .addExpand("payment_method")
+        .build()
+    }
+
+  /**
+    * Prefer expanded PaymentMethod on the SetupIntent; otherwise retrieve by id.
+    * Fails if the SetupIntent has not attached a payment method yet.
+    */
+  private def resolvePaymentMethodFromSetupIntent(
+      client: StripeClient,
+      setupIntent: M.SetupIntent,
+  ): IO[StripeError.SetupIntentMissingPaymentMethod | StripeError.SendError, M.PaymentMethod] = {
+    val setupIntentId = StripeSetupIntentId.wrap(requireNonNull("id", setupIntent.getId))
+    val status = Option(setupIntent.getStatus).getOrElse("unknown")
+
+    Option(setupIntent.getPaymentMethodObject) match {
+      case Some(expanded) =>
+        ZIO.succeed(expanded)
+      case None =>
+        Option(setupIntent.getPaymentMethod) match {
+          case Some(paymentMethodId) => attemptSend { client.v1().paymentMethods().retrieve(paymentMethodId) }
+          case None                  => ZIO.fail(StripeError.SetupIntentMissingPaymentMethod(None, setupIntentId, status))
+        }
+    }
+  }
 
   private def buildPaymentIntent(
       req: CreatePaymentIntentRequest,

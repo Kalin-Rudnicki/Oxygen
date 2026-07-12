@@ -3,6 +3,7 @@ package oxygen.payments.stripe.model
 import com.stripe.exception as SE
 import oxygen.core.model.currency.PreciseMoney
 import oxygen.predef.core.*
+import oxygen.stripe.model.StripeSetupIntentId
 
 sealed trait StripeError extends Error {
   val target: Option[StripeError.Target]
@@ -314,6 +315,17 @@ object StripeError {
     override protected def targetlessErrorMessage: Text =
       str"Refusing to create PaymentIntent with non-positive amount: $amount"
   }
+
+  final case class SetupIntentMissingPaymentMethod(
+      target: Option[Target],
+      setupIntentId: StripeSetupIntentId,
+      status: String,
+  ) extends ValidationError {
+    override def withTarget(target: Target): SetupIntentMissingPaymentMethod = copy(target = target.some)
+    override protected def targetlessErrorMessage: Text =
+      str"SetupIntent ${setupIntentId.unwrap} has no payment method (status=$status)"
+  }
+
 
   //////////////////////////////////////////////////////////////////////////////////////////////////////
   //      Helpers

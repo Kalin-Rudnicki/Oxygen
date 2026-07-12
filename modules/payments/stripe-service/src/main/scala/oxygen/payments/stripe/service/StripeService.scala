@@ -12,6 +12,12 @@ trait StripeService {
 
   def retrieveSetupIntent(setupIntentId: StripeSetupIntentId): IO[StripeError, RetrieveSetupIntentResponse]
 
+  /**
+    * After FE `confirmSetup`, resolve the vaulted payment method for a SetupIntent.
+    * Fails with [[StripeError.SetupIntentMissingPaymentMethod]] if none is attached yet.
+    */
+  def getPaymentMethodFromSetupIntent(setupIntentId: StripeSetupIntentId): IO[StripeError, PaymentMethodInfo]
+
   def listPaymentMethods(customerId: StripeCustomerId): IO[StripeError, ListPaymentMethodsResponse]
 
   def createPaymentIntent(req: CreatePaymentIntentRequest): IO[StripeError, CreatePaymentIntentResponse]
