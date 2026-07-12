@@ -1,6 +1,7 @@
 package oxygen.payments.stripe.ui.component
 
 import oxygen.payments.stripe.ui.facades as F
+import oxygen.predef.core.*
 import oxygen.ui.web.UIError
 import scala.scalajs.js
 import zio.*
@@ -29,14 +30,34 @@ object StripeUtil {
       getError: A => js.UndefOr[F.StripeJsError],
       getSuccess: A => js.UndefOr[B],
   ): IO[UIError, B] =
+    convertPromiseGet(promise, getError, getSuccess, missing = None)
+
+  def convertPromiseGet[A, B](
+      promise: => js.Promise[A],
+      getError: A => js.UndefOr[F.StripeJsError],
+      getSuccess: A => js.UndefOr[B],
+      missing: String,
+  ): IO[UIError, B] =
+    convertPromiseGet(promise, getError, getSuccess, missing = missing.some)
+
+  def convertPromiseGet[A, B](
+      promise: => js.Promise[A],
+      getError: A => js.UndefOr[F.StripeJsError],
+      getSuccess: A => js.UndefOr[B],
+      missing: Option[String],
+  ): IO[UIError, B] =
     convertPromise[A](promise, getError).flatMap { res =>
       undefToOption(getSuccess(res)) match {
-        case Some(value) => ZIO.succeed { value }
-        case None        => ZIO.dieMessage(s"No error or success?\n$res")
+        case Some(value) => ZIO.succeed(value)
+        case None        =>
+          missing match {
+            case Some(missing) => ZIO.fail(UIError.ClientSide.InternalDefect(missing, res.toString.some))
+            case None          => ZIO.fail(UIError.ClientSide.InternalDefect.somethingWentWrong(res.toString))
+          }
       }
     }
 
-  private def undefToOption[A](value: js.UndefOr[A]): Option[A] =
+  private[component] def undefToOption[A](value: js.UndefOr[A]): Option[A] =
     if js.isUndefined(value) then None
     else Some(value.asInstanceOf[A])
 
