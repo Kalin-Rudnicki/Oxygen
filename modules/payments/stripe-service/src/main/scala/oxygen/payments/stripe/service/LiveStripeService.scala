@@ -268,12 +268,13 @@ object LiveStripeService {
           requireNonNullLong("card.exp_year", card.getExpYear).toInt,
           requireNonNullLong("card.exp_month", card.getExpMonth).toInt,
         )
+        val funding = PaymentMethodInfo.CardFunding.fromStripe(card.getFunding)
         val wallet =
           Option(card.getWallet).flatMap(w => Option(w.getType)).map(PaymentMethodInfo.CardWallet.fromStripeType)
 
         wallet match {
-          case Some(w) => PaymentMethodInfo.WalletCard(id, brand, last4, expiry, w)
-          case None    => PaymentMethodInfo.Card(id, brand, last4, expiry)
+          case Some(w) => PaymentMethodInfo.WalletCard(id, brand, last4, expiry, funding, w)
+          case None    => PaymentMethodInfo.Card(id, brand, last4, expiry, funding)
         }
 
       case "paypal" =>
