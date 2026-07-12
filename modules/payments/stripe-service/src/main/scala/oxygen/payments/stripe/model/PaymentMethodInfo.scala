@@ -19,6 +19,7 @@ object PaymentMethodInfo {
     val brand: String
     val last4: String
     val expiry: YearMonth
+    val funding: CardFunding
   }
 
   /** Stripe `type=card` without a digital wallet. */
@@ -27,6 +28,7 @@ object PaymentMethodInfo {
       brand: String,
       last4: String,
       expiry: YearMonth,
+      funding: CardFunding,
   ) extends CardLike
 
   /** Stripe `type=card` collected via a digital wallet (`card.wallet`). */
@@ -35,8 +37,25 @@ object PaymentMethodInfo {
       brand: String,
       last4: String,
       expiry: YearMonth,
+      funding: CardFunding,
       wallet: CardWallet,
   ) extends CardLike
+
+  /** Stripe `card.funding`: credit / debit / prepaid / unknown. */
+  enum CardFunding {
+    case Credit, Debit, Prepaid, Unknown
+  }
+  object CardFunding {
+
+    def fromStripe(value: String): CardFunding =
+      Option(value).map(_.toLowerCase) match {
+        case Some("credit")  => Credit
+        case Some("debit")   => Debit
+        case Some("prepaid") => Prepaid
+        case _               => Unknown
+      }
+
+  }
 
   /** Stripe `type=paypal`. */
   final case class PayPal(
