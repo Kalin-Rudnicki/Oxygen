@@ -102,7 +102,7 @@ object StripeService {
       loadedRef.updateZIO {
         case true  => ZIO.succeed(true)
         case false => load.as(true)
-      }.unit
+      }
 
     private def makeElements(
         _publishableKey: StripePublishableKey,
