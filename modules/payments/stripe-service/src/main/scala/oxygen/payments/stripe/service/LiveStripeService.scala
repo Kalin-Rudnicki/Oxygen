@@ -29,7 +29,7 @@ final case class LiveStripeService(
       for {
         params: P.SetupIntentCreateParams <- buildSetupIntent(req)
         rawResponse: M.SetupIntent <- attemptSend { client.v1().setupIntents().create(params) }
-        decodedResponse: CreateSetupIntentResponse <- attemptDecodeIO { decodeSetupIntentResponse(rawResponse) }
+        decodedResponse: CreateSetupIntentResponse <- attemptDecodeIO { decodeSetupIntentResponse(config.publishableKey, rawResponse) }
       } yield decodedResponse
     ).mapError(_.withTarget(StripeError.Target("setupIntent", "create")))
 
@@ -106,6 +106,13 @@ object LiveStripeService {
       P.SetupIntentCreateParams
         .builder()
         .setCustomer(req.customerId.unwrap)
+        .setUsage(P.SetupIntentCreateParams.Usage.OFF_SESSION)
+        .setAutomaticPaymentMethods(
+          P.SetupIntentCreateParams.AutomaticPaymentMethods
+            .builder()
+            .setEnabled(true)
+            .build(),
+        )
         .build()
     }
 
@@ -136,8 +143,16 @@ object LiveStripeService {
       )
     }
 
-  private def decodeSetupIntentResponse(response: M.SetupIntent): IO[StripeError.DecodeError, CreateSetupIntentResponse] =
-    ??? // FIX-PRE-MERGE (KR) :
+  private def decodeSetupIntentResponse(
+      publishableKey: StripePublishableKey,
+      response: M.SetupIntent,
+  ): IO[StripeError.DecodeError, CreateSetupIntentResponse] =
+    attemptDecode[CreateSetupIntentResponse] {
+      CreateSetupIntentResponse(
+        publishableKey = publishableKey,
+        clientSecret = StripeSetupIntentClientSecret.wrap(requireNonNull("client_secret", response.getClientSecret)),
+      )
+    }
 
   private def decodePaymentResponse(response: M.PaymentIntent): IO[StripeError.DecodeError, CreatePaymentIntentResponse] =
     attemptDecode {
