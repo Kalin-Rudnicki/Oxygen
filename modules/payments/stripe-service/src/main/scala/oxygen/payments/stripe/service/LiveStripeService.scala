@@ -9,7 +9,6 @@ import oxygen.schema.JsonSchema
 import oxygen.stripe.model.*
 import zio.*
 
-// FIX-PRE-MERGE (KR) :
 final case class LiveStripeService(
     config: LiveStripeService.Config,
     client: StripeClient,
@@ -72,11 +71,11 @@ object LiveStripeService {
   private def attemptBuild[A: TypeTag as tt](thunk: => A): IO[StripeError.BuildError, A] =
     ZIO.attempt { thunk }.mapError(StripeError.BuildError(None, tt, _))
 
-  private def attemptDecode[A: TypeTag as tt](thunk: => A): IO[StripeError.DecodeError, A] =
-    ZIO.attempt { thunk }.mapError(StripeError.DecodeError(None, tt, _))
-
-  private def attemptDecodeIO[A: TypeTag as tt](thunk: => IO[StripeError, A]): IO[StripeError, A] =
+  private def attemptDecodeIO[E >: StripeError.DecodeError, A: TypeTag as tt](thunk: => IO[E, A]): IO[E, A] =
     ZIO.attempt { thunk }.mapError(StripeError.DecodeError(None, tt, _)).flatten.catchAllDefect { e => ZIO.fail(StripeError.DecodeError(None, tt, e)) }
+
+  private def attemptDecode[A: TypeTag as tt](thunk: => A): IO[StripeError.DecodeError, A] =
+    attemptDecodeIO { ZIO.succeed(thunk) }
 
   private def attemptSend[A](thunk: => A): IO[StripeError.SendError, A] =
     ZIO.attemptBlocking { thunk }.mapError(StripeError.SendError(_))
@@ -130,13 +129,17 @@ object LiveStripeService {
   //      Decoders
   //////////////////////////////////////////////////////////////////////////////////////////////////////
 
-  private def decodeCreateCustomerResponse(response: M.Customer): IO[StripeError.ValidationError, CreateCustomerResponse] =
+  private def decodeCreateCustomerResponse(response: M.Customer): IO[StripeError.DecodeError, CreateCustomerResponse] =
+    attemptDecode[CreateCustomerResponse] {
+      CreateCustomerResponse(
+        id = StripeCustomerId.wrap(response.getId),
+      )
+    }
+
+  private def decodeSetupIntentResponse(response: M.SetupIntent): IO[StripeError.DecodeError, CreateSetupIntentResponse] =
     ??? // FIX-PRE-MERGE (KR) :
 
-  private def decodeSetupIntentResponse(response: M.SetupIntent): IO[StripeError.ValidationError, CreateSetupIntentResponse] =
-    ??? // FIX-PRE-MERGE (KR) :
-
-  private def decodePaymentResponse(response: M.PaymentIntent): IO[StripeError.ValidationError, CreatePaymentIntentResponse] =
+  private def decodePaymentResponse(response: M.PaymentIntent): IO[StripeError.DecodeError, CreatePaymentIntentResponse] =
     ??? // FIX-PRE-MERGE (KR) :
 
 }

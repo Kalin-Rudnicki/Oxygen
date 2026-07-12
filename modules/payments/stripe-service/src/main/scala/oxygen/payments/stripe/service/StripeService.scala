@@ -1,7 +1,6 @@
 package oxygen.payments.stripe.service
 
 import oxygen.payments.stripe.model.*
-import oxygen.stripe.model.*
 import zio.*
 
 trait StripeService {
