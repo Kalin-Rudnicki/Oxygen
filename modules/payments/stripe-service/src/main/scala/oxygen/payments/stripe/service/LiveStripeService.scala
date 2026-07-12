@@ -2,7 +2,9 @@ package oxygen.payments.stripe.service
 
 import com.stripe.StripeClient
 import com.stripe.model as M
+import com.stripe.net.RequestOptions
 import com.stripe.param as P
+import java.time.YearMonth
 import oxygen.payments.stripe.model.*
 import oxygen.predef.core.*
 import oxygen.schema.JsonSchema
@@ -29,15 +31,41 @@ final case class LiveStripeService(
       for {
         params: P.SetupIntentCreateParams <- buildSetupIntent(req)
         rawResponse: M.SetupIntent <- attemptSend { client.v1().setupIntents().create(params) }
-        decodedResponse: CreateSetupIntentResponse <- attemptDecodeIO { decodeSetupIntentResponse(config.publishableKey, rawResponse) }
+        decodedResponse: CreateSetupIntentResponse <- attemptDecodeIO {
+          decodeSetupIntentResponse(config.publishableKey, rawResponse)
+        }
       } yield decodedResponse
     ).mapError(_.withTarget(StripeError.Target("setupIntent", "create")))
+
+  override def retrieveSetupIntent(setupIntentId: StripeSetupIntentId): IO[StripeError, RetrieveSetupIntentResponse] =
+    (
+      for {
+        rawResponse: M.SetupIntent <- attemptSend { client.v1().setupIntents().retrieve(setupIntentId.unwrap) }
+        decodedResponse: RetrieveSetupIntentResponse <- attemptDecodeIO { decodeRetrieveSetupIntentResponse(rawResponse) }
+      } yield decodedResponse
+    ).mapError(_.withTarget(StripeError.Target("setupIntent", "retrieve")))
+
+  override def listPaymentMethods(customerId: StripeCustomerId): IO[StripeError, ListPaymentMethodsResponse] =
+    (
+      for {
+        params: P.PaymentMethodListParams <- buildListPaymentMethods(customerId)
+        rawResponse <- attemptSend { client.v1().paymentMethods().list(params) }
+        decodedResponse: ListPaymentMethodsResponse <- attemptDecodeIO { decodeListPaymentMethodsResponse(rawResponse) }
+      } yield decodedResponse
+    ).mapError(_.withTarget(StripeError.Target("paymentMethod", "list")))
 
   override def createPaymentIntent(req: CreatePaymentIntentRequest): IO[StripeError, CreatePaymentIntentResponse] =
     (
       for {
         params: P.PaymentIntentCreateParams <- buildPaymentIntent(req)
-        rawResponse: M.PaymentIntent <- attemptSend { client.v1().paymentIntents().create(params) }
+        rawResponse: M.PaymentIntent <- attemptSend {
+          req.idempotencyKey match {
+            case Some(key) =>
+              client.v1().paymentIntents().create(params, RequestOptions.builder().setIdempotencyKey(key).build())
+            case None =>
+              client.v1().paymentIntents().create(params)
+          }
+        }
         decodedResponse: CreatePaymentIntentResponse <- attemptDecodeIO { decodePaymentResponse(rawResponse) }
       } yield decodedResponse
     ).mapError(_.withTarget(StripeError.Target("paymentIntent", "create")))
@@ -72,7 +100,9 @@ object LiveStripeService {
     ZIO.attempt { thunk }.mapError(StripeError.BuildError(None, tt, _))
 
   private def attemptDecodeIO[E >: StripeError.DecodeError, A: TypeTag as tt](thunk: => IO[E, A]): IO[E, A] =
-    ZIO.attempt { thunk }.mapError(StripeError.DecodeError(None, tt, _)).flatten.catchAllDefect { e => ZIO.fail(StripeError.DecodeError(None, tt, e)) }
+    ZIO.attempt { thunk }.mapError(StripeError.DecodeError(None, tt, _)).flatten.catchAllDefect { e =>
+      ZIO.fail(StripeError.DecodeError(None, tt, e))
+    }
 
   private def attemptDecode[A: TypeTag as tt](thunk: => A): IO[StripeError.DecodeError, A] =
     attemptDecodeIO { ZIO.succeed(thunk) }
@@ -116,7 +146,18 @@ object LiveStripeService {
         .build()
     }
 
-  private def buildPaymentIntent(req: CreatePaymentIntentRequest): IO[StripeError.ChargeNegativeAmount | StripeError.BuildError, P.PaymentIntentCreateParams] =
+  private def buildListPaymentMethods(customerId: StripeCustomerId): IO[StripeError.BuildError, P.PaymentMethodListParams] =
+    attemptBuild[P.PaymentMethodListParams] {
+      P.PaymentMethodListParams
+        .builder()
+        .setCustomer(customerId.unwrap)
+        .setType(P.PaymentMethodListParams.Type.CARD)
+        .build()
+    }
+
+  private def buildPaymentIntent(
+      req: CreatePaymentIntentRequest,
+  ): IO[StripeError.ChargeNegativeAmount | StripeError.BuildError, P.PaymentIntentCreateParams] =
     ZIO.fail(StripeError.ChargeNegativeAmount(None, req.amount)).unlessDiscard { req.amount.positive } *>
       attemptBuild[P.PaymentIntentCreateParams] {
         P.PaymentIntentCreateParams
@@ -149,10 +190,49 @@ object LiveStripeService {
   ): IO[StripeError.DecodeError, CreateSetupIntentResponse] =
     attemptDecode[CreateSetupIntentResponse] {
       CreateSetupIntentResponse(
+        id = StripeSetupIntentId.wrap(requireNonNull("id", response.getId)),
         publishableKey = publishableKey,
         clientSecret = StripeSetupIntentClientSecret.wrap(requireNonNull("client_secret", response.getClientSecret)),
       )
     }
+
+  private def decodeRetrieveSetupIntentResponse(response: M.SetupIntent): IO[StripeError.DecodeError, RetrieveSetupIntentResponse] =
+    attemptDecode[RetrieveSetupIntentResponse] {
+      RetrieveSetupIntentResponse(
+        id = StripeSetupIntentId.wrap(requireNonNull("id", response.getId)),
+        status = requireNonNull("status", response.getStatus),
+        paymentMethodId = Option(response.getPaymentMethod).map(StripePaymentMethodId.wrap),
+      )
+    }
+
+  private def decodeListPaymentMethodsResponse(
+      response: com.stripe.model.StripeCollection[M.PaymentMethod],
+  ): IO[StripeError.DecodeError, ListPaymentMethodsResponse] =
+    attemptDecode[ListPaymentMethodsResponse] {
+      val methods =
+        Option(response.getData).toList.flatMap { javaList =>
+          import scala.jdk.CollectionConverters.*
+          javaList.asScala.toList
+        }.map(decodePaymentMethodInfo)
+
+      ListPaymentMethodsResponse(paymentMethods = methods)
+    }
+
+  private def decodePaymentMethodInfo(pm: M.PaymentMethod): PaymentMethodInfo =
+    PaymentMethodInfo(
+      id = StripePaymentMethodId.wrap(requireNonNull("id", pm.getId)),
+      card = Option(pm.getCard).map { card =>
+        val year: Long = requireNonNullLong("card.exp_year", card.getExpYear)
+        val month: Long = requireNonNullLong("card.exp_month", card.getExpMonth)
+        val yearMonth: YearMonth = YearMonth.of(year.toInt, month.toInt)
+
+        CardDisplay(
+          brand = requireNonNull("card.brand", card.getBrand),
+          last4 = requireNonNull("card.last4", card.getLast4),
+          expiry = yearMonth,
+        )
+      },
+    )
 
   private def decodePaymentResponse(response: M.PaymentIntent): IO[StripeError.DecodeError, CreatePaymentIntentResponse] =
     attemptDecode {
@@ -190,6 +270,11 @@ object LiveStripeService {
 
   private def requireNonNull(field: String, value: String): String =
     Option(value).getOrElse {
+      throw new IllegalArgumentException(s"missing required field: $field")
+    }
+
+  private def requireNonNullLong(field: String, value: java.lang.Long): Long =
+    Option(value).map(_.longValue).getOrElse {
       throw new IllegalArgumentException(s"missing required field: $field")
     }
 

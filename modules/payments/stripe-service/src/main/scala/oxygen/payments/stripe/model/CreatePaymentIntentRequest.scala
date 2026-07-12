@@ -10,4 +10,6 @@ final case class CreatePaymentIntentRequest(
     amount: PreciseMoney,
     description: String,
     email: Option[Email],
+    /** Stripe idempotency key — strongly recommended for charge creates / retries. */
+    idempotencyKey: Option[String] = None,
 )
