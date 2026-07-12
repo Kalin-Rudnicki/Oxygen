@@ -20,7 +20,12 @@ trait StripeService {
 }
 object StripeService {
 
-  final case class Live(loadedRef: Ref.Synchronized[Boolean]) extends StripeService {
+  def live: ULayer[StripeService] = ZLayer.succeed { Live }
+
+  private object Live extends StripeService {
+
+    private val loadedRef: Ref.Synchronized[Boolean] =
+      Unsafe.unsafely { Ref.Synchronized.unsafe.make(false) }
 
     private def load: UIO[Unit] =
       ??? // FIX-PRE-MERGE (KR) : add stripe script
