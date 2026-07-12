@@ -14,26 +14,47 @@ sealed trait PaymentMethodInfo {
 }
 object PaymentMethodInfo {
 
+  sealed trait CardLike extends PaymentMethodInfo {
+    val brand: String
+    val last4: String
+    val expiry: YearMonth
+  }
+
+  /**
+    * Stripe `type = "card"`.
+    */
+  final case class Card(
+      id: StripePaymentMethodId,
+      brand: String,
+      last4: String,
+      expiry: YearMonth,
+  ) extends PaymentMethodInfo.CardLike
+
   /**
     * Stripe `type = "card"`.
     * @param wallet set when the card was collected via a digital wallet (Apple Pay, Google Pay, …)
     */
-  final case class Card(
+  final case class WalletCard(
+      id: StripePaymentMethodId,
       brand: String,
       last4: String,
       expiry: YearMonth,
-      wallet: Option[CardWallet],
-  ) extends PaymentMethodInfo
+      wallet: CardWallet,
+  ) extends PaymentMethodInfo.CardLike
 
   /** Stripe `type = "paypal"`. */
   final case class PayPal(
+      id: StripePaymentMethodId,
       payerEmail: Option[String],
       payerId: Option[String],
       country: Option[String],
   ) extends PaymentMethodInfo
 
   /** Any other Stripe payment method type we don't model yet. */
-  final case class Other(typeName: String) extends PaymentMethodInfo
+  final case class Other(
+      id: StripePaymentMethodId,
+      typeName: String,
+  ) extends PaymentMethodInfo
 
 }
 
