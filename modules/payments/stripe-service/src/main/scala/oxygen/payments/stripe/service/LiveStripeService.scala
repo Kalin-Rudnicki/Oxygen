@@ -160,10 +160,10 @@ object LiveStripeService {
 
   private def buildListPaymentMethods(customerId: StripeCustomerId): IO[StripeError.BuildError, P.PaymentMethodListParams] =
     attemptBuild[P.PaymentMethodListParams] {
+      // No type filter: cards (incl. Apple/Google Pay) and PayPal, etc.
       P.PaymentMethodListParams
         .builder()
         .setCustomer(customerId.unwrap)
-        .setType(P.PaymentMethodListParams.Type.CARD)
         .build()
     }
 
@@ -260,21 +260,42 @@ object LiveStripeService {
       ListPaymentMethodsResponse(paymentMethods = methods)
     }
 
-  private def decodePaymentMethodInfo(pm: M.PaymentMethod): PaymentMethodInfo =
-    PaymentMethodInfo(
-      id = StripePaymentMethodId.wrap(requireNonNull("id", pm.getId)),
-      card = Option(pm.getCard).map { card =>
-        val year: Long = requireNonNullLong("card.exp_year", card.getExpYear)
-        val month: Long = requireNonNullLong("card.exp_month", card.getExpMonth)
-        val yearMonth: YearMonth = YearMonth.of(year.toInt, month.toInt)
+  private def decodePaymentMethodInfo(pm: M.PaymentMethod): PaymentMethodInfo = {
+    val id = StripePaymentMethodId.wrap(requireNonNull("id", pm.getId))
+    val typeName = requireNonNull("type", pm.getType)
 
-        CardDisplay(
-          brand = requireNonNull("card.brand", card.getBrand),
-          last4 = requireNonNull("card.last4", card.getLast4),
-          expiry = yearMonth,
-        )
-      },
-    )
+    val details: PaymentMethodDetails =
+      typeName match {
+        case "card" =>
+          val card = Option(pm.getCard).getOrElse {
+            throw new IllegalArgumentException("payment method type=card but card object is missing")
+          }
+          val year = requireNonNullLong("card.exp_year", card.getExpYear)
+          val month = requireNonNullLong("card.exp_month", card.getExpMonth)
+          val wallet =
+            Option(card.getWallet).flatMap(w => Option(w.getType)).map(CardWallet.fromStripeType)
+
+          PaymentMethodDetails.Card(
+            brand = requireNonNull("card.brand", card.getBrand),
+            last4 = requireNonNull("card.last4", card.getLast4),
+            expiry = YearMonth.of(year.toInt, month.toInt),
+            wallet = wallet,
+          )
+
+        case "paypal" =>
+          val paypal = Option(pm.getPaypal)
+          PaymentMethodDetails.PayPal(
+            payerEmail = paypal.flatMap(p => Option(p.getPayerEmail)),
+            payerId = paypal.flatMap(p => Option(p.getPayerId)),
+            country = paypal.flatMap(p => Option(p.getCountry)),
+          )
+
+        case other =>
+          PaymentMethodDetails.Other(other)
+      }
+
+    PaymentMethodInfo(id = id, details = details)
+  }
 
   private def decodePaymentResponse(response: M.PaymentIntent): IO[StripeError.DecodeError, CreatePaymentIntentResponse] =
     attemptDecode {
