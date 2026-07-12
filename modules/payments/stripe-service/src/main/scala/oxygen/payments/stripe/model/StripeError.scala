@@ -11,8 +11,8 @@ sealed trait StripeError extends Error {
   protected def targetlessErrorMessage: Text
 
   override final def errorMessage: Text = target match
-    case Some(target) => str"""${??? : String}\n$targetlessErrorMessage""" // FIX-PRE-MERGE (KR) :
-    case None         => targetlessErrorMessage
+    case Some(t) => str"""[${t.objectType}/${t.action}] $targetlessErrorMessage"""
+    case None    => targetlessErrorMessage
 
 }
 object StripeError {
