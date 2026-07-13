@@ -91,13 +91,22 @@ object LiveStripeService {
       publishableKey: StripePublishableKey,
   ) derives JsonSchema
 
+  private def make(config: LiveStripeService.Config): IO[StripeError, LiveStripeService] =
+    buildClient(config).mapBoth(
+      _.withTarget(StripeError.Target("layer", "init")),
+      LiveStripeService(config, _),
+    )
+
   val layer: ZLayer[LiveStripeService.Config, StripeError, LiveStripeService] =
+    ZLayer { ZIO.serviceWithZIO[LiveStripeService.Config](make) }
+
+  val optionallyUnimplementedLayer: ZLayer[Option[LiveStripeService.Config], StripeError, StripeService] =
     ZLayer {
-      for {
-        config <- ZIO.service[LiveStripeService.Config]
-        client <- buildClient(config)
-      } yield LiveStripeService(config, client)
-    }.mapError(_.withTarget(StripeError.Target("layer", "init")))
+      ZIO.serviceWithZIO[Option[LiveStripeService.Config]] {
+        case Some(config) => make(config)
+        case None         => ZIO.succeed { StripeService.Unimplemented }
+      }
+    }
 
   //////////////////////////////////////////////////////////////////////////////////////////////////////
   //      Helpers
