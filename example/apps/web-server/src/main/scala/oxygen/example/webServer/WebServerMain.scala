@@ -11,10 +11,11 @@ import oxygen.example.domain.service.*
 import oxygen.example.webServer.api.{*, given}
 import oxygen.example.webServer.mcp.{NoteApi, NoteApiImpl}
 import oxygen.executable.*
-import oxygen.http.api.{given, *}
+import oxygen.http.api.{*, given}
 import oxygen.http.server.*
 import oxygen.http.server.mcp.{McpAuthService, McpEndpointMiddleware}
 import oxygen.json.JsonCodec
+import oxygen.payments.stripe.service.LiveStripeService
 import oxygen.schema.instances.jsonCodecFromSchema
 import oxygen.sql.{Database, DbConfig}
 import oxygen.sql.migration.*
@@ -39,6 +40,7 @@ object WebServerMain extends CliApp.Executable[WebServerMain](CliApp.derive) {
       migration: MigrationConfig,
       ui: LiveUIApi.Config,
       resources: FileSystemResourceApi.Config,
+      stripe: LiveStripeService.LiveOrUnimplementedConfig,
   ) derives JsonCodec
   object Config {
 
@@ -68,6 +70,9 @@ object WebServerMain extends CliApp.Executable[WebServerMain](CliApp.derive) {
 
     def layer(config: Config): TaskLayer[Env] =
       ZLayer.make[Env](
+        // stripe
+        ZLayer.succeed(config.stripe),
+        LiveStripeService.liveOrUnimplementedLayer,
         // server
         ZLayer.succeed(Server.Config(config.http.errors)),
         ZLayer.succeed(config.ui),

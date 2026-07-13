@@ -105,7 +105,7 @@ object LiveStripeService {
   val layer: ZLayer[LiveStripeService.Config, StripeError, LiveStripeService] =
     ZLayer { ZIO.serviceWithZIO[LiveStripeService.Config](make) }
 
-  val optionallyUnimplementedLayer: ZLayer[LiveStripeService.LiveOrUnimplementedConfig, StripeError, StripeService] =
+  val liveOrUnimplementedLayer: ZLayer[LiveStripeService.LiveOrUnimplementedConfig, StripeError, StripeService] =
     ZLayer {
       ZIO.serviceWith[LiveStripeService.LiveOrUnimplementedConfig](_.config).flatMap {
         case Some(config) => make(config)
