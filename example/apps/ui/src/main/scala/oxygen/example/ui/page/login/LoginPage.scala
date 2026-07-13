@@ -72,9 +72,13 @@ object LoginPage extends RoutablePage[UserApi & LocalService] {
           for {
             _ <- ZIO.logInfo("submitting form...")
             req = LoginRequest(email, Password.PlainText.wrap(password))
-            res <- UserApi.login(req).toUILogged(_.toUI)
+            _ <- ZIO.logInfo("1")
+            res <- UserApi.login(req).debug("oops").toUILogged(_.toUI)
+            _ <- ZIO.logInfo("2")
             _ <- ZIO.serviceWithZIO[LocalService](_.userToken.set(res.authorization))
+            _ <- ZIO.logInfo("3")
             _ <- P.home.HomePage.navigate.push(())
+            _ <- ZIO.logInfo("4")
           } yield ()
         },
       ),

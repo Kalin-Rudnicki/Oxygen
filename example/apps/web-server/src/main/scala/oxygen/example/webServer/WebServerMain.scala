@@ -64,7 +64,7 @@ object WebServerMain extends CliApp.Executable[WebServerMain](CliApp.derive) {
     // A tiny in-memory, auth-less API (NoteApi) exposed over HTTP *and* as MCP tools. Its impl is a
     // normal Ref-backed ZLayer; the MCP middleware resolves it (and the McpAuthService) from the env.
     private val endpoints: Endpoints[ApiEnv] =
-      Endpoints.empty.add[UserApi].add[ConnectionApi].add[PostApi].add[StreamApi].add[NoteApi].add[UIApi].add[ResourceApi]
+      Endpoints.empty.add[UserApi].add[ConnectionApi].add[PostApi].add[StreamApi].add[NoteApi].add[UIApi].add[ResourceApi].add[PaymentApi]
 
     private val middlewares: Middlewares[McpAuthService] =
       McpEndpointMiddleware.defaultMiddleware("oxygen-example") >>>

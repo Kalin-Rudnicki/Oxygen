@@ -58,7 +58,7 @@ object AddPaymentMethodPage extends RoutablePage.NoParams[LocalService & Payment
     PageLayout.layout(signedInNavBar(renderState.user))(
       PageMessagesBottomCorner.default,
       h1("Add Payment Method"),
-      // FIX-PRE-MERGE (KR) :
+      StripeComponent.widget.zoomOut[PageState](_.stripeComponent),
     )
 
   //////////////////////////////////////////////////////////////////////////////////////////////////////

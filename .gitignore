@@ -9,5 +9,6 @@
 **/metals.sbt
 
 example/apps/web-server/res/js
+example/apps/web-server/config/local-secret.yaml
 
 **/GEMINI.md

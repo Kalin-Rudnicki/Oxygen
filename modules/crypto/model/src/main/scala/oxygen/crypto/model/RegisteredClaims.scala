@@ -29,17 +29,6 @@ import oxygen.predef.core.*
   * verbatim in [[otherClaims]] rather than dropped — so consumers can reach issuer- or deployment-
   * specific claims without a new payload type per issuer.
   */
-// File-scoped NumericDate instances. `derives JsonCodec` summons JsonDecoder/JsonEncoder per field
-// (not JsonCodec), so both must be provided directly; these lexical givens outrank oxygen's default
-// (ISO-string) Instant instances for the `Registered` mirror's derivation only.
-private given numericDateDecoder: JsonDecoder[Instant] =
-  JsonCodec.json.decoder.mapOrFail {
-    case Json.Number(n) => Right(Instant.ofEpochSecond(n.toLong))
-    case other          => Left(s"NumericDate (exp/nbf/iat) must be a JSON number of seconds since the epoch: ${other.showCompact}")
-  }
-private given numericDateEncoder: JsonEncoder[Instant] =
-  JsonCodec.json.encoder.contramap(i => Json.Number(BigDecimal(i.getEpochSecond)))
-
 final case class RegisteredClaims(
     // RFC 7519 registered claims
     issuer: Option[String] = None,
@@ -67,6 +56,17 @@ final case class RegisteredClaims(
     otherClaims: Map[String, Json] = Map.empty,
 )
 object RegisteredClaims {
+
+  // File-scoped NumericDate instances. `derives JsonCodec` summons JsonDecoder/JsonEncoder per field
+  // (not JsonCodec), so both must be provided directly; these lexical givens outrank oxygen's default
+  // (ISO-string) Instant instances for the `Registered` mirror's derivation only.
+  private given numericDateDecoder: JsonDecoder[Instant] =
+    JsonCodec.json.decoder.mapOrFail {
+      case Json.Number(n) => Right(Instant.ofEpochSecond(n.toLong))
+      case other          => Left(s"NumericDate (exp/nbf/iat) must be a JSON number of seconds since the epoch: ${other.showCompact}")
+    }
+  private given numericDateEncoder: JsonEncoder[Instant] =
+    JsonCodec.json.encoder.contramap(i => Json.Number(BigDecimal(i.getEpochSecond)))
 
   /**
     * Mirror of just the typed claims, used so the field-level derivation (Audience / Scopes / Email /
