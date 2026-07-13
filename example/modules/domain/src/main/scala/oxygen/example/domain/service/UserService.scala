@@ -5,9 +5,10 @@ import oxygen.example.core.model.*
 import oxygen.example.domain.model.error.*
 import oxygen.example.domain.model.user.*
 import oxygen.example.domain.repo.UserRepo
+import oxygen.payments.stripe.service.StripeService
 import zio.*
 
-final class UserService(userRepo: UserRepo, passwordService: PasswordService) {
+final class UserService(userRepo: UserRepo, passwordService: PasswordService, stripeService: StripeService) {
 
   def register(req: Register): IO[RegistrationError, SimpleUser] =
     for {
@@ -42,7 +43,7 @@ final class UserService(userRepo: UserRepo, passwordService: PasswordService) {
 }
 object UserService {
 
-  val layer: URLayer[UserRepo & PasswordService, UserService] =
+  val layer: URLayer[UserRepo & PasswordService & StripeService, UserService] =
     ZLayer.fromFunction { UserService.apply }
 
 }
