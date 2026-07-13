@@ -49,4 +49,12 @@ object domainToDb {
   extension (self: Domain.post.Post) def toDb: Db.PostRow = self.transformInto
   extension (self: Domain.post.Comment) def toDb: Db.CommentRow = self.transformInto
 
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
+  //      Payment
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
+
+  given Transform[Domain.payment.InitPaymentMethod, Db.InitPaymentMethodRow] = Transform.derived
+
+  extension (self: Domain.payment.InitPaymentMethod) def toDb: Db.InitPaymentMethodRow = self.transformInto
+
 }
