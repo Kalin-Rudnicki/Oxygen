@@ -14,14 +14,12 @@ trait PaymentApi derives DeriveClient {
       @param.header authorization: UserToken,
   ): IO[ApiError, InitPaymentMethodResponse]
 
-  // FIX-PRE-MERGE (KR) :
   @route.post("/payment/method/complete")
   def completePaymentMethod(
       @param.body req: CompletePaymentMethodRequest,
       @param.header authorization: UserToken,
-  ): IO[ApiError, CompletePaymentMethodResponse]
+  ): IO[ApiError, PaymentMethod]
 
-  // FIX-PRE-MERGE (KR) :
   @route.get("/payment/method")
   def getPaymentMethods(
       @param.header authorization: UserToken,

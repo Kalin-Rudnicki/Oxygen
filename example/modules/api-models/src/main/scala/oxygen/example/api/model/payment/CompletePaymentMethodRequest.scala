@@ -1,7 +1,8 @@
 package oxygen.example.api.model.payment
 
+import oxygen.example.core.model.*
 import oxygen.schema.JsonSchema
 
 final case class CompletePaymentMethodRequest(
-    // FIX-PRE-MERGE (KR) :
+    id: InitPaymentMethodId,
 ) derives JsonSchema
