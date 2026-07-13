@@ -91,6 +91,11 @@ object LiveStripeService {
       publishableKey: StripePublishableKey,
   ) derives JsonSchema
 
+  final case class LiveOrUnimplementedConfig(config: Option[LiveStripeService.Config])
+  object LiveOrUnimplementedConfig {
+    given JsonSchema[LiveOrUnimplementedConfig] = JsonSchema.deriveWrapped
+  }
+
   private def make(config: LiveStripeService.Config): IO[StripeError, LiveStripeService] =
     buildClient(config).mapBoth(
       _.withTarget(StripeError.Target("layer", "init")),
@@ -100,11 +105,11 @@ object LiveStripeService {
   val layer: ZLayer[LiveStripeService.Config, StripeError, LiveStripeService] =
     ZLayer { ZIO.serviceWithZIO[LiveStripeService.Config](make) }
 
-  val optionallyUnimplementedLayer: ZLayer[Option[LiveStripeService.Config], StripeError, StripeService] =
+  val optionallyUnimplementedLayer: ZLayer[LiveStripeService.LiveOrUnimplementedConfig, StripeError, StripeService] =
     ZLayer {
-      ZIO.serviceWithZIO[Option[LiveStripeService.Config]] {
+      ZIO.serviceWith[LiveStripeService.LiveOrUnimplementedConfig](_.config).flatMap {
         case Some(config) => make(config)
-        case None         => ZIO.succeed { StripeService.Unimplemented }
+        case None         => ZIO.logWarning("No live stripe config - defaulting to `StripeService.Unimplemented`").as { StripeService.Unimplemented }
       }
     }
 
