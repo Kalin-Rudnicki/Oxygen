@@ -6,6 +6,7 @@ import oxygen.example.api.model.payment.*
 import oxygen.example.api.model.user.*
 import oxygen.example.api.service.TokenService
 import oxygen.example.domain.model.error.DomainError
+import oxygen.example.domain.model as Domain
 import oxygen.example.domain.service.*
 import oxygen.http.server.CurrentRequest
 import zio.*
@@ -40,18 +41,27 @@ final case class PaymentApiImpl(
       for {
         tokenUser <- tokenService.validateToken(authorization)
         paymentMethod <- paymentService.completePaymentMethod(tokenUser.id, req.id)
-      } yield PaymentMethod(
-        id = paymentMethod.id,
-        name = paymentMethod.name,
-        repr = paymentMethod.repr,
-        createdAt = paymentMethod.createdAt,
-      )
+      } yield paymentMethod.toApi
     }
 
   override def getPaymentMethods(
       authorization: UserToken,
   ): IO[ApiError, GetPaymentMethodsResponse] =
-    ??? // FIX-PRE-MERGE (KR) :
+    CurrentRequest.handle[DomainError, ApiError] {
+      for {
+        tokenUser <- tokenService.validateToken(authorization)
+        paymentMethod <- paymentService.getPaymentMethods(tokenUser.id)
+      } yield GetPaymentMethodsResponse(paymentMethod.map(_.toApi))
+    }
+
+  extension (self: Domain.payment.PaymentMethod)
+    private def toApi: PaymentMethod =
+      PaymentMethod(
+        id = self.id,
+        name = self.name,
+        repr = self.repr,
+        createdAt = self.createdAt,
+      )
 
 }
 object PaymentApiImpl {

@@ -12,10 +12,10 @@ import oxygen.stripe.model.*
 import zio.*
 
 final class PaymentService(
-                            userRepo: UserRepo,
-                            stripeService: StripeService,
-                            initPaymentRepo: InitPaymentMethodRepo,
-                            paymentRepo: PaymentMethodRepo,
+    userRepo: UserRepo,
+    stripeService: StripeService,
+    initPaymentMethodRepo: InitPaymentMethodRepo,
+    paymentMethodRepo: PaymentMethodRepo,
 ) {
 
   def ensureStripeCustomer(user: FullUser): IO[DomainError, (FullUser, StripeCustomerId)] =
@@ -42,17 +42,17 @@ final class PaymentService(
         createdAt = now,
         completedAt = None,
       )
-      _ <- initPaymentRepo.insert(initPaymentMethod)
+      _ <- initPaymentMethodRepo.insert(initPaymentMethod)
     } yield (key = stripeInit.publishableKey, init = initPaymentMethod)
 
   def completePaymentMethod(userId: UserId, initId: InitPaymentMethodId): IO[DomainError, PaymentMethod] =
     for {
       now <- Clock.instant
       id <- Random.nextUUID.map(PaymentMethodId(_))
-      init <- initPaymentRepo.findByKey(initId).map(_.filter(_.userId == userId)).someOrElseZIO { ZIO.dieMessage(s"Invalid [userId: $userId] [initId: $initId]") }
+      init <- initPaymentMethodRepo.findByKey(initId).map(_.filter(_.userId == userId)).someOrElseZIO { ZIO.dieMessage(s"Invalid [userId: $userId] [initId: $initId]") }
       _ <- ZIO.dieMessage(s"Payment already initialized [userId: $userId] [initId: $initId]").whenDiscard { init.completedAt.nonEmpty }
       stripePaymentMethod <- stripeService.getPaymentMethodFromSetupIntent(init.stripeId).orDie // TODO (KR) :
-      pms <- paymentRepo.paymentMethodsForUser(userId)
+      pms <- paymentMethodRepo.paymentMethodsForUser(userId)
       paymentMethod = PaymentMethod(
         id = id,
         userId = userId,
@@ -62,8 +62,11 @@ final class PaymentService(
         ord = pms.size,
         createdAt = now,
       )
-      _ <- paymentRepo.insert(paymentMethod)
+      _ <- paymentMethodRepo.insert(paymentMethod)
     } yield paymentMethod
+
+  def getPaymentMethods(userId: UserId): UIO[Seq[PaymentMethod]] =
+    paymentMethodRepo.paymentMethodsForUser(userId)
 
   /////// Helpers ///////////////////////////////////////////////////////////////
 
