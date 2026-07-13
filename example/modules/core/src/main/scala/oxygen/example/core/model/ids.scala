@@ -17,3 +17,13 @@ opaque type CommentId <: UUIDNewType = UUIDNewType
 object CommentId {
   def apply(value: UUID): CommentId = UUIDNewType(value)
 }
+
+opaque type InitPaymentMethodId <: UUIDNewType = UUIDNewType
+object InitPaymentMethodId {
+  def apply(value: UUID): InitPaymentMethodId = UUIDNewType(value)
+}
+
+opaque type PaymentMethodId <: UUIDNewType = UUIDNewType
+object PaymentMethodId {
+  def apply(value: UUID): PaymentMethodId = UUIDNewType(value)
+}
