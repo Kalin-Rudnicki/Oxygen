@@ -4,7 +4,7 @@ import oxygen.example.core.model.*
 import oxygen.example.domain.model.error.*
 import oxygen.example.domain.model.payment.*
 import oxygen.example.domain.model.user.*
-import oxygen.example.domain.repo.UserRepo
+import oxygen.example.domain.repo.*
 import oxygen.payments.stripe.model.{CreateCustomerRequest, CreateSetupIntentRequest}
 import oxygen.payments.stripe.service.StripeService
 import oxygen.predef.core.*
@@ -14,6 +14,8 @@ import zio.*
 final class PaymentService(
     userRepo: UserRepo,
     stripeService: StripeService,
+    initPaymentRepo: InitPaymentRepo,
+    paymentRepo: PaymentRepo,
 ) {
 
   def ensureStripeCustomer(user: FullUser): IO[DomainError, (FullUser, StripeCustomerId)] =
@@ -32,15 +34,36 @@ final class PaymentService(
       now <- Clock.instant
       initId <- Random.nextUUID.map(InitPaymentMethodId(_))
       stripeInit <- stripeService.createSetupIntent(CreateSetupIntentRequest(customerId)).orDie // TODO (KR) :
-    } yield (
-      key = stripeInit.publishableKey,
-      init = InitPaymentMethod(
+      initPaymentMethod = InitPaymentMethod(
         id = initId,
         userId = userId,
+        stripeId = stripeInit.id,
         clientSecret = stripeInit.clientSecret,
         createdAt = now,
-      ),
-    )
+        completedAt = None,
+      )
+      _ <- initPaymentRepo.insert(initPaymentMethod)
+    } yield (key = stripeInit.publishableKey, init = initPaymentMethod)
+
+  def completePaymentMethod(userId: UserId, initId: InitPaymentMethodId): IO[DomainError, PaymentMethod] =
+    for {
+      now <- Clock.instant
+      id <- Random.nextUUID.map(PaymentMethodId(_))
+      init <- initPaymentRepo.findByKey(initId).map(_.filter(_.userId == userId)).someOrElseZIO { ZIO.dieMessage(s"Invalid [userId: $userId] [initId: $initId]") }
+      _ <- ZIO.dieMessage(s"Payment already initialized [userId: $userId] [initId: $initId]").whenDiscard { init.completedAt.nonEmpty }
+      stripePaymentMethod <- stripeService.getPaymentMethodFromSetupIntent(init.stripeId).orDie // TODO (KR) :
+      pms <- paymentRepo.paymentMethodsForUser(userId)
+      paymentMethod = PaymentMethod(
+        id = id,
+        userId = userId,
+        stripeId = stripePaymentMethod.id,
+        name = None,
+        repr = stripePaymentMethod.methodType,
+        ord = pms.size,
+        createdAt = now,
+      )
+      _ <- paymentRepo.insert(paymentMethod)
+    } yield paymentMethod
 
   /////// Helpers ///////////////////////////////////////////////////////////////
 
@@ -53,7 +76,7 @@ final class PaymentService(
 }
 object PaymentService {
 
-  val layer: URLayer[UserRepo & StripeService, PaymentService] =
+  val layer: URLayer[UserRepo & StripeService & InitPaymentRepo & PaymentRepo, PaymentService] =
     ZLayer.fromFunction { PaymentService.apply }
 
 }

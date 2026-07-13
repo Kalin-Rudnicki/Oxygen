@@ -7,7 +7,8 @@ import oxygen.stripe.model.*
 final case class InitPaymentMethod(
     id: InitPaymentMethodId,
     userId: UserId,
+    stripeId: StripeSetupIntentId,
     clientSecret: StripeSetupIntentClientSecret,
-    // FIX-PRE-MERGE (KR) : needs some sort of status
     createdAt: Instant,
+    completedAt: Option[Instant],
 )

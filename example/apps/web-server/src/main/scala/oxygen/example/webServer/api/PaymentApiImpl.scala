@@ -39,8 +39,13 @@ final case class PaymentApiImpl(
     CurrentRequest.handle[DomainError, ApiError] {
       for {
         tokenUser <- tokenService.validateToken(authorization)
-        // FIX-PRE-MERGE (KR) : 
-      } yield ???
+        paymentMethod <- paymentService.completePaymentMethod(tokenUser.id, req.id)
+      } yield PaymentMethod(
+        id = paymentMethod.id,
+        name = paymentMethod.name,
+        repr = paymentMethod.repr,
+        createdAt = paymentMethod.createdAt,
+      )
     }
 
   override def getPaymentMethods(
