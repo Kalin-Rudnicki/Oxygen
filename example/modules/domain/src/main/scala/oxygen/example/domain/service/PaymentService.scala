@@ -11,7 +11,10 @@ import oxygen.predef.core.*
 import oxygen.stripe.model.*
 import zio.*
 
-final class PaymentService(userRepo: UserRepo, stripeService: StripeService) {
+final class PaymentService(
+    userRepo: UserRepo,
+    stripeService: StripeService,
+) {
 
   def ensureStripeCustomer(user: FullUser): IO[DomainError, (FullUser, StripeCustomerId)] =
     user.stripeCustomerId match {
