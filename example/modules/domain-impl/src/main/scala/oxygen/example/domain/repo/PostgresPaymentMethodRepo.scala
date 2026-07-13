@@ -11,6 +11,11 @@ import zio.*
 
 final case class PostgresPaymentMethodRepo(db: Database) extends PaymentMethodRepo, PostgresCRUDRepo.MapInfallible[PaymentMethodId, PaymentMethod] {
 
+  override def paymentMethodsForUser(userId: UserId): UIO[Seq[PaymentMethod]] =
+    PaymentMethodRow.byUserId.map(_.toDomain).execute(userId).to[Seq].orDie.usingDb(db)
+
+  ///////  ///////////////////////////////////////////////////////////////
+
   override protected type DbA = PaymentMethodRow
   override protected type DbK = PaymentMethodId
 

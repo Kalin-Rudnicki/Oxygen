@@ -2,9 +2,12 @@ package oxygen.example.conversion
 
 import oxygen.example.db.model as Db
 import oxygen.example.domain.model as Domain
+import oxygen.sql.model.TypedJsonb
 import oxygen.transform.*
 
 object domainToDb {
+
+  given [A] => Transform[A, TypedJsonb[A]] = TypedJsonb(_)
 
   //////////////////////////////////////////////////////////////////////////////////////////////////////
   //      User
@@ -54,7 +57,9 @@ object domainToDb {
   //////////////////////////////////////////////////////////////////////////////////////////////////////
 
   given Transform[Domain.payment.InitPaymentMethod, Db.InitPaymentMethodRow] = Transform.derived
+  given Transform[Domain.payment.PaymentMethod, Db.PaymentMethodRow] = Transform.derived
 
   extension (self: Domain.payment.InitPaymentMethod) def toDb: Db.InitPaymentMethodRow = self.transformInto
+  extension (self: Domain.payment.PaymentMethod) def toDb: Db.PaymentMethodRow = self.transformInto
 
 }
