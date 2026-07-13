@@ -32,5 +32,27 @@ trait StripeElementOptions extends js.Object {
   var paymentMethodOrder: js.UndefOr[js.Array[String]] = js.undefined
   var fields: js.UndefOr[js.Object] = js.undefined
   var terms: js.UndefOr[js.Object] = js.undefined
-  var wallets: js.UndefOr[js.Object] = js.undefined
+  var wallets: js.UndefOr[StripeWalletsOptions] = js.undefined
+}
+
+/**
+  * Payment Element wallet visibility.
+  * Values: `"auto"` | `"never"` (and for some wallets `"always"` where supported).
+  */
+trait StripeWalletsOptions extends js.Object {
+  var applePay: js.UndefOr[String] = js.undefined
+  var googlePay: js.UndefOr[String] = js.undefined
+  var link: js.UndefOr[String] = js.undefined
+}
+
+object StripeWalletsOptions {
+
+  /** Card wallets only — hide Link (and its “save for faster checkout” UI). */
+  def cardWalletsOnly: StripeWalletsOptions =
+    new StripeWalletsOptions {
+      applePay = "auto"
+      googlePay = "auto"
+      link = "never"
+    }
+
 }

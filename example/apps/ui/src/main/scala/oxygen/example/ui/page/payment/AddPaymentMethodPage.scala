@@ -15,6 +15,7 @@ import oxygen.payments.stripe.ui.service.StripeService
 import oxygen.ui.web.*
 import oxygen.ui.web.component.*
 import oxygen.ui.web.create.{*, given}
+import scala.scalajs.js
 import zio.*
 
 object AddPaymentMethodPage extends RoutablePage.NoParams[LocalService & PaymentApi & StripeService] {
@@ -41,8 +42,10 @@ object AddPaymentMethodPage extends RoutablePage.NoParams[LocalService & Payment
         appearance = new F.StripeAppearance {
           // TODO (KR) :
         },
+        // Card + Apple/Google Pay only; no Link / “save for later with Link”
         elementOptions = new F.StripeElementOptions {
-          // TODO (KR) :
+          paymentMethodOrder = js.Array("card")
+          wallets = F.StripeWalletsOptions.cardWalletsOnly
         },
       )
     } yield PageState(

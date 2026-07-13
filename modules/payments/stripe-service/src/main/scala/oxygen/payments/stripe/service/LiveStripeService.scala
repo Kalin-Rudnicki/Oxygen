@@ -160,16 +160,13 @@ object LiveStripeService {
 
   private def buildSetupIntent(req: CreateSetupIntentRequest): IO[StripeError.BuildError, P.SetupIntentCreateParams] =
     attemptBuild[P.SetupIntentCreateParams] {
+      // Card only — Apple/Google Pay still surface as wallets on the Payment Element.
+      // Avoid automatic_payment_methods so Link / bank / BNPL methods are not offered.
       P.SetupIntentCreateParams
         .builder()
         .setCustomer(req.customerId.unwrap)
         .setUsage(P.SetupIntentCreateParams.Usage.OFF_SESSION)
-        .setAutomaticPaymentMethods(
-          P.SetupIntentCreateParams.AutomaticPaymentMethods
-            .builder()
-            .setEnabled(true)
-            .build(),
-        )
+        .addPaymentMethodType("card")
         .build()
     }
 
