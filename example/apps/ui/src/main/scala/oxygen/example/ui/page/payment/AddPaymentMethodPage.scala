@@ -62,7 +62,7 @@ object AddPaymentMethodPage extends RoutablePage.NoParams[LocalService & Payment
     PageLayout.layout(signedInNavBar(renderState.user))(
       PageMessagesBottomCorner.default,
       h1("Add Payment Method"),
-      div(width := 50.pct)(
+      div(width := 400.px, marginRight := 40.px)(
         StripeComponent.widget.zoomOut[PageState](_.stripeComponent),
       ),
       Spacing.vertical._6,

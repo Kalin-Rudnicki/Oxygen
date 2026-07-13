@@ -9,7 +9,7 @@ import oxygen.sql.*
 import oxygen.sql.query.{PostgresCRUDRepo, TableCompanion}
 import zio.*
 
-final case class PostgresInitPaymentRepo(db: Database) extends InitPaymentRepo, PostgresCRUDRepo.MapInfallible[InitPaymentMethodId, InitPaymentMethod] {
+final case class PostgresInitPaymentMethodRepo(db: Database) extends InitPaymentMethodRepo, PostgresCRUDRepo.MapInfallible[InitPaymentMethodId, InitPaymentMethod] {
 
   override protected type DbA = InitPaymentMethodRow
   override protected type DbK = InitPaymentMethodId
@@ -21,9 +21,9 @@ final case class PostgresInitPaymentRepo(db: Database) extends InitPaymentRepo, 
   override protected def valueToDomain(value: InitPaymentMethodRow): InitPaymentMethod = value.toDomain
 
 }
-object PostgresInitPaymentRepo {
+object PostgresInitPaymentMethodRepo {
 
-  val layer: URLayer[Database, InitPaymentRepo] =
-    ZLayer.fromFunction { PostgresInitPaymentRepo.apply }
+  val layer: URLayer[Database, InitPaymentMethodRepo] =
+    ZLayer.fromFunction { PostgresInitPaymentMethodRepo.apply }
 
 }

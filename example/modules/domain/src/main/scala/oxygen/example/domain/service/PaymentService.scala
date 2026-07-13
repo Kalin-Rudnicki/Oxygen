@@ -12,10 +12,10 @@ import oxygen.stripe.model.*
 import zio.*
 
 final class PaymentService(
-    userRepo: UserRepo,
-    stripeService: StripeService,
-    initPaymentRepo: InitPaymentRepo,
-    paymentRepo: PaymentRepo,
+                            userRepo: UserRepo,
+                            stripeService: StripeService,
+                            initPaymentRepo: InitPaymentMethodRepo,
+                            paymentRepo: PaymentMethodRepo,
 ) {
 
   def ensureStripeCustomer(user: FullUser): IO[DomainError, (FullUser, StripeCustomerId)] =
@@ -76,7 +76,7 @@ final class PaymentService(
 }
 object PaymentService {
 
-  val layer: URLayer[UserRepo & StripeService & InitPaymentRepo & PaymentRepo, PaymentService] =
+  val layer: URLayer[UserRepo & StripeService & InitPaymentMethodRepo & PaymentMethodRepo, PaymentService] =
     ZLayer.fromFunction { PaymentService.apply }
 
 }
