@@ -59,9 +59,11 @@ object WebServerMain extends CliApp.Executable[WebServerMain](CliApp.derive) {
   type Env = Server & Server.Config & CompiledEndpoints
   object Env {
 
+    type ApiEnv = UIApi & ResourceApi & UserApi & ConnectionApi & PostApi & StreamApi & NoteApi & PaymentApi
+
     // A tiny in-memory, auth-less API (NoteApi) exposed over HTTP *and* as MCP tools. Its impl is a
     // normal Ref-backed ZLayer; the MCP middleware resolves it (and the McpAuthService) from the env.
-    private val endpoints: Endpoints[UIApi & ResourceApi & UserApi & ConnectionApi & PostApi & StreamApi & NoteApi] =
+    private val endpoints: Endpoints[ApiEnv] =
       Endpoints.empty.add[UserApi].add[ConnectionApi].add[PostApi].add[StreamApi].add[NoteApi].add[UIApi].add[ResourceApi]
 
     private val middlewares: Middlewares[McpAuthService] =
@@ -79,13 +81,6 @@ object WebServerMain extends CliApp.Executable[WebServerMain](CliApp.derive) {
         ZLayer.succeed(config.resources),
         Server.layer.simple(config.http.port),
         endpoints.toLayer,
-        UserApiImpl.layer,
-        ConnectionApiImpl.layer,
-        PostApiImpl.layer,
-        FileSystemResourceApi.layer,
-        LiveUIApi.layer.withoutCustomUIConfig,
-        StreamApiImpl.layer,
-        NoteApiImpl.layer,
         ZLayer.succeed[McpAuthService](McpAuthService.NoAuth),
         middlewares.toLayer,
         CompiledEndpoints.layer,
@@ -108,6 +103,15 @@ object WebServerMain extends CliApp.Executable[WebServerMain](CliApp.derive) {
         ConnectionService.layer,
         PostService.layer,
         PasswordService.layer,
+        // api
+        UserApiImpl.layer,
+        ConnectionApiImpl.layer,
+        PostApiImpl.layer,
+        StreamApiImpl.layer,
+        NoteApiImpl.layer,
+        FileSystemResourceApi.layer,
+        LiveUIApi.layer.withoutCustomUIConfig,
+        PaymentApiImpl.layer,
       )
 
   }

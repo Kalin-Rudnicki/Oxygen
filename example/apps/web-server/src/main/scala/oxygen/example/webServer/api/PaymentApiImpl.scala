@@ -4,14 +4,28 @@ import oxygen.example.api.PaymentApi
 import oxygen.example.api.model.error.*
 import oxygen.example.api.model.payment.*
 import oxygen.example.api.model.user.*
+import oxygen.example.api.service.TokenService
+import oxygen.example.domain.model.error.DomainError
+import oxygen.example.domain.service.*
+import oxygen.http.server.CurrentRequest
 import zio.*
 
-final case class PaymentApiImpl() extends PaymentApi {
+final case class PaymentApiImpl(
+    tokenService: TokenService,
+    userService: UserService,
+    paymentService: PaymentService,
+) extends PaymentApi {
 
   override def initPaymentMethod(
       authorization: UserToken,
   ): IO[ApiError, InitPaymentMethodResponse] =
-    ??? // FIX-PRE-MERGE (KR) :
+    CurrentRequest.handle[DomainError, ApiError] {
+      for {
+        tokenUser <- tokenService.validateToken(authorization)
+        user <- userService.getFullUser(tokenUser.id)
+        (user, customerId) <- userService.ensureStripeCustomer(user)
+      } yield ??? // FIX-PRE-MERGE (KR) :
+    }
 
   override def completePaymentMethod(
       req: CompletePaymentMethodRequest,
@@ -27,7 +41,7 @@ final case class PaymentApiImpl() extends PaymentApi {
 }
 object PaymentApiImpl {
 
-  val layer: ULayer[PaymentApi] =
-    ZLayer.succeed { PaymentApiImpl() }
+  val layer: URLayer[TokenService & UserService & PaymentService, PaymentApi] =
+    ZLayer.fromFunction { PaymentApiImpl.apply }
 
 }
