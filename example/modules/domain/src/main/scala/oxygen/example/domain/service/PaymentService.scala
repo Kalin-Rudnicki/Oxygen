@@ -5,7 +5,7 @@ import oxygen.example.domain.model.error.*
 import oxygen.example.domain.model.payment.*
 import oxygen.example.domain.model.user.*
 import oxygen.example.domain.repo.UserRepo
-import oxygen.payments.stripe.model.CreateCustomerRequest
+import oxygen.payments.stripe.model.{CreateCustomerRequest, CreateSetupIntentRequest}
 import oxygen.payments.stripe.service.StripeService
 import oxygen.predef.core.*
 import oxygen.stripe.model.*
@@ -24,8 +24,20 @@ final class PaymentService(userRepo: UserRepo, stripeService: StripeService) {
         } yield (updatedUser, stripeCustomerId)
     }
 
-  def initPaymentMethod(userId: UserId, customerId: StripeCustomerId): IO[DomainError, (key: StripePublishableKey, init: InitPayment)] =
-    ??? // FIX-PRE-MERGE (KR) :
+  def initPaymentMethod(userId: UserId, customerId: StripeCustomerId): IO[DomainError, (key: StripePublishableKey, init: InitPaymentMethod)] =
+    for {
+      now <- Clock.instant
+      initId <- Random.nextUUID.map(InitPaymentMethodId(_))
+      stripeInit <- stripeService.createSetupIntent(CreateSetupIntentRequest(customerId)).orDie // TODO (KR) :
+    } yield (
+      key = stripeInit.publishableKey,
+      init = InitPaymentMethod(
+        id = initId,
+        userId = userId,
+        clientSecret = stripeInit.clientSecret,
+        createdAt = now,
+      ),
+    )
 
   /////// Helpers ///////////////////////////////////////////////////////////////
 

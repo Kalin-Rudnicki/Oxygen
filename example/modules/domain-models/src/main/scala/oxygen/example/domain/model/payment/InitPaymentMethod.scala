@@ -4,7 +4,7 @@ import java.time.Instant
 import oxygen.example.core.model.*
 import oxygen.stripe.model.*
 
-final case class InitPayment(
+final case class InitPaymentMethod(
     id: InitPaymentMethodId,
     userId: UserId,
     clientSecret: StripeSetupIntentClientSecret,
