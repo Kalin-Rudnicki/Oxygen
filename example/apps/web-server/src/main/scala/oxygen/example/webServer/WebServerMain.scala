@@ -103,6 +103,7 @@ object WebServerMain extends CliApp.Executable[WebServerMain](CliApp.derive) {
         ConnectionService.layer,
         PostService.layer,
         PasswordService.layer,
+        PaymentService.layer,
         // api
         UserApiImpl.layer,
         ConnectionApiImpl.layer,

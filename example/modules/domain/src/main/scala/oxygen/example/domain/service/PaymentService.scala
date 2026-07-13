@@ -1,12 +1,14 @@
 package oxygen.example.domain.service
 
+import oxygen.example.core.model.*
 import oxygen.example.domain.model.error.*
+import oxygen.example.domain.model.payment.*
 import oxygen.example.domain.model.user.*
 import oxygen.example.domain.repo.UserRepo
 import oxygen.payments.stripe.model.CreateCustomerRequest
 import oxygen.payments.stripe.service.StripeService
 import oxygen.predef.core.*
-import oxygen.stripe.model.StripeCustomerId
+import oxygen.stripe.model.*
 import zio.*
 
 final class PaymentService(userRepo: UserRepo, stripeService: StripeService) {
@@ -21,6 +23,9 @@ final class PaymentService(userRepo: UserRepo, stripeService: StripeService) {
           _ <- userRepo.update(updatedUser)
         } yield (updatedUser, stripeCustomerId)
     }
+
+  def initPaymentMethod(userId: UserId, customerId: StripeCustomerId): IO[DomainError, (key: StripePublishableKey, init: InitPayment)] =
+    ??? // FIX-PRE-MERGE (KR) :
 
   /////// Helpers ///////////////////////////////////////////////////////////////
 

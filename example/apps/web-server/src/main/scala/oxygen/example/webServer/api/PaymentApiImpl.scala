@@ -23,8 +23,13 @@ final case class PaymentApiImpl(
       for {
         tokenUser <- tokenService.validateToken(authorization)
         user <- userService.getFullUser(tokenUser.id)
-        (user, customerId) <- userService.ensureStripeCustomer(user)
-      } yield ??? // FIX-PRE-MERGE (KR) :
+        (user, customerId) <- paymentService.ensureStripeCustomer(user)
+        initRes <- paymentService.initPaymentMethod(user.id, customerId)
+      } yield InitPaymentMethodResponse(
+        id = initRes.init.id,
+        publishableKey = initRes.key,
+        clientSecret = initRes.init.clientSecret,
+      )
     }
 
   override def completePaymentMethod(
