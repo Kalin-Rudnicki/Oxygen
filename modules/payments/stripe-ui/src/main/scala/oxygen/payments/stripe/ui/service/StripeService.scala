@@ -6,7 +6,6 @@ import oxygen.payments.stripe.ui.component.StripeForeignElement
 import oxygen.payments.stripe.ui.facades as F
 import oxygen.stripe.model.*
 import oxygen.ui.web.UIError
-import scala.scalajs.js
 import zio.*
 
 trait StripeService {
@@ -31,66 +30,13 @@ object StripeService {
     private val loadedRef: Ref.Synchronized[Boolean] =
       Unsafe.unsafely { Ref.Synchronized.unsafe.make(false) }
 
-    private def isStripeDefined: Boolean =
-      !js.isUndefined(js.Dynamic.global.selectDynamic("Stripe"))
-
-    private def existingStripeScript: Option[HTMLScriptElement] = {
-      val scripts = document.querySelectorAll(s"""script[src="$StripeJsUrl"]""")
-      if scripts.length == 0 then None
-      else Some(scripts(0).asInstanceOf[HTMLScriptElement])
-    }
-
-    /**
-      * Load Stripe.js from Stripe's CDN (once). Safe to call when already present.
-      * Completes when `window.Stripe` is available.
-      */
+    /** Inject Stripe.js from CDN. Only called when [[loadedRef]] is still false. */
     private def load: Task[Unit] =
-      ZIO.suspendSucceed {
-        ZIO.unlessDiscard(isStripeDefined) {
-          existingStripeScript match {
-            case Some(script) => waitForScript(script)
-            case None         => injectScriptAndWait
-          }
-        }
-      }
-
-    private def waitForScript(script: HTMLScriptElement): Task[Unit] =
-      ZIO.unlessDiscard(isStripeDefined) {
-        ZIO.async[Any, Throwable, Unit] { cb =>
-          lazy val onLoad: js.Function1[Event, Unit] = (_: Event) => {
-            cleanup()
-            cb(ZIO.unit)
-          }
-          lazy val onError: js.Function1[Event, Unit] = (_: Event) => {
-            cleanup()
-            cb(ZIO.fail(new RuntimeException(s"Failed to load Stripe.js from $StripeJsUrl")))
-          }
-
-          def cleanup(): Unit = {
-            script.removeEventListener("load", onLoad)
-            script.removeEventListener("error", onError)
-          }
-
-          script.addEventListener("load", onLoad)
-          script.addEventListener("error", onError)
-
-          // Loaded between isStripeDefined check and listener attach
-          if isStripeDefined then {
-            cleanup()
-            cb(ZIO.unit)
-          }
-        }
-      }
-
-    private def injectScriptAndWait: Task[Unit] =
       ZIO.async[Any, Throwable, Unit] { cb =>
         val script = document.createElement("script").asInstanceOf[HTMLScriptElement]
         script.src = StripeJsUrl
         script.async = true
-        script.addEventListener(
-          "load",
-          (_: Event) => cb(ZIO.unit),
-        )
+        script.addEventListener("load", (_: Event) => cb(ZIO.unit))
         script.addEventListener(
           "error",
           (e: Event) => cb(ZIO.fail(new RuntimeException(s"Failed to load Stripe.js from $StripeJsUrl : $e"))),
@@ -113,8 +59,8 @@ object StripeService {
     ): Task[(F.Stripe, F.StripeElements, F.StripeElement)] = {
       val _elementsOptions: F.StripeElementsOptions =
         new F.StripeElementsOptions {
-          this.mode = "setup"
-          this.currency = _currency.code
+          // this.mode = "setup"
+          this.currency = _currency.code.toLowerCase
           this.clientSecret = _clientSecret.unwrap
           this.appearance = _appearance
         }

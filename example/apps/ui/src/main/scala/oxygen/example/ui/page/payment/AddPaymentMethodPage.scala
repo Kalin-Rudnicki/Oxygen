@@ -58,7 +58,23 @@ object AddPaymentMethodPage extends RoutablePage.NoParams[LocalService & Payment
     PageLayout.layout(signedInNavBar(renderState.user))(
       PageMessagesBottomCorner.default,
       h1("Add Payment Method"),
-      StripeComponent.widget.zoomOut[PageState](_.stripeComponent),
+      div(width := 50.pct)(
+        StripeComponent.widget.zoomOut[PageState](_.stripeComponent),
+      ),
+      Spacing.vertical._6,
+      div(
+        Button(_.primary.extraLarge)(
+          "ADD",
+          onClick.s[PageState].handle { widgetState =>
+            for {
+              current <- widgetState.currentValue
+              res <- current.stripeComponent.submit
+              _ <- ZIO.logInfo(s"Res : $res")
+              _ <- ZIO.dieMessage("todo")
+            } yield ???
+          },
+        ),
+      ),
     )
 
   //////////////////////////////////////////////////////////////////////////////////////////////////////
