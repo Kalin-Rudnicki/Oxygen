@@ -7,6 +7,7 @@ import oxygen.sql.query.*
 import oxygen.sql.query.dsl.Q.*
 import oxygen.sql.query.dsl.compile
 import oxygen.sql.schema.*
+import oxygen.stripe.model.StripeCustomerId
 
 @tableName("user")
 final case class UserRow(
@@ -16,6 +17,7 @@ final case class UserRow(
     firstName: String,
     lastName: String,
     hashedPassword: String,
+    stripeCustomerId: Option[StripeCustomerId],
     createdAt: Instant,
 )
 object UserRow extends TableCompanion[UserRow, UserId](TableRepr.derived[UserRow]) {

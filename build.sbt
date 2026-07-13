@@ -826,6 +826,7 @@ lazy val `example-domain-models`: Project =
     .dependsOn(
       `example-core`.jvm % testAndCompile,
       `oxygen-crypto-model`.jvm % testAndCompile,
+      `oxygen-stripe-models`.jvm % testAndCompile,
     )
 
 lazy val `example-domain`: Project =

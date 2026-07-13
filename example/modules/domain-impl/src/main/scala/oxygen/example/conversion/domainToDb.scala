@@ -19,6 +19,7 @@ object domainToDb {
         firstName = self.firstName,
         lastName = self.lastName,
         hashedPassword = self.hashedPassword.getPasswordHash,
+        stripeCustomerId = self.stripeCustomerId,
         createdAt = self.createdAt,
       )
 
