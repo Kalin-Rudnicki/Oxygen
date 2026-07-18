@@ -58,7 +58,7 @@ object domainToDb {
   //////////////////////////////////////////////////////////////////////////////////////////////////////
 
   given Transform[PreciseMoney, Db.PreciseMoneyColumn] = value => Db.PreciseMoneyColumn(value.toBigDecimal, value.currencyCode)
-  
+
   given Transform[Domain.payment.InitPaymentMethod, Db.InitPaymentMethodRow] = Transform.derived
   given Transform[Domain.payment.PaymentMethod, Db.PaymentMethodRow] = Transform.derived
   given Transform[Domain.payment.Payment, Db.PaymentRow] = Transform.derived
