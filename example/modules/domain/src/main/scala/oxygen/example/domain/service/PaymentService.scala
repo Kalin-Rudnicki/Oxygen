@@ -18,25 +18,26 @@ final class PaymentService(
     paymentMethodRepo: PaymentMethodRepo,
 ) {
 
-  def ensureStripeCustomer(user: FullUser): IO[DomainError, (FullUser, StripeCustomerId)] =
-    user.stripeCustomerId match {
-      case Some(stripeCustomerId) => ZIO.succeed { (user, stripeCustomerId) }
-      case None                   =>
+  def ensureStripeCustomer(user: FullUser): IO[DomainError, FullUser.WithStripe] =
+    user match {
+      case user: FullUser.WithStripe    => ZIO.logDebug(s"${user.show} is already stripe-initialized").as { user }
+      case user: FullUser.WithoutStripe =>
         for {
-          stripeCustomerId <- genCustomerId(user)
-          updatedUser = user.copy(stripeCustomerId = stripeCustomerId.some)
+          stripeCustomerId <- initCustomerId(user)
+          updatedUser = user.withStripeCustomerId(stripeCustomerId)
           _ <- userRepo.update(updatedUser)
-        } yield (updatedUser, stripeCustomerId)
+        } yield updatedUser
     }
 
-  def initPaymentMethod(userId: UserId, customerId: StripeCustomerId): IO[DomainError, (key: StripePublishableKey, init: InitPaymentMethod)] =
+  def initPaymentMethod(user: FullUser.WithStripe): IO[DomainError, (key: StripePublishableKey, init: InitPaymentMethod)] =
     for {
+      _ <- ZIO.logInfo(s"Initializing payment method for ${user.show}")
       now <- Clock.instant
       initId <- Random.nextUUID.map(InitPaymentMethodId(_))
-      stripeInit <- stripeService.createSetupIntent(CreateSetupIntentRequest(customerId)).orDie // TODO (KR) :
+      stripeInit <- stripeService.createSetupIntent(CreateSetupIntentRequest(user.stripeCustomerId)).orDie // TODO (KR) :
       initPaymentMethod = InitPaymentMethod(
         id = initId,
-        userId = userId,
+        userId = user.id,
         stripeId = stripeInit.id,
         clientSecret = stripeInit.clientSecret,
         createdAt = now,
@@ -70,7 +71,7 @@ final class PaymentService(
 
   /////// Helpers ///////////////////////////////////////////////////////////////
 
-  private def genCustomerId(user: FullUser): IO[DomainError, StripeCustomerId] =
+  private def initCustomerId(user: FullUser): IO[DomainError, StripeCustomerId] =
     for {
       _ <- ZIO.logInfo(s"Generating a stripe customer for ${user.show}")
       genCustomer <- stripeService.createCustomer(CreateCustomerRequest(user.fullName.some, user.email.some)).orDie // TODO (KR) :

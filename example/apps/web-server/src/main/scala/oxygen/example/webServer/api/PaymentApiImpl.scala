@@ -24,8 +24,8 @@ final case class PaymentApiImpl(
       for {
         tokenUser <- tokenService.validateToken(authorization)
         user <- userService.getFullUser(tokenUser.id)
-        (user, customerId) <- paymentService.ensureStripeCustomer(user)
-        initRes <- paymentService.initPaymentMethod(user.id, customerId)
+        user <- paymentService.ensureStripeCustomer(user)
+        initRes <- paymentService.initPaymentMethod(user)
       } yield InitPaymentMethodResponse(
         id = initRes.init.id,
         publishableKey = initRes.key,
@@ -41,6 +41,9 @@ final case class PaymentApiImpl(
       for {
         tokenUser <- tokenService.validateToken(authorization)
         paymentMethod <- paymentService.completePaymentMethod(tokenUser.id, req.id)
+
+        // FIX-PRE-MERGE (KR) : remove - just for testing...
+
       } yield paymentMethod.toApi
     }
 

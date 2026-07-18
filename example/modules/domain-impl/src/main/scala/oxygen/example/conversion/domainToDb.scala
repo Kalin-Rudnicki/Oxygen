@@ -22,7 +22,7 @@ object domainToDb {
         firstName = self.firstName,
         lastName = self.lastName,
         hashedPassword = self.hashedPassword.getPasswordHash,
-        stripeCustomerId = self.stripeCustomerId,
+        stripeCustomerId = self.optStripeCustomerId,
         createdAt = self.createdAt,
       )
 

@@ -27,3 +27,8 @@ opaque type PaymentMethodId <: UUIDNewType = UUIDNewType
 object PaymentMethodId {
   def apply(value: UUID): PaymentMethodId = UUIDNewType(value)
 }
+
+opaque type PaymentId <: UUIDNewType = UUIDNewType
+object PaymentId {
+  def apply(value: UUID): PaymentId = UUIDNewType(value)
+}

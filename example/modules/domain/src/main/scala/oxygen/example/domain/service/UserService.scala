@@ -16,13 +16,12 @@ final class UserService(userRepo: UserRepo, passwordService: PasswordService) {
       id <- Random.nextUUID
       now <- Clock.instant
       hashedPassword <- passwordService.hashPassword(req.password)
-      user = FullUser(
+      user = FullUser.WithoutStripe(
         id = UserId(id),
         email = req.email,
         firstName = req.firstName,
         lastName = req.lastName,
         hashedPassword = hashedPassword,
-        stripeCustomerId = None,
         createdAt = now,
       )
       _ <- userRepo.insert(user)

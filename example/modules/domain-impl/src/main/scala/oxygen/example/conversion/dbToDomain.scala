@@ -14,8 +14,17 @@ object dbToDomain {
   //      User
   //////////////////////////////////////////////////////////////////////////////////////////////////////
 
-  given Transform[String, Password.Hashed] = Password.Hashed.unsafeWrapPasswordHash(_)
-  given Transform[Db.UserRow, Domain.user.FullUser] = Transform.derived
+  given Transform[Db.UserRow, Domain.user.FullUser] =
+    self =>
+      Domain.user.FullUser(
+        id = self.id,
+        email = self.email,
+        firstName = self.firstName,
+        lastName = self.lastName,
+        hashedPassword = Password.Hashed.unsafeWrapPasswordHash(self.hashedPassword),
+        optStripeCustomerId = self.stripeCustomerId,
+        createdAt = self.createdAt,
+      )
 
   extension (self: Db.UserRow) def toDomain: Domain.user.FullUser = self.transformInto
 
