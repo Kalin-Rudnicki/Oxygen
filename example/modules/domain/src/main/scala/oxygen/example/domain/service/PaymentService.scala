@@ -73,6 +73,7 @@ final class PaymentService(
 
   def charge(user: FullUser.WithStripe, paymentMethod: PaymentMethod, amount: PreciseMoney, description: String): IO[DomainError, Payment] =
     for {
+      _ <- ZIO.logInfo(s"Attempting to charge ${user.show} ${amount.unprecise.show(true, true)} : $description")
       now <- Clock.instant
       id <- Random.nextUUID.map(PaymentId(_))
       stripeRequest = CreatePaymentIntentRequest(

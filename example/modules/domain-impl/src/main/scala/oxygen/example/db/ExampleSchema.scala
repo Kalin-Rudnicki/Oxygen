@@ -18,6 +18,7 @@ object ExampleSchema {
       CommentRow,
       InitPaymentMethodRow,
       PaymentMethodRow,
+      PaymentRow,
     )
 
 }
