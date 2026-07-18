@@ -6,7 +6,7 @@ import oxygen.example.domain.model.error.*
 import oxygen.example.domain.model.payment.*
 import oxygen.example.domain.model.user.*
 import oxygen.example.domain.repo.*
-import oxygen.payments.stripe.model.{CreateCustomerRequest, CreateSetupIntentRequest}
+import oxygen.payments.stripe.model.{CreateCustomerRequest, CreatePaymentIntentRequest, CreatePaymentIntentResponse, CreateSetupIntentRequest}
 import oxygen.payments.stripe.service.StripeService
 import oxygen.predef.core.*
 import oxygen.stripe.model.*
@@ -71,8 +71,38 @@ final class PaymentService(
     paymentMethodRepo.paymentMethodsForUser(userId)
 
   def charge(user: FullUser.WithStripe, paymentMethod: PaymentMethod, amount: PreciseMoney, description: String): IO[DomainError, Payment] =
-    ??? // FIX-PRE-MERGE (KR) : 
-  
+    for {
+      now <- Clock.instant
+      id <- Random.nextUUID.map(PaymentId(_))
+      stripeRequest = CreatePaymentIntentRequest(
+        customerId = user.stripeCustomerId,
+        paymentMethodId = paymentMethod.stripeId,
+        amount = amount,
+        description = description,
+        email = user.email.some,
+        idempotencyKey = id.toString.some,
+      )
+      stripeResponse <- stripeService.createPaymentIntent(stripeRequest).orDie // TODO (KR) :
+      // TODO (KR) : should do way better than this - just an example
+      status = stripeResponse match
+        case _: CreatePaymentIntentResponse.Succeeded                => "success"
+        case _: CreatePaymentIntentResponse.Processing               => "processing"
+        case _: CreatePaymentIntentResponse.RequiresAction           => "requires-action"
+        case _: CreatePaymentIntentResponse.RequiresPaymentMethod    => "requires-payment-method"
+        case _: CreatePaymentIntentResponse.Canceled                 => "cancelled"
+        case CreatePaymentIntentResponse.UnexpectedStatus(_, status) => s"unexpected:$status"
+      payment = Payment(
+        id = id,
+        userId = user.id,
+        paymentMethodId = paymentMethod.id,
+        stripeId = stripeResponse.paymentIntentId,
+        amount = amount,
+        description = description,
+        status = status,
+        createdAt = now,
+      )
+    } yield payment
+
   /////// Helpers ///////////////////////////////////////////////////////////////
 
   private def initCustomerId(user: FullUser): IO[DomainError, StripeCustomerId] =
