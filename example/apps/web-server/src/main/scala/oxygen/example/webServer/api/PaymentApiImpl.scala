@@ -1,6 +1,5 @@
 package oxygen.example.webServer.api
 
-import oxygen.core.model.currency.USD
 import oxygen.example.api.PaymentApi
 import oxygen.example.api.model.error.*
 import oxygen.example.api.model.payment.*
