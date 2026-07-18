@@ -100,6 +100,7 @@ object WebServerMain extends CliApp.Executable[WebServerMain](CliApp.derive) {
         PostgresPostRepo.layer,
         PostgresInitPaymentMethodRepo.layer,
         PostgresPaymentMethodRepo.layer,
+        PostgresPaymentRepo.layer,
         // service
         UserService.layer,
         ConnectionService.layer,
