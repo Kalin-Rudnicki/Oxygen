@@ -5,6 +5,7 @@ import oxygen.core.typeclass.Showable
 
 final case class PreciseMoney private (positive: Boolean, unsignedFractionalUnits: Long, currencyCode: CurrencyCode) extends Showable {
 
+  def signedFractionalUnits: Long = if positive then unsignedFractionalUnits else -unsignedFractionalUnits
   def toBigDecimal: BigDecimal = {
     val base: BigDecimal = BigDecimal(unsignedFractionalUnits) / currencyCode.multiplier
     if positive then base else -base

@@ -1,5 +1,6 @@
 package oxygen.example.conversion
 
+import oxygen.core.model.currency.PreciseMoney
 import oxygen.example.db.model as Db
 import oxygen.example.domain.model as Domain
 import oxygen.sql.model.TypedJsonb
@@ -56,10 +57,14 @@ object domainToDb {
   //      Payment
   //////////////////////////////////////////////////////////////////////////////////////////////////////
 
+  given Transform[PreciseMoney, Db.PreciseMoneyColumn] = value => Db.PreciseMoneyColumn(value.toBigDecimal, value.currencyCode)
+  
   given Transform[Domain.payment.InitPaymentMethod, Db.InitPaymentMethodRow] = Transform.derived
   given Transform[Domain.payment.PaymentMethod, Db.PaymentMethodRow] = Transform.derived
+  given Transform[Domain.payment.Payment, Db.PaymentRow] = Transform.derived
 
   extension (self: Domain.payment.InitPaymentMethod) def toDb: Db.InitPaymentMethodRow = self.transformInto
   extension (self: Domain.payment.PaymentMethod) def toDb: Db.PaymentMethodRow = self.transformInto
+  extension (self: Domain.payment.Payment) def toDb: Db.PaymentRow = self.transformInto
 
 }

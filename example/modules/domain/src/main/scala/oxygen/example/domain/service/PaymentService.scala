@@ -17,6 +17,7 @@ final class PaymentService(
     stripeService: StripeService,
     initPaymentMethodRepo: InitPaymentMethodRepo,
     paymentMethodRepo: PaymentMethodRepo,
+    paymentRepo: PaymentRepo,
 ) {
 
   def ensureStripeCustomer(user: FullUser): IO[DomainError, FullUser.WithStripe] =
@@ -101,6 +102,7 @@ final class PaymentService(
         status = status,
         createdAt = now,
       )
+      _ <- paymentRepo.insert(payment)
     } yield payment
 
   /////// Helpers ///////////////////////////////////////////////////////////////
@@ -114,7 +116,7 @@ final class PaymentService(
 }
 object PaymentService {
 
-  val layer: URLayer[UserRepo & StripeService & InitPaymentMethodRepo & PaymentMethodRepo, PaymentService] =
+  val layer: URLayer[UserRepo & StripeService & InitPaymentMethodRepo & PaymentMethodRepo & PaymentRepo, PaymentService] =
     ZLayer.fromFunction { PaymentService.apply }
 
 }

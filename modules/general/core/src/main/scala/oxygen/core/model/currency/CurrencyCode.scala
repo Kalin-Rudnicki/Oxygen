@@ -1,6 +1,8 @@
 package oxygen.core.model.currency
 
-enum CurrencyCode(final val code: String, final val scale: Int) {
+import oxygen.core.typeclass.StrictEnum
+
+enum CurrencyCode(final val code: String, final val scale: Int) derives StrictEnum {
 
   final val multiplier: Int = Math.pow(10, scale).toInt
 

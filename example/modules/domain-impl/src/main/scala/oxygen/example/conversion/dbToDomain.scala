@@ -1,5 +1,6 @@
 package oxygen.example.conversion
 
+import oxygen.core.model.currency.PreciseMoney
 import oxygen.crypto.model.Password
 import oxygen.example.db.model as Db
 import oxygen.example.domain.model as Domain
@@ -58,10 +59,14 @@ object dbToDomain {
   //      Payment
   //////////////////////////////////////////////////////////////////////////////////////////////////////
 
+  given Transform[Db.PreciseMoneyColumn, PreciseMoney] = value => PreciseMoney(value.amount, value.currency)
+
   given Transform[Db.InitPaymentMethodRow, Domain.payment.InitPaymentMethod] = Transform.derived
   given Transform[Db.PaymentMethodRow, Domain.payment.PaymentMethod] = Transform.derived
+  given Transform[Db.PaymentRow, Domain.payment.Payment] = Transform.derived
 
   extension (self: Db.InitPaymentMethodRow) def toDomain: Domain.payment.InitPaymentMethod = self.transformInto
   extension (self: Db.PaymentMethodRow) def toDomain: Domain.payment.PaymentMethod = self.transformInto
+  extension (self: Db.PaymentRow) def toDomain: Domain.payment.Payment = self.transformInto
 
 }
