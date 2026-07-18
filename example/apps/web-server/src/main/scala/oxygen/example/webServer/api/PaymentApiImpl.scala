@@ -1,5 +1,6 @@
 package oxygen.example.webServer.api
 
+import oxygen.core.model.currency.USD
 import oxygen.example.api.PaymentApi
 import oxygen.example.api.model.error.*
 import oxygen.example.api.model.payment.*
@@ -40,9 +41,11 @@ final case class PaymentApiImpl(
     CurrentRequest.handle[DomainError, ApiError] {
       for {
         tokenUser <- tokenService.validateToken(authorization)
-        paymentMethod <- paymentService.completePaymentMethod(tokenUser.id, req.id)
+        user <- userService.getFullStripeUser(tokenUser.id)
+        paymentMethod <- paymentService.completePaymentMethod(user.id, req.id)
 
-        // FIX-PRE-MERGE (KR) : remove - just for testing...
+        // FIX-PRE-MERGE (KR) : remove - example
+        _ <- paymentService.charge(user, paymentMethod, USD("1.23").unwrap, "Example Charge")
 
       } yield paymentMethod.toApi
     }

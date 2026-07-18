@@ -1,5 +1,6 @@
 package oxygen.example.domain.service
 
+import oxygen.core.model.currency.PreciseMoney
 import oxygen.example.core.model.*
 import oxygen.example.domain.model.error.*
 import oxygen.example.domain.model.payment.*
@@ -69,6 +70,9 @@ final class PaymentService(
   def getPaymentMethods(userId: UserId): UIO[Seq[PaymentMethod]] =
     paymentMethodRepo.paymentMethodsForUser(userId)
 
+  def charge(user: FullUser.WithStripe, paymentMethod: PaymentMethod, amount: PreciseMoney, description: String): IO[DomainError, Payment] =
+    ??? // FIX-PRE-MERGE (KR) : 
+  
   /////// Helpers ///////////////////////////////////////////////////////////////
 
   private def initCustomerId(user: FullUser): IO[DomainError, StripeCustomerId] =

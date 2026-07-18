@@ -39,6 +39,13 @@ final class UserService(userRepo: UserRepo, passwordService: PasswordService) {
   def getFullUser(userId: UserId): IO[DomainError.UserIdDoesNotExist, FullUser] =
     userRepo.getUserById(userId)
 
+  /** Only call this in places where the user is known to already be stripe initialized */
+  def getFullStripeUser(userId: UserId): IO[DomainError.UserIdDoesNotExist, FullUser.WithStripe] =
+    userRepo.getUserById(userId).flatMap {
+      case user: FullUser.WithStripe => ZIO.succeed { user }
+      case user                      => ZIO.dieMessage { s"User does not have stripe? ${user.show}" }
+    }
+
   def getUser(userId: UserId): IO[DomainError.UserIdDoesNotExist, SimpleUser] =
     userRepo.getUserById(userId).map(_.toSimple)
 
