@@ -1,0 +1,437 @@
+{
+  "formatVersion": 1,
+  "version": "1.3.0",
+  "previousVersion": "1.2.0",
+  "compatibility": "BackwardsCompatible",
+  "diff": [
+    {
+      "stepNo": 1,
+      "derived": true,
+      "step": {
+        "CreateTable": {
+          "table": {
+            "tableName": {
+              "schema": "public",
+              "table": "payment"
+            },
+            "primaryKeyColumns": [
+              "id"
+            ],
+            "columns": [
+              {
+                "name": "id",
+                "columnType": "UUID",
+                "nullable": false
+              },
+              {
+                "name": "user_id",
+                "columnType": "UUID",
+                "nullable": false
+              },
+              {
+                "name": "payment_method_id",
+                "columnType": "UUID",
+                "nullable": false
+              },
+              {
+                "name": "stripe_id",
+                "columnType": "TEXT",
+                "nullable": false
+              },
+              {
+                "name": "amount",
+                "columnType": "TEXT",
+                "nullable": false
+              },
+              {
+                "name": "currency",
+                "columnType": "TEXT",
+                "nullable": false
+              },
+              {
+                "name": "description",
+                "columnType": "TEXT",
+                "nullable": false
+              },
+              {
+                "name": "status",
+                "columnType": "TEXT",
+                "nullable": false
+              },
+              {
+                "name": "created_at",
+                "columnType": "TIMESTAMP WITH TIME ZONE",
+                "nullable": false
+              }
+            ],
+            "foreignKeys": [
+            ],
+            "indices": [
+            ]
+          }
+        }
+      }
+    }
+  ],
+  "state": {
+    "extensions": [
+    ],
+    "schemas": [
+      "public"
+    ],
+    "tables": [
+      {
+        "tableName": {
+          "schema": "public",
+          "table": "comment"
+        },
+        "primaryKeyColumns": [
+          "id"
+        ],
+        "columns": [
+          {
+            "name": "id",
+            "columnType": "UUID",
+            "nullable": false
+          },
+          {
+            "name": "post_id",
+            "columnType": "UUID",
+            "nullable": false
+          },
+          {
+            "name": "user_id",
+            "columnType": "UUID",
+            "nullable": false
+          },
+          {
+            "name": "comment",
+            "columnType": "TEXT",
+            "nullable": false
+          },
+          {
+            "name": "created_at",
+            "columnType": "TIMESTAMP WITH TIME ZONE",
+            "nullable": false
+          }
+        ],
+        "foreignKeys": [
+        ],
+        "indices": [
+        ]
+      },
+      {
+        "tableName": {
+          "schema": "public",
+          "table": "connection"
+        },
+        "primaryKeyColumns": [
+          "current_user_id",
+          "other_user_id"
+        ],
+        "columns": [
+          {
+            "name": "current_user_id",
+            "columnType": "UUID",
+            "nullable": false
+          },
+          {
+            "name": "other_user_id",
+            "columnType": "UUID",
+            "nullable": false
+          },
+          {
+            "name": "created_at",
+            "columnType": "TIMESTAMP WITH TIME ZONE",
+            "nullable": false
+          }
+        ],
+        "foreignKeys": [
+        ],
+        "indices": [
+        ]
+      },
+      {
+        "tableName": {
+          "schema": "public",
+          "table": "connection_request"
+        },
+        "primaryKeyColumns": [
+          "current_user_id",
+          "other_user_id"
+        ],
+        "columns": [
+          {
+            "name": "current_user_id",
+            "columnType": "UUID",
+            "nullable": false
+          },
+          {
+            "name": "other_user_id",
+            "columnType": "UUID",
+            "nullable": false
+          },
+          {
+            "name": "created_at",
+            "columnType": "TIMESTAMP WITH TIME ZONE",
+            "nullable": false
+          }
+        ],
+        "foreignKeys": [
+        ],
+        "indices": [
+        ]
+      },
+      {
+        "tableName": {
+          "schema": "public",
+          "table": "init_payment_method"
+        },
+        "primaryKeyColumns": [
+          "id"
+        ],
+        "columns": [
+          {
+            "name": "id",
+            "columnType": "UUID",
+            "nullable": false
+          },
+          {
+            "name": "user_id",
+            "columnType": "UUID",
+            "nullable": false
+          },
+          {
+            "name": "stripe_id",
+            "columnType": "TEXT",
+            "nullable": false
+          },
+          {
+            "name": "client_secret",
+            "columnType": "TEXT",
+            "nullable": false
+          },
+          {
+            "name": "created_at",
+            "columnType": "TIMESTAMP WITH TIME ZONE",
+            "nullable": false
+          },
+          {
+            "name": "completed_at",
+            "columnType": "TIMESTAMP WITH TIME ZONE",
+            "nullable": true
+          }
+        ],
+        "foreignKeys": [
+        ],
+        "indices": [
+        ]
+      },
+      {
+        "tableName": {
+          "schema": "public",
+          "table": "payment"
+        },
+        "primaryKeyColumns": [
+          "id"
+        ],
+        "columns": [
+          {
+            "name": "id",
+            "columnType": "UUID",
+            "nullable": false
+          },
+          {
+            "name": "user_id",
+            "columnType": "UUID",
+            "nullable": false
+          },
+          {
+            "name": "payment_method_id",
+            "columnType": "UUID",
+            "nullable": false
+          },
+          {
+            "name": "stripe_id",
+            "columnType": "TEXT",
+            "nullable": false
+          },
+          {
+            "name": "amount",
+            "columnType": "TEXT",
+            "nullable": false
+          },
+          {
+            "name": "currency",
+            "columnType": "TEXT",
+            "nullable": false
+          },
+          {
+            "name": "description",
+            "columnType": "TEXT",
+            "nullable": false
+          },
+          {
+            "name": "status",
+            "columnType": "TEXT",
+            "nullable": false
+          },
+          {
+            "name": "created_at",
+            "columnType": "TIMESTAMP WITH TIME ZONE",
+            "nullable": false
+          }
+        ],
+        "foreignKeys": [
+        ],
+        "indices": [
+        ]
+      },
+      {
+        "tableName": {
+          "schema": "public",
+          "table": "payment_method"
+        },
+        "primaryKeyColumns": [
+          "id"
+        ],
+        "columns": [
+          {
+            "name": "id",
+            "columnType": "UUID",
+            "nullable": false
+          },
+          {
+            "name": "user_id",
+            "columnType": "UUID",
+            "nullable": false
+          },
+          {
+            "name": "stripe_id",
+            "columnType": "TEXT",
+            "nullable": false
+          },
+          {
+            "name": "name",
+            "columnType": "TEXT",
+            "nullable": true
+          },
+          {
+            "name": "repr",
+            "columnType": "JSONB",
+            "nullable": false
+          },
+          {
+            "name": "ord",
+            "columnType": "INT",
+            "nullable": false
+          },
+          {
+            "name": "created_at",
+            "columnType": "TIMESTAMP WITH TIME ZONE",
+            "nullable": false
+          }
+        ],
+        "foreignKeys": [
+        ],
+        "indices": [
+        ]
+      },
+      {
+        "tableName": {
+          "schema": "public",
+          "table": "post"
+        },
+        "primaryKeyColumns": [
+          "id"
+        ],
+        "columns": [
+          {
+            "name": "id",
+            "columnType": "UUID",
+            "nullable": false
+          },
+          {
+            "name": "user_id",
+            "columnType": "UUID",
+            "nullable": false
+          },
+          {
+            "name": "title",
+            "columnType": "TEXT",
+            "nullable": false
+          },
+          {
+            "name": "body",
+            "columnType": "TEXT",
+            "nullable": false
+          },
+          {
+            "name": "created_at",
+            "columnType": "TIMESTAMP WITH TIME ZONE",
+            "nullable": false
+          }
+        ],
+        "foreignKeys": [
+        ],
+        "indices": [
+        ]
+      },
+      {
+        "tableName": {
+          "schema": "public",
+          "table": "user"
+        },
+        "primaryKeyColumns": [
+          "user_id"
+        ],
+        "columns": [
+          {
+            "name": "user_id",
+            "columnType": "UUID",
+            "nullable": false
+          },
+          {
+            "name": "email",
+            "columnType": "TEXT",
+            "nullable": false
+          },
+          {
+            "name": "reference_email",
+            "columnType": "TEXT",
+            "nullable": false
+          },
+          {
+            "name": "first_name",
+            "columnType": "TEXT",
+            "nullable": false
+          },
+          {
+            "name": "last_name",
+            "columnType": "TEXT",
+            "nullable": false
+          },
+          {
+            "name": "hashed_password",
+            "columnType": "TEXT",
+            "nullable": false
+          },
+          {
+            "name": "stripe_customer_id",
+            "columnType": "TEXT",
+            "nullable": true
+          },
+          {
+            "name": "created_at",
+            "columnType": "TIMESTAMP WITH TIME ZONE",
+            "nullable": false
+          }
+        ],
+        "foreignKeys": [
+        ],
+        "indices": [
+        ]
+      }
+    ]
+  }
+}

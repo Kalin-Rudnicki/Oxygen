@@ -43,10 +43,6 @@ final case class PaymentApiImpl(
         tokenUser <- tokenService.validateToken(authorization)
         user <- userService.getFullStripeUser(tokenUser.id)
         paymentMethod <- paymentService.completePaymentMethod(user.id, req.id)
-
-        // FIX-PRE-MERGE (KR) : remove - example
-        _ <- paymentService.charge(user, paymentMethod, USD("1.23").unwrap, "Example Charge")
-
       } yield paymentMethod.toApi
     }
 
