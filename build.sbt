@@ -406,6 +406,7 @@ lazy val `oxygen-sql`: Project =
     )
     .dependsOn(
       `oxygen-storage` % testAndCompile,
+      `oxygen-transform`.jvm % testAndCompile,
     )
 
 lazy val `oxygen-sql-migration`: Project =

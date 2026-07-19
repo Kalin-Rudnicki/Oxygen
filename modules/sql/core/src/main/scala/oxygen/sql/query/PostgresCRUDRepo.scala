@@ -3,6 +3,7 @@ package oxygen.sql.query
 import oxygen.predef.core.*
 import oxygen.sql.*
 import oxygen.storage.*
+import oxygen.transform.*
 import scala.annotation.targetName
 import zio.*
 import zio.stream.*
@@ -203,6 +204,23 @@ object PostgresCRUDRepo {
 
   }
 
+  trait TransformInfallible[K, A, _DbA](
+      override protected final val companion: TableCompanion[_DbA, K],
+  )(
+      using
+      transformToDb: Transform[A, _DbA],
+      transformFromDb: Transform[_DbA, A],
+  ) extends PostgresCRUDRepo.MapInfallible[K, A] {
+
+    override protected final type DbK = K
+    override protected final type DbA = _DbA
+
+    override protected final def keyToDb(key: K): K = key
+    override protected final def valueToDb(value: A): _DbA = transformToDb.transform(value)
+    override protected final def valueToDomain(value: _DbA): A = transformFromDb.transform(value)
+
+  }
+
   trait MapFallible[K, A] extends CRUDRepo[K, A] {
 
     //////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -303,6 +321,23 @@ object PostgresCRUDRepo {
 
     override final def insertOrDoNothingAllStream[R, E](values: ZStream[R, E, A]): ZIO[R, E, Unit] =
       companion.batchOptimizedInsertOrDoNothing.insert.streamDbDie(values.map(_.toDb)).unit.usingDb(db)
+
+  }
+
+  trait TransformFallible[K, A, _DbA](
+      override protected final val companion: TableCompanion[_DbA, K],
+  )(
+      using
+      transformToDb: Transform[A, _DbA],
+      transformFromDb: TransformOrFail[_DbA, A],
+  ) extends PostgresCRUDRepo.MapFallible[K, A] {
+
+    override protected final type DbK = K
+    override protected final type DbA = _DbA
+
+    override protected final def keyToDb(key: K): K = key
+    override protected final def valueToDb(value: A): _DbA = transformToDb.transform(value)
+    override protected final def valueToDomain(value: _DbA): Either[String, A] = transformFromDb.transformOrFail(value).leftMap(_.toString)
 
   }
 

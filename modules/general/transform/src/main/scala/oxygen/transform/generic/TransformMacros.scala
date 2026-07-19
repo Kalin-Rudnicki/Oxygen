@@ -7,7 +7,7 @@ import scala.quoted.*
 
 object TransformMacros {
 
-  def derivedImpl[From: Type, To: Type](using Quotes): Expr[Transform[From, To]] = {
+  def deriveTransform[From: Type, To: Type](using Quotes): Expr[Transform[From, To]] = {
     val fromTypeRepr: TypeRepr = TypeRepr.of[From]
     val toTypeRepr: TypeRepr = TypeRepr.of[To]
 
@@ -17,6 +17,25 @@ object TransformMacros {
       case (fromType, toType)                       =>
         report.errorAndAbort(
           s"""Unable to derive Transform[${fromTypeRepr.showAnsiCode}, ${toTypeRepr.showAnsiCode}]
+             |
+             |Types are not the same structure of
+             |${fromTypeRepr.showAnsiCode} : ${fromType.baseType}
+             |${toTypeRepr.showAnsiCode} : ${toType.baseType}
+             |""".stripMargin,
+        )
+    }
+  }
+
+  def deriveTransformOrFail[From: Type, To: Type](using Quotes): Expr[TransformOrFail[From, To]] = {
+    val fromTypeRepr: TypeRepr = TypeRepr.of[From]
+    val toTypeRepr: TypeRepr = TypeRepr.of[To]
+
+    (fromTypeRepr.typeType.required, toTypeRepr.typeType.required) match {
+      case (_: TypeType.Case, _: TypeType.Case)     => DeriveProductTransformOrFail(ProductGeneric.of[From], ProductGeneric.of[To]).derive
+      case (_: TypeType.Sealed, _: TypeType.Sealed) => DeriveSumTransformOrFail(SumGeneric.FlatGeneric.of[From], SumGeneric.FlatGeneric.of[To]).derive
+      case (fromType, toType)                       =>
+        report.errorAndAbort(
+          s"""Unable to derive TransformOrFail[${fromTypeRepr.showAnsiCode}, ${toTypeRepr.showAnsiCode}]
              |
              |Types are not the same structure of
              |${fromTypeRepr.showAnsiCode} : ${fromType.baseType}

@@ -33,8 +33,10 @@ abstract class DbMigrationSpec extends OxygenSpecDefault {
   /** The current-code schema (the latest set of tables). */
   def schema: MigrationSchema
 
+  def specName: String = getClass.getSimpleName
+
   override final def testSpec: TestSpec =
-    suite("DbMigrationSpec")(
+    suite(specName)(
       test("committed migrations are up to date with the current-code schema") {
         for {
           dir <- Path.of(migrationPath).orDie

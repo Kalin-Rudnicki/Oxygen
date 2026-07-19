@@ -12,7 +12,7 @@ import oxygen.sql.test.DbMigrationSpec
   */
 object ExampleDbMigrationSpec extends DbMigrationSpec {
 
-  override def migrationPath: String = "example/apps/web-server/src/main/resources/migrations"
+  override def migrationPath: String = "example/apps/web-server/migrations/1.0.0.json"
 
   override def schema: MigrationSchema = ExampleSchema.schema
 

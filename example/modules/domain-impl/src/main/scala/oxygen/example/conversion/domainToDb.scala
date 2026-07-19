@@ -10,8 +10,8 @@ object domainToDb {
   //      User
   //////////////////////////////////////////////////////////////////////////////////////////////////////
 
-  extension (self: Domain.user.FullUser)
-    def toDb: Db.UserRow =
+  given Transform[Domain.user.FullUser, Db.UserRow] =
+    self =>
       Db.UserRow(
         id = self.id,
         email = self.email,
@@ -21,22 +21,26 @@ object domainToDb {
         hashedPassword = self.hashedPassword.getPasswordHash,
         createdAt = self.createdAt,
       )
-
-  extension (self: Domain.connection.Connection)
-    def toDb: Db.ConnectionRow =
+  given Transform[Domain.connection.Connection, Db.ConnectionRow] =
+    self =>
       Db.ConnectionRow(
         currentUserId = self.current,
         otherUserId = self.other,
         createdAt = self.createdAt,
       )
-
-  extension (self: Domain.connection.ConnectionRequest)
-    def toDb: Db.ConnectionRequestRow =
+  given Transform[Domain.connection.ConnectionRequest, Db.ConnectionRequestRow] =
+    self =>
       Db.ConnectionRequestRow(
         currentUserId = self.current,
         otherUserId = self.other,
         createdAt = self.createdAt,
       )
+
+  extension (self: Domain.user.FullUser) def toDb: Db.UserRow = self.transformInto
+
+  extension (self: Domain.connection.Connection) def toDb: Db.ConnectionRow = self.transformInto
+
+  extension (self: Domain.connection.ConnectionRequest) def toDb: Db.ConnectionRequestRow = self.transformInto
 
   //////////////////////////////////////////////////////////////////////////////////////////////////////
   //      Post
