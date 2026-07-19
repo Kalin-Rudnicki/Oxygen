@@ -13,24 +13,24 @@ object dbToDomain {
 
   given Transform[String, Password.Hashed] = Password.Hashed.unsafeWrapPasswordHash(_)
   given Transform[Db.UserRow, Domain.user.FullUser] = Transform.derived
-
-  extension (self: Db.UserRow) def toDomain: Domain.user.FullUser = self.transformInto
-
-  extension (self: Db.ConnectionRow)
-    def toDomain: Domain.connection.Connection =
+  given Transform[Db.ConnectionRow, Domain.connection.Connection] =
+    self =>
       Domain.connection.Connection(
         current = self.currentUserId,
         other = self.otherUserId,
         createdAt = self.createdAt,
       )
-
-  extension (self: Db.ConnectionRequestRow)
-    def toDomain: Domain.connection.ConnectionRequest =
+  given Transform[Db.ConnectionRequestRow, Domain.connection.ConnectionRequest] =
+    self =>
       Domain.connection.ConnectionRequest(
         current = self.currentUserId,
         other = self.otherUserId,
         createdAt = self.createdAt,
       )
+
+  extension (self: Db.UserRow) def toDomain: Domain.user.FullUser = self.transformInto
+  extension (self: Db.ConnectionRow) def toDomain: Domain.connection.Connection = self.transformInto
+  extension (self: Db.ConnectionRequestRow) def toDomain: Domain.connection.ConnectionRequest = self.transformInto
 
   //////////////////////////////////////////////////////////////////////////////////////////////////////
   //      Post

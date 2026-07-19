@@ -4,6 +4,7 @@ import oxygen.predef.core.*
 import oxygen.sql.error.*
 import oxygen.sql.query.dsl.CompileMacros
 import oxygen.sql.schema.*
+import oxygen.transform.{Transform, TransformOrFail}
 import oxygen.zio.SparseStreamAggregator
 import oxygen.zio.instances.given
 import zio.{Chunk, Trace, ZIO}
@@ -160,6 +161,7 @@ final class QueryI[I](
     self.execute(ev((i1, i2, i3, i4, i5, i6, i7, i8)))
 
   def contramap[I2](f: I2 => I): QueryI[I2] = QueryI[I2](self.ctx, self.encoder.contramap(f))
+  def transformIn[I2](using t: Transform[I2, I]): QueryI[I2] = contramap(t.transform)
 
 }
 object QueryI {
@@ -188,6 +190,9 @@ sealed trait QueryO[O] extends QueryLike {
   def map[O2](f: O => O2): QueryO[O2] = QueryO.MapOutput(this, f)
   def mapOrFail[O2](f: O => Either[String, O2]): QueryO[O2] = QueryO.MapOrFailOutput(this, f)
   final def >>>[O2](agg: SparseStreamAggregator[O, O2]): QueryO[O2] = QueryO.Agg(this, agg)
+
+  def transform[O2](using t: Transform[O, O2]): QueryO[O2] = map(t.transform)
+  def transformOrFail[O2](using t: TransformOrFail[O, O2]): QueryO[O2] = mapOrFail(t.transformOrFail(_).leftMap(_.toString))
 
 }
 object QueryO {
@@ -318,6 +323,10 @@ sealed trait QueryIO[I, O] extends QueryLike { self =>
   def map[O2](f: O => O2): QueryIO[I, O2] = QueryIO.MapOutput(this, f)
   def mapOrFail[O2](f: O => Either[String, O2]): QueryIO[I, O2] = QueryIO.MapOrFailOutput(this, f)
   final def >>>[O2](agg: SparseStreamAggregator[O, O2]): QueryIO[I, O2] = QueryIO.Agg(this, agg)
+
+  def transformIn[I2](using t: Transform[I2, I]): QueryIO[I2, O] = contramap(t.transform)
+  def transform[O2](using t: Transform[O, O2]): QueryIO[I, O2] = map(t.transform)
+  def transformOrFail[O2](using t: TransformOrFail[O, O2]): QueryIO[I, O2] = mapOrFail(t.transformOrFail(_).leftMap(_.toString))
 
 }
 object QueryIO {

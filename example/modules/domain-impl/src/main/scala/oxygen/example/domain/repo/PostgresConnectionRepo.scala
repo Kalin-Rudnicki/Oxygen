@@ -1,13 +1,13 @@
 package oxygen.example.domain.repo
 
-import oxygen.example.conversion.dbToDomain.*
-import oxygen.example.conversion.domainToDb.*
+import oxygen.example.conversion.dbToDomain.{given, *}
+import oxygen.example.conversion.domainToDb.given
 import oxygen.example.core.model.user.*
 import oxygen.example.db.model.*
 import oxygen.example.domain.model.connection.*
 import oxygen.example.domain.model.user.*
 import oxygen.sql.{Connection as _, *}
-import oxygen.sql.query.{PostgresCRUDRepo, TableCompanion}
+import oxygen.sql.query.PostgresCRUDRepo
 import oxygen.storage.CRUDRepo
 import zio.*
 
@@ -16,33 +16,15 @@ final case class PostgresConnectionRepo(
     atomically: Atomically,
 ) extends ConnectionRepo { self =>
 
-  private object PostgresConnection extends PostgresCRUDRepo.MapInfallible[(UserId, UserId), Connection] {
+  private object PostgresConnection extends PostgresCRUDRepo.TransformInfallible[(UserId, UserId), Connection, ConnectionRow](ConnectionRow) {
 
     override val db: Database = self.db
-
-    override protected type DbA = ConnectionRow
-    override protected type DbK = (UserId, UserId)
-
-    override protected val companion: TableCompanion[ConnectionRow, (UserId, UserId)] = ConnectionRow
-
-    override protected def keyToDb(key: (UserId, UserId)): (UserId, UserId) = key
-    override protected def valueToDb(value: Connection): ConnectionRow = value.toDb
-    override protected def valueToDomain(value: ConnectionRow): Connection = value.toDomain
 
   }
 
-  private object PostgresConnectionRequest extends PostgresCRUDRepo.MapInfallible[(UserId, UserId), ConnectionRequest] {
+  private object PostgresConnectionRequest extends PostgresCRUDRepo.TransformInfallible[(UserId, UserId), ConnectionRequest, ConnectionRequestRow](ConnectionRequestRow) {
 
     override val db: Database = self.db
-
-    override protected type DbA = ConnectionRequestRow
-    override protected type DbK = (UserId, UserId)
-
-    override protected val companion: TableCompanion[ConnectionRequestRow, (UserId, UserId)] = ConnectionRequestRow
-
-    override protected def keyToDb(key: (UserId, UserId)): (UserId, UserId) = key
-    override protected def valueToDb(value: ConnectionRequest): ConnectionRequestRow = value.toDb
-    override protected def valueToDomain(value: ConnectionRequestRow): ConnectionRequest = value.toDomain
 
   }
 
