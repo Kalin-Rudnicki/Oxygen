@@ -1,13 +1,13 @@
 package oxygen.json
 
+import oxygen.core.StringBuilder
 import oxygen.predef.core.*
-import scala.collection.mutable
 
 sealed trait Json {
 
-  private[Json] def writeCompact(sb: mutable.StringBuilder): Unit
+  private[oxygen] def writeCompact(sb: StringBuilder): Unit
 
-  private[Json] def writePretty(sb: mutable.StringBuilder, @scala.annotation.unused indent: String): Unit =
+  private[oxygen] def writePretty(sb: StringBuilder, @scala.annotation.unused indent: String): Unit =
     writeCompact(sb)
 
   infix final def merge(that: Json): Json =
@@ -29,15 +29,15 @@ sealed trait Json {
     path.foldRight(this) { (key, acc) => Json.obj(key -> acc) }
 
   final def showCompact: String = {
-    val sb = mutable.StringBuilder(128)
+    val sb = StringBuilder.emptyThreadUnsafe
     writeCompact(sb)
-    sb.toString()
+    sb.build()
   }
 
   final def showPretty: String = {
-    val sb = mutable.StringBuilder(128)
+    val sb = StringBuilder.emptyThreadUnsafe
     writePretty(sb, "\n")
-    sb.toString()
+    sb.build()
   }
 
   final def tpe: Json.Type = this match
@@ -90,7 +90,7 @@ object Json {
 
   final case class Str(value: String) extends Json {
 
-    override private[Json] def writeCompact(sb: mutable.StringBuilder): Unit = {
+    override private[oxygen] def writeCompact(sb: StringBuilder): Unit = {
       sb.append('"')
       value.foreach {
         case '\n' => sb.append("\\n")
@@ -106,21 +106,21 @@ object Json {
 
   final case class Number(value: BigDecimal) extends Json {
 
-    override private[Json] def writeCompact(sb: mutable.StringBuilder): Unit =
+    override private[oxygen] def writeCompact(sb: StringBuilder): Unit =
       sb.append(value.toString)
 
   }
 
   final case class Bool(value: Boolean) extends Json {
 
-    override private[Json] def writeCompact(sb: mutable.StringBuilder): Unit =
+    override private[oxygen] def writeCompact(sb: StringBuilder): Unit =
       sb.append(value.toString)
 
   }
 
   final case class Arr(value: ArraySeq[Json]) extends Json {
 
-    override private[Json] def writeCompact(sb: mutable.StringBuilder): Unit = {
+    override private[oxygen] def writeCompact(sb: StringBuilder): Unit = {
       sb.append('[')
       var already: Boolean = false
       value.foreach { v =>
@@ -131,7 +131,7 @@ object Json {
       sb.append(']')
     }
 
-    override private[Json] def writePretty(sb: mutable.StringBuilder, indent: String): Unit = {
+    override private[oxygen] def writePretty(sb: StringBuilder, indent: String): Unit = {
       val newIndent = indent + "  "
       sb.append('[')
       var already: Boolean = false
@@ -164,7 +164,7 @@ object Json {
       )
     def ++(that: Json.Obj): Json.Obj = this merge that
 
-    override private[Json] def writeCompact(sb: mutable.StringBuilder): Unit = {
+    override private[oxygen] def writeCompact(sb: StringBuilder): Unit = {
       sb.append('{')
       var already: Boolean = false
       value.foreach { case (k, v) =>
@@ -177,7 +177,7 @@ object Json {
       sb.append('}')
     }
 
-    override private[Json] def writePretty(sb: mutable.StringBuilder, indent: String): Unit = {
+    override private[oxygen] def writePretty(sb: StringBuilder, indent: String): Unit = {
       val newIndent = indent + "  "
       sb.append('{')
       var already: Boolean = false
@@ -209,7 +209,7 @@ object Json {
 
   case object Null extends Json {
 
-    override private[Json] def writeCompact(sb: mutable.StringBuilder): Unit =
+    override private[oxygen] def writeCompact(sb: StringBuilder): Unit =
       sb.append("null")
 
   }

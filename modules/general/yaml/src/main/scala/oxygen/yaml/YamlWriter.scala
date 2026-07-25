@@ -1,11 +1,10 @@
 package oxygen.yaml
 
-import org.virtuslab.yaml.*
 import oxygen.json.*
 
 object YamlWriter {
 
-  def writeJson(n: Json): String = JsonToYaml.node(n).asYaml
+  def writeJson(n: Json): String = YamlFormatter.format(n)
 
   def writeManyJson(n: Seq[Json]): String = n.map(YamlWriter.writeJson).mkString("\n---\n")
 

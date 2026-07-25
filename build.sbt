@@ -669,6 +669,7 @@ lazy val `ut`: CrossProject =
     )
     .dependsOn(
       `oxygen-schema` % testAndCompile,
+      `oxygen-yaml` % testAndCompile,
       `oxygen-zio` % testAndCompile,
       `oxygen-test` % Test,
     )
