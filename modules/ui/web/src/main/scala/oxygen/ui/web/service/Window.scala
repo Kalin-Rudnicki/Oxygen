@@ -22,6 +22,13 @@ object Window {
 
   def setTitle(title: String): UIO[Unit] = ZIO.succeed { D.title = title }
 
+  object location {
+
+    def assign(url: String): UIO[Unit] = ZIO.succeed { W.location.assign(url) }
+    def replace(url: String): UIO[Unit] = ZIO.succeed { W.location.replace(url) }
+
+  }
+
   object history {
 
     def push(url: String, title: String): UIO[Unit] = ZIO.succeed { D.title = title; W.history.pushState(null, null, url) }

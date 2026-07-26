@@ -18,6 +18,9 @@ import zio.*
 //           : switching back and forth between login/register should maintain redirect url
 object LoginPage extends RoutablePage[UserApi & LocalService] {
 
+  def nav(email: Option[String]): RoutablePage.Navigate = navigate(PageParams(email))
+  def nav(): RoutablePage.Navigate = nav(None)
+
   final case class PageParams(
       email: Option[String],
   )

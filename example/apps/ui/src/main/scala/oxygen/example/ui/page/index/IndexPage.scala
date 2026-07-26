@@ -63,15 +63,18 @@ object IndexPage extends RoutablePage.NoParams[LocalService & StreamApi] {
   override val path: Seq[String] = Seq()
 
   override protected def component(state: WidgetState[PageState], renderState: PageState): WidgetES[LocalService, PageState] =
-    PageLayout.layout(optionalSignedInNavBar(renderState.user))(
-      PageMessagesBottomCorner.default,
-      h1("Oxygen Example"),
-      Section.section1()(
-        InfoSection()(s"Id: ${renderState.uuid.fold("N/A")(_.toString)}"),
-        InfoSection()(s"Counter: ${renderState.counter}"),
-        InfoSection()(s"Return Count: ${renderState.returnCount}"),
-      ),
-    )
+    HolyGrail.empty
+      .topHeight(40.px)
+      .top(optionalSignedInNavBar(renderState.user))
+      .center(
+        PageMessagesBottomCorner.default,
+        h1("Oxygen Example"),
+        Section.section1()(
+          InfoSection()(s"Id: ${renderState.uuid.fold("N/A")(_.toString)}"),
+          InfoSection()(s"Counter: ${renderState.counter}"),
+          InfoSection()(s"Return Count: ${renderState.returnCount}"),
+        ),
+      )
 
   //////////////////////////////////////////////////////////////////////////////////////////////////////
   //      Components

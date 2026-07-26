@@ -32,10 +32,13 @@ object HomePage extends RoutablePage.NoParams[LocalService] {
   override val path: Seq[String] = Seq("home")
 
   override protected def component(state: WidgetState[PageState], renderState: PageState): WidgetES[LocalService, PageState] =
-    PageLayout.layout(signedInNavBar(renderState.user))(
-      PageMessagesBottomCorner.default,
-      h1("Home"),
-    )
+    HolyGrail.empty
+      .topHeight(40.px)
+      .top(signedInNavBar(renderState.user))
+      .center(
+        PageMessagesBottomCorner.default,
+        h1("Home"),
+      )
 
   //////////////////////////////////////////////////////////////////////////////////////////////////////
   //      Components

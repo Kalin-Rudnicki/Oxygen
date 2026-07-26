@@ -3,6 +3,7 @@ package oxygen.ui.web.component
 import oxygen.ui.web.{NonRoutablePage, RoutablePage}
 import oxygen.ui.web.create.{*, given}
 
+@deprecated("use TopBar instead")
 final class NavBar[-Env, +Action, -StateGet, +StateSet <: StateGet](
     props: NavBar.Props,
     leftItems: Seq[NavBar.NavBarElemBuilder => Widget.Polymorphic[Env, Action, StateGet, StateSet]],
@@ -39,6 +40,8 @@ final class NavBar[-Env, +Action, -StateGet, +StateSet <: StateGet](
     )
 
 }
+
+@deprecated("use TopBar instead")
 object NavBar {
 
   type Const = NavBar.Stateless[Any, Nothing]

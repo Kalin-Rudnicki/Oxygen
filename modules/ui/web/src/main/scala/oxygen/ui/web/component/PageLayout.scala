@@ -43,6 +43,7 @@ object PageLayout {
       flex := "1 0 auto",
     )
 
+  @deprecated
   def layout[Env, Action, State](
       navBar: NavBar.Stateful[Env, Action, State],
       // TODO (KR) : add left/right SideMenu
@@ -51,6 +52,17 @@ object PageLayout {
   ): WidgetEAS[Env, Action, State] =
     pageBase(
       navBar.widget,
+      pageBodyBase(contents*),
+    )
+
+  def layout[Env, Action, State](
+      navBar: TopBar.Stateful[Env, Action, State],
+      // TODO (KR) : add left/right SideMenu
+  )(
+      contents: WidgetEAS[Env, Action, State]*,
+  ): WidgetEAS[Env, Action, State] =
+    pageBase(
+      navBar,
       pageBodyBase(contents*),
     )
 

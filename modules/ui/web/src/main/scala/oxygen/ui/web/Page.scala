@@ -108,6 +108,8 @@ object RoutablePage {
 
   trait NoParams[-Env] extends RoutablePage[Env] {
 
+    final def nav(): RoutablePage.Navigate = navigate(())
+
     val path: Seq[String]
 
     override final type PageParams = Unit

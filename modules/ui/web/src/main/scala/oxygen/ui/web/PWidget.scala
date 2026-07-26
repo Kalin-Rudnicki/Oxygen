@@ -631,6 +631,11 @@ object PWidget {
       if addChildren.isEmpty then this
       else Node(xmlns, tag, children ++ Growable.many(addChildren))
 
+    def appendChildren[Env2 <: Env, Action2 >: Action, StateGet2 <: StateGet, StateSet2 >: StateSet <: StateGet2](
+        addChildren: Growable[PWidget[Env2, Action2, StateGet2, StateSet2]],
+    ): Node[Env2, Action2, StateGet2, StateSet2] =
+      Node(xmlns, tag, children ++ addChildren)
+
     def apply(mod: NodeModifier): PWidget.Node[Env, Action, StateGet, StateSet] =
       PWidget.Node(
         xmlns,

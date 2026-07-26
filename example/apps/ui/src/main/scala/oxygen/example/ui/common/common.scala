@@ -2,26 +2,34 @@ package oxygen.example.ui.common
 
 import oxygen.example.api.model.user.User
 import oxygen.example.ui.page as P
+import oxygen.ui.web.apispec.ApiSpecPage
 import oxygen.ui.web.component.*
+import oxygen.ui.web.create.given
 
-val signedOutNavBar: NavBar.Const =
+val signedOutNavBar: TopBar.Const =
   signedOutNavBar(None)
-def signedOutNavBar(loginRegisterEmail: Option[String]): NavBar.Const =
-  NavBar.make()(
-    _.simplePush("Oxygen Example")(P.index.IndexPage)(()),
-  )(
-    _.simplePush("Login")(P.login.LoginPage)(P.login.LoginPage.PageParams(loginRegisterEmail)),
-    _.simplePush("Sign Up")(P.register.RegisterPage)(P.register.RegisterPage.PageParams(loginRegisterEmail)),
-  )
+def signedOutNavBar(loginRegisterEmail: Option[String]): TopBar.Const =
+  TopBar.empty
+    .leftItems(
+      _.index("Oxygen Example").onClickPush(P.index.IndexPage.nav()),
+      _("Oxygen API Spec").onClickPush(ApiSpecPage.nav()),
+    )
+    .rightItems(
+      _("Login").onClickPush(P.login.LoginPage.nav(loginRegisterEmail)),
+      _("Sign Up").onClickPush(P.register.RegisterPage.nav(loginRegisterEmail)),
+    )
 
-def signedInNavBar(user: User): NavBar.Const =
-  NavBar.make()(
-    _.simplePush("Oxygen Example")(P.index.IndexPage)(()),
-    _.simplePush("Home")(P.home.HomePage)(()),
-  )(
-    _.simplePush("Add Payment Method")(P.payment.AddPaymentMethodPage)(()),
-    _.simplePush(user.firstName)(P.profile.ProfilePage)(()),
-  )
+def signedInNavBar(user: User): TopBar.Const =
+  TopBar.empty
+    .leftItems(
+      _("Oxygen Example").index.onClickPush(P.index.IndexPage.nav()),
+      _("Home").onClickPush(P.home.HomePage.nav()),
+      _("Oxygen API Spec").onClickPush(ApiSpecPage.nav()),
+    )
+    .rightItems(
+      _("Add Payment Method").onClickPush(P.payment.AddPaymentMethodPage.nav()),
+      _(user.firstName).onClickPush(P.profile.ProfilePage.nav()),
+    )
 
-def optionalSignedInNavBar(user: Option[User]): NavBar.Const =
+def optionalSignedInNavBar(user: Option[User]): TopBar.Const =
   user.fold(signedOutNavBar)(signedInNavBar)
