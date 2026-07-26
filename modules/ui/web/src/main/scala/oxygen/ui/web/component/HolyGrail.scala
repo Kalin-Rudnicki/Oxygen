@@ -168,7 +168,7 @@ final case class HolyGrail[-Env, +Action, -StateGet, +StateSet <: StateGet](
     modBottom { fragment(_, Widget.fragment(addChildren)) }
 
 }
-object HolyGrail {
+object HolyGrail extends WidgetTypes[HolyGrail] {
 
   final case class Cache(
       showLeft: Boolean,
@@ -227,8 +227,7 @@ object HolyGrail {
 
   }
 
-  def apply(
-  ): HolyGrail[Any, Nothing, Any, Nothing] =
+  val empty: HolyGrail.Const =
     new HolyGrail(
       _cache = Cache.default,
       _top = Widget.empty,
@@ -237,5 +236,7 @@ object HolyGrail {
       _right = SideBar(),
       _bottom = Widget.empty,
     )
+
+  def apply(): HolyGrail.Const = empty
 
 }

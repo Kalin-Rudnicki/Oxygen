@@ -48,9 +48,14 @@ object ApiSpecPage extends RoutablePage.NoParams[RawClient] {
   override def postLoad(state: WidgetState[PageState], initialState: PageState): ZIO[RawClient & Scope, UIError, Unit] =
     ZIO.unit
 
+  // TODO (KR) : have some way to thread in a parent nav bar
   // lazy: NavBar.make reads css-vars, which are only populated after stylesheets are registered
-  private lazy val navBar: NavBar.Const =
-    NavBar.make()(_.apply("Oxygen API Spec"))()
+  private lazy val navBar: TopBar.Const =
+    TopBar.empty
+      .leftItems(
+        _("Index").index.onClickPush("/page"),
+        _("Oxygen API Spec").onClickReplace(this.nav()),
+      )
 
   override protected def component(state: WidgetState[PageState], renderState: PageState): WidgetES[RawClient, PageState] =
     Widget.state[PageState].get { st =>
@@ -62,7 +67,7 @@ object ApiSpecPage extends RoutablePage.NoParams[RawClient] {
         height := 100.vh,
         width := 100.vw,
         overflow.hidden,
-        navBar.widget,
+        navBar,
         div( // scroll area
           flexGrow := 1,
           minHeight := 0.px,

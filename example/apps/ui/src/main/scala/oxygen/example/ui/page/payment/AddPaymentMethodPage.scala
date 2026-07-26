@@ -62,31 +62,34 @@ object AddPaymentMethodPage extends RoutablePage.NoParams[LocalService & Payment
   override val path: Seq[String] = Seq("payment-method", "add")
 
   override protected def component(state: WidgetState[PageState], renderState: PageState): WidgetES[LocalService & PaymentApi, PageState] =
-    PageLayout.layout(signedInNavBar(renderState.user))(
-      PageMessagesBottomCorner.default,
-      h1("Add Payment Method"),
-      div(
-        marginLeft := 50.px,
-        div(width := 500.px)(
-          StripeComponent.widget.zoomOut[PageState](_.stripeComponent),
-        ),
-        Spacing.vertical._6,
+    HolyGrail.empty
+      .topHeight(40.px)
+      .top(signedInNavBar(renderState.user))
+      .center(
+        PageMessagesBottomCorner.default,
+        h1("Add Payment Method"),
         div(
-          Button(_.primary.extraLarge)(
-            "ADD",
-            onClick.s[PageState].handle { widgetState =>
-              for {
-                paymentsApi <- ZIO.service[PaymentApi]
-                current <- widgetState.currentValue
-                _ <- current.stripeComponent.submit // TODO (KR) : actually verify? I think the `commit` already asserts that its a success, though
-                _ <- paymentsApi.completePaymentMethod(CompletePaymentMethodRequest(current.initId), current.userToken).toUILogged(_.toUI)
-                _ <- P.home.HomePage.navigate.push(())
-              } yield ()
-            },
+          marginLeft := 50.px,
+          div(width := 500.px)(
+            StripeComponent.widget.zoomOut[PageState](_.stripeComponent),
+          ),
+          Spacing.vertical._6,
+          div(
+            Button(_.primary.extraLarge)(
+              "ADD",
+              onClick.s[PageState].handle { widgetState =>
+                for {
+                  paymentsApi <- ZIO.service[PaymentApi]
+                  current <- widgetState.currentValue
+                  _ <- current.stripeComponent.submit // TODO (KR) : actually verify? I think the `commit` already asserts that its a success, though
+                  _ <- paymentsApi.completePaymentMethod(CompletePaymentMethodRequest(current.initId), current.userToken).toUILogged(_.toUI)
+                  _ <- P.home.HomePage.navigate.push(())
+                } yield ()
+              },
+            ),
           ),
         ),
-      ),
-    )
+      )
 
   //////////////////////////////////////////////////////////////////////////////////////////////////////
   //      Components

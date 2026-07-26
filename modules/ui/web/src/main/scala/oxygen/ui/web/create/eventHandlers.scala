@@ -2,7 +2,9 @@ package oxygen.ui.web.create
 
 import org.scalajs.dom.{Window as _, *}
 import oxygen.ui.web.{NonRoutablePage, PWidget, RaiseHandler, RoutablePage, UIError, WidgetState}
+import oxygen.ui.web.service.Window
 import zio.*
+import zio.http.URL
 
 object onClick extends EventHandlerBuilder[MouseEvent]("onclick") {
 
@@ -19,6 +21,15 @@ object onClick extends EventHandlerBuilder[MouseEvent]("onclick") {
       },
       onAuxClick := page.openInNewTab,
     )
+  def push(url: => URL): Widget =
+    fragment(
+      this.e.handle { e =>
+        if e.ctrlKey || e.metaKey || e.button == 1 then Window.newTab(url.encode)
+        else if e.shiftKey then Window.newTab(url.encode) // unfortunately seems no way to force this, so will behave the same as `newTab`
+        else Window.location.assign(url.encode)
+      },
+      onAuxClick := Window.newTab(url.encode),
+    )
 
   def replace(page: RoutablePage[?])(using ev: Unit <:< page.PageParams): Widget =
     replace(page)(ev(()))
@@ -32,6 +43,15 @@ object onClick extends EventHandlerBuilder[MouseEvent]("onclick") {
         else page.replace
       },
       onAuxClick := page.openInNewTab,
+    )
+  def replace(url: => URL): Widget =
+    fragment(
+      this.e.handle { e =>
+        if e.ctrlKey || e.metaKey || e.button == 1 then Window.newTab(url.encode)
+        else if e.shiftKey then Window.newTab(url.encode) // unfortunately seems no way to force this, so will behave the same as `newTab`
+        else Window.location.replace(url.encode)
+      },
+      onAuxClick := Window.newTab(url.encode),
     )
 
   def render[Env](page: NonRoutablePage[Env])(using ev: Unit <:< page.PageParams): WidgetE[Env] =
