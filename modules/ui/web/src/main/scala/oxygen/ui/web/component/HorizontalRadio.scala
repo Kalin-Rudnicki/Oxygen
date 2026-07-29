@@ -1,374 +1,290 @@
 package oxygen.ui.web.component
 
 import oxygen.predef.core.*
-import oxygen.ui.web.{RaiseHandler, UIError}
+import oxygen.ui.web.{RaiseHandler, UIError, *}
 import oxygen.ui.web.create.{*, given}
 import zio.*
 
-object HorizontalRadio extends Decorable {
+/**
+  * Segmented horizontal radio (W2-T08). Pure CSS vars; no Decorator / ColorTransform.
+  */
+// TODO (KR) : clean this up, extend `Deferred`
+final case class HorizontalRadio(
+    private val selectedFG: String,
+    private val selectedBG: String,
+    private val selectedHover: String,
+    private val notSelectedFG: String,
+    private val notSelectedBG: String,
+    private val notSelectedHover: String,
+    private val padding: StandardProps.Padding,
+    private val externalBorderSize: String,
+    private val internalBorderSize: String,
+    private val borderRadius: String,
+    private val borderColor: String,
+    private val fontSize: String,
+    private val extra: Widget,
+    private val selectedButtonExtra: Widget,
+    private val notSelectedButtonExtra: Widget,
+) {
 
-  //////////////////////////////////////////////////////////////////////////////////////////////////////
-  //      Props
-  //////////////////////////////////////////////////////////////////////////////////////////////////////
+  def small: HorizontalRadio =
+    copy(padding = StandardProps.Padding(S.spacing._1, S.spacing._3), borderRadius = S.borderRadius._3, fontSize = S.fontSize._2)
+  def medium: HorizontalRadio =
+    copy(padding = StandardProps.Padding(s"calc(${S.spacing._1} * 1.5)", S.spacing._4), borderRadius = S.borderRadius._4, fontSize = S.fontSize._4)
+  def large: HorizontalRadio =
+    copy(padding = StandardProps.Padding(S.spacing._2, S.spacing._5), borderRadius = S.borderRadius._5, fontSize = S.fontSize._6)
 
-  final case class Props(
-      _selectedFGColor: String,
-      _selectedBGColor: CSSColor,
-      _notSelectedFGColor: String,
-      _notSelectedBGColor: CSSColor,
-      _selectedHoverTransform: ColorTransform,
-      _notSelectedHoverTransform: ColorTransform,
-      _padding: StandardProps.Padding,
-      _externalBorderSize: String,
-      _internalBorderSize: String,
-      _borderRadius: String,
-      _borderColor: String,
-      _fontSize: String,
-      _mod: NodeModifier,
-      _selectedButtonMod: NodeModifier,
-      _notSelectedButtonMod: NodeModifier,
-  ) {
+  def selectedColors(bg: String, fg: String, hover: String): HorizontalRadio =
+    copy(selectedBG = bg, selectedFG = fg, selectedHover = hover)
+  def notSelectedColors(bg: String, fg: String, hover: String): HorizontalRadio =
+    copy(notSelectedBG = bg, notSelectedFG = fg, notSelectedHover = hover)
 
-    lazy val selectedHoverColor: CSSColor = _selectedHoverTransform.transform(_selectedBGColor)
-    lazy val notSelectedHoverColor: CSSColor = _notSelectedHoverTransform.transform(_notSelectedBGColor)
+  def primarySelected: HorizontalRadio =
+    selectedColors(S.color.primary.standard, S.color.primary.on, S.color.primary.hover)
+  def positiveSelected: HorizontalRadio =
+    selectedColors(S.color.status.positive.standard, S.color.status.positive.on, S.color.status.positive.hover)
+  def negativeSelected: HorizontalRadio =
+    selectedColors(S.color.status.negative.standard, S.color.status.negative.on, S.color.status.negative.hover)
+  def alertSelected: HorizontalRadio =
+    selectedColors(S.color.status.alert.standard, S.color.status.alert.on, S.color.status.alert.hover)
+  def informationalSelected: HorizontalRadio =
+    selectedColors(S.color.status.informational.standard, S.color.status.informational.on, S.color.status.informational.hover)
+  def brandPrimary1Selected: HorizontalRadio =
+    selectedColors(S.color.brand.primary1.standard, S.color.fg.default, S.color.brand.primary1.light)
+  def brandPrimary2Selected: HorizontalRadio =
+    selectedColors(S.color.brand.primary2.standard, S.color.fg.default, S.color.brand.primary2.light)
+  def offSelected: HorizontalRadio =
+    selectedColors(S.color.bg.layerTwo, S.color.fg.default, S.color.bg.layerOne)
 
-  }
-  object Props extends PropsCompanion {
+  def primaryNotSelected: HorizontalRadio =
+    notSelectedColors(S.color.primary.subtle, S.color.fg.inverse, S.color.primary.minimal)
+  def positiveNotSelected: HorizontalRadio =
+    notSelectedColors(S.color.status.positive.subtle, S.color.fg.inverse, S.color.status.positive.minimal)
+  def negativeNotSelected: HorizontalRadio =
+    notSelectedColors(S.color.status.negative.subtle, S.color.fg.inverse, S.color.status.negative.minimal)
+  def alertNotSelected: HorizontalRadio =
+    notSelectedColors(S.color.status.alert.subtle, S.color.fg.inverse, S.color.status.alert.minimal)
+  def informationalNotSelected: HorizontalRadio =
+    notSelectedColors(S.color.status.informational.subtle, S.color.fg.inverse, S.color.status.informational.minimal)
+  def brandPrimary1NotSelected: HorizontalRadio =
+    notSelectedColors(S.color.brand.primary1.light, S.color.fg.inverse, S.color.brand.primary1.standard)
+  def brandPrimary2NotSelected: HorizontalRadio =
+    notSelectedColors(S.color.brand.primary2.light, S.color.fg.inverse, S.color.brand.primary2.standard)
+  def offNotSelected: HorizontalRadio =
+    notSelectedColors(S.color.bg.layerThree, S.color.fg.default, S.color.bg.layerTwo)
 
-    override protected lazy val initialProps: Props =
-      Props(
-        _selectedFGColor = "transparent",
-        _selectedBGColor = CSSColor.transparent,
-        _notSelectedFGColor = "transparent",
-        _notSelectedBGColor = CSSColor.transparent,
-        _selectedHoverTransform = ColorTransform.none,
-        _notSelectedHoverTransform = ColorTransform.none,
-        _padding = StandardProps.Padding.none,
-        _externalBorderSize = 2.px,
-        _internalBorderSize = 2.px,
-        _borderRadius = "0",
-        _borderColor = S.color.fg.inverse,
-        _fontSize = "1pt",
-        _mod = NodeModifier.empty,
-        _selectedButtonMod = NodeModifier.empty,
-        _notSelectedButtonMod = NodeModifier.empty,
-      )
+  def primary: HorizontalRadio = primarySelected.offNotSelected
+  def positive: HorizontalRadio = positiveSelected.offNotSelected
+  def negative: HorizontalRadio = negativeSelected.offNotSelected
+  def alert: HorizontalRadio = alertSelected.offNotSelected
+  def informational: HorizontalRadio = informationalSelected.offNotSelected
+  def brandPrimary1: HorizontalRadio = brandPrimary1Selected.offNotSelected
+  def brandPrimary2: HorizontalRadio = brandPrimary2Selected.offNotSelected
+  def positiveNegative: HorizontalRadio = positiveSelected.negativeNotSelected
 
-  }
+  def buttonExtra(mods: Widget*): HorizontalRadio =
+    copy(
+      selectedButtonExtra = fragment(selectedButtonExtra, Widget.fragment(mods)),
+      notSelectedButtonExtra = fragment(notSelectedButtonExtra, Widget.fragment(mods)),
+    )
+  def extra(mods: Widget*): HorizontalRadio =
+    copy(extra = fragment(this.extra, Widget.fragment(mods)))
 
-  //////////////////////////////////////////////////////////////////////////////////////////////////////
-  //      Decorator
-  //////////////////////////////////////////////////////////////////////////////////////////////////////
+  /** Type-parameterized builder entry (`apply` is reserved for children on Deferred widgets). */
+  def of[A]: HorizontalRadio.Builder1[A] =
+    new HorizontalRadio.Builder1[A](this)
 
-  trait DecoratorBuilder extends DecoratorBuilder0 {
+}
+object HorizontalRadio {
 
-    /////// Size ///////////////////////////////////////////////////////////////
+  val empty: HorizontalRadio =
+    HorizontalRadio(
+      selectedFG = S.color.fg.inverse,
+      selectedBG = S.color.status.positive.standard,
+      selectedHover = S.color.status.positive.hover,
+      notSelectedFG = S.color.fg.default,
+      notSelectedBG = S.color.bg.layerThree,
+      notSelectedHover = S.color.bg.layerTwo,
+      padding = StandardProps.Padding(s"calc(${S.spacing._1} * 1.5)", S.spacing._4),
+      externalBorderSize = 2.px,
+      internalBorderSize = 2.px,
+      borderRadius = S.borderRadius._4,
+      borderColor = S.color.fg.inverse,
+      fontSize = S.fontSize._4,
+      extra = Widget.empty,
+      selectedButtonExtra = Widget.empty,
+      notSelectedButtonExtra = Widget.empty,
+    ).positive.medium
 
-    private def makeSize(name: String, padding: StandardProps.Padding, borderRadius: String, fontSize: String): Decorator =
-      make(name) { _.copy(_padding = padding, _borderRadius = borderRadius, _fontSize = fontSize) }
+  def apply(): HorizontalRadio = empty
 
-    final lazy val small: Decorator = makeSize("Small", StandardProps.Padding(S.spacing._1, S.spacing._3), S.borderRadius._3, S.fontSize._2)
-    final lazy val medium: Decorator = makeSize("Medium", StandardProps.Padding(s"calc(${S.spacing._1} * 1.5)", S.spacing._4), S.borderRadius._4, S.fontSize._4)
-    final lazy val large: Decorator = makeSize("Large", StandardProps.Padding(S.spacing._2, S.spacing._5), S.borderRadius._5, S.fontSize._6)
-
-    /////// Colors ///////////////////////////////////////////////////////////////
-
-    private def makeSelected(name: String, bgColor: String, fgColor: String, transform: ColorTransform): Decorator =
-      make(s"Selected($name)") { _.copy(_selectedBGColor = CSSColor.eval(bgColor), _selectedFGColor = fgColor, _selectedHoverTransform = transform) }
-    private def makeNotSelected(name: String, bgColor: String, fgColor: String, transform: ColorTransform): Decorator =
-      make(s"NotSelected($name)") { _.copy(_notSelectedBGColor = CSSColor.eval(bgColor), _notSelectedFGColor = fgColor, _notSelectedHoverTransform = transform) }
-
-    final lazy val primarySelected: Decorator = makeSelected("Primary", S.color.primary, S.color.fg.inverse, ColorTransform.lighten(30.0))
-    final lazy val positiveSelected: Decorator = makeSelected("Positive", S.color.status.positive, S.color.fg.inverse, ColorTransform.lighten(30.0))
-    final lazy val negativeSelected: Decorator = makeSelected("Negative", S.color.status.negative, S.color.fg.inverse, ColorTransform.lighten(30.0))
-    final lazy val alertSelected: Decorator = makeSelected("Alert", S.color.status.alert, S.color.fg.inverse, ColorTransform.lighten(30.0))
-    final lazy val informationalSelected: Decorator = makeSelected("Informational", S.color.status.informational, S.color.fg.inverse, ColorTransform.lighten(30.0))
-    final lazy val brandPrimary1Selected: Decorator = makeSelected("BrandPrimary1", S.color.brand.primary1, S.color.fg.default, ColorTransform.lighten(30.0))
-    final lazy val brandPrimary2Selected: Decorator = makeSelected("BrandPrimary2", S.color.brand.primary2, S.color.fg.default, ColorTransform.lighten(30.0))
-    final lazy val offSelected: Decorator =
-      makeSelected(
-        "Off",
-        S.color.bg.base.getColorValue.lighten(15.0).setOpacity(60.0),
-        S.color.fg.default,
-        ColorTransform.const(S.color.bg.base.getColorValue.lighten(40.0).setOpacity(60.0)),
-      )
-
-    final lazy val primaryNotSelected: Decorator = makeNotSelected("Primary", S.color.primary, S.color.fg.inverse, ColorTransform.lighten(30.0))
-    final lazy val positiveNotSelected: Decorator = makeNotSelected("Positive", S.color.status.positive, S.color.fg.inverse, ColorTransform.lighten(30.0))
-    final lazy val negativeNotSelected: Decorator = makeNotSelected("Negative", S.color.status.negative, S.color.fg.inverse, ColorTransform.lighten(30.0))
-    final lazy val alertNotSelected: Decorator = makeNotSelected("Alert", S.color.status.alert, S.color.fg.inverse, ColorTransform.lighten(30.0))
-    final lazy val informationalNotSelected: Decorator = makeNotSelected("Informational", S.color.status.informational, S.color.fg.inverse, ColorTransform.lighten(30.0))
-    final lazy val brandPrimary1NotSelected: Decorator = makeNotSelected("BrandPrimary1", S.color.brand.primary1, S.color.fg.inverse, ColorTransform.lighten(30.0))
-    final lazy val brandPrimary2NotSelected: Decorator = makeNotSelected("BrandPrimary2", S.color.brand.primary2, S.color.fg.inverse, ColorTransform.lighten(30.0))
-    final lazy val offNotSelected: Decorator =
-      makeNotSelected(
-        "Off",
-        S.color.bg.base.getColorValue.lighten(15.0).setOpacity(60.0),
-        S.color.fg.default,
-        ColorTransform.const(S.color.bg.base.getColorValue.lighten(40.0).setOpacity(60.0)),
-      )
-
-    final lazy val primary: Decorator = primarySelected.offNotSelected
-    final lazy val positive: Decorator = positiveSelected.offNotSelected
-    final lazy val negative: Decorator = negativeSelected.offNotSelected
-    final lazy val alert: Decorator = alertSelected.offNotSelected
-    final lazy val informational: Decorator = informationalSelected.offNotSelected
-    final lazy val brandPrimary1: Decorator = brandPrimary1Selected.offNotSelected
-    final lazy val brandPrimary2: Decorator = brandPrimary2Selected.offNotSelected
-    final lazy val positiveNegative: Decorator = positiveSelected.negativeNotSelected
-
-    final def selectedFGColor(color: String): Decorator = make("custom(selectedFGColor)") { _.copy(_selectedFGColor = color) }
-    final def selectedBGColor(color: String): Decorator = make("custom(selectedBGColor)") { _.copy(_selectedBGColor = CSSColor.eval(color)) }
-    final def notSelectedFGColor(color: String): Decorator = make("custom(notSelectedFGColor)") { _.copy(_notSelectedFGColor = color) }
-    final def notSelectedBGColor(color: String): Decorator = make("custom(notSelectedBGColor)") { _.copy(_notSelectedBGColor = CSSColor.eval(color)) }
-    final def selectedHoverColorTransform(transform: ColorTransform): Decorator = make("custom(selectedHoverColorTransform)") { _.copy(_selectedHoverTransform = transform) }
-    final def notSelectedHoverColorTransform(transform: ColorTransform): Decorator = make("custom(notSelectedHoverColorTransform)") { _.copy(_notSelectedHoverTransform = transform) }
-
-    /////// Misc ///////////////////////////////////////////////////////////////
-
-    final lazy val mod: FocusNodeModifier = focusNodeModifier("mod")(_._mod)
-    final lazy val buttonMod: FocusNodeModifier = focusNodeModifier("buttonMod")(_._selectedButtonMod, _._notSelectedButtonMod)
-    final lazy val selectedButtonMod: FocusNodeModifier = focusNodeModifier("selectedButtonMod")(_._selectedButtonMod)
-    final lazy val notSelectedButtonMod: FocusNodeModifier = focusNodeModifier("notSelectedButtonMod")(_._notSelectedButtonMod)
-
-  }
-
-  final class Decorator private[HorizontalRadio] (protected val genericDecorator: GenericDecorator[Props]) extends DecoratorBuilder, DecoratorBuilderType
-  object Decorator extends DecoratorBuilder, DecoratorBuilderCompanion {
-
-    override protected def wrapGeneric(genericDecorator: GenericDecorator[Props]): Decorator = new Decorator(genericDecorator)
-
-    override lazy val defaultStyling: Decorator = empty.positive.medium
-
-  }
-
-  //////////////////////////////////////////////////////////////////////////////////////////////////////
-  //      Widget
-  //////////////////////////////////////////////////////////////////////////////////////////////////////
+  def of[S]: Builder1[S] = empty.of[S]
 
   final case class State[S](
       options: Seq[S],
       selected: S,
   ) {
-
     private val lastIdx: Int = options.size - 1
     private[HorizontalRadio] val elems: Seq[(Boolean, S, Boolean)] =
       options.zipWithIndex.map { case (value, idx) =>
         (idx == 0, value, idx == lastIdx)
       }
-
   }
   object State {
-
     def initialFirst[S: StrictEnum as e]: State[S] =
       State(e.enumValues, e.enumValues.head)
-
     def initial[S: StrictEnum as e](initial: S): State[S] =
       State(e.enumValues, initial)
-
   }
 
-  def apply[S]: Builder1[S] = new Builder1[S]
-
-  class Builder1[S]
-      extends Builder2[S](
-        _.toString,
-      ) {
-
-    final def show(f: S => String): Builder2[S] = new Builder2(f)
+  class Builder1[S](cfg: HorizontalRadio) extends Builder2[S](cfg, _.toString) {
+    final def show(f: S => String): Builder2[S] = new Builder2(cfg, f)
     final def usingShow(using ev: Show[S]): Builder2[S] = show(ev.show)
     final def toStringShow: Builder2[S] = this
-
   }
 
-  class Builder2[S](showF: S => String)
-      extends Builder3[Nothing, S](
-        showF,
-        (_, _) => ZIO.unit,
-      ) {
-
+  class Builder2[S](cfg: HorizontalRadio, showF: S => String)
+      extends Builder3[Nothing, S](cfg, showF, (_, _) => ZIO.unit) {
     final def onSelectRaise: Builder3[S, S] =
-      new Builder3[S, S](showF, _.raiseAction(_))
-
+      Builder3[S, S](cfg, showF, _.raiseAction(_))
   }
 
-  class Builder3[A, S](
-      showF: S => String,
-      onSelectF: (RaiseHandler[Any, A], S) => ZIO[Scope, UIError, Unit],
-  ) {
+  case class Builder3[A, S](
+      private val cfg: HorizontalRadio,
+      private val showF: S => String,
+      private val onSelectF: (RaiseHandler[Any, A], S) => ZIO[Scope, UIError, Unit],
+  ) extends PWidget.Deferred[Any, A, State[S], State[S]] {
 
-    final def decorate(decorator: Decorator): WidgetAS[A, State[S]] = {
-      val props: Props = decorator.computed
+    final def configure(f: HorizontalRadio => HorizontalRadio): Builder3[A, S] =
+      Builder3(f(cfg), showF, onSelectF)
 
+    override protected def build: PWidget[Any, A, State[S], State[S]] =
       Widget.state[HorizontalRadio.State[S]].fix { state =>
         val current: S = state.renderTimeValue.selected
-
         span(
           O.HorizontalRadio,
           borderStyle.solid,
-          borderColor := props._borderColor,
-          borderWidth := props._externalBorderSize,
-          borderRadius := props._borderRadius,
+          borderColor := cfg.borderColor,
+          borderWidth := cfg.externalBorderSize,
+          borderRadius := cfg.borderRadius,
         )(
           Widget.foreach(state.renderTimeValue.elems) { case (isFirst, opt, isLast) =>
             val isSelected: Boolean = opt == current
             span(
               O.HorizontalRadio.Button,
-              // const
               borderLeft := "none",
               borderTop := "none",
               borderBottom := "none",
-              padding := props._padding.show,
-              fontSize := props._fontSize,
-              if isSelected then // is selected
+              padding := cfg.padding.show,
+              fontSize := cfg.fontSize,
+              if isSelected then
                 fragment(
-                  color := props._selectedFGColor,
-                  backgroundColor.dynamic := props._selectedBGColor,
-                  backgroundColor.dynamic.hover := props.selectedHoverColor,
+                  color := cfg.selectedFG,
+                  backgroundColor.dynamic := cfg.selectedBG,
+                  backgroundColor.dynamic.hover := cfg.selectedHover,
                 )
-              else // is not selected
+              else
                 fragment(
-                  color := props._notSelectedFGColor,
-                  backgroundColor.dynamic := props._notSelectedBGColor,
-                  backgroundColor.dynamic.hover := props.notSelectedHoverColor,
-                )
-              ,
-              if isFirst then // is first
-                fragment(
-                  borderTopLeftRadius := props._borderRadius,
-                  borderBottomLeftRadius := props._borderRadius,
-                )
-              else // is not first
-                fragment(
+                  color := cfg.notSelectedFG,
+                  backgroundColor.dynamic := cfg.notSelectedBG,
+                  backgroundColor.dynamic.hover := cfg.notSelectedHover,
                 )
               ,
-              if isLast then // is last
+              if isFirst then
                 fragment(
-                  borderTopRightRadius := props._borderRadius,
-                  borderBottomRightRadius := props._borderRadius,
+                  borderTopLeftRadius := cfg.borderRadius,
+                  borderBottomLeftRadius := cfg.borderRadius,
                 )
-              else // is not last
+              else Widget.empty,
+              if isLast then
                 fragment(
-                  borderRight.csss(props._internalBorderSize, "solid", props._borderColor),
+                  borderTopRightRadius := cfg.borderRadius,
+                  borderBottomRightRadius := cfg.borderRadius,
+                )
+              else
+                fragment(
+                  borderRight.csss(cfg.internalBorderSize, "solid", cfg.borderColor),
                 )
               ,
-              //
               showF(opt),
               onClick.a[A].handle { rh => onSelectF(rh, opt) *> state.update(_.copy(selected = opt)) },
-            )(if isSelected then props._selectedButtonMod else props._notSelectedButtonMod)
+              if isSelected then cfg.selectedButtonExtra else cfg.notSelectedButtonExtra,
+            )
           },
-        )(props._mod)
+          cfg.extra,
+        )
       }
-    }
-
-    final def decorate(decorator: Decorator => Decorator): WidgetAS[A, State[S]] =
-      decorate(decorator(Decorator.defaultStyling))
-
-    final def default: WidgetAS[A, State[S]] =
-      decorate(Decorator.defaultStyling)
-
-    final def apply(decorator: Decorator): WidgetAS[A, State[S]] =
-      decorate(decorator)
-
-    final def apply(decorator: Decorator => Decorator): WidgetAS[A, State[S]] =
-      decorate(decorator)
-
-    final def apply(): WidgetAS[A, State[S]] =
-      default
 
   }
 
   //////////////////////////////////////////////////////////////////////////////////////////////////////
-  //      Form
+  //      Form (labeled, composable Deferred builder)
   //////////////////////////////////////////////////////////////////////////////////////////////////////
 
-  object form extends Decorable {
+  /**
+    * Labeled horizontal-radio form builder. Value is the selected option `A`.
+    *
+    * {{{
+    * HorizontalRadio.form[Mode]("Mode").describe("Pick").modRadio(_.primarySelected)
+    * }}}
+    */
+  final case class form[A] private (
+      private val _fieldName: String,
+      private val _radio: HorizontalRadio,
+      private val _label: Label,
+      private val _show: A => String,
+      private val _surroundingPadding: String,
+      private val _labelSpacing: Option[String],
+  ) extends PForm.Deferred.Stateful[Any, Nothing, HorizontalRadio.State[A], A] {
 
-    //////////////////////////////////////////////////////////////////////////////////////////////////////
-    //      Props
-    //////////////////////////////////////////////////////////////////////////////////////////////////////
-
-    final case class Props(
-        label: Label.Decorator,
-        horizontalRadio: HorizontalRadio.Decorator,
-        labelSpacing: Option[String],
-        surroundingPadding: String,
-    )
-    object Props extends PropsCompanion {
-
-      override protected lazy val initialProps: Props =
-        Props(
-          label = Label.Decorator.defaultStyling,
-          horizontalRadio = HorizontalRadio.Decorator.defaultStyling,
-          labelSpacing = Label.defaultInputSpacing.some,
-          surroundingPadding = 10.px,
-        )
-
-    }
-
-    //////////////////////////////////////////////////////////////////////////////////////////////////////
-    //      Decorator
-    //////////////////////////////////////////////////////////////////////////////////////////////////////
-
-    trait DecoratorBuilder extends DecoratorBuilder0 {
-
-      final def label(f: Label.Decorator => Label.Decorator): Decorator = {
-        val dec = f(Label.Decorator.empty)
-        make(s"label { ${dec.name} }") { current => current.copy(label = current.label >> dec) }
-      }
-
-      final def horizontalRadio(f: HorizontalRadio.Decorator => HorizontalRadio.Decorator): Decorator = {
-        val dec = f(HorizontalRadio.Decorator.empty)
-        make(s"horizontalRadio { ${dec.name} }") { current => current.copy(horizontalRadio = current.horizontalRadio >> dec) }
-      }
-
-      final def describe(description: Widget): Decorator =
-        make("describe") { current => current.copy(label = current.label.describe(description)) }
-
-    }
-
-    final class Decorator private[form] (protected val genericDecorator: GenericDecorator[Props]) extends DecoratorBuilder, DecoratorBuilderType
-    object Decorator extends DecoratorBuilder, DecoratorBuilderCompanion {
-
-      override protected def wrapGeneric(genericDecorator: GenericDecorator[Props]): Decorator = new Decorator(genericDecorator)
-
-      override lazy val defaultStyling: Decorator = empty
-
-    }
-
-    //////////////////////////////////////////////////////////////////////////////////////////////////////
-    //      Widget
-    //////////////////////////////////////////////////////////////////////////////////////////////////////
-
-    def apply[A](
-        label: String,
-        show: A => String,
-        decorator: Decorator => Decorator,
-    ): FormS[HorizontalRadio.State[A], A] = {
-      val props = decorator(Decorator.empty.label(_.label(label))).computed
-
+    override protected lazy val build: PForm[Any, Nothing, HorizontalRadio.State[A], HorizontalRadio.State[A], A] =
       Form.makeWith(
-        label,
+        _fieldName,
         div(
-          padding := props.surroundingPadding,
+          padding := _surroundingPadding,
           width.fitContent,
-          Label(props.label),
-          Spacing.vertical.opt(props.labelSpacing),
-          div(HorizontalRadio[A].show(show).decorate(props.horizontalRadio)),
+          maxWidth := 100.pct,
+          boxSizing.borderBox,
+          _label,
+          Spacing.vertical.opt(_labelSpacing),
+          div(_radio.of[A].show(_show)),
         ),
       )(_.selected)
-    }
 
-    def apply[A](
-        label: String,
-        decorator: Decorator => Decorator,
-    ): FormS[HorizontalRadio.State[A], A] =
-      apply[A](label, _.toString, decorator)
+    def modRadio(f: HorizontalRadio => HorizontalRadio): form[A] = copy(_radio = f(_radio))
+    def modLabel(f: Label => Label): form[A] = copy(_label = f(_label))
+    def radio: HorizontalRadio = _radio
+    def label: Label = _label
 
-    def apply[A](
-        label: String,
-    ): FormS[HorizontalRadio.State[A], A] =
-      apply[A](label, _.toString, identity)
+    def show(f: A => String): form[A] = copy(_show = f)
+    def describe(d: Widget): form[A] = modLabel(_.describe(d))
+    def labelMod(mods: Widget*): form[A] = modLabel(_.mod(mods*))
+    def surroundingPadding(p: String): form[A] = copy(_surroundingPadding = p)
+    def labelSpacing(s: Option[String]): form[A] = copy(_labelSpacing = s)
+    def noLabelSpacing: form[A] = labelSpacing(None)
+
+    def small: form[A] = modRadio(_.small)
+    def medium: form[A] = modRadio(_.medium)
+    def large: form[A] = modRadio(_.large)
+    def primarySelected: form[A] = modRadio(_.primarySelected)
+    def positiveSelected: form[A] = modRadio(_.positiveSelected)
+    def negativeSelected: form[A] = modRadio(_.negativeSelected)
+
+  }
+  object form {
+
+    def apply[A](label: String, show: A => String): HorizontalRadio.form[A] =
+      new HorizontalRadio.form[A](
+        _fieldName = label,
+        _radio = HorizontalRadio.empty,
+        _label = Label(label),
+        _show = show,
+        _surroundingPadding = 10.px,
+        _labelSpacing = Label.defaultInputSpacing.some,
+      )
+
+    def apply[A](label: String): HorizontalRadio.form[A] =
+      apply[A](label, _.toString)
 
   }
 

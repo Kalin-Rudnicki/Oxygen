@@ -188,6 +188,17 @@ abstract class OxygenStyleVars[T] {
     val strong: T
     val subtle: T
     val minimal: T
+
+    /** Interaction tokens (seed→generate). Prefer these over getColorValue + darken at runtime. */
+    val hover: T
+    val active: T
+
+    /**
+      * Ink for solid fills of this role (on-primary / on-danger).
+      * Luminance-picked black or white — not mode-relative page text.
+      * Site audits: GitHub onEmphasis, FB primary-button-text, Jira text-inverse.
+      */
+    val on: T
   }
 
   abstract class ColorWithLightDark {
@@ -199,13 +210,16 @@ abstract class OxygenStyleVars[T] {
 }
 object OxygenStyleVars extends OxygenStyleVars[CSSVar] {
 
-  def toCSS(vars: OxygenStyleVars[String]): StyleSheet =
-    StyleSheet.variables("default styles")(
+  def toCSS(vars: OxygenStyleVars[String], scope: String = ":root", header: String = "default styles"): StyleSheet =
+    StyleSheet.variables(header, scope)(
       // primary
       OxygenStyleVars.color.primary.standard -> vars.color.primary.standard,
       OxygenStyleVars.color.primary.strong -> vars.color.primary.strong,
       OxygenStyleVars.color.primary.subtle -> vars.color.primary.subtle,
       OxygenStyleVars.color.primary.minimal -> vars.color.primary.minimal,
+      OxygenStyleVars.color.primary.hover -> vars.color.primary.hover,
+      OxygenStyleVars.color.primary.active -> vars.color.primary.active,
+      OxygenStyleVars.color.primary.on -> vars.color.primary.on,
       // fg
       OxygenStyleVars.color.fg.default -> vars.color.fg.default,
       OxygenStyleVars.color.fg.moderate -> vars.color.fg.moderate,
@@ -229,6 +243,9 @@ object OxygenStyleVars extends OxygenStyleVars[CSSVar] {
       OxygenStyleVars.color.highlight.accent.strong -> vars.color.highlight.accent.strong,
       OxygenStyleVars.color.highlight.accent.subtle -> vars.color.highlight.accent.subtle,
       OxygenStyleVars.color.highlight.accent.minimal -> vars.color.highlight.accent.minimal,
+      OxygenStyleVars.color.highlight.accent.hover -> vars.color.highlight.accent.hover,
+      OxygenStyleVars.color.highlight.accent.active -> vars.color.highlight.accent.active,
+      OxygenStyleVars.color.highlight.accent.on -> vars.color.highlight.accent.on,
       OxygenStyleVars.color.highlight.brand -> vars.color.highlight.brand,
       OxygenStyleVars.color.highlight._1 -> vars.color.highlight._1,
       OxygenStyleVars.color.highlight._2 -> vars.color.highlight._2,
@@ -240,18 +257,30 @@ object OxygenStyleVars extends OxygenStyleVars[CSSVar] {
       OxygenStyleVars.color.status.positive.strong -> vars.color.status.positive.strong,
       OxygenStyleVars.color.status.positive.subtle -> vars.color.status.positive.subtle,
       OxygenStyleVars.color.status.positive.minimal -> vars.color.status.positive.minimal,
+      OxygenStyleVars.color.status.positive.hover -> vars.color.status.positive.hover,
+      OxygenStyleVars.color.status.positive.active -> vars.color.status.positive.active,
+      OxygenStyleVars.color.status.positive.on -> vars.color.status.positive.on,
       OxygenStyleVars.color.status.negative.standard -> vars.color.status.negative.standard,
       OxygenStyleVars.color.status.negative.strong -> vars.color.status.negative.strong,
       OxygenStyleVars.color.status.negative.subtle -> vars.color.status.negative.subtle,
       OxygenStyleVars.color.status.negative.minimal -> vars.color.status.negative.minimal,
+      OxygenStyleVars.color.status.negative.hover -> vars.color.status.negative.hover,
+      OxygenStyleVars.color.status.negative.active -> vars.color.status.negative.active,
+      OxygenStyleVars.color.status.negative.on -> vars.color.status.negative.on,
       OxygenStyleVars.color.status.alert.standard -> vars.color.status.alert.standard,
       OxygenStyleVars.color.status.alert.strong -> vars.color.status.alert.strong,
       OxygenStyleVars.color.status.alert.subtle -> vars.color.status.alert.subtle,
       OxygenStyleVars.color.status.alert.minimal -> vars.color.status.alert.minimal,
+      OxygenStyleVars.color.status.alert.hover -> vars.color.status.alert.hover,
+      OxygenStyleVars.color.status.alert.active -> vars.color.status.alert.active,
+      OxygenStyleVars.color.status.alert.on -> vars.color.status.alert.on,
       OxygenStyleVars.color.status.informational.standard -> vars.color.status.informational.standard,
       OxygenStyleVars.color.status.informational.strong -> vars.color.status.informational.strong,
       OxygenStyleVars.color.status.informational.subtle -> vars.color.status.informational.subtle,
       OxygenStyleVars.color.status.informational.minimal -> vars.color.status.informational.minimal,
+      OxygenStyleVars.color.status.informational.hover -> vars.color.status.informational.hover,
+      OxygenStyleVars.color.status.informational.active -> vars.color.status.informational.active,
+      OxygenStyleVars.color.status.informational.on -> vars.color.status.informational.on,
       OxygenStyleVars.color.status.notification -> vars.color.status.notification,
       // brand
       OxygenStyleVars.color.brand.primary1.standard -> vars.color.brand.primary1.standard,
@@ -355,6 +384,9 @@ object OxygenStyleVars extends OxygenStyleVars[CSSVar] {
       val strong: CSSVar = CSSVar("style--color--primary-strong")
       val minimal: CSSVar = CSSVar("style--color--primary-minimal")
       val subtle: CSSVar = CSSVar("style--color--primary-subtle")
+      val hover: CSSVar = CSSVar("style--color--primary-hover")
+      val active: CSSVar = CSSVar("style--color--primary-active")
+      val on: CSSVar = CSSVar("style--color--primary-on")
     }
 
     object fg extends FG {
@@ -385,6 +417,9 @@ object OxygenStyleVars extends OxygenStyleVars[CSSVar] {
         val strong: CSSVar = CSSVar("style--color--highlight--accent-strong")
         val subtle: CSSVar = CSSVar("style--color--highlight--accent-subtle")
         val minimal: CSSVar = CSSVar("style--color--highlight--accent-minimal")
+        val hover: CSSVar = CSSVar("style--color--highlight--accent-hover")
+        val active: CSSVar = CSSVar("style--color--highlight--accent-active")
+        val on: CSSVar = CSSVar("style--color--highlight--accent-on")
       }
       val brand: CSSVar = CSSVar("style--color--highlight--brand")
       val _1: CSSVar = CSSVar("style--color--highlight--one")
@@ -400,24 +435,36 @@ object OxygenStyleVars extends OxygenStyleVars[CSSVar] {
         val strong: CSSVar = CSSVar("style--color--status--positive-strong")
         val subtle: CSSVar = CSSVar("style--color--status--positive-subtle")
         val minimal: CSSVar = CSSVar("style--color--status--positive-minimal")
+        val hover: CSSVar = CSSVar("style--color--status--positive-hover")
+        val active: CSSVar = CSSVar("style--color--status--positive-active")
+        val on: CSSVar = CSSVar("style--color--status--positive-on")
       }
       object negative extends ColorWithStrength {
         val standard: CSSVar = CSSVar("style--color--status--negative")
         val strong: CSSVar = CSSVar("style--color--status--negative-strong")
         val subtle: CSSVar = CSSVar("style--color--status--negative-subtle")
         val minimal: CSSVar = CSSVar("style--color--status--negative-minimal")
+        val hover: CSSVar = CSSVar("style--color--status--negative-hover")
+        val active: CSSVar = CSSVar("style--color--status--negative-active")
+        val on: CSSVar = CSSVar("style--color--status--negative-on")
       }
       object alert extends ColorWithStrength {
         val standard: CSSVar = CSSVar("style--color--status--alert")
         val strong: CSSVar = CSSVar("style--color--status--alert-strong")
         val subtle: CSSVar = CSSVar("style--color--status--alert-subtle")
         val minimal: CSSVar = CSSVar("style--color--status--alert-minimal")
+        val hover: CSSVar = CSSVar("style--color--status--alert-hover")
+        val active: CSSVar = CSSVar("style--color--status--alert-active")
+        val on: CSSVar = CSSVar("style--color--status--alert-on")
       }
       object informational extends ColorWithStrength {
         val standard: CSSVar = CSSVar("style--color--status--informational")
         val strong: CSSVar = CSSVar("style--color--status--informational-strong")
         val subtle: CSSVar = CSSVar("style--color--status--informational-subtle")
         val minimal: CSSVar = CSSVar("style--color--status--informational-minimal")
+        val hover: CSSVar = CSSVar("style--color--status--informational-hover")
+        val active: CSSVar = CSSVar("style--color--status--informational-active")
+        val on: CSSVar = CSSVar("style--color--status--informational-on")
       }
       val notification: CSSVar = CSSVar("style--color--status--notification")
     }

@@ -6,151 +6,171 @@ import oxygen.ui.web.create.{*, given}
 import oxygen.zio.instances.given
 import zio.Chunk
 
-object PageMessagesBottomCorner extends Decorable {
+/**
+  * Bottom-corner page messages (W2). Pure CSS-var styling; no Decorator.
+  */
+final case class PageMessagesBottomCorner(
+    private val primary: PageMessage.Styling,
+    private val positive: PageMessage.Styling,
+    private val negative: PageMessage.Styling,
+    private val info: PageMessage.Styling,
+    private val warning: PageMessage.Styling,
+    private val error: PageMessage.Styling,
+    private val minWidth: String,
+    private val maxWidth: String,
+    private val maxHeight: String,
+) extends PWidget.Deferred[Any, Nothing, Any, Nothing] {
 
-  //////////////////////////////////////////////////////////////////////////////////////////////////////
-  //      Props
-  //////////////////////////////////////////////////////////////////////////////////////////////////////
+  def primary(s: PageMessage.Styling): PageMessagesBottomCorner = copy(primary = s)
+  def positive(s: PageMessage.Styling): PageMessagesBottomCorner = copy(positive = s)
+  def negative(s: PageMessage.Styling): PageMessagesBottomCorner = copy(negative = s)
+  def info(s: PageMessage.Styling): PageMessagesBottomCorner = copy(info = s)
+  def warning(s: PageMessage.Styling): PageMessagesBottomCorner = copy(warning = s)
+  def error(s: PageMessage.Styling): PageMessagesBottomCorner = copy(error = s)
+  def minWidth(w: String): PageMessagesBottomCorner = copy(minWidth = w)
+  def maxWidth(w: String): PageMessagesBottomCorner = copy(maxWidth = w)
+  def maxHeight(h: String): PageMessagesBottomCorner = copy(maxHeight = h)
 
-  final case class Props(
-      primary: PageMessage.Styling,
-      positive: PageMessage.Styling,
-      negative: PageMessage.Styling,
-      info: PageMessage.Styling,
-      warning: PageMessage.Styling,
-      error: PageMessage.Styling,
-      minWidth: String,
-      maxWidth: String,
-      maxHeight: String,
-  )
-  object Props extends PropsCompanion {
+  override protected def build: PWidget[Any, Nothing, Any, Nothing] =
+    PageMessagesBottomCorner.render(this).attach(PageMessages.PageLocal)
 
-    override protected lazy val initialProps: Props =
-      Props(
-        primary = PageMessage.Styling.make(S.color.primary.getColorValue),
-        positive = PageMessage.Styling.make(S.color.status.positive.getColorValue),
-        negative = PageMessage.Styling.make(S.color.status.negative.getColorValue),
-        info = PageMessage.Styling.make(S.color.status.informational.getColorValue),
-        warning = PageMessage.Styling.make(S.color.status.alert.getColorValue),
-        error = PageMessage.Styling.make(S.color.status.negative.getColorValue),
-        minWidth = 250.px,
-        maxWidth = 750.px,
-        maxHeight = 75.vh,
-      )
+}
+object PageMessagesBottomCorner {
 
-  }
+  val empty: PageMessagesBottomCorner =
+    PageMessagesBottomCorner(
+      primary = PageMessage.Styling.fromRole(S.color.primary.standard, S.color.primary.subtle, S.color.primary.hover),
+      positive = PageMessage.Styling.fromRole(S.color.status.positive.standard, S.color.status.positive.subtle, S.color.status.positive.hover),
+      negative = PageMessage.Styling.fromRole(S.color.status.negative.standard, S.color.status.negative.subtle, S.color.status.negative.hover),
+      info = PageMessage.Styling.fromRole(S.color.status.informational.standard, S.color.status.informational.subtle, S.color.status.informational.hover),
+      warning = PageMessage.Styling.fromRole(S.color.status.alert.standard, S.color.status.alert.subtle, S.color.status.alert.hover),
+      error = PageMessage.Styling.fromRole(S.color.status.negative.standard, S.color.status.negative.subtle, S.color.status.negative.hover),
+      minWidth = 250.px,
+      maxWidth = 750.px,
+      maxHeight = 75.vh,
+    )
 
-  //////////////////////////////////////////////////////////////////////////////////////////////////////
-  //      Decorator
-  //////////////////////////////////////////////////////////////////////////////////////////////////////
+  def apply(): PageMessagesBottomCorner = empty
 
-  trait DecoratorBuilder extends DecoratorBuilder0 {
+  def apply(configure: PageMessagesBottomCorner => PageMessagesBottomCorner): PageMessagesBottomCorner =
+    configure(empty)
 
-    final def primary(styling: PageMessage.Styling): Decorator = make("styling(primary)") { _.copy(primary = styling) }
-    final def positive(styling: PageMessage.Styling): Decorator = make("styling(positive)") { _.copy(positive = styling) }
-    final def negative(styling: PageMessage.Styling): Decorator = make("styling(negative)") { _.copy(negative = styling) }
-    final def info(styling: PageMessage.Styling): Decorator = make("styling(info)") { _.copy(info = styling) }
-    final def warning(styling: PageMessage.Styling): Decorator = make("styling(warning)") { _.copy(warning = styling) }
-    final def error(styling: PageMessage.Styling): Decorator = make("styling(error)") { _.copy(error = styling) }
+  lazy val default: PageMessagesBottomCorner = empty
 
-  }
-
-  final class Decorator private[PageMessagesBottomCorner] (protected val genericDecorator: GenericDecorator[Props]) extends DecoratorBuilder, DecoratorBuilderType
-  object Decorator extends DecoratorBuilder, DecoratorBuilderCompanion {
-
-    override protected def wrapGeneric(genericDecorator: GenericDecorator[Props]): Decorator = new Decorator(genericDecorator)
-
-    override lazy val defaultStyling: Decorator = empty
-
-  }
-
-  //////////////////////////////////////////////////////////////////////////////////////////////////////
-  //      Widget
-  //////////////////////////////////////////////////////////////////////////////////////////////////////
-
-  // TODO (KR) : support an icon
-  private def message(props: Props, msg: PageMessage, parentState: WidgetState[PageMessages]): Widget = {
+  private def message(cfg: PageMessagesBottomCorner, msg: PageMessage, parentState: WidgetState[PageMessages]): Widget = {
     val s: PageMessage.Styling = msg.`type` match
-      case Type.Primary         => props.primary
-      case Type.Positive        => props.positive
-      case Type.Negative        => props.negative
-      case Type.Info            => props.info
-      case Type.Warning         => props.warning
-      case Type.Error           => props.error
+      case Type.Primary         => cfg.primary
+      case Type.Positive        => cfg.positive
+      case Type.Negative        => cfg.negative
+      case Type.Info            => cfg.info
+      case Type.Warning         => cfg.warning
+      case Type.Error           => cfg.error
       case Type.Custom(styling) => styling
 
+    // Flex card (not absolute × on overflow): long content wraps inside maxWidth;
+    // white-space:pre was the overflow bomb (no wrap, fit-content grows forever).
     div(
       backgroundColor := s.backgroundColor,
       color := s.fontColor,
-      border := s"2px solid ${s.backgroundColor}",
+      border := s"2px solid ${s.borderColor}",
       borderRadius := 12.px,
-      padding := "1rem 1.5rem 1rem 1rem",
+      padding := css(S.spacing._3, S.spacing._3),
       boxShadow := "0 4px 16px rgba(0,0,0,0.12)",
-      minWidth := props.minWidth,
-      maxWidth := props.maxWidth,
+      boxSizing.borderBox,
+      // Grow with content up to the stack width; never paint outside the card.
+      // flex-shrink: 0 so a tall stack scrolls the list instead of squashing toasts.
+      flexShrink := "0",
       width.fitContent,
-      display.inlineBlock,
-      position.relative,
+      maxWidth := 100.pct,
+      minWidth := s"min(${cfg.minWidth}, 100%)",
+      overflow.hidden,
+      display.flex,
+      flexDirection.row,
+      alignItems.flexStart,
+      gap := S.spacing._3,
     )(
-      // Close button in top right
-      button(
-        background := s.buttonColor,
-        color := s.fontColor,
-        border := "none",
-        fontSize := "1.5rem",
-        cursor.pointer,
-        borderRadius := 12.px,
-        userSelect.none,
-        transition := "background 0.2s",
-        position.absolute,
+      div(
+        flex := "1 1 auto",
+        minWidth := 0.px, // allow flex child to shrink below content min-size
+        maxWidth := 100.pct,
+        fontSize := S.fontSize._3,
         fontWeight := S.fontWeight.semiBold,
-        top := "0.5rem",
-        right := "0.5rem",
-        zIndex := "2",
-        width := 30.px,
-        height := 30.px,
+        lineHeight := "1.4",
+        // Preserve intentional newlines; wrap long runs / unbroken strings.
+        whiteSpace.preWrap,
+        wordWrap := "break-word",
+        wordBreak := "break-word",
+        Widget.raw.css("overflow-wrap", "anywhere"),
+        msg.content,
+      ),
+      button(
+        O.Button,
+        flex := "0 0 auto",
+        flexShrink := "0",
+        backgroundColor := s.buttonColor,
+        color := S.color.fg.globalWhite,
+        border := "none",
+        fontSize := S.fontSize._5,
+        lineHeight := "1",
+        cursor.pointer,
+        borderRadius := S.borderRadius._3,
+        userSelect.none,
+        fontWeight := S.fontWeight.semiBold,
+        width := 28.px,
+        height := 28.px,
+        minWidth := 28.px,
+        minHeight := 28.px,
+        padding := 0.px,
+        display.inlineFlex,
+        alignItems.center,
+        justifyContent.center,
+        boxSizing.borderBox,
       )(
         onClick := parentState.update(_ - msg),
+        Widget.raw.htmlAttr("aria-label", "Dismiss message"),
+        Widget.raw.htmlAttr("title", "Dismiss"),
         "×",
-      ),
-      // Message content
-      div(
-        fontSize := "1rem",
-        marginRight := "2.5rem",
-        fontWeight := S.fontWeight.semiBold,
-        msg.content,
-        whiteSpace.pre,
       ),
     )
   }
 
-  private def internal(decorator: Decorator): WidgetS[PageMessages] = {
-    val props = decorator.computed
-
+  private def render(cfg: PageMessagesBottomCorner): WidgetS[PageMessages] =
     Widget.state[PageMessages].fix { state =>
+      // Outer is only a positioning shell. The *list* owns maxHeight + O.Scrollable so
+      // overflowing stacks scroll instead of painting off-screen or compacting cards.
+      val stackMaxW = s"min(${cfg.maxWidth}, calc(100vw - 24px))"
+      // Leave room for Close All + padding so the scrollport fits in the viewport.
+      val listMaxH = s"min(${cfg.maxHeight}, calc(100dvh - 96px))"
+
       div(
         position.fixed,
         bottom := 0.px,
-        right := 20.px,
+        right := 0.px,
         zIndex := ZIndices.pageMessages,
         background := "none",
-        maxHeight := props.maxHeight,
+        maxWidth := stackMaxW,
+        width := stackMaxW,
+        boxSizing.borderBox,
         display.flex,
         flexDirection.column,
+        // Right-align: short toasts hug content width; long ones still cap at maxWidth.
         alignItems.flexEnd,
         gap := 10.px,
-        paddingBottom := 20.px,
+        padding := css(0.px, 12.px, 20.px, 12.px),
+        // Do not put maxHeight/overflow on the shell — that clips without a scrollbar.
+        pointerEvents.none,
       )(
         Widget.when(state.get.pageMessages.size > 1) {
           button(
+            pointerEvents.auto,
+            flexShrink := "0",
             display.inlineBlock,
             padding(5.px, 15.px),
-            backgroundColor := "#000B",
+            backgroundColor := S.color.bg.layerThree,
             boxShadow := "none",
-            border(1.px, OxygenStyleVars.color.fg.default),
-            color := OxygenStyleVars.color.fg.default,
+            border(1.px, "solid", S.color.fg.subtle),
+            color := S.color.fg.default,
             borderRadius := 10.px,
-            marginRight := 10.px,
             cursor.pointer,
           )(
             "Close All",
@@ -158,28 +178,25 @@ object PageMessagesBottomCorner extends Decorable {
           )
         },
         div(
-          OxygenStyleSheet.Scrollable,
-          maxHeight := props.maxHeight,
+          O.Scrollable,
+          pointerEvents.auto,
+          // Hard cap: content taller than this scrolls (O.Scrollable → overflow-y: auto).
+          maxHeight := listMaxH,
+          // Flex min-size:auto would let content force the box past maxHeight in some engines.
+          minHeight := 0.px,
+          maxWidth := 100.pct,
+          width := 100.pct,
+          boxSizing.borderBox,
           display.flex,
           flexDirection.column,
           alignItems.flexEnd,
           gap := 10.px,
-          Widget.foreach(state.get.pageMessages)(message(props, _, state)),
+          overflowX.hidden,
+          // Keep cards at natural size; only the list scrolls.
+          flexWrap.nowrap,
+          Widget.foreach(state.get.pageMessages)(message(cfg, _, state)),
         ),
       )
     }
-  }
-
-  def apply(decorator: Decorator): Widget =
-    internal(decorator).attach(PageMessages.PageLocal)
-
-  def apply(decorator: Decorator => Decorator): Widget =
-    apply(decorator(Decorator.defaultStyling))
-
-  def apply(): Widget =
-    default
-
-  lazy val default: Widget =
-    apply(Decorator.defaultStyling)
 
 }

@@ -1,7 +1,8 @@
-package oxygen.ui.web.component
+package oxygen.ui.web.layout
 
 import oxygen.ui.web.*
-import oxygen.ui.web.create.*
+import oxygen.ui.web.component.{util, CornerType, PageMessagesBottomCorner, Side, SideBar}
+import oxygen.ui.web.create.{*, given}
 
 final case class HolyGrail[-Env, +Action, -StateGet, +StateSet <: StateGet](
     private val _cache: HolyGrail.Cache,
@@ -17,34 +18,66 @@ final case class HolyGrail[-Env, +Action, -StateGet, +StateSet <: StateGet](
     if current == updated then _cache
     else newCache
 
-  override protected def build: PWidget[Env, Action, StateGet, StateSet] =
-    if _cache.showAny then
-      div(
-        //
-        display.grid,
-        height := 100.vh,
-        width := 100.vw,
-        minHeight := 0, // needed?
-        minWidth := 0, // needed?
-        //
-        gridTemplateAreas := _cache.gridTemplateAreas,
-        gridTemplateRows := _cache.gridTemplateRows,
-        gridTemplateColumns := _cache.gridTemplateColumns,
-        //
-        Widget.when(_cache.showTop) { div(gridArea := "top-bar", _top) },
-        Widget.when(_cache.showLeft) { div(gridArea := "left-bar", _left) },
-        div(gridArea := "center", _center),
-        Widget.when(_cache.showRight) { div(gridArea := "right-bar", _right) },
-        Widget.when(_cache.showBottom) { div(gridArea := "bottom-bar", _bottom) },
-      )
-    else
-      div(
-        height := 100.vw,
-        width := 100.vh,
-        minHeight := 0, // needed?
-        minWidth := 0, // needed?
-        _center,
-      )
+  private def centerSlot: Widget.Polymorphic[Env, Action, StateGet, StateSet] = {
+    val scrollClass: Widget =
+      if _cache.centerScrollable then OxygenStyleSheet.Scrollable else Widget.empty
+    div(
+      Widget.`class`("oxy-holy-grail-center"),
+      gridArea := "center",
+      minWidth := 0,
+      minHeight := 0,
+      height := 100.pct,
+      // Contain scroll in the center pane so the shell (top/side) stays fixed.
+      scrollClass,
+      _center,
+    )
+  }
+
+  private def pageMessagesSlot: Widget =
+    Widget.when(_cache.includePageMessages)(PageMessagesBottomCorner.default)
+
+  override protected def build: PWidget[Env, Action, StateGet, StateSet] = {
+    val shell: Widget.Polymorphic[Env, Action, StateGet, StateSet] =
+      if _cache.showAny then
+        div(
+          Widget.`class`("oxy-holy-grail"),
+          //
+          display.grid,
+          height := 100.vh,
+          width := 100.vw,
+          minHeight := 0,
+          minWidth := 0,
+          overflow.hidden,
+          //
+          gridTemplateAreas := _cache.gridTemplateAreas,
+          gridTemplateRows := _cache.gridTemplateRows,
+          gridTemplateColumns := _cache.gridTemplateColumns,
+          //
+          Widget.when(_cache.showTop) { div(Widget.`class`("oxy-holy-grail-top"), gridArea := "top-bar", flexShrink := "0", _top) },
+          Widget.when(_cache.showLeft) {
+            div(Widget.`class`("oxy-holy-grail-left"), gridArea := "left-bar", minHeight := 0, overflow.hidden, _left)
+          },
+          centerSlot,
+          Widget.when(_cache.showRight) {
+            div(Widget.`class`("oxy-holy-grail-right"), gridArea := "right-bar", minHeight := 0, overflow.hidden, _right)
+          },
+          Widget.when(_cache.showBottom) { div(Widget.`class`("oxy-holy-grail-bottom"), gridArea := "bottom-bar", _bottom) },
+        )
+      else
+        div(
+          Widget.`class`("oxy-holy-grail", "oxy-holy-grail--center-only"),
+          height := 100.vh,
+          width := 100.vw,
+          minHeight := 0,
+          minWidth := 0,
+          overflow.hidden,
+          if _cache.centerScrollable then OxygenStyleSheet.Scrollable else Widget.empty,
+          _center,
+        )
+
+    // Page messages are position:fixed — sit as a shell sibling, not inside the scrollable center.
+    fragment(shell, pageMessagesSlot)
+  }
 
   ///////  ///////////////////////////////////////////////////////////////
 
@@ -57,6 +90,28 @@ final case class HolyGrail[-Env, +Action, -StateGet, +StateSet <: StateGet](
   def rightWidth(s: String): HolyGrail[Env, Action, StateGet, StateSet] = copy(_cache = _cache.copy(showRight = true, rightSize = s))
   def topHeight(s: String): HolyGrail[Env, Action, StateGet, StateSet] = copy(_cache = _cache.copy(showTop = true, topSize = s))
   def bottomHeight(s: String): HolyGrail[Env, Action, StateGet, StateSet] = copy(_cache = _cache.copy(showBottom = true, bottomSize = s))
+
+  /** Center pane scrolls (default). Shell chrome stays fixed. */
+  def scrollableCenter: HolyGrail[Env, Action, StateGet, StateSet] =
+    copy(_cache = _cache.copy(centerScrollable = true))
+
+  /** Disable center scroll — page/document may scroll instead (or caller manages overflow). */
+  def noScrollableCenter: HolyGrail[Env, Action, StateGet, StateSet] =
+    copy(_cache = _cache.copy(centerScrollable = false))
+
+  def centerScrollable(s: Boolean): HolyGrail[Env, Action, StateGet, StateSet] =
+    copy(_cache = _cache.copy(centerScrollable = s))
+
+  /** Include [[PageMessagesBottomCorner.default]] (on by default). */
+  def pageMessages: HolyGrail[Env, Action, StateGet, StateSet] =
+    copy(_cache = _cache.copy(includePageMessages = true))
+
+  /** Opt out of auto-included page messages. */
+  def noPageMessages: HolyGrail[Env, Action, StateGet, StateSet] =
+    copy(_cache = _cache.copy(includePageMessages = false))
+
+  def includePageMessages(s: Boolean): HolyGrail[Env, Action, StateGet, StateSet] =
+    copy(_cache = _cache.copy(includePageMessages = s))
 
   def topLeft(t: CornerType.TopLeft): HolyGrail[Env, Action, StateGet, StateSet] = copy(_cache = _cache.copy(topLeft = t))
   def topRight(t: CornerType.TopRight): HolyGrail[Env, Action, StateGet, StateSet] = copy(_cache = _cache.copy(topRight = t))
@@ -183,6 +238,10 @@ object HolyGrail extends WidgetTypes[HolyGrail] {
       topRight: CornerType.TopRight,
       bottomLeft: CornerType.BottomLeft,
       bottomRight: CornerType.BottomRight,
+      /** When true (default), center region is [[OxygenStyleSheet.Scrollable]]. */
+      centerScrollable: Boolean,
+      /** When true (default), auto-includes [[PageMessagesBottomCorner.default]] as a fixed overlay. */
+      includePageMessages: Boolean,
   ) {
 
     val showAny: Boolean =
@@ -223,6 +282,8 @@ object HolyGrail extends WidgetTypes[HolyGrail] {
         topRight = Side.Top,
         bottomLeft = Side.Left,
         bottomRight = Side.Right,
+        centerScrollable = true,
+        includePageMessages = true,
       )
 
   }
@@ -238,5 +299,52 @@ object HolyGrail extends WidgetTypes[HolyGrail] {
     )
 
   def apply(): HolyGrail.Const = empty
+
+  /**
+    * W5-T04: below `md`, hide left/right sidebars and force a single-column shell
+    * so fixed desktop grids don't blow up mobile. Drawer/hamburger = Round 2 / TopBar todo.
+    *
+    * Also: slightly larger root type + touch-friendlier chrome on narrow viewports
+    * (pairs with viewport meta — without `width=device-width` phones still look desktop-y).
+    */
+  val responsiveSheet: StyleSheet =
+    MediaCSS.styleSheet("holy-grail-responsive")(
+      MediaCSS.belowMd(
+        """
+          |.oxy-holy-grail {
+          |  grid-template-columns: 1fr !important;
+          |  grid-template-areas:
+          |    "top-bar"
+          |    "center"
+          |    "bottom-bar" !important;
+          |  height: auto;
+          |  min-height: 100dvh;
+          |  min-height: 100vh;
+          |  width: 100%;
+          |}
+          |.oxy-holy-grail-left,
+          |.oxy-holy-grail-right {
+          |  display: none !important;
+          |}
+          |.oxy-holy-grail-center {
+          |  min-width: 0;
+          |  min-height: 0;
+          |}
+          |/* Comfortable phone reading size (rem scales with this). */
+          |html {
+          |  font-size: 17px;
+          |}
+          |/* Top bar items: larger tap targets when the rail is gone. */
+          |.oxy-holy-grail-top {
+          |  min-height: 52px;
+          |}
+          |/* Showcase / page bodies: less wasted side gutter on narrow screens. */
+          |.oxy-page-body {
+          |  padding: 1rem !important;
+          |  max-width: 100% !important;
+          |}
+          |""".stripMargin,
+      ),
+    )
 
 }

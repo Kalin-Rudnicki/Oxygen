@@ -1,26 +1,70 @@
 package oxygen.ui.web.component
 
+import oxygen.ui.web.*
 import oxygen.ui.web.create.{*, given}
 
-object ToggleThumb extends Decorable {
+/**
+  * Toggle switch (W2-T07). Pure CSS vars; no Decorator.
+  *
+  * Config builder; [[boolean]] / [[set]] produce Deferred widgets.
+  */
+final case class ToggleThumb(
+    private val _enabledColor: String,
+    private val _disabledColor: String,
+    private val _sizing: ToggleThumb.Sizing,
+    private val _trackExtra: Widget,
+    private val _thumbExtra: Widget,
+) {
 
-  //////////////////////////////////////////////////////////////////////////////////////////////////////
-  //      Props
-  //////////////////////////////////////////////////////////////////////////////////////////////////////
+  def size(s: ToggleThumb.Sizing): ToggleThumb = copy(_sizing = s)
+  def extraSmall: ToggleThumb = size(ToggleThumb.Sizing.extraSmall)
+  def small: ToggleThumb = size(ToggleThumb.Sizing.small)
+  def medium: ToggleThumb = size(ToggleThumb.Sizing.medium)
+  def large: ToggleThumb = size(ToggleThumb.Sizing.large)
+  def extraLarge: ToggleThumb = size(ToggleThumb.Sizing.extraLarge)
 
-  final case class Props(
-      _enabledColor: String,
-      _disabledColor: String,
-      _sizing: Sizing,
-      _trackMod: NodeModifier,
-      _thumbMod: NodeModifier,
-  )
-  object Props extends PropsCompanion {
+  def enabledColor(c: String): ToggleThumb = copy(_enabledColor = c)
+  def disabledColor(c: String): ToggleThumb = copy(_disabledColor = c)
+  def colors(enabled: String, disabled: String): ToggleThumb = copy(_enabledColor = enabled, _disabledColor = disabled)
 
-    override protected lazy val initialProps: Props =
-      Props("transparent", "transparent", Sizing(0, 0, 0, 0, 0), NodeModifier.empty, NodeModifier.empty)
+  def primaryEnabled: ToggleThumb = enabledColor(S.color.primary)
+  def positiveEnabled: ToggleThumb = enabledColor(S.color.status.positive)
+  def negativeEnabled: ToggleThumb = enabledColor(S.color.status.negative)
+  def alertEnabled: ToggleThumb = enabledColor(S.color.status.alert)
+  def informationalEnabled: ToggleThumb = enabledColor(S.color.status.informational)
+  def brandPrimary1Enabled: ToggleThumb = enabledColor(S.color.brand.primary1)
+  def brandPrimary2Enabled: ToggleThumb = enabledColor(S.color.brand.primary2)
+  def offEnabled: ToggleThumb = enabledColor(S.color.bg.layerTwo)
 
-  }
+  def primaryDisabled: ToggleThumb = disabledColor(S.color.primary)
+  def positiveDisabled: ToggleThumb = disabledColor(S.color.status.positive)
+  def negativeDisabled: ToggleThumb = disabledColor(S.color.status.negative)
+  def alertDisabled: ToggleThumb = disabledColor(S.color.status.alert)
+  def informationalDisabled: ToggleThumb = disabledColor(S.color.status.informational)
+  def brandPrimary1Disabled: ToggleThumb = disabledColor(S.color.brand.primary1)
+  def brandPrimary2Disabled: ToggleThumb = disabledColor(S.color.brand.primary2)
+  def offDisabled: ToggleThumb = disabledColor(S.color.bg.layerThree)
+
+  def primary: ToggleThumb = primaryEnabled.offDisabled
+  def positive: ToggleThumb = positiveEnabled.offDisabled
+  def negative: ToggleThumb = negativeEnabled.offDisabled
+  def alert: ToggleThumb = alertEnabled.offDisabled
+  def informational: ToggleThumb = informationalEnabled.offDisabled
+  def brandPrimary1: ToggleThumb = brandPrimary1Enabled.offDisabled
+  def brandPrimary2: ToggleThumb = brandPrimary2Enabled.offDisabled
+  def positiveNegative: ToggleThumb = positiveEnabled.negativeDisabled
+
+  def trackExtra(mods: Widget*): ToggleThumb = copy(_trackExtra = fragment(this._trackExtra, Widget.fragment(mods)))
+  def thumbExtra(mods: Widget*): ToggleThumb = copy(_thumbExtra = fragment(this._thumbExtra, Widget.fragment(mods)))
+
+  def boolean: ToggleThumb.BooleanToggle =
+    ToggleThumb.BooleanToggle(this)
+
+  def set[A](value: A): ToggleThumb.SetToggle[A] =
+    ToggleThumb.SetToggle(this, value)
+
+}
+object ToggleThumb {
 
   final case class Sizing(
       trackHeight: Int,
@@ -29,172 +73,163 @@ object ToggleThumb extends Decorable {
       trackBorderSize: Int,
       thumbBorderSize: Int,
   ) {
-
     val thumbSize: Int = trackHeight - 2 * (trackBorderSize + thumbPadding)
     val translation: Int = trackWidth - trackHeight
-
   }
   object Sizing {
-
     val extraSmall: Sizing = Sizing(15, 30, 2, 2, 1)
     val small: Sizing = Sizing(20, 40, 3, 2, 1)
     val medium: Sizing = Sizing(25, 50, 3, 2, 1)
     val large: Sizing = Sizing(30, 60, 3, 2, 1)
     val extraLarge: Sizing = Sizing(35, 70, 4, 3, 2)
-
   }
 
-  //////////////////////////////////////////////////////////////////////////////////////////////////////
-  //      Decorator
-  //////////////////////////////////////////////////////////////////////////////////////////////////////
-
-  trait DecoratorBuilder extends DecoratorBuilder0 {
-
-    /////// Size ///////////////////////////////////////////////////////////////
-
-    private def makeSize(name: String, size: Sizing): Decorator =
-      make(name)(_.copy(_sizing = size))
-
-    final lazy val extraSmall: Decorator = makeSize("ExtraSmall", Sizing.extraSmall)
-    final lazy val small: Decorator = makeSize("Small", Sizing.small)
-    final lazy val medium: Decorator = makeSize("Medium", Sizing.medium)
-    final lazy val large: Decorator = makeSize("Large", Sizing.large)
-    final lazy val extraLarge: Decorator = makeSize("ExtraLarge", Sizing.extraLarge)
-    final def size(size: Sizing): Decorator = makeSize("CustomSize", size)
-
-    /////// Colors ///////////////////////////////////////////////////////////////
-
-    private def makeEnabled(name: String, color: String): Decorator = make(s"EnabledColor($name)") { _.copy(_enabledColor = color) }
-    private def makeDisabled(name: String, color: String): Decorator = make(s"DisabledColor($name)") { _.copy(_disabledColor = color) }
-
-    final lazy val primaryEnabled: Decorator = makeEnabled("Primary", S.color.primary)
-    final lazy val positiveEnabled: Decorator = makeEnabled("Positive", S.color.status.positive)
-    final lazy val negativeEnabled: Decorator = makeEnabled("Negative", S.color.status.negative)
-    final lazy val alertEnabled: Decorator = makeEnabled("Alert", S.color.status.alert)
-    final lazy val informationalEnabled: Decorator = makeEnabled("Informational", S.color.status.informational)
-    final lazy val brandPrimary1Enabled: Decorator = makeEnabled("BrandPrimary1", S.color.brand.primary1)
-    final lazy val brandPrimary2Enabled: Decorator = makeEnabled("BrandPrimary2", S.color.brand.primary2)
-    final lazy val offEnabled: Decorator = makeEnabled("Off", S.color.bg.base.getColorValue.lighten(15.0).setOpacity(60.0))
-
-    final lazy val primaryDisabled: Decorator = makeDisabled("Primary", S.color.primary)
-    final lazy val positiveDisabled: Decorator = makeDisabled("Positive", S.color.status.positive)
-    final lazy val negativeDisabled: Decorator = makeDisabled("Negative", S.color.status.negative)
-    final lazy val alertDisabled: Decorator = makeDisabled("Alert", S.color.status.alert)
-    final lazy val informationalDisabled: Decorator = makeDisabled("Informational", S.color.status.informational)
-    final lazy val brandPrimary1Disabled: Decorator = makeDisabled("BrandPrimary1", S.color.brand.primary1)
-    final lazy val brandPrimary2Disabled: Decorator = makeDisabled("BrandPrimary2", S.color.brand.primary2)
-    final lazy val offDisabled: Decorator = makeDisabled("Off", S.color.bg.base.getColorValue.lighten(15.0).setOpacity(60.0))
-
-    final lazy val primary: Decorator = primaryEnabled.offDisabled
-    final lazy val positive: Decorator = positiveEnabled.offDisabled
-    final lazy val negative: Decorator = negativeEnabled.offDisabled
-    final lazy val alert: Decorator = alertEnabled.offDisabled
-    final lazy val informational: Decorator = informationalEnabled.offDisabled
-    final lazy val brandPrimary1: Decorator = brandPrimary1Enabled.offDisabled
-    final lazy val brandPrimary2: Decorator = brandPrimary2Enabled.offDisabled
-    final lazy val positiveNegative: Decorator = positiveEnabled.negativeDisabled
-
-    final def enabledColor(color: String): Decorator = makeEnabled(color, color)
-    final def disabledColor(color: String): Decorator = makeDisabled(color, color)
-    final def colors(enabled: String, disabled: String): Decorator = enabledColor(enabled) >> disabledColor(disabled)
-
-    /////// Misc ///////////////////////////////////////////////////////////////
-
-    final def setCustomMod(mod: NodeModifier): Decorator = make("custom(setMod)") { _.copy(_trackMod = mod) }
-    final def addCustomMod(mod: NodeModifier): Decorator = make("custom(addMod)") { p => p.copy(_trackMod = p._trackMod <> mod) }
-    final def prepend(before: Widget*): Decorator = addCustomMod(NodeModifier.before(before*))
-    final def append(after: Widget*): Decorator = addCustomMod(NodeModifier.after(after*))
-    final def surround(before: Widget*)(after: Widget*): Decorator = addCustomMod(NodeModifier.surround(before*)(after*))
-
-    final def setCustomThumbMod(mod: NodeModifier): Decorator = make("custom(setThumbMod)") { _.copy(_thumbMod = mod) }
-    final def addCustomThumbMod(mod: NodeModifier): Decorator = make("custom(addThumbMod)") { p => p.copy(_thumbMod = p._thumbMod <> mod) }
-    final def prependThumb(before: Widget*): Decorator = addCustomThumbMod(NodeModifier.before(before*))
-    final def appendThumb(after: Widget*): Decorator = addCustomThumbMod(NodeModifier.after(after*))
-    final def surroundThumb(before: Widget*)(after: Widget*): Decorator = addCustomThumbMod(NodeModifier.surround(before*)(after*))
-
+  /** Boolean toggle widget (Deferred). */
+  final case class BooleanToggle(
+      private val cfg: ToggleThumb,
+  ) extends PWidget.Deferred[Any, Nothing, Boolean, Boolean] {
+    override protected def build: PWidget[Any, Nothing, Boolean, Boolean] =
+      mkShared[Boolean](cfg, identity, !_)
   }
 
-  final class Decorator private[ToggleThumb] (protected val genericDecorator: GenericDecorator[Props]) extends DecoratorBuilder, DecoratorBuilderType
-  object Decorator extends DecoratorBuilder, DecoratorBuilderCompanion {
-
-    override protected def wrapGeneric(genericDecorator: GenericDecorator[Props]): Decorator = new Decorator(genericDecorator)
-
-    override lazy val defaultStyling: Decorator = empty.primary.medium
-
+  /** Set-membership toggle widget (Deferred). */
+  final case class SetToggle[A](
+      private val cfg: ToggleThumb,
+      private val value: A,
+  ) extends PWidget.Deferred[Any, Nothing, Set[A], Set[A]] {
+    override protected def build: PWidget[Any, Nothing, Set[A], Set[A]] =
+      mkShared[Set[A]](
+        cfg,
+        _.contains(value),
+        set => if set.contains(value) then set - value else set + value,
+      )
   }
 
-  //////////////////////////////////////////////////////////////////////////////////////////////////////
-  //      Widget
-  //////////////////////////////////////////////////////////////////////////////////////////////////////
+  val empty: ToggleThumb =
+    ToggleThumb(
+      _enabledColor = S.color.primary,
+      _disabledColor = S.color.bg.layerThree,
+      _sizing = Sizing.medium,
+      _trackExtra = Widget.empty,
+      _thumbExtra = Widget.empty,
+    )
+
+  def apply(): ToggleThumb = empty
+
+  def apply(configure: ToggleThumb => ToggleThumb): ToggleThumb =
+    configure(empty)
+
+  def boolean(configure: ToggleThumb => ToggleThumb = identity): BooleanToggle =
+    configure(empty).boolean
+
+  def boolean: BooleanToggle =
+    empty.boolean
+
+  def set[A](value: A, configure: ToggleThumb => ToggleThumb = identity): SetToggle[A] =
+    configure(empty).set(value)
+
+  def set[A](value: A): SetToggle[A] =
+    empty.set(value)
 
   private def mkShared[S](
-      decorator: Decorator,
+      cfg: ToggleThumb,
       isTrue: S => Boolean,
       onClickToggle: S => S,
-  ): WidgetS[S] = {
-    val props: Props = decorator.computed
-
+  ): WidgetS[S] =
     Widget.state[S].fix { state =>
       val enabled: Boolean = isTrue(state.renderTimeValue)
+      val sizing = cfg._sizing
 
       val thumb: Widget =
         div(
           O.ToggleThumb.Thumb,
-          width := props._sizing.thumbSize.px,
-          height := props._sizing.thumbSize.px,
-          top := props._sizing.thumbPadding.px,
-          left := props._sizing.thumbPadding.px,
-          borderWidth := props._sizing.thumbBorderSize.px,
-          if enabled then
-            fragment(
-              transform := s"translateX(${props._sizing.translation.px})",
-            )
+          width := sizing.thumbSize.px,
+          height := sizing.thumbSize.px,
+          top := sizing.thumbPadding.px,
+          left := sizing.thumbPadding.px,
+          borderWidth := sizing.thumbBorderSize.px,
+          if enabled then fragment(transform := s"translateX(${sizing.translation.px})")
           else Widget.empty,
-        )(props._thumbMod)
+          cfg._thumbExtra,
+        )
 
       div(
         O.ToggleThumb.Track,
-        width := props._sizing.trackWidth.px,
-        height := props._sizing.trackHeight.px,
-        borderWidth := props._sizing.trackBorderSize.px,
-        borderRadius := props._sizing.trackHeight.px,
-        if enabled then
-          fragment(
-            backgroundColor := props._enabledColor,
-          )
-        else
-          fragment(
-            backgroundColor := props._disabledColor,
-          )
-        ,
+        width := sizing.trackWidth.px,
+        height := sizing.trackHeight.px,
+        borderWidth := sizing.trackBorderSize.px,
+        borderRadius := sizing.trackHeight.px,
+        if enabled then fragment(backgroundColor := cfg._enabledColor)
+        else fragment(backgroundColor := cfg._disabledColor),
         thumb,
         onClick := state.update(onClickToggle),
-      )(props._trackMod)
+        cfg._trackExtra,
+      )
     }
+
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
+  //      Form (labeled boolean, composable Deferred builder)
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
+
+  /**
+    * Labeled boolean toggle form.
+    *
+    * {{{
+    * ToggleThumb.form("Notifications").primary.zoomOut[Page](_.notify)
+    * ToggleThumb.form("Dark mode").modToggle(_.positive)
+    * }}}
+    */
+  final case class form private (
+      private val _fieldName: String,
+      private val _toggle: ToggleThumb,
+      private val _label: Label,
+      private val _surroundingPadding: String,
+  ) extends PForm.Deferred.Stateful[Any, Nothing, Boolean, Boolean] {
+
+    override protected lazy val build: PForm[Any, Nothing, Boolean, Boolean, Boolean] =
+      Form.makeWith(
+        List(_fieldName),
+        div(
+          padding := _surroundingPadding,
+          display.flex,
+          alignItems.center,
+          gap := S.spacing._3,
+          maxWidth := 100.pct,
+          boxSizing.borderBox,
+          _toggle.boolean,
+          _label,
+        ),
+      )(identity)
+
+    def modToggle(f: ToggleThumb => ToggleThumb): form = copy(_toggle = f(_toggle))
+    def modLabel(f: Label => Label): form = copy(_label = f(_label))
+    def toggle: ToggleThumb = _toggle
+    def label: Label = _label
+
+    def small: form = modToggle(_.small)
+    def medium: form = modToggle(_.medium)
+    def large: form = modToggle(_.large)
+    def primary: form = modToggle(_.primary)
+    def positive: form = modToggle(_.positive)
+    def negative: form = modToggle(_.negative)
+    def alert: form = modToggle(_.alert)
+    def informational: form = modToggle(_.informational)
+
+    def describe(d: Widget): form = modLabel(_.describe(d))
+    def labelMod(mods: Widget*): form = modLabel(_.mod(mods*))
+    def surroundingPadding(p: String): form = copy(_surroundingPadding = p)
+
   }
+  object form {
 
-  def boolean(decorator: Decorator): WidgetS[Boolean] =
-    mkShared[Boolean](decorator, identity, !_)
+    def apply(label: String): ToggleThumb.form =
+      new ToggleThumb.form(
+        _fieldName = label,
+        _toggle = ToggleThumb.empty,
+        _label = Label(label),
+        _surroundingPadding = 10.px,
+      )
 
-  def boolean(decorator: Decorator => Decorator): WidgetS[Boolean] =
-    boolean(decorator(Decorator.defaultStyling))
-
-  def boolean: WidgetS[Boolean] =
-    boolean(Decorator.defaultStyling)
-
-  def set[A](value: A, decorator: Decorator): WidgetS[Set[A]] =
-    mkShared[Set[A]](
-      decorator,
-      _.contains(value),
-      set =>
-        if set.contains(value) then set - value
-        else set + value,
-    )
-
-  def set[A](value: A, decorator: Decorator => Decorator): WidgetS[Set[A]] =
-    set[A](value, decorator(Decorator.defaultStyling))
-
-  def set[A](value: A): WidgetS[Set[A]] =
-    set[A](value, Decorator.defaultStyling)
+  }
 
 }

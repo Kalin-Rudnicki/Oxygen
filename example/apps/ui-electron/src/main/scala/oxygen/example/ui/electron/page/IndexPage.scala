@@ -26,8 +26,7 @@ object IndexPage extends RoutablePage.NoParams[Any] {
       h1("Oxygen Electron Example"),
       br,
       div(
-        Button()(
-          "Other Page (updated)",
+        Button("Other Page (updated)").content(
           onClick.push(OtherPage),
         ),
       ),

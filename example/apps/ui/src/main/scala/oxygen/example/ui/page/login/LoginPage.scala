@@ -12,6 +12,7 @@ import oxygen.predef.core.*
 import oxygen.ui.web.{*, given}
 import oxygen.ui.web.component.*
 import oxygen.ui.web.create.{*, given}
+import oxygen.ui.web.layout.*
 import zio.*
 
 // TODO (KR) : support redirect query param, useful if user attempts to navigate to a page, but is not logged in
@@ -50,42 +51,47 @@ object LoginPage extends RoutablePage[UserApi & LocalService] {
   override def title(state: PageState): String = "Login"
 
   override protected def component(state: WidgetState[PageState], renderState: PageState): WidgetES[UserApi & LocalService, PageState] =
-    PageLayout.layout(signedOutNavBar(renderState.optEmail))(
-      PageMessagesBottomCorner.default,
-      PageBodies.centeredCard(
-        boxShadow := "0 4px 32px #01810120",
-        h1(
-          "Login",
-          padding(0.px, S.spacing._8, S.spacing._1),
-          marginTop := 0.px,
-          color := S.color.primary,
-          borderBottom := css(S.borderWidth._2, "solid", S.color.primary),
-        ),
-        (
-          TextField
-            .form[Email]("Email", _.email.width(300.px))
-            .required
-            .zoomOut[PageState](_.email) <*>
-            TextField
-              .form[String]("Password", _.password.width(300.px))
-              .required
-              .zoomOut[PageState](_.password) <*>
-            Button.form("Login", _.button(_.medium))
-        ).handleActionStateful { case (_, (email, password)) =>
-          for {
-            _ <- ZIO.logInfo("submitting form...")
-            req = LoginRequest(email, Password.PlainText.wrap(password))
-            _ <- ZIO.logInfo("1")
-            res <- UserApi.login(req).debug("oops").toUILogged(_.toUI)
-            _ <- ZIO.logInfo("2")
-            _ <- ZIO.serviceWithZIO[LocalService](_.userToken.set(res.authorization))
-            _ <- ZIO.logInfo("3")
-            _ <- P.home.HomePage.navigate.push(())
-            _ <- ZIO.logInfo("4")
-          } yield ()
-        },
-      ),
-    )
+    HolyGrail.empty
+      .topHeight(40.px)
+      .top(signedOutNavBar(renderState.optEmail))
+      .center(
+        CenteredCard
+          .empty
+          .boxShadow("0 4px 32px #01810120")(
+            h1(
+              "Login",
+              padding(0.px, S.spacing._8, S.spacing._1),
+              marginTop := 0.px,
+              color := S.color.primary,
+              borderBottom := css(S.borderWidth._2, "solid", S.color.primary),
+            ),
+            (
+              TextField
+                .form[Email]("Email")
+                .email
+                .width(300.px)
+                .required
+                .zoomOut[PageState](_.email) <*>
+                TextField
+                  .form[String]("Password")
+                  .password
+                  .width(300.px)
+                  .required
+                  .zoomOut[PageState](_.password) <*>
+                Button.form("Login").medium
+            ).handleActionStateful { case (_, (email, password)) =>
+              PageLock.withPageLock {
+                for {
+                  _ <- ZIO.logInfo("submitting form...")
+                  req = LoginRequest(email, Password.PlainText.wrap(password))
+                  res <- UserApi.login(req).debug("oops").toUILogged(_.toUI)
+                  _ <- ZIO.serviceWithZIO[LocalService](_.userToken.set(res.authorization))
+                  _ <- P.home.HomePage.navigate.push(())
+                } yield ()
+              }
+            },
+          ),
+      )
 
   //////////////////////////////////////////////////////////////////////////////////////////////////////
   //      Components

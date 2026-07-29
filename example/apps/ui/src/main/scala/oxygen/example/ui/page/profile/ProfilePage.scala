@@ -8,6 +8,7 @@ import oxygen.predef.core.*
 import oxygen.ui.web.*
 import oxygen.ui.web.component.*
 import oxygen.ui.web.create.{*, given}
+import oxygen.ui.web.layout.*
 import zio.*
 
 object ProfilePage extends RoutablePage.NoParams[LocalService] {
@@ -37,7 +38,6 @@ object ProfilePage extends RoutablePage.NoParams[LocalService] {
       .topHeight(40.px)
       .top(signedInNavBar(renderState.user))
       .center(
-        PageMessagesBottomCorner.default,
         h1("Profile"),
         profileInfo,
         profileActions,
@@ -58,8 +58,7 @@ object ProfilePage extends RoutablePage.NoParams[LocalService] {
   private lazy val profileActions: WidgetES[LocalService, PageState] =
     Widget.state[PageState].get { state =>
       SectionWithHeader.section1("Profile Actions")(
-        Button(_.destructive.minimal)(
-          "Sign Out",
+        Button("Sign Out").destructive.minimal.content(
           onClick := { ZIO.serviceWithZIO[LocalService](_.userToken.clear) *> P.login.LoginPage.navigate.push(P.login.LoginPage.PageParams(state.user.email.toString.some)) },
         ),
       )

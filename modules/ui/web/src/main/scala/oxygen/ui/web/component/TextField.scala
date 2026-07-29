@@ -1,268 +1,215 @@
 package oxygen.ui.web.component
 
 import oxygen.predef.core.*
+import oxygen.ui.web.*
 import oxygen.ui.web.create.{*, given}
 import zio.*
 
-object TextField extends Decorable {
+/**
+  * HolyGrail-style text field (W2-T03). Overflow-safe: maxWidth 100%, box-sizing border-box.
+  */
+final case class TextField(
+    private val _size: Size,
+    private val _inputType: String,
+    private val _width: String,
+    trimInput: Boolean,
+    private val _extra: Widget,
+) extends PWidget.Deferred[Any, Form.Submit, TextField.State, TextField.State] {
 
-  //////////////////////////////////////////////////////////////////////////////////////////////////////
-  //      Props
-  //////////////////////////////////////////////////////////////////////////////////////////////////////
+  def size(s: Size): TextField = copy(_size = s)
+  def inputType(t: String): TextField = copy(_inputType = t)
+  def width(w: String): TextField = copy(_width = w)
+  def trimInput(t: Boolean): TextField = copy(trimInput = t)
 
-  final case class Props(
-      inputType: String,
-      padding: String,
-      borderRadius: String,
-      fontSize: String,
-      width: String,
-      trimInput: Boolean,
-      mod: NodeModifier,
-  )
-  object Props extends PropsCompanion {
+  def extraSmall: TextField = size(Size.ExtraSmall)
+  def small: TextField = size(Size.Small)
+  def medium: TextField = size(Size.Medium)
+  def large: TextField = size(Size.Large)
+  def extraLarge: TextField = size(Size.ExtraLarge)
 
-    override protected lazy val initialProps: Props =
-      Props(
-        inputType = "text",
-        padding = "0",
-        fontSize = "0",
-        borderRadius = "0",
-        width = "0",
-        trimInput = true,
-        mod = NodeModifier.empty,
-      )
+  def text: TextField = inputType("text")
+  def password: TextField = inputType("password")
+  def email: TextField = inputType("email")
 
-  }
+  def noTrimInput: TextField = trimInput(false)
+  def withTrimInput: TextField = trimInput(true)
 
-  //////////////////////////////////////////////////////////////////////////////////////////////////////
-  //      Decorator
-  //////////////////////////////////////////////////////////////////////////////////////////////////////
+  def extra(mods: Widget*): TextField = copy(_extra = fragment(this._extra, Widget.fragment(mods)))
 
-  trait DecoratorBuilder extends DecoratorBuilder0 {
+  override protected def build: PWidget[Any, Form.Submit, TextField.State, TextField.State] =
+    TextField.render(this)
 
-    private def makeSize(
-        size: String,
-        padding: String,
-        borderRadius: String,
-        fontSize: String,
-        width: String,
-    ): Decorator =
-      make(size)(_.copy(padding = padding, borderRadius = borderRadius, fontSize = fontSize, width = width))
+}
+object TextField {
 
-    final lazy val extraSmall: Decorator = makeSize("ExtraSmall", css(S.spacing._2px, S.spacing._2), S.borderRadius._2, S.fontSize._3, 15.ch)
-    final lazy val small: Decorator = makeSize("Small", css(S.spacing._1, S.spacing._3), S.borderRadius._3, S.fontSize._4, 20.ch)
-    final lazy val medium: Decorator = makeSize("Medium", css(s"calc(${S.spacing._1} * 1.5)", S.spacing._3), S.borderRadius._3, S.fontSize._4, 25.ch)
-    final lazy val large: Decorator = makeSize("Large", css(S.spacing._2, S.spacing._4), S.borderRadius._4, S.fontSize._5, 30.ch)
-    final lazy val extraLarge: Decorator = makeSize("ExtraLarge", css(S.spacing._2, S.spacing._5), S.borderRadius._5, S.fontSize._5, 40.ch)
-
-    final def inputType(tpe: String): Decorator = make(s"inputType($tpe)") { _.copy(inputType = tpe) }
-    final lazy val text: Decorator = inputType("text")
-    final lazy val password: Decorator = inputType("password")
-    final lazy val email: Decorator = inputType("email")
-
-    final def padding(topBottom: String, leftRight: String): Decorator = make("padding") { _.copy(padding = css(topBottom, leftRight)) }
-    final def borderRadius(borderRadius: String): Decorator = make(s"borderRadius($borderRadius)") { _.copy(borderRadius = borderRadius) }
-    final def fontSize(fontSize: String): Decorator = make(s"fontSize($fontSize)") { _.copy(fontSize = fontSize) }
-    final def width(width: String): Decorator = make(s"width($width)") { _.copy(width = width) }
-
-    final def trimInput: Decorator = make("trimInput") { _.copy(trimInput = true) }
-    final def noTrimInput: Decorator = make("noTrimInput") { _.copy(trimInput = false) }
-
-    final lazy val mod: FocusNodeModifier = focusNodeModifier("mod")(_.mod)
-
-  }
-
-  final class Decorator private[TextField] (protected val genericDecorator: GenericDecorator[Props]) extends DecoratorBuilder, DecoratorBuilderType
-  object Decorator extends DecoratorBuilder, DecoratorBuilderCompanion {
-
-    override protected def wrapGeneric(genericDecorator: GenericDecorator[Props]): Decorator = new Decorator(genericDecorator)
-
-    override lazy val defaultStyling: Decorator = empty.medium
-
-  }
-
-  //////////////////////////////////////////////////////////////////////////////////////////////////////
-  //      Widget
-  //////////////////////////////////////////////////////////////////////////////////////////////////////
+  private val autoWidth: String = "__auto__"
 
   opaque type State = String
   object State {
-
     val empty: State = ""
     def initial(value: String): State = value
-
     extension (self: State) def text: String = self
-
   }
 
-  def apply(
-      decorator: Decorator,
-  ): WidgetAS[Form.Submit, State] = {
-    val props = decorator.computed
+  private def sizeTokens(size: Size): (String, String, String, String) =
+    size match {
+      case Size.ExtraSmall => (css(S.spacing._2px, S.spacing._2), S.borderRadius._2, S.fontSize._3, 15.ch)
+      case Size.Small      => (css(S.spacing._1, S.spacing._3), S.borderRadius._3, S.fontSize._4, 20.ch)
+      case Size.Medium     => (css(s"calc(${S.spacing._1} * 1.5)", S.spacing._3), S.borderRadius._3, S.fontSize._4, 25.ch)
+      case Size.Large      => (css(S.spacing._2, S.spacing._4), S.borderRadius._4, S.fontSize._5, 30.ch)
+      case Size.ExtraLarge => (css(S.spacing._2, S.spacing._5), S.borderRadius._5, S.fontSize._5, 40.ch)
+    }
+
+  private def render(field: TextField): WidgetAS[Form.Submit, State] = {
+    val (pad, radius, fSize, defaultWidth) = sizeTokens(field._size)
+    val w = if field._width == autoWidth then defaultWidth else field._width
     input(
-      `type` := props.inputType,
-      width := props.width,
-      padding := props.padding,
-      borderRadius := props.borderRadius,
+      `type` := field._inputType,
+      width := w,
+      maxWidth := 100.pct,
+      boxSizing.borderBox,
+      padding := pad,
+      borderRadius := radius,
+      fontSize := fSize,
       fontFamily := S.fontStyle.default,
-      border := "none",
-      outline := "none",
+      // Visible field chrome: never `border: none` — that + layerOne bg makes inputs
+      // disappear on Section.level1 (also layerOne). Match global input stylesheet.
+      border := s"1px solid ${S.color.fg.subtle}",
+      borderStyle.solid,
+      backgroundColor := S.color.bg.layerTwo,
+      color := S.color.fg.default,
       Widget.state[State].fix { state =>
         value := state.unsafeCurrentValue
       },
-      onKeyUp.eas[Form.Submit, State].handle { (s, rh, e) =>
-        val target = e.target.asInstanceOf[scala.scalajs.js.Dynamic]
-
-        def targetValue: String = target.value.asInstanceOf[String]
-        // weird weird out-of-order dom events
-
-        if e.keyCode == KeyCode.Enter.keyCode then {
-          // cant be in a ZIO
+      // Enter must be handled on keydown — text inputs do not fire `change` on Enter,
+      // and form submit is a keydown-time gesture.
+      onKeyDown.eas[Form.Submit, State].handle { (s, rh, e) =>
+        if KeyCode.isEnter(e) then {
           e.preventDefault()
-
-          s.update(_ => targetValue) *>
-            rh.raiseAction(Form.Submit)
-        } else s.update(_ => targetValue)
+          val targetValue = e.target.asInstanceOf[org.scalajs.dom.HTMLInputElement].value
+          s.update(_ => targetValue) *> rh.raiseAction(Form.Submit)
+        } else ZIO.unit
       },
-      onChange.es[State].handle { (s, e) =>
-        val target = e.target.asInstanceOf[scala.scalajs.js.Dynamic]
-
-        def targetValue: String = target.value.asInstanceOf[String]
-        // weird weird out-of-order dom events
-
+      onKeyUp.es[State].handle { (s, e) =>
+        val targetValue = e.target.asInstanceOf[org.scalajs.dom.HTMLInputElement].value
         s.update(_ => targetValue)
       },
-    )(props.mod)
+      onChange.es[State].handle { (s, e) =>
+        val targetValue = e.target.asInstanceOf[org.scalajs.dom.HTMLInputElement].value
+        s.update(_ => targetValue)
+      },
+      field._extra,
+    )
   }
 
-  def apply(
-      decorator: Decorator => Decorator,
-  ): WidgetAS[Form.Submit, State] =
-    TextField(decorator(Decorator.defaultStyling))
+  val empty: TextField =
+    TextField(Size.Medium, "text", autoWidth, true, Widget.empty)
 
-  def apply(
-  ): WidgetAS[Form.Submit, State] =
-    TextField(Decorator.defaultStyling)
+  def apply(): TextField = empty
 
-  /**
-    * NOTE : [[fieldName]] is not added as a label, it is only used to label errors.
-    */
+  def apply(configure: TextField => TextField): TextField =
+    configure(empty)
+
   def rawForm[A: StringDecoder as dec](
       fieldName: String,
-      decorator: Decorator,
+      field: TextField = empty,
   ): SubmitFormS[State, Option[A]] =
-    Form.makeWithValidation(fieldName, TextField(decorator)) { rawValue =>
-      val value: String = if decorator.computed.trimInput then rawValue.trim else rawValue
+    Form.makeWithValidation(fieldName, field) { rawValue =>
+      val value: String = if field.trimInput then rawValue.trim else rawValue
       Option.when(value.nonEmpty)(value).traverse(dec.decodeSimple)
     }
 
-  /**
-    * NOTE : [[fieldName]] is not added as a label, it is only used to label errors.
-    */
-  def rawForm[A: StringDecoder as dec](
-      fieldName: String,
-      decorator: Decorator => Decorator,
-  ): SubmitFormS[State, Option[A]] =
-    rawForm[A](fieldName, decorator(Decorator.defaultStyling))
-
-  /**
-    * NOTE : [[fieldName]] is not added as a label, it is only used to label errors.
-    */
-  def rawForm[A: StringDecoder as dec](
-      fieldName: String,
-  ): SubmitFormS[State, Option[A]] =
-    rawForm[A](fieldName, Decorator.defaultStyling)
-
   //////////////////////////////////////////////////////////////////////////////////////////////////////
-  //      Form
+  //      Form (labeled, composable Deferred builder)
   //////////////////////////////////////////////////////////////////////////////////////////////////////
 
-  object form extends Decorable {
+  /**
+    * Labeled text field form builder. Extends [[PForm.Deferred]] so composition
+    * (`<*>`, `zoomOut`, `required`, `onSubmit`, …) works after fluent config.
+    *
+    * Holds a typed [[TextField]] child — use [[modField]] to drill without losing type info.
+    *
+    * {{{
+    * TextField.form[Email]("Email").email.width(300.px).required.zoomOut[Page](_.email)
+    * }}}
+    */
+  final case class form[+Value] private (
+      private val _fieldName: String,
+      private val _field: TextField,
+      private val _label: Label,
+      private val _surroundingPadding: String,
+      private val _width: String,
+      private val _labelSpacing: Option[String],
+      private val _decode: String => Either[String, Value],
+  ) extends PForm.Deferred.Stateful[Any, Form.Submit, TextField.State, Option[Value]] {
 
-    //////////////////////////////////////////////////////////////////////////////////////////////////////
-    //      Props
-    //////////////////////////////////////////////////////////////////////////////////////////////////////
-
-    final case class Props(
-        label: Label.Decorator,
-        textField: TextField.Decorator,
-        labelSpacing: Option[String],
-        surroundingPadding: String,
-        width: String,
-    )
-    object Props extends PropsCompanion {
-
-      override protected lazy val initialProps: Props =
-        Props(
-          label = Label.Decorator.defaultStyling,
-          textField = TextField.Decorator.defaultStyling,
-          labelSpacing = Label.defaultInputSpacing.some,
-          surroundingPadding = 10.px,
-          width = "fit-content",
-        )
-
-    }
-
-    //////////////////////////////////////////////////////////////////////////////////////////////////////
-    //      Decorator
-    //////////////////////////////////////////////////////////////////////////////////////////////////////
-
-    trait DecoratorBuilder extends DecoratorBuilder0 {
-
-      final def label(f: Label.Decorator => Label.Decorator): Decorator = {
-        val dec = f(Label.Decorator.empty)
-        make(s"label { ${dec.name} }") { current => current.copy(label = current.label >> dec) }
-      }
-
-      final def textField(f: TextField.Decorator => TextField.Decorator): Decorator = {
-        val dec = f(TextField.Decorator.empty)
-        make(s"textField { ${dec.name} }") { current => current.copy(textField = current.textField >> dec) }
-      }
-
-      final def describe(description: Widget): Decorator =
-        make("describe") { current => current.copy(label = current.label.describe(description)) }
-
-      final def width(width: String): Decorator =
-        make(s"custom(width = $width)") { current => current.copy(width = width, textField = current.textField.width(100.pct)) }
-
-      final lazy val text: Decorator = textField(_.text)
-      final lazy val password: Decorator = textField(_.password)
-      final lazy val email: Decorator = textField(_.email)
-
-    }
-
-    final class Decorator private[form] (protected val genericDecorator: GenericDecorator[Props]) extends DecoratorBuilder, DecoratorBuilderType
-    object Decorator extends DecoratorBuilder, DecoratorBuilderCompanion {
-
-      override protected def wrapGeneric(genericDecorator: GenericDecorator[Props]): Decorator = new Decorator(genericDecorator)
-
-      override lazy val defaultStyling: Decorator = empty
-
-    }
-
-    //////////////////////////////////////////////////////////////////////////////////////////////////////
-    //      Widget
-    //////////////////////////////////////////////////////////////////////////////////////////////////////
-
-    def apply[A: StringDecoder as dec](
-        label: String,
-        decorator: Decorator => Decorator = identity,
-    ): SubmitFormS[TextField.State, Option[A]] = {
-      val props = decorator(Decorator.empty.label(_.label(label))).computed
-
-      TextField.rawForm[A](label, props.textField).map { (textFieldWidget, textFieldValue) =>
+    override protected lazy val build: PForm[Any, Form.Submit, TextField.State, TextField.State, Option[Value]] =
+      Form.makeWithValidation(_fieldName, _field) { rawValue =>
+        val value: String = if _field.trimInput then rawValue.trim else rawValue
+        Option.when(value.nonEmpty)(value).traverse(_decode)
+      }.map { (fieldWidget, fieldValue) =>
         (
           div(
-            padding := props.surroundingPadding,
-            width := props.width,
-            Label(props.label),
-            Spacing.vertical.opt(props.labelSpacing),
-            textFieldWidget,
+            padding := _surroundingPadding,
+            // Qualify CSS attrs that clash with form chrome methods (`width`).
+            oxygen.ui.web.create.width := _width,
+            maxWidth := 100.pct,
+            boxSizing.borderBox,
+            _label,
+            Spacing.vertical.opt(_labelSpacing),
+            fieldWidget,
           ),
-          textFieldValue,
+          fieldValue,
         )
       }
-    }
+
+    /** Drill into the underlying [[TextField]] builder (typed child). */
+    def modField(f: TextField => TextField): form[Value] = copy(_field = f(_field))
+
+    /** Drill into the [[Label]] chrome. */
+    def modLabel(f: Label => Label): form[Value] = copy(_label = f(_label))
+
+    def field: TextField = _field
+    def label: Label = _label
+
+    /////// field shortcuts ///////////////////////////////////////////////////////////////
+
+    def size(s: Size): form[Value] = modField(_.size(s))
+    def inputType(t: String): form[Value] = modField(_.inputType(t))
+    def text: form[Value] = modField(_.text)
+    def password: form[Value] = modField(_.password)
+    def email: form[Value] = modField(_.email)
+    def extraSmall: form[Value] = modField(_.extraSmall)
+    def small: form[Value] = modField(_.small)
+    def medium: form[Value] = modField(_.medium)
+    def large: form[Value] = modField(_.large)
+    def extraLarge: form[Value] = modField(_.extraLarge)
+    def trimInput: form[Value] = modField(_.withTrimInput)
+    def noTrimInput: form[Value] = modField(_.noTrimInput)
+    def fieldExtra(mods: Widget*): form[Value] = modField(_.extra(mods*))
+
+    /////// chrome shortcuts ///////////////////////////////////////////////////////////////
+
+    def describe(d: Widget): form[Value] = modLabel(_.describe(d))
+    def labelMod(mods: Widget*): form[Value] = modLabel(_.mod(mods*))
+    def surroundingPadding(p: String): form[Value] = copy(_surroundingPadding = p)
+    def width(w: String): form[Value] = copy(_width = w, _field = _field.width(100.pct))
+    def labelSpacing(s: Option[String]): form[Value] = copy(_labelSpacing = s)
+    def noLabelSpacing: form[Value] = labelSpacing(None)
+
+  }
+  object form {
+
+    def apply[A: StringDecoder as dec](label: String): TextField.form[A] =
+      new TextField.form[A](
+        _fieldName = label,
+        _field = TextField.empty,
+        _label = Label(label),
+        _surroundingPadding = 10.px,
+        _width = "fit-content",
+        _labelSpacing = Label.defaultInputSpacing.some,
+        _decode = dec.decodeSimple,
+      )
 
   }
 

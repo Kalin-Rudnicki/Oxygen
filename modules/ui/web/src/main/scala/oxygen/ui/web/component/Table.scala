@@ -1,48 +1,210 @@
 package oxygen.ui.web.component
 
+import oxygen.predef.core.*
+import oxygen.ui.web.*
 import oxygen.ui.web.create.{*, given}
 
-object Table extends Decorable {
+/**
+  * Deferred data table (W2-T10).
+  *
+  * Builds `div.table-shell > table.table` so corner radius + outer edge live on the shell,
+  * while `border-collapse` stays on `<table>`. [[apply]] appends to the **table** (thead/tbody/…).
+  * [[shell]] appends widgets/attrs to the outer shell div.
+  *
+  * {{{
+  * Table.basic(
+  *   Table.header("Name", "Status"),
+  *   Table.body(
+  *     Table.row("alpha", "ok"),
+  *     Table.row("beta", "pending"),
+  *   ),
+  * )
+  *
+  * Table.basic.radius(S.borderRadius._5).shell(boxShadow := "…")(…)
+  * }}}
+  */
+final case class Table[-Env, +Action, -StateGet, +StateSet <: StateGet](
+    private val header: Table.Defaults,
+    private val cell: Table.Defaults,
+    private val borders: Table.Borders,
+    /** Internal grid (row rules / cell grid). */
+    private val borderColor: String,
+    private val borderWidth: String,
+    private val _radius: String,
+    private val _outerBorder: Boolean,
+    /** Shell perimeter — independent of [[borderColor]] / [[borderWidth]]. */
+    private val _outerBorderColor: String,
+    private val _outerBorderWidth: String,
+    private val _shell: Growable[PWidget[Env, Action, StateGet, StateSet]],
+    private val _children: Growable[PWidget[Env, Action, StateGet, StateSet]],
+) extends PWidget.Deferred[Env, Action, StateGet, StateSet] {
 
-  //////////////////////////////////////////////////////////////////////////////////////////////////////
-  //      Props
-  //////////////////////////////////////////////////////////////////////////////////////////////////////
+  def leftAlignHeaders: Table[Env, Action, StateGet, StateSet] = copy(header = header.copy(alignment = "left"))
+  def centerAlignHeaders: Table[Env, Action, StateGet, StateSet] = copy(header = header.copy(alignment = "center"))
+  def rightAlignHeaders: Table[Env, Action, StateGet, StateSet] = copy(header = header.copy(alignment = "right"))
+  def leftAlignCells: Table[Env, Action, StateGet, StateSet] = copy(cell = cell.copy(alignment = "left"))
+  def centerAlignCells: Table[Env, Action, StateGet, StateSet] = copy(cell = cell.copy(alignment = "center"))
+  def rightAlignCells: Table[Env, Action, StateGet, StateSet] = copy(cell = cell.copy(alignment = "right"))
 
-  final case class Props(
-      _header: Defaults,
-      _cell: Defaults,
-      _borders: Borders,
-      _borderColor: String,
-      _borderWidth: String,
-  )
-  object Props extends PropsCompanion {
+  def padHeaders(topBottom: String, leftRight: String): Table[Env, Action, StateGet, StateSet] =
+    copy(header = header.copy(padding = StandardProps.Padding(topBottom, leftRight)))
+  def padCells(topBottom: String, leftRight: String): Table[Env, Action, StateGet, StateSet] =
+    copy(cell = cell.copy(padding = StandardProps.Padding(topBottom, leftRight)))
 
-    override protected lazy val initialProps: Props =
-      Props(
-        _header = Defaults(
-          _defaultFGColor = "transparent",
-          _defaultBGColor = "transparent",
-          _defaultPadding = StandardProps.Padding(S.spacing._1, S.spacing._5),
-          _defaultAlignment = "center",
-        ),
-        _cell = Defaults(
-          _defaultFGColor = "transparent",
-          _defaultBGColor = "transparent",
-          _defaultPadding = StandardProps.Padding(S.spacing._2px, S.spacing._3),
-          _defaultAlignment = "left",
-        ),
-        _borders = Borders.Rows,
-        _borderColor = S.color.fg.default,
-        _borderWidth = 1.px,
-      )
+  def styleHeaders(bg: String, fg: String): Table[Env, Action, StateGet, StateSet] = copy(header = header.copy(fg = fg, bg = bg))
+  def styleCells(bg: String, fg: String): Table[Env, Action, StateGet, StateSet] = copy(cell = cell.copy(fg = fg, bg = bg))
 
+  def primaryHeaders: Table[Env, Action, StateGet, StateSet] = styleHeaders(S.color.primary.standard, S.color.primary.on)
+  def positiveHeaders: Table[Env, Action, StateGet, StateSet] = styleHeaders(S.color.status.positive.standard, S.color.status.positive.on)
+  def negativeHeaders: Table[Env, Action, StateGet, StateSet] = styleHeaders(S.color.status.negative.standard, S.color.status.negative.on)
+  def alertHeaders: Table[Env, Action, StateGet, StateSet] = styleHeaders(S.color.status.alert.standard, S.color.status.alert.on)
+  def informationalHeaders: Table[Env, Action, StateGet, StateSet] = styleHeaders(S.color.status.informational.standard, S.color.status.informational.on)
+  def brandPrimary1Headers: Table[Env, Action, StateGet, StateSet] = styleHeaders(S.color.brand.primary1, S.color.fg.default)
+  def brandPrimary2Headers: Table[Env, Action, StateGet, StateSet] = styleHeaders(S.color.brand.primary2, S.color.fg.default)
+  def defaultHeaders: Table[Env, Action, StateGet, StateSet] = styleHeaders(S.color.bg.default, S.color.fg.default)
+  def baseHeaders: Table[Env, Action, StateGet, StateSet] = styleHeaders(S.color.bg.base, S.color.fg.default)
+  def layerOneHeaders: Table[Env, Action, StateGet, StateSet] = styleHeaders(S.color.bg.layerOne, S.color.fg.default)
+  def layerTwoHeaders: Table[Env, Action, StateGet, StateSet] = styleHeaders(S.color.bg.layerTwo, S.color.fg.default)
+  def layerThreeHeaders: Table[Env, Action, StateGet, StateSet] = styleHeaders(S.color.bg.layerThree, S.color.fg.default)
+
+  def primaryCells: Table[Env, Action, StateGet, StateSet] = styleCells(S.color.primary.standard, S.color.primary.on)
+  def positiveCells: Table[Env, Action, StateGet, StateSet] = styleCells(S.color.status.positive.standard, S.color.status.positive.on)
+  def negativeCells: Table[Env, Action, StateGet, StateSet] = styleCells(S.color.status.negative.standard, S.color.status.negative.on)
+  def alertCells: Table[Env, Action, StateGet, StateSet] = styleCells(S.color.status.alert.standard, S.color.status.alert.on)
+  def informationalCells: Table[Env, Action, StateGet, StateSet] = styleCells(S.color.status.informational.standard, S.color.status.informational.on)
+  def brandPrimary1Cells: Table[Env, Action, StateGet, StateSet] = styleCells(S.color.brand.primary1, S.color.fg.default)
+  def brandPrimary2Cells: Table[Env, Action, StateGet, StateSet] = styleCells(S.color.brand.primary2, S.color.fg.default)
+  def defaultCells: Table[Env, Action, StateGet, StateSet] = styleCells(S.color.bg.default, S.color.fg.default)
+  def baseCells: Table[Env, Action, StateGet, StateSet] = styleCells(S.color.bg.base, S.color.fg.default)
+  def layerOneCells: Table[Env, Action, StateGet, StateSet] = styleCells(S.color.bg.layerOne, S.color.fg.default)
+  def layerTwoCells: Table[Env, Action, StateGet, StateSet] = styleCells(S.color.bg.layerTwo, S.color.fg.default)
+  def layerThreeCells: Table[Env, Action, StateGet, StateSet] = styleCells(S.color.bg.layerThree, S.color.fg.default)
+
+  def rowBorders: Table[Env, Action, StateGet, StateSet] = copy(borders = Table.Borders.Rows)
+  def cellBorders: Table[Env, Action, StateGet, StateSet] = copy(borders = Table.Borders.Cells)
+
+  /** Internal grid stroke only (row rules / cell grid) — does not change the shell perimeter. */
+  def borders(color: String, width: String): Table[Env, Action, StateGet, StateSet] =
+    copy(borderColor = color, borderWidth = width)
+
+  /** Outer shell corner radius (applied on the clip wrapper, not the collapsed table). */
+  def radius(r: String): Table[Env, Action, StateGet, StateSet] = copy(_radius = r)
+  def noRadius: Table[Env, Action, StateGet, StateSet] = radius("0")
+  def radiusSm: Table[Env, Action, StateGet, StateSet] = radius(S.borderRadius._2)
+  def radiusMd: Table[Env, Action, StateGet, StateSet] = radius(S.borderRadius._3)
+  def radiusLg: Table[Env, Action, StateGet, StateSet] = radius(S.borderRadius._5)
+  def radiusXl: Table[Env, Action, StateGet, StateSet] = radius(S.borderRadius._7)
+
+  /**
+    * Draw the perimeter on the **shell** (follows radius). Default on.
+    * Color/width are independent of [[borders]] so you can e.g.
+    * `.borders("blue", 3.px).outerBorder("red", 3.px)`.
+    * When on, cell outer edges are suppressed so they don't double the shell stroke.
+    */
+  def outerBorder: Table[Env, Action, StateGet, StateSet] = copy(_outerBorder = true)
+  def noOuterBorder: Table[Env, Action, StateGet, StateSet] = copy(_outerBorder = false)
+  def outerBorder(enabled: Boolean): Table[Env, Action, StateGet, StateSet] = copy(_outerBorder = enabled)
+  def outerBorder(color: String, width: String): Table[Env, Action, StateGet, StateSet] =
+    copy(_outerBorder = true, _outerBorderColor = color, _outerBorderWidth = width)
+
+  /** Soft, card-like data table (recommended default). */
+  def quiet: Table[Env, Action, StateGet, StateSet] =
+    styleHeaders(S.color.bg.layerTwo, S.color.fg.moderate)
+      .styleCells(S.color.bg.layerOne, S.color.fg.default)
+      .padHeaders(S.spacing._3, S.spacing._4)
+      .padCells(S.spacing._3, S.spacing._4)
+      .borders(S.color.bg.layerThree, 1.px)
+      .leftAlignHeaders
+      .leftAlignCells
+
+  /** Strong brand header for emphasis / marketing tables. */
+  def branded: Table[Env, Action, StateGet, StateSet] =
+    primaryHeaders
+      .styleCells(S.color.bg.layerOne, S.color.fg.default)
+      .padHeaders(S.spacing._3, S.spacing._4)
+      .padCells(S.spacing._3, S.spacing._4)
+      .borders(S.color.bg.layerThree, 1.px)
+      .leftAlignHeaders
+      .leftAlignCells
+
+  /**
+    * Append widgets/attrs to the **outer shell** div (class, style, shadow, data-*, …).
+    * Table body content still goes through [[apply]].
+    */
+  def shell[Env2 <: Env, Action2 >: Action, StateGet2 <: StateGet, StateSet2 >: StateSet <: StateGet2](
+      mods: PWidget[Env2, Action2, StateGet2, StateSet2]*,
+  ): Table[Env2, Action2, StateGet2, StateSet2] =
+    if mods.isEmpty then this
+    else copy(_shell = _shell ++ Growable.many(mods))
+
+  /** Append table body children (thead / tbody / tr / …). */
+  def apply[Env2 <: Env, Action2 >: Action, StateGet2 <: StateGet, StateSet2 >: StateSet <: StateGet2](
+      addChildren: PWidget[Env2, Action2, StateGet2, StateSet2]*,
+  ): Table[Env2, Action2, StateGet2, StateSet2] =
+    if addChildren.isEmpty then this
+    else copy(_children = _children ++ Growable.many(addChildren))
+
+  def appendChildren[Env2 <: Env, Action2 >: Action, StateGet2 <: StateGet, StateSet2 >: StateSet <: StateGet2](
+      addChildren: Growable[PWidget[Env2, Action2, StateGet2, StateSet2]],
+  ): Table[Env2, Action2, StateGet2, StateSet2] =
+    copy(_children = _children ++ addChildren)
+
+  override protected def build: PWidget[Env, Action, StateGet, StateSet] = {
+    // Shell: radius + optional perimeter. Collapse stays on <table>.
+    // OuterBorder class drives CSS that zeros cell outer edges (avoids double stroke).
+    val shellChrome: Widget =
+      if _outerBorder then
+        fragment(
+          O.Table.Shell.OuterBorder,
+          borderStyle.solid,
+          oxygen.ui.web.create.borderWidth := _outerBorderWidth,
+          oxygen.ui.web.create.borderColor := _outerBorderColor,
+        )
+      else
+        fragment(
+          borderStyle.none,
+          oxygen.ui.web.create.borderWidth := 0.px,
+        )
+
+    div(
+      O.Table.Shell,
+      shellChrome,
+      width := 100.pct,
+      boxSizing.borderBox,
+      borderRadius := _radius,
+      overflow.hidden,
+    ).appendChildren(_shell).apply(
+      table(
+        O.Table,
+        borders match {
+          case Table.Borders.Rows  => O.Table.RowBorders
+          case Table.Borders.Cells => O.Table.CellBorders
+        },
+        O.Table.defaultBorderColor := borderColor,
+        O.Table.defaultBorderWidth := borderWidth,
+        O.Table.HeaderCellVars.fgColor := header.fg,
+        O.Table.HeaderCellVars.bgColor := header.bg,
+        O.Table.HeaderCellVars.padding := header.padding.show,
+        O.Table.HeaderCellVars.alignment := header.alignment,
+        O.Table.CellCellVars.fgColor := cell.fg,
+        O.Table.CellCellVars.bgColor := cell.bg,
+        O.Table.CellCellVars.padding := cell.padding.show,
+        O.Table.CellCellVars.alignment := cell.alignment,
+        width := 100.pct,
+        borderCollapse.collapse,
+        margin := 0.px,
+      ).appendChildren(_children),
+    )
   }
 
+}
+object Table extends WidgetTypes[Table] {
+
   final case class Defaults(
-      _defaultFGColor: String,
-      _defaultBGColor: String,
-      _defaultPadding: StandardProps.Padding,
-      _defaultAlignment: String,
+      fg: String,
+      bg: String,
+      padding: StandardProps.Padding,
+      alignment: String,
   )
 
   enum Borders {
@@ -51,116 +213,100 @@ object Table extends Decorable {
   }
 
   //////////////////////////////////////////////////////////////////////////////////////////////////////
-  //      Decorator
+  //      Factories
   //////////////////////////////////////////////////////////////////////////////////////////////////////
 
-  trait DecoratorBuilder extends DecoratorBuilder0 {
-
-    private def modHeaders(name: String)(f: Defaults => Defaults): Decorator = make(name) { p => p.copy(_header = f(p._header)) }
-    private def modCells(name: String)(f: Defaults => Defaults): Decorator = make(name) { p => p.copy(_cell = f(p._cell)) }
-
-    /////// Alignment ///////////////////////////////////////////////////////////////
-
-    final lazy val leftAlignHeaders: Decorator = modHeaders("LeftAlignHeaders") { _.copy(_defaultAlignment = "left") }
-    final lazy val centerAlignHeaders: Decorator = modHeaders("CenterAlignHeaders") { _.copy(_defaultAlignment = "center") }
-    final lazy val rightAlignHeaders: Decorator = modHeaders("RightAlignHeaders") { _.copy(_defaultAlignment = "right") }
-
-    final lazy val leftAlignCells: Decorator = modCells("LeftAlignCells") { _.copy(_defaultAlignment = "left") }
-    final lazy val centerAlignCells: Decorator = modCells("CenterAlignCells") { _.copy(_defaultAlignment = "center") }
-    final lazy val rightAlignCells: Decorator = modCells("RightAlignCells") { _.copy(_defaultAlignment = "right") }
-
-    /////// Padding ///////////////////////////////////////////////////////////////
-
-    final def padHeaders(topBottom: String, leftRight: String): Decorator = modHeaders("custom(padHeaders)") { _.copy(_defaultPadding = StandardProps.Padding(topBottom, leftRight)) }
-    final def padCells(topBottom: String, leftRight: String): Decorator = modCells("custom(padCells)") { _.copy(_defaultPadding = StandardProps.Padding(topBottom, leftRight)) }
-
-    /////// Padding ///////////////////////////////////////////////////////////////
-
-    private def makeHeaderStyles(name: String, bgColor: String, fgColor: String): Decorator =
-      modHeaders(s"HeaderColors($name)") { _.copy(_defaultFGColor = fgColor, _defaultBGColor = bgColor) }
-    private def makeCellStyles(name: String, bgColor: String, fgColor: String): Decorator =
-      modCells(s"CellColors($name)") { _.copy(_defaultFGColor = fgColor, _defaultBGColor = bgColor) }
-
-    final lazy val primaryHeaders: Decorator = makeHeaderStyles("Primary", S.color.primary, S.color.fg.inverse)
-    final lazy val positiveHeaders: Decorator = makeHeaderStyles("Positive", S.color.status.positive, S.color.fg.inverse)
-    final lazy val negativeHeaders: Decorator = makeHeaderStyles("Negative", S.color.status.negative, S.color.fg.inverse)
-    final lazy val alertHeaders: Decorator = makeHeaderStyles("Alert", S.color.status.alert, S.color.fg.inverse)
-    final lazy val informationalHeaders: Decorator = makeHeaderStyles("Informational", S.color.status.informational, S.color.fg.inverse)
-    final lazy val brandPrimary1Headers: Decorator = makeHeaderStyles("BrandPrimary1", S.color.brand.primary1, S.color.fg.default)
-    final lazy val brandPrimary2Headers: Decorator = makeHeaderStyles("BrandPrimary2", S.color.brand.primary2, S.color.fg.default)
-    final lazy val defaultHeaders: Decorator = makeHeaderStyles("Default", S.color.bg.default, S.color.fg.default)
-    final lazy val baseHeaders: Decorator = makeHeaderStyles("Base", S.color.bg.base, S.color.fg.default)
-    final lazy val layerOneHeaders: Decorator = makeHeaderStyles("Layer1", S.color.bg.layerOne, S.color.fg.default)
-    final lazy val layerTwoHeaders: Decorator = makeHeaderStyles("Layer2", S.color.bg.layerTwo, S.color.fg.default)
-    final lazy val layerThreeHeaders: Decorator = makeHeaderStyles("Layer3", S.color.bg.layerThree, S.color.fg.default)
-
-    final def styleHeaders(bgColor: String, fgColor: String): Decorator =
-      makeHeaderStyles("custom", bgColor, fgColor)
-
-    final lazy val primaryCells: Decorator = makeCellStyles("Primary", S.color.primary, S.color.fg.inverse)
-    final lazy val positiveCells: Decorator = makeCellStyles("Positive", S.color.status.positive, S.color.fg.inverse)
-    final lazy val negativeCells: Decorator = makeCellStyles("Negative", S.color.status.negative, S.color.fg.inverse)
-    final lazy val alertCells: Decorator = makeCellStyles("Alert", S.color.status.alert, S.color.fg.inverse)
-    final lazy val informationalCells: Decorator = makeCellStyles("Informational", S.color.status.informational, S.color.fg.inverse)
-    final lazy val brandPrimary1Cells: Decorator = makeCellStyles("BrandPrimary1", S.color.brand.primary1, S.color.fg.default)
-    final lazy val brandPrimary2Cells: Decorator = makeCellStyles("BrandPrimary2", S.color.brand.primary2, S.color.fg.default)
-    final lazy val defaultCells: Decorator = makeCellStyles("Default", S.color.bg.default, S.color.fg.default)
-    final lazy val baseCells: Decorator = makeCellStyles("Base", S.color.bg.base, S.color.fg.default)
-    final lazy val layerOneCells: Decorator = makeCellStyles("Layer1", S.color.bg.layerOne, S.color.fg.default)
-    final lazy val layerTwoCells: Decorator = makeCellStyles("Layer2", S.color.bg.layerTwo, S.color.fg.default)
-    final lazy val layerThreeCells: Decorator = makeCellStyles("Layer3", S.color.bg.layerThree, S.color.fg.default)
-
-    final def styleCells(bgColor: String, fgColor: String): Decorator =
-      makeCellStyles("custom", bgColor, fgColor)
-
-    /////// Borders ///////////////////////////////////////////////////////////////
-
-    final lazy val rowBorders: Decorator = make("Borders(Rows)") { _.copy(_borders = Borders.Rows) }
-    final lazy val cellBorders: Decorator = make("Borders(Cells)") { _.copy(_borders = Borders.Cells) }
-
-    final def borders(color: String, width: String): Decorator = make("custom(borders)") { _.copy(_borderWidth = width, _borderColor = color) }
-
-  }
-
-  final class Decorator private[Table] (protected val genericDecorator: GenericDecorator[Props]) extends DecoratorBuilder, DecoratorBuilderType
-  object Decorator extends DecoratorBuilder, DecoratorBuilderCompanion {
-
-    override protected def wrapGeneric(genericDecorator: GenericDecorator[Props]): Decorator = new Decorator(genericDecorator)
-
-    override lazy val defaultStyling: Decorator = empty.primaryHeaders.baseCells
-
-  }
-
-  //////////////////////////////////////////////////////////////////////////////////////////////////////
-  //      Widget
-  //////////////////////////////////////////////////////////////////////////////////////////////////////
-
-  def basic(decorator: Decorator): Node = {
-    val props: Props = decorator.computed
-
-    table(
-      O.Table,
-      props._borders match {
-        case Borders.Rows  => O.Table.RowBorders
-        case Borders.Cells => O.Table.CellBorders
-      },
-      O.Table.defaultBorderColor := props._borderColor,
-      O.Table.defaultBorderWidth := props._borderWidth,
-      O.Table.HeaderCellVars.fgColor := props._header._defaultFGColor,
-      O.Table.HeaderCellVars.bgColor := props._header._defaultBGColor,
-      O.Table.HeaderCellVars.padding := props._header._defaultPadding.show,
-      O.Table.HeaderCellVars.alignment := props._header._defaultAlignment,
-      O.Table.CellCellVars.fgColor := props._cell._defaultFGColor,
-      O.Table.CellCellVars.bgColor := props._cell._defaultBGColor,
-      O.Table.CellCellVars.padding := props._cell._defaultPadding.show,
-      O.Table.CellCellVars.alignment := props._cell._defaultAlignment,
+  /** Quiet defaults (soft header, row rules, rounded shell). */
+  val empty: Table.Const =
+    Table(
+      header = Defaults(
+        fg = S.color.fg.moderate,
+        bg = S.color.bg.layerTwo,
+        padding = StandardProps.Padding(S.spacing._3, S.spacing._4),
+        alignment = "left",
+      ),
+      cell = Defaults(
+        fg = S.color.fg.default,
+        bg = S.color.bg.layerOne,
+        padding = StandardProps.Padding(S.spacing._3, S.spacing._4),
+        alignment = "left",
+      ),
+      borders = Borders.Rows,
+      borderColor = S.color.bg.layerThree,
+      borderWidth = 1.px,
+      _radius = S.borderRadius._3,
+      _outerBorder = true,
+      _outerBorderColor = S.color.bg.layerThree,
+      _outerBorderWidth = 1.px,
+      _shell = Growable.empty,
+      _children = Growable.empty,
     )
-  }
 
-  def basic(decorator: Decorator => Decorator): Node =
-    basic(decorator(Decorator.defaultStyling))
+  def apply(): Table.Const = empty
 
-  lazy val basic: Node =
-    basic(Decorator.defaultStyling)
+  def apply(configure: Table.Const => Table.Const): Table.Const =
+    configure(empty)
+
+  /** Alias for [[empty]] — `Table.basic(thead…, tbody…)` stays the usual call site. */
+  lazy val basic: Table.Const = empty
+
+  def basic(configure: Table.Const => Table.Const): Table.Const =
+    configure(empty)
+
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
+  //      Content helpers
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
+
+  /** `thead` with one header row of label strings. */
+  def header(labels: String*): Node =
+    thead(tr(labels.map(l => th(l))*))
+
+  /** `thead` with one header row of arbitrary cell widgets (wrapped in `th`). */
+  def headerCells(cells: Widget*): Node =
+    thead(tr(cells.map(c => th(c))*))
+
+  /** Body `tr` of string cells. */
+  def row(cells: String*): Node =
+    tr(cells.map(c => td(c))*)
+
+  /** Body `tr` of arbitrary widgets (wrapped in `td`). */
+  def rowCells(cells: Widget*): Node =
+    tr(cells.map(c => td(c))*)
+
+  /** `tbody` of row widgets (`tr` / [[row]] / …). */
+  def body(rows: Widget*): Node =
+    tbody(rows*)
+
+  /** Map items → body rows. */
+  def bodyRows[A](items: Iterable[A])(cells: A => Seq[Widget]): Node =
+    tbody(items.iterator.map(a => rowCells(cells(a)*)).toSeq*)
+
+  /**
+    * Full quiet table from header labels + string rows.
+    *
+    * {{{
+    * Table.of("Name", "Role")(
+    *   Seq(Seq("Ada", "Admin"), Seq("Bob", "User")),
+    * )
+    * }}}
+    */
+  def of(headers: String*)(rows: Seq[Seq[String]]): Table.Const =
+    empty(
+      header(headers*),
+      body(rows.map(r => row(r*))*),
+    )
+
+  /**
+    * Full quiet table from headers + mapped items.
+    *
+    * {{{
+    * Table.ofData("Id", "Label")(items)(i => Seq(Widget.text(i.id), Widget.text(i.label)))
+    * }}}
+    */
+  def ofData[A](headers: String*)(items: Iterable[A])(cells: A => Seq[Widget]): Table.Const =
+    empty(
+      header(headers*),
+      bodyRows(items)(cells),
+    )
 
 }

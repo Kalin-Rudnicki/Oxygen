@@ -550,6 +550,7 @@ lazy val `oxygen-ui-web`: Project =
     )
     .dependsOn(
       `oxygen-http`.js % testAndCompile,
+      `oxygen-test`.js % Test,
     )
 
 lazy val `oxygen-oidc`: Project =
@@ -1046,9 +1047,10 @@ lazy val `example-ui-electron`: Project =
                 val indexHtmlContents =
                   s"""
                      |<!DOCTYPE html>
-                     |<html>
+                     |<html lang="en">
                      |<head>
                      |  <meta charset="UTF-8">
+                     |  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
                      |  <title>Oxygen Electron App</title>
                      |</head>
                      |<body>

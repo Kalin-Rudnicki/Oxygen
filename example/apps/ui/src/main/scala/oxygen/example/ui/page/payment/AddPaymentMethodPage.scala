@@ -15,6 +15,7 @@ import oxygen.payments.stripe.ui.service.StripeService
 import oxygen.ui.web.*
 import oxygen.ui.web.component.*
 import oxygen.ui.web.create.{*, given}
+import oxygen.ui.web.layout.*
 import scala.scalajs.js
 import zio.*
 
@@ -66,7 +67,6 @@ object AddPaymentMethodPage extends RoutablePage.NoParams[LocalService & Payment
       .topHeight(40.px)
       .top(signedInNavBar(renderState.user))
       .center(
-        PageMessagesBottomCorner.default,
         h1("Add Payment Method"),
         div(
           marginLeft := 50.px,
@@ -75,8 +75,7 @@ object AddPaymentMethodPage extends RoutablePage.NoParams[LocalService & Payment
           ),
           Spacing.vertical._6,
           div(
-            Button(_.primary.extraLarge)(
-              "ADD",
+            Button("ADD").primary.extraLarge.content(
               onClick.s[PageState].handle { widgetState =>
                 for {
                   paymentsApi <- ZIO.service[PaymentApi]

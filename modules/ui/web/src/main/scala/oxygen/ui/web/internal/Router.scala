@@ -42,13 +42,19 @@ object Router {
       rootErrorHandler: RootErrorHandler,
   ) extends Router {
 
+    private def fragmentOf(target: NavigationEvent.Target): Option[String] =
+      target match {
+        case NavigationEvent.Target.Url(url) => url.fragment
+        case _                               => None
+      }
+
     override def route(navEvent: NavigationEvent, redirectNo: Int): UIO[Unit] =
       ZIO.logTrace(s"Attempting to route: navEvent = $navEvent, redirectNo = $redirectNo") *>
         ZIO.dieMessage("Infinite page redirect detected").whenDiscard(redirectNo >= 25) *>
         uiRuntime.execute {
           pageManager.currentErrorLocation
             .flatMap(RootErrorHandler.rootError(_) { findPage(navEvent.target) })
-            .flatMap(pageManager.loadPage[Env](_, navEvent.navType, uiRuntime))
+            .flatMap(pageManager.loadPage[Env](_, navEvent.navType, uiRuntime, fragmentOf(navEvent.target)))
             .catchAll {
               case RootErrorHandler.ErrorWithLocation(loc, error) => rootErrorHandler.handleErrorCause(loc, error)
               case UIError.Redirect(navEvent)                     => route(navEvent, redirectNo + 1)
@@ -99,6 +105,17 @@ object Router {
       router = Inst(pages, pagePrefixPath, pageManager, uiRuntime, rootErrorHandler)
       _ <- currentRouterRef.set(router.some)
       _ <- ZIO.succeed { window.onpopstate = { _ => uiRuntime.unsafeExecute { router.routeWindowURL } } }
+      // W7-T03: same-page hash change (in-page anchors) → scroll without full remount
+      _ <- ZIO.succeed {
+        window.addEventListener(
+          "hashchange",
+          (_: org.scalajs.dom.Event) => {
+            uiRuntime.unsafeExecute {
+              oxygen.ui.web.service.HashScroll.toWindowFragment().unit
+            }
+          },
+        )
+      }
     } yield router
   }
 

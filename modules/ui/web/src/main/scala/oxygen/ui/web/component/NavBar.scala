@@ -3,7 +3,11 @@ package oxygen.ui.web.component
 import oxygen.ui.web.{NonRoutablePage, RoutablePage}
 import oxygen.ui.web.create.{*, given}
 
-@deprecated("use TopBar instead")
+/**
+  * @deprecated Prefer [[TopBar]] (W2-T13). Kept for compile compatibility; token-only colors.
+  * Migration: `TopBar.empty.left(...).right(...)` under [[oxygen.ui.web.layout.HolyGrail]].
+  */
+@deprecated("use TopBar instead — see agent-docs/ui-rework/specs/shell-chrome.md")
 final class NavBar[-Env, +Action, -StateGet, +StateSet <: StateGet](
     props: NavBar.Props,
     leftItems: Seq[NavBar.NavBarElemBuilder => Widget.Polymorphic[Env, Action, StateGet, StateSet]],
@@ -48,9 +52,10 @@ object NavBar {
   type Stateless[-Env, +Action] = NavBar[Env, Action, Any, Nothing]
   type Stateful[-Env, +Action, State] = NavBar[Env, Action, State, State]
 
+  /** Defaults are CSS vars only (no getColorValue). */
   final case class Props(
-      navBarHeight: String = 40.px,
-      navBarColor: String = OxygenStyleVars.color.brand.primary1,
+      navBarHeight: String = 48.px,
+      navBarColor: String = S.color.brand.primary1,
   )
 
   def make[Env, Action, StateGet, StateSet <: StateGet](props: NavBar.Props = NavBar.Props())(
@@ -75,8 +80,9 @@ object NavBar {
         minHeight := props.navBarHeight,
         OxygenStyleSheet.NavBar.Section.Elem,
         backgroundColor.dynamic := props.navBarColor,
-        backgroundColor.dynamic.hover := CSSColor.eval(props.navBarColor).darken(15.0),
-        backgroundColor.dynamic.active := CSSColor.eval(props.navBarColor).darken(30.0),
+        // Pure-var safe: callers should pass CSS vars; hover uses layer token until color-mix helpers exist
+        backgroundColor.dynamic.hover := S.color.bg.layerOne,
+        backgroundColor.dynamic.active := S.color.bg.layerTwo,
         borderRadius.dynamic.active := 10.px,
       )
 

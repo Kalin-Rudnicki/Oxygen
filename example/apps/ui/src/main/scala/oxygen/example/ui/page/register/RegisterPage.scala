@@ -12,6 +12,7 @@ import oxygen.predef.core.*
 import oxygen.ui.web.{*, given}
 import oxygen.ui.web.component.*
 import oxygen.ui.web.create.{*, given}
+import oxygen.ui.web.layout.*
 import zio.*
 
 // TODO (KR) : support redirect query param, useful if user attempts to navigate to a page, but is not logged in
@@ -51,27 +52,30 @@ object RegisterPage extends RoutablePage[UserApi & LocalService] {
   override def title(state: PageState): String = "Sign Up"
 
   override protected def component(state: WidgetState[PageState], renderState: PageState): WidgetES[UserApi & LocalService, PageState] =
-    PageLayout.layout(signedOutNavBar(renderState.optEmail))(
-      PageMessagesBottomCorner.default,
-      PageBodies.centeredCard(
-        boxShadow := "0 4px 32px #01810120",
-        h1(
-          "Sign Up",
-          padding(0.px, S.spacing._8, S.spacing._2),
-          marginTop := 0.px,
-          color := S.color.primary,
-          borderBottom := css(S.borderWidth._2, "solid", S.color.primary),
-        ),
-        registerForm.onSubmit { (_, req) =>
-          for {
-            _ <- ZIO.logInfo("submitting form...")
-            res <- UserApi.register(req).toUILogged(_.toUI)
-            _ <- ZIO.serviceWithZIO[LocalService](_.userToken.set(res.authorization))
-            _ <- P.home.HomePage.navigate.push(())
-          } yield ()
-        },
-      ),
-    )
+    HolyGrail.empty
+      .topHeight(40.px)
+      .top(signedOutNavBar(renderState.optEmail))
+      .center(
+        CenteredCard
+          .empty
+          .boxShadow("0 4px 32px #01810120")(
+            h1(
+              "Sign Up",
+              padding(0.px, S.spacing._8, S.spacing._2),
+              marginTop := 0.px,
+              color := S.color.primary,
+              borderBottom := css(S.borderWidth._2, "solid", S.color.primary),
+            ),
+            registerForm.onSubmit { (_, req) =>
+              for {
+                _ <- ZIO.logInfo("submitting form...")
+                res <- UserApi.register(req).toUILogged(_.toUI)
+                _ <- ZIO.serviceWithZIO[LocalService](_.userToken.set(res.authorization))
+                _ <- P.home.HomePage.navigate.push(())
+              } yield ()
+            },
+          ),
+      )
 
   //////////////////////////////////////////////////////////////////////////////////////////////////////
   //      Components
@@ -81,26 +85,32 @@ object RegisterPage extends RoutablePage[UserApi & LocalService] {
     for {
       (firstNameWidget, firstNameValue) <-
         TextField
-          .form[String]("First Name", _.width(300.px))
+          .form[String]("First Name")
+          .width(300.px)
           .required
           .zoomOut[PageState](_.firstName)
       (lastNameWidget, lastNameValue) <-
         TextField
-          .form[String]("Last Name", _.width(300.px))
+          .form[String]("Last Name")
+          .width(300.px)
           .required
           .zoomOut[PageState](_.lastName)
       (emailWidget, emailValue) <-
         TextField
-          .form[Email]("Email", _.email.width(300.px))
+          .form[Email]("Email")
+          .email
+          .width(300.px)
           .required
           .zoomOut[PageState](_.email)
       (passwordWidget, passwordValue) <-
         TextField
-          .form[String]("Password", _.password.width(300.px))
+          .form[String]("Password")
+          .password
+          .width(300.px)
           .required
           .mapValue(Password.PlainText.wrap)
           .zoomOut[PageState](_.password)
-      (submitWidget, _) <- Button.form("Sign Up", _.button(_.medium))
+      (submitWidget, _) <- Button.form("Sign Up").medium
     } yield (
       fragment(firstNameWidget, lastNameWidget, emailWidget, passwordWidget, submitWidget),
       (emailValue <*> firstNameValue <*> lastNameValue <*> passwordValue).mapValue(RegisterRequest.apply),

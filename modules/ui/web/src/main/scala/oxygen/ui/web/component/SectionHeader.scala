@@ -3,92 +3,74 @@ package oxygen.ui.web.component
 import oxygen.ui.web.*
 import oxygen.ui.web.create.{*, given}
 
-object SectionHeader extends Decorable {
+/**
+  * Section header (W2) — pure CSS vars, no Decorator.
+  *
+  * Header text is a field; the component itself is the widget (no `apply(text)` builder).
+  * Prefer [[text]] / [[section1]] / [[section2]] / [[section3]].
+  */
+final case class SectionHeader(
+    private val _color: String,
+    private val _indent: String,
+    private val _padding: String,
+    private val _tag: String,
+    private val _extra: Widget,
+    private val _id: Option[String],
+    private val _text: String,
+) extends PWidget.Deferred[Any, Nothing, Any, Nothing] {
 
-  //////////////////////////////////////////////////////////////////////////////////////////////////////
-  //      Props
-  //////////////////////////////////////////////////////////////////////////////////////////////////////
+  def color(c: String): SectionHeader = copy(_color = c)
+  def primary: SectionHeader = color(S.color.primary)
+  def positive: SectionHeader = color(S.color.status.positive)
+  def negative: SectionHeader = color(S.color.status.negative)
+  def alert: SectionHeader = color(S.color.status.alert)
+  def informational: SectionHeader = color(S.color.status.informational)
+  def brandPrimary1: SectionHeader = color(S.color.brand.primary1)
+  def brandPrimary2: SectionHeader = color(S.color.brand.primary2)
 
-  final case class Props(
-      color: String,
-      indent: String,
-      padding: String,
-      tag: String,
-      mod: NodeModifier,
-  )
-  object Props extends PropsCompanion {
+  def extra(mods: Widget*): SectionHeader = copy(_extra = fragment(this._extra, Widget.fragment(mods)))
 
-    override protected lazy val initialProps: Props =
-      Props(
-        color = "transparent",
-        indent = "0",
-        padding = "0",
-        tag = "div",
-        mod = NodeModifier.empty,
-      )
+  /** HTML `id` on the heading element (anchors / scroll targets). */
+  def withId(anchorId: String): SectionHeader = copy(_id = Some(AnchorId.normalize(anchorId)).filter(_.nonEmpty))
 
-  }
+  def text(t: String): SectionHeader = copy(_text = t)
 
-  //////////////////////////////////////////////////////////////////////////////////////////////////////
-  //      Decorator
-  //////////////////////////////////////////////////////////////////////////////////////////////////////
-
-  trait DecoratorBuilder extends DecoratorBuilder0 {
-
-    final lazy val section1: Decorator = make("section1") { _.copy(color = S.color.primary, indent = S.spacing._10, padding = css("0", S.spacing._10, S.spacing._1), tag = "h2") }
-    final lazy val section2: Decorator = make("section2") { _.copy(color = S.color.fg.moderate, indent = S.spacing._7, padding = css("0", S.spacing._7, S.spacing._1), tag = "h3") }
-    final lazy val section3: Decorator = make("section3") { _.copy(color = S.color.fg.minimal, indent = S.spacing._4, padding = css("0", S.spacing._4, S.spacing._1), tag = "h4") }
-
-    private def makeColor(n: String, c: String): Decorator = make(n) { _.copy(color = c) }
-
-    final def color(c: String): Decorator = makeColor(s"custom(color = $c)", c)
-    final lazy val primary: Decorator = makeColor("Primary", S.color.primary)
-    final lazy val positive: Decorator = makeColor("Positive", S.color.status.positive)
-    final lazy val negative: Decorator = makeColor("Negative", S.color.status.negative)
-    final lazy val alert: Decorator = makeColor("Alert", S.color.status.alert)
-    final lazy val informational: Decorator = makeColor("Informational", S.color.status.informational)
-    final lazy val brandPrimary1: Decorator = makeColor("BrandPrimary1", S.color.brand.primary1)
-    final lazy val brandPrimary2: Decorator = makeColor("BrandPrimary2", S.color.brand.primary2)
-
-    final lazy val mod: FocusNodeModifier = focusNodeModifier("mod")(_.mod)
-
-  }
-
-  final class Decorator private[SectionHeader] (protected val genericDecorator: GenericDecorator[Props]) extends DecoratorBuilder, DecoratorBuilderType
-  object Decorator extends DecoratorBuilder, DecoratorBuilderCompanion {
-
-    override protected def wrapGeneric(genericDecorator: GenericDecorator[Props]): Decorator = new Decorator(genericDecorator)
-
-    override lazy val defaultStyling: Decorator = empty
-
-  }
-
-  //////////////////////////////////////////////////////////////////////////////////////////////////////
-  //      Widget
-  //////////////////////////////////////////////////////////////////////////////////////////////////////
-
-  def apply(
-      text: String,
-      decorator: Decorator,
-  ): Node = {
-    val props = decorator.computed
-    Widget.node(props.tag)(
-      text,
-      color := props.color,
-      padding := props.padding,
-      margin("0", "0", "0", props.indent),
-      borderBottom(2.px, "solid", props.color),
+  override protected def build: PWidget[Any, Nothing, Any, Nothing] = {
+    import oxygen.ui.web.create.{color as colorAttr, padding as paddingAttr, margin as marginAttr, id as idAttr}
+    Widget.node(_tag)(
+      _text,
+      colorAttr := _color,
+      paddingAttr := _padding,
+      marginAttr("0", "0", "0", _indent),
+      borderBottom(2.px, "solid", _color),
       width.fitContent,
-    )(props.mod)
+      _id.map(x => idAttr := x).getOrElse(Widget.empty),
+      _extra,
+    )
   }
 
-  def section1(text: String, decorator: Decorator => Decorator = identity): Node =
-    apply(text, decorator(Decorator.section1))
+}
+object SectionHeader {
 
-  def section2(text: String, decorator: Decorator => Decorator = identity): Node =
-    apply(text, decorator(Decorator.section2))
+  val empty: SectionHeader =
+    SectionHeader("transparent", "0", "0", "div", Widget.empty, None, "")
 
-  def section3(text: String, decorator: Decorator => Decorator = identity): Node =
-    apply(text, decorator(Decorator.section3))
+  val level1: SectionHeader =
+    SectionHeader(S.color.primary, S.spacing._10, css("0", S.spacing._10, S.spacing._1), "h2", Widget.empty, None, "")
+
+  val level2: SectionHeader =
+    SectionHeader(S.color.fg.moderate, S.spacing._7, css("0", S.spacing._7, S.spacing._1), "h3", Widget.empty, None, "")
+
+  val level3: SectionHeader =
+    SectionHeader(S.color.fg.minimal, S.spacing._4, css("0", S.spacing._4, S.spacing._1), "h4", Widget.empty, None, "")
+
+  def section1(text: String, configure: SectionHeader => SectionHeader = identity): SectionHeader =
+    configure(level1).text(text)
+
+  def section2(text: String, configure: SectionHeader => SectionHeader = identity): SectionHeader =
+    configure(level2).text(text)
+
+  def section3(text: String, configure: SectionHeader => SectionHeader = identity): SectionHeader =
+    configure(level3).text(text)
 
 }

@@ -10,6 +10,10 @@ import zio.http.{Path, QueryParams}
 
 object ComponentsPage extends RoutablePage.NoParams[Any] {
 
+  /** Large enough to prove pagination keeps DOM small; not virtualized 10k. */
+  private val StressTotal: Int = 500
+  private val StressItems: IndexedSeq[Int] = IndexedSeq.range(0, StressTotal)
+
   final case class PageState(
       sequence: ArraySeq[Int],
       useGlobalToggleThumbs: Boolean,
@@ -22,6 +26,13 @@ object ComponentsPage extends RoutablePage.NoParams[Any] {
       textField: TextField.State,
       textArea: TextArea.State,
       heart: Boolean,
+      /** W6-T05: large-N pagination stress (items generated; only page slice in DOM). */
+      stressPager: Pagination.State,
+      lazyDemo: LazySection.State,
+      /** W9-T04: filter string for icon index. */
+      iconFilter: String,
+      sortable: SortableList.State[String],
+      fileDrop: FileDropZone.State,
   )
 
   final case class ModalForm(
@@ -46,6 +57,11 @@ object ComponentsPage extends RoutablePage.NoParams[Any] {
         textField = TextField.State.empty,
         textArea = TextArea.State.empty,
         heart = false,
+        stressPager = Pagination.State.initial(pageSize = 25, total = StressTotal),
+        lazyDemo = LazySection.State(),
+        iconFilter = "",
+        sortable = SortableList.State.of(Seq("Alpha", "Bravo", "Charlie", "Delta")),
+        fileDrop = FileDropZone.State(),
       )
     }
 
@@ -54,7 +70,11 @@ object ComponentsPage extends RoutablePage.NoParams[Any] {
   override protected def component(state: WidgetState[PageState], renderState: PageState): WidgetS[PageState] =
     fragment(
       O.Scrollable,
-      h1("Components"),
+      h1("Components — builder showcase"),
+      p(
+        color := S.color.fg.moderate,
+        "HolyGrail builders, overflow cases, grid, pagination stress, lazy section. Gallery only — not Storybook.",
+      ),
       iconSection, // TODO (KR) : move down
       miscSection,
       sectionSection,
@@ -63,6 +83,11 @@ object ComponentsPage extends RoutablePage.NoParams[Any] {
       toggleThumbSection,
       horizontalRadioSection,
       formSection,
+      overflowTortureSection,
+      columnsDemoSection,
+      stressPaginationSection.zoomOut[PageState](_.stressPager),
+      lazySectionDemo.zoomOut[PageState](_.lazyDemo),
+      dndDemoSection,
       div(height := 150.px),
     )
 
@@ -77,8 +102,7 @@ object ComponentsPage extends RoutablePage.NoParams[Any] {
   private lazy val miscSection: WidgetS[PageState] =
     SectionWithHeader.section1("Misc.")(
       Section.section2()(
-        Button()(
-          "Open new page",
+        Button("Open new page").content(
           onClick := Window.newTab(PageURL(Path.root, QueryParams.empty)),
         ),
       ),
@@ -90,20 +114,17 @@ object ComponentsPage extends RoutablePage.NoParams[Any] {
     SectionWithHeader.section2("Page Messages")(
       PageMessagesBottomCorner.default,
       Widget.foreach(
-        PageMessage.Type.Primary -> Button.Decorator.primary,
-        PageMessage.Type.Positive -> Button.Decorator.positive,
-        PageMessage.Type.Negative -> Button.Decorator.negative,
-        PageMessage.Type.Info -> Button.Decorator.informational,
-        PageMessage.Type.Warning -> Button.Decorator.alert,
-        PageMessage.Type.Error -> Button.Decorator.negative,
-      ) { case (messageType, buttonType) =>
+        PageMessage.Type.Primary -> ((b: Button.Const) => b.primary),
+        PageMessage.Type.Positive -> ((b: Button.Const) => b.positive),
+        PageMessage.Type.Negative -> ((b: Button.Const) => b.negative),
+        PageMessage.Type.Info -> ((b: Button.Const) => b.informational),
+        PageMessage.Type.Warning -> ((b: Button.Const) => b.alert),
+        PageMessage.Type.Error -> ((b: Button.Const) => b.negative),
+      ) { case (messageType, style) =>
         span(
           display.inlineBlock,
           padding(S.spacing._3, S.spacing._5),
-          Button(
-            _ >> buttonType,
-          )(
-            messageType.toString,
+          style(Button(messageType.toString)).content(
             Widget.withPageInstance {
               onClick := PageMessages.add(PageMessage.make(messageType, s"This is a \"$messageType\" page message"))
             },
@@ -114,7 +135,7 @@ object ComponentsPage extends RoutablePage.NoParams[Any] {
 
   private lazy val modalSection: WidgetS[Option[ModalForm]] =
     SectionWithHeader.section2("Modal")(
-      Button()("Show Modal", onClick.s[Option[ModalForm]].setState(ModalForm(TextField.State.empty).some)),
+      Button("Show Modal").content(onClick.s[Option[ModalForm]].setState(ModalForm(TextField.State.empty).some)),
       Modal.option()(
         h1("Hello Modal"),
         padding(S.spacing._0, S.spacing._5),
@@ -133,115 +154,68 @@ object ComponentsPage extends RoutablePage.NoParams[Any] {
       ),
     )
 
-  private lazy val iconSection: WidgetS[PageState] = {
-    val space: Widget =
-      span(
-        display.inlineBlock,
-        width := 24.px,
-        height := 24.px,
-      )
-
-    Widget.state[PageState].fix { state =>
-      SectionWithHeader.section1("Icon")(
-        color.blue,
-        // star
-        svg(
-          htmlWidth := 24,
-          htmlHeight := 24,
-          svgViewBox := "0 0 24 24",
-          svgFill := "none",
-          svgStroke.currentColor,
-          svgStrokeWidth := 2,
-          svgStrokeLineCap.round,
-          svgStrokeLineJoin.round,
-          svgPolygon(
-            svgPoints := "12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2",
-          ),
-        )(
-          color.yellow,
+  /** W9-T04: browsable/filterable index of shipped icons. */
+  private lazy val iconSection: WidgetS[PageState] =
+    Widget.state[PageState].fix { st =>
+      val q = st.renderTimeValue.iconFilter.trim.toLowerCase
+      val icons = Icon.all.filter(i => q.isEmpty || i.name.toLowerCase.contains(q))
+      SectionWithHeader.section1(s"Icons (${icons.size} / ${Icon.all.size})")(
+        p(
+          color := S.color.fg.moderate,
+          "Built-in stroke set (currentColor). Filter by name; use Icon.custom for app-specific SVG.",
         ),
-        space,
-        // heart
-        svg(
-          htmlWidth := 24,
-          htmlHeight := 24,
-          svgViewBox := "0 0 24 24",
-          svgFill := (if state.get.heart then "red" else "transparent"),
-          svgStroke.currentColor,
-          svgStrokeWidth := 3,
-          svgStrokeLineCap.round,
-          svgStrokeLineJoin.round,
-          svgPath(
-            cursor.pointer,
-            onClick := state.update(s => s.copy(heart = !s.heart)),
-            svgD := "M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z",
+        div(
+          display.flex,
+          alignItems.center,
+          gap := S.spacing._3,
+          marginBottom := S.spacing._4,
+          span("Filter:", color := S.color.fg.moderate),
+          input(
+            `type`.text,
+            value := st.renderTimeValue.iconFilter,
+            onInput.e.handle { e =>
+              val v = e.target.asInstanceOf[org.scalajs.dom.HTMLInputElement].value
+              st.update(_.copy(iconFilter = v))
+            },
+            width := 24.ch,
+            padding := S.spacing._2,
+            border(1.px, "solid", S.color.fg.subtle),
+            borderRadius := S.borderRadius._3,
+            backgroundColor := S.color.bg.layerTwo,
+            color := S.color.fg.default,
           ),
-        )(
-          color.red,
         ),
-        space,
-        // rose
-        svg(
-          htmlWidth := 24,
-          htmlHeight := 24,
-          svgViewBox := "0 0 24 24",
-          svgFill := "none",
-          svgStroke.currentColor,
-          svgG(),
-          svgG(svgStrokeLineCap.round, svgStrokeLineJoin.round),
-          svgG(
-            svgStrokeWidth := 1,
-            svgPath(
-              svgD := "M4.67,18.788A9.991,9.991,0,0,0,22,12V6a1,1,0,0,0-1.062-1,21.6,21.6,0,0,0-3.854.731,10.569,10.569,0,0,0-4.767-3.681,1,1,0,0,0-.635,0A10.592,10.592,0,0,0,6.931,5.713,21.024,21.024,0,0,0,3.063,5,1,1,0,0,0,2,6v6a9.93,9.93,0,0,0,2.592,6.679A.938.938,0,0,0,4.67,18.788ZM20,12a8.009,8.009,0,0,1-8,8,7.892,7.892,0,0,1-5.481-2.186C8.13,11.586,13.731,8.049,20,7.12ZM8.954,6.368A8.9,8.9,0,0,1,12,4.078a8.749,8.749,0,0,1,3.045,2.288A20.715,20.715,0,0,0,12,7.788c-.031-.018-.066-.033-.1-.051q-.655-.369-1.308-.676L10.44,6.99c-.5-.23-.989-.435-1.469-.615ZM4,7.128a21.322,21.322,0,0,1,6.091,1.917A14.7,14.7,0,0,0,5.1,15.656c-.019.05-.041.1-.06.148-.008.022-.018.042-.026.064A7.908,7.908,0,0,1,4,12Z",
-            ),
-          ),
-        )(
-          color.cyan,
-          backgroundColor.red,
-          borderRadius := 15.px,
-          padding := 4.px,
-          width := 50.px,
-          height := 50.px,
-        ),
-        space,
-        // star 2
-        basicSvg(24, 24)(
-          svgPath(
-            svgFill.none,
-            svgStrokeWidth := 2,
-            svgStroke := S.color.brand.primary1.getColorValue.toUpperCase,
-            svgD := "M 12 0 L 4 24 L 24 8 L 0 8 L 20 24 Z",
-          ),
-        )(
-          backgroundColor.black,
-          padding := 6.px,
-          borderRadius := 16.px,
-        ),
-        space,
-        // pyramid
-        basicSvg(24, 24)(
-          svgPath(
-            svgFill.none,
-            svgStrokeWidth := 2,
-            svgStroke := S.color.brand.primary1.getColorValue,
-            svgD := "M 12 0 L 0 24 L 24 24 Z",
-          ),
-          svgPath(
-            svgFill.none,
-            svgStrokeWidth := 2,
-            svgStroke := S.color.brand.primary2.getColorValue,
-            svgD := "M 12 7 L 6 20 L 18 20 Z",
-          ),
-        )(
-          backgroundColor.black,
-          padding := 6.px,
-          borderRadius := 10.px,
-          width := 50.px,
-          height := 50.px,
+        div(
+          display.flex,
+          flexWrap.wrap,
+          gap := S.spacing._3,
+          color := S.color.fg.default,
+          Widget.foreach(icons) { ic =>
+            div(
+              display.flex,
+              flexDirection.column,
+              alignItems.center,
+              justifyContent.center,
+              width := 96.px,
+              minHeight := 72.px,
+              padding := S.spacing._2,
+              borderRadius := S.borderRadius._3,
+              backgroundColor := S.color.bg.layerTwo,
+              ic.md,
+              span(
+                ic.name,
+                fontSize := S.fontSize._1,
+                color := S.color.fg.subtle,
+                marginTop := S.spacing._1,
+                textAlign.center,
+                O.Ellipsis,
+                maxWidth := 88.px,
+              ),
+            )
+          },
         ),
       )
     }
-  }
 
   //////////////////////////////////////////////////////////////////////////////////////////////////////
   //      Other
@@ -271,37 +245,38 @@ object ComponentsPage extends RoutablePage.NoParams[Any] {
     )
 
   private lazy val buttonsSection: Widget = {
-    val styles: Seq[Button.Decorator] =
+    final case class BtnStyle(name: String, f: Button.Const => Button.Const)
+    final case class BtnSize(name: String, f: Button.Const => Button.Const)
+
+    val styles: Seq[BtnStyle] =
       (for
         a <- Seq(
-          Button.Decorator.primary,
-          Button.Decorator.positive,
-          Button.Decorator.negative,
-          Button.Decorator.alert,
-          Button.Decorator.informational,
-          Button.Decorator.destructive,
-          Button.Decorator.brandPrimary1,
-          Button.Decorator.brandPrimary2,
-          Button.Decorator.brandPrimary1.defaultFG,
-          Button.Decorator.brandPrimary2.defaultFG,
+          BtnStyle("Primary", _.primary),
+          BtnStyle("Positive", _.positive),
+          BtnStyle("Negative", _.negative),
+          BtnStyle("Alert", _.alert),
+          BtnStyle("Informational", _.informational),
+          BtnStyle("Destructive", _.destructive),
+          BtnStyle("Accent", _.accent),
+          BtnStyle("Neutral", _.neutral),
         )
         b <- Seq(
-          Button.Decorator.standard,
-          Button.Decorator.subtle,
-          Button.Decorator.minimal,
+          BtnStyle("Solid", _.solid),
+          BtnStyle("Subtle", _.subtle),
+          BtnStyle("Minimal", _.minimal),
         )
-      yield a << b) ++
+      yield BtnStyle(s"${a.name} ${b.name}", a.f.andThen(b.f))) ++
         Seq(
-          Button.Decorator.disabled,
-          Button.Decorator.disabledProgress,
+          BtnStyle("Disabled", _.disabled(true)),
+          BtnStyle("Progress", _.progress(true)),
         )
-    val sizes: Seq[Button.Decorator] =
+    val sizes: Seq[BtnSize] =
       Seq(
-        Button.Decorator.extraSmall,
-        Button.Decorator.small,
-        Button.Decorator.medium,
-        Button.Decorator.large,
-        Button.Decorator.extraLarge,
+        BtnSize("XS", _.extraSmall),
+        BtnSize("S", _.small),
+        BtnSize("M", _.medium),
+        BtnSize("L", _.large),
+        BtnSize("XL", _.extraLarge),
       )
 
     SectionWithHeader.section1("Buttons")(
@@ -321,56 +296,68 @@ object ComponentsPage extends RoutablePage.NoParams[Any] {
             Widget.foreach(sizes) { size =>
               td(
                 textAlign.center,
-                Button(style >> size)("Click Me!"),
+                size.f(style.f(Button("Click Me!"))),
                 padding(S.spacing._2, S.spacing._5),
               )
             },
           )
         },
       ),
+      div(height := 16.px),
+      // W9-T05: icon slots
+      p(color := S.color.fg.moderate, "Icon slots (leading / trailing / icon-only)"),
+      div(
+        display.flex,
+        flexWrap.wrap,
+        gap := S.spacing._3,
+        alignItems.center,
+        Button("Save").leading(Icon.save).small,
+        Button("Next").trailing(Icon.chevronRight).primary.small,
+        Button("Download").leading(Icon.download).trailing(Icon.externalLink).subtle.small,
+        Button().iconOnly(Icon.settings).small.subtle,
+        Button().iconOnly(Icon.trash).small.negative.subtle,
+      ),
     )
   }
 
   private lazy val toggleThumbSection: WidgetS[PageState] = {
-    val sizes: Seq[ToggleThumb.Decorator] =
+    final case class ToggleStyle(name: String, f: ToggleThumb => ToggleThumb)
+    final case class ToggleSize(name: String, f: ToggleThumb => ToggleThumb)
+
+    val sizes: Seq[ToggleSize] =
       Seq(
-        ToggleThumb.Decorator.extraSmall,
-        ToggleThumb.Decorator.small,
-        ToggleThumb.Decorator.medium,
-        ToggleThumb.Decorator.large,
-        ToggleThumb.Decorator.extraLarge,
+        ToggleSize("XS", _.extraSmall),
+        ToggleSize("S", _.small),
+        ToggleSize("M", _.medium),
+        ToggleSize("L", _.large),
+        ToggleSize("XL", _.extraLarge),
       )
-    val styles: Seq[ToggleThumb.Decorator] =
+    val styles: Seq[ToggleStyle] =
       Seq(
-        ToggleThumb.Decorator.primary,
-        ToggleThumb.Decorator.positive,
-        ToggleThumb.Decorator.negative,
-        ToggleThumb.Decorator.alert,
-        ToggleThumb.Decorator.informational,
-        ToggleThumb.Decorator.brandPrimary1,
-        ToggleThumb.Decorator.brandPrimary2,
-        ToggleThumb.Decorator.positiveNegative,
-        ToggleThumb.Decorator.primaryEnabled.alertDisabled,
+        ToggleStyle("Primary", _.primary),
+        ToggleStyle("Positive", _.positive),
+        ToggleStyle("Negative", _.negative),
+        ToggleStyle("Alert", _.alert),
+        ToggleStyle("Informational", _.informational),
+        ToggleStyle("Brand1", _.brandPrimary1),
+        ToggleStyle("Brand2", _.brandPrimary2),
+        ToggleStyle("PosNeg", _.positiveNegative),
+        ToggleStyle("Primary/Alert", _.primaryEnabled.alertDisabled),
       )
 
     Widget.state[PageState].fix { state =>
-      def row(style: ToggleThumb.Decorator): Widget =
+      def row(style: ToggleStyle): Widget =
         tr(
           border.csss(2.px, "solid", "black"),
           td(padding(S.spacing._1, S.spacing._3))(style.name),
           Widget.foreach(sizes) { size =>
-            val fullStyle = style >> size
-
+            val cfg = size.f(style.f(ToggleThumb.empty))
             td(padding(S.spacing._1, S.spacing._3))(
               textAlign.center,
               if state.renderTimeValue.useGlobalToggleThumbs then
-                ToggleThumb
-                  .boolean(fullStyle)
-                  .attach(state.zoomIn(_.globalToggleThumbs))
+                cfg.boolean.attach(state.zoomIn(_.globalToggleThumbs))
               else
-                ToggleThumb
-                  .set(fullStyle.name, fullStyle)
-                  .attach(state.zoomIn(_.individualToggleThumbs)),
+                cfg.set(style.name).attach(state.zoomIn(_.individualToggleThumbs)),
             )
           },
         )
@@ -401,31 +388,33 @@ object ComponentsPage extends RoutablePage.NoParams[Any] {
   }
 
   private lazy val horizontalRadioSection: WidgetS[PageState] = {
-    val sizes: Seq[HorizontalRadio.Decorator] =
-      Seq(HorizontalRadio.Decorator.small, HorizontalRadio.Decorator.medium, HorizontalRadio.Decorator.large)
-    val styles: Seq[HorizontalRadio.Decorator] =
+    final case class RadioStyle(name: String, f: HorizontalRadio => HorizontalRadio)
+    final case class RadioSize(name: String, f: HorizontalRadio => HorizontalRadio)
+
+    val sizes: Seq[RadioSize] =
+      Seq(RadioSize("S", _.small), RadioSize("M", _.medium), RadioSize("L", _.large))
+    val styles: Seq[RadioStyle] =
       Seq(
-        HorizontalRadio.Decorator.primary,
-        HorizontalRadio.Decorator.positive,
-        HorizontalRadio.Decorator.negative,
-        HorizontalRadio.Decorator.alert,
-        HorizontalRadio.Decorator.informational,
-        HorizontalRadio.Decorator.brandPrimary1,
-        HorizontalRadio.Decorator.brandPrimary2,
-        HorizontalRadio.Decorator.positiveNegative,
-        HorizontalRadio.Decorator.primarySelected.alertNotSelected,
+        RadioStyle("Primary", _.primary),
+        RadioStyle("Positive", _.positive),
+        RadioStyle("Negative", _.negative),
+        RadioStyle("Alert", _.alert),
+        RadioStyle("Informational", _.informational),
+        RadioStyle("Brand1", _.brandPrimary1),
+        RadioStyle("Brand2", _.brandPrimary2),
+        RadioStyle("PosNeg", _.positiveNegative),
+        RadioStyle("Primary/Alert", _.primarySelected.alertNotSelected),
       )
 
     Widget.state[PageState].fix { state =>
-      def row(style: HorizontalRadio.Decorator): Widget =
+      def row(style: RadioStyle): Widget =
         tr(
           border.csss(2.px, "solid", "black"),
           td(padding(S.spacing._1, S.spacing._3))(style.name),
           Widget.foreach(sizes) { size =>
             td(padding(S.spacing._1, S.spacing._3))(
               textAlign.center,
-              HorizontalRadio[SmallEnum]
-                .decorate(style >> size)
+              size.f(style.f(HorizontalRadio.empty)).of[SmallEnum]
                 .attach(state.zoomIn(_.horizontalRadio)),
             )
           },
@@ -457,22 +446,19 @@ object ComponentsPage extends RoutablePage.NoParams[Any] {
           ),
           td(
             padding(S.spacing._1, S.spacing._3),
-            Button(_.small)(
-              "-",
+            Button("-").small.content(
               onClick := state.update(_ - 1),
             ),
           ),
           td(
             padding(S.spacing._1, S.spacing._3),
-            Button(_.small)(
-              "+",
+            Button("+").small.content(
               onClick := state.update(_ + 1),
             ),
           ),
           td(
             padding(S.spacing._1, S.spacing._3),
-            Button(_.destructive.minimal.small)(
-              "Remove",
+            Button("Remove").destructive.minimal.small.content(
               onClick.action(idx),
             ),
           ),
@@ -481,8 +467,7 @@ object ComponentsPage extends RoutablePage.NoParams[Any] {
 
     SectionWithHeader.section1("Sequence")(
       div(
-        Button()(
-          "Add",
+        Button("Add").content(
           onClick.updateState[ArraySeq[Int]](0 +: _),
         ),
       ),
@@ -505,8 +490,7 @@ object ComponentsPage extends RoutablePage.NoParams[Any] {
       ),
       div(height := 10.px),
       div(
-        Button()(
-          "Add",
+        Button("Add").content(
           onClick.updateState[ArraySeq[Int]](_ :+ 0),
         ),
       ),
@@ -516,28 +500,123 @@ object ComponentsPage extends RoutablePage.NoParams[Any] {
   private lazy val formSection: WidgetS[PageState] = {
     SectionWithHeader.section1("Form")(
       TextField.form[String]("Text Field 1").widget.discardAction.zoomOut[PageState](_.textField),
-      TextField.form[String]("Text Field 2", _.describe("test")).widget.discardAction.zoomOut[PageState](_.textField),
-      TextField.form[String]("Text Field 3", _.describe("a\nb").label(_.mod(color.red))).widget.discardAction.zoomOut[PageState](_.textField),
+      TextField.form[String]("Text Field 2").describe("test").widget.discardAction.zoomOut[PageState](_.textField),
+      TextField.form[String]("Text Field 3").describe("a\nb").labelMod(color.red).widget.discardAction.zoomOut[PageState](_.textField),
       TextArea.form[String]("Text Area").widget.discardAction.zoomOut[PageState](_.textArea),
       HorizontalRadio
-        .form[SmallEnum](
-          "Horizontal Radio 1",
-          _.horizontalRadio(_.buttonMod.surround("[ ")(" ]", fontWeight := S.fontWeight.extraBold)),
-        )
+        .form[SmallEnum]("Horizontal Radio 1")
+        .modRadio(_.buttonExtra("[ ", " ]", fontWeight := S.fontWeight.extraBold))
         .widget
         .discardAction
         .zoomOut[PageState](_.horizontalRadio),
-      HorizontalRadio.form[SmallEnum]("Horizontal Radio 2", _.describe("descr")).widget.discardAction.zoomOut[PageState](_.horizontalRadio),
-      Dropdown.form[BigEnum]("Dropdown 1", _.describe("descr")).widget.discardAction.zoomOut[PageState](_.dropdown1),
+      HorizontalRadio.form[SmallEnum]("Horizontal Radio 2").describe("descr").widget.discardAction.zoomOut[PageState](_.horizontalRadio),
+      Dropdown.form[BigEnum]("Dropdown 1").describe("descr").widget.discardAction.zoomOut[PageState](_.dropdown1),
       Dropdown
-        .form[SmallEnum](
-          "Dropdown 2",
-          _.dropdown(_.negative.closeOnMouseLeave.setNone("Unset").externalBorder(3.px, "red").internalBorder(1.px, "blue").maxDropdownHeight(250.px)),
-        )
+        .form[SmallEnum]("Dropdown 2")
+        .modDropdown(_.negative.closeOnMouseLeave.setNone("Unset").externalBorder(3.px, "red").internalBorder(1.px, "blue").maxDropdownHeight(250.px))
         .widget
         .discardAction
         .zoomOut[PageState](_.dropdown2),
       Button.form("Submit").widget.discardAction,
+    )
+  }
+
+  /** W6-T05: large-N via pagination — only current page in the DOM. */
+  private lazy val stressPaginationSection: WidgetS[Pagination.State] =
+    fragment(
+      SectionWithHeader.section1("Stress pagination (large N)")(
+        p(
+          color := S.color.fg.moderate,
+          s"$StressTotal synthetic rows; page size 25. Only the current slice is rendered.",
+        ),
+      ).fixState[Pagination.State],
+      Pagination.controls,
+      div(height := 8.px).fixState[Pagination.State],
+      Widget.state[Pagination.State].fix { st =>
+        val rows: Seq[Int] = st.renderTimeValue.slice(StressItems)
+        table(
+          width := 100.pct,
+          thead(tr(th("#"), th("Label"), th("Token"))),
+          tbody(
+            Widget.foreach(rows) { (i: Int) =>
+              tr(
+                td(i.toString),
+                td(s"Row $i"),
+                td(f"tok-$i%04x"),
+              )
+            },
+          ),
+        )
+      },
+    )
+
+  /** W6-T04 dogfood: deferred body. */
+  private lazy val lazySectionDemo: WidgetS[LazySection.State] =
+    LazySection.panel("Lazy section (expand to build body)")(
+      div(
+        color := S.color.fg.default,
+        "This body was not in the tree while collapsed.",
+        div(height := 8.px),
+        Button("Nested action").small.subtle,
+      ),
+    )
+
+  /** W11-T05: DnD gut-check — sortable list + file drop. */
+  private lazy val dndDemoSection: WidgetS[PageState] =
+    SectionWithHeader.section1("Drag & drop")(
+      p(color := S.color.fg.moderate, "HTML5 DnD: drag rows to reorder; drop files on the zone."),
+      SortableList(Widget.state[String].get(name => span(name))).zoomOut[PageState](_.sortable),
+      div(height := S.spacing._4),
+      FileDropZone().zoomOut[PageState](_.fileDrop),
+    )
+
+  /** W5-T05: column collapse gut-check (resize viewport). */
+  private lazy val columnsDemoSection: Widget = {
+    def cell(label: String): Widget =
+      div(
+        backgroundColor := S.color.bg.layerTwo,
+        padding := S.spacing._3,
+        borderRadius := S.borderRadius._3,
+        label,
+      )
+    SectionWithHeader.section1("Columns (resize window)")(
+      Row(
+        Col.span(12).md(6).lg(4)(cell("xs12 / md6 / lg4")).widget,
+        Col.span(12).md(6).lg(4)(cell("xs12 / md6 / lg4")).widget,
+        Col.span(12).md(12).lg(4)(cell("xs12 / md12 / lg4")).widget,
+      ).widget,
+    )
+  }
+
+  /** W3-T05: permanent long-string demos for overflow regression visibility. */
+  private lazy val overflowTortureSection: Widget = {
+    val unbreakable =
+      "supercalifragilisticexpialidocious_token_" + ("X" * 80) + "_END"
+    SectionWithHeader.section1("Overflow torture")(
+      div(
+        width := 280.px,
+        border(1.px, "solid", S.color.fg.subtle),
+        padding := S.spacing._3,
+        O.Ellipsis,
+        unbreakable,
+      ),
+      div(height := 10.px),
+      div(
+        width := 280.px,
+        border(1.px, "solid", S.color.fg.subtle),
+        padding := S.spacing._3,
+        O.WrapText,
+        unbreakable,
+      ),
+      div(height := 10.px),
+      Button(unbreakable).small.subtle,
+      div(height := 10.px),
+      Label("Very long field label that should wrap when the form column is narrow"),
+      div(
+        width := 280.px,
+        O.WrapText,
+        "Table-cell-like: " + unbreakable,
+      ),
     )
   }
 
