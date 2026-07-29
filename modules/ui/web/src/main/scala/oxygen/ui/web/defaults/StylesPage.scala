@@ -3,8 +3,13 @@ package oxygen.ui.web.defaults
 import oxygen.ui.web.*
 import oxygen.ui.web.component.*
 import oxygen.ui.web.create.{*, given}
+import oxygen.ui.web.service.ColorMode
 import zio.{Scope, ZIO}
 
+/**
+  * W8-T01: color / token gut-check (not a full Storybook).
+  * Mode toggle rebinds `data-color-mode` so CSS vars swap live.
+  */
 object StylesPage extends RoutablePage.NoParams[Any] {
 
   override type PageState = Unit
@@ -19,9 +24,19 @@ object StylesPage extends RoutablePage.NoParams[Any] {
 
   override protected def component(state: WidgetState[Unit], renderState: Unit): WidgetS[PageState] =
     fragment(
-      h1("Styles"),
       OxygenStyleSheet.Scrollable,
-      colorSection,
+      h1("Styles — color gut-check"),
+      p(
+        color := OxygenStyleVars.color.fg.moderate,
+        "Seed → generate → CSS vars. Toggle mode to verify light/dark surfaces, text, status, and intents. No getColorValue in framework chrome.",
+      ),
+      colorModeToggle,
+      div(height := 16.px),
+      Section.level1.withId("colors")(
+        colorSection,
+      ),
+      div(height := 25.px),
+      intentPreviewSection,
       div(height := 25.px),
       spacingSection,
       div(height := 25.px),
@@ -35,11 +50,57 @@ object StylesPage extends RoutablePage.NoParams[Any] {
       div(height := 25.px),
     )
 
+  private lazy val colorModeToggle: Widget =
+    div(
+      display.flex,
+      alignItems.center,
+      gap := OxygenStyleVars.spacing._3,
+      flexWrap.wrap,
+      padding := OxygenStyleVars.spacing._4,
+      backgroundColor := OxygenStyleVars.color.bg.layerOne,
+      borderRadius := OxygenStyleVars.borderRadius._4,
+      span("Color mode:", color := OxygenStyleVars.color.fg.moderate),
+      Button("Light").small.subtle.content(onClick := ColorMode.setAndPersist(ColorMode.Mode.Light)),
+      Button("Dark").small.subtle.content(onClick := ColorMode.setAndPersist(ColorMode.Mode.Dark)),
+      Button("System").small.subtle.content(onClick := ColorMode.setAndPersist(ColorMode.Mode.System)),
+    )
+
+  /** Quick surface / text / status chips for at-a-glance mode checking. */
+  private lazy val intentPreviewSection: Widget =
+    layerOne(
+      h2("Intent preview", padding(0.px, 25.px)),
+      div(
+        display.flex,
+        flexWrap.wrap,
+        gap := OxygenStyleVars.spacing._3,
+        padding := OxygenStyleVars.spacing._4,
+        intentChip("Primary", OxygenStyleVars.color.primary.standard, OxygenStyleVars.color.primary.on),
+        intentChip("Positive", OxygenStyleVars.color.status.positive.standard, OxygenStyleVars.color.status.positive.on),
+        intentChip("Negative", OxygenStyleVars.color.status.negative.standard, OxygenStyleVars.color.status.negative.on),
+        intentChip("Alert", OxygenStyleVars.color.status.alert.standard, OxygenStyleVars.color.status.alert.on),
+        intentChip("Info", OxygenStyleVars.color.status.informational.standard, OxygenStyleVars.color.status.informational.on),
+        intentChip("Surface L1", OxygenStyleVars.color.bg.layerOne, OxygenStyleVars.color.fg.default),
+        intentChip("Surface L2", OxygenStyleVars.color.bg.layerTwo, OxygenStyleVars.color.fg.default),
+        intentChip("Text subtle", OxygenStyleVars.color.bg.layerThree, OxygenStyleVars.color.fg.subtle),
+      ),
+    )
+
+  private def intentChip(label: String, bg: CSSVar, fg: CSSVar): Widget =
+    span(
+      display.inlineBlock,
+      padding(OxygenStyleVars.spacing._2, OxygenStyleVars.spacing._4),
+      borderRadius := OxygenStyleVars.borderRadius._3,
+      backgroundColor := bg,
+      color := fg,
+      fontWeight := "600",
+      label,
+    )
+
   //////////////////////////////////////////////////////////////////////////////////////////////////////
   //      Helpers
   //////////////////////////////////////////////////////////////////////////////////////////////////////
 
-  private val layerOne: Node =
+  private lazy val layerOne: Node =
     div(
       margin(0.px, 50.px),
       padding(10.px, 15.px),
@@ -47,13 +108,13 @@ object StylesPage extends RoutablePage.NoParams[Any] {
     )
 
   @scala.annotation.unused
-  private val layerTwo: Node =
+  private lazy val layerTwo: Node =
     div(
       padding(10.px, 15.px),
       backgroundColor := OxygenStyleVars.color.bg.layerTwo,
     )
 
-  private val thCell: Node =
+  private lazy val thCell: Node =
     th(backgroundColor := OxygenStyleVars.color.bg.default, padding(5.px, 15.px))
 
   private def colors(sectionName: String)(vars: CSSVar*): Widget =
@@ -90,7 +151,7 @@ object StylesPage extends RoutablePage.NoParams[Any] {
       ),
     )
 
-  private val colorSection: Widget =
+  private lazy val colorSection: Widget =
     layerOne(
       h2("Colors", padding(0.px, 25.px)),
       table(
@@ -168,7 +229,7 @@ object StylesPage extends RoutablePage.NoParams[Any] {
       ),
     )
 
-  private val spacingSection: Widget = {
+  private lazy val spacingSection: Widget = {
     val vars: Seq[CSSVar] =
       Seq(
         OxygenStyleVars.spacing._1px,
@@ -236,7 +297,7 @@ object StylesPage extends RoutablePage.NoParams[Any] {
     )
   }
 
-  private val borderWidthSection: Widget = {
+  private lazy val borderWidthSection: Widget = {
     val vars: Seq[CSSVar] =
       Seq(
         OxygenStyleVars.borderWidth._0,
@@ -280,7 +341,7 @@ object StylesPage extends RoutablePage.NoParams[Any] {
     )
   }
 
-  private val borderRadiusSection: Widget = {
+  private lazy val borderRadiusSection: Widget = {
     val vars: Seq[CSSVar] =
       Seq(
         OxygenStyleVars.borderRadius._1px,
@@ -340,7 +401,7 @@ object StylesPage extends RoutablePage.NoParams[Any] {
     )
   }
 
-  private val fontSizeSection: Widget = {
+  private lazy val fontSizeSection: Widget = {
     val vars: Seq[CSSVar] =
       Seq(
         OxygenStyleVars.fontSize._1,

@@ -3,81 +3,54 @@ package oxygen.ui.web.component
 import oxygen.ui.web.*
 import oxygen.ui.web.create.{*, given}
 
-object InfoSection extends Decorable {
+/**
+  * Callout / info strip (W2). Uses pure vars; backHighlight uses subtle role token.
+  */
+final case class InfoSection[-Env, +Action, -StateGet, +StateSet <: StateGet](
+    private val _color: String,
+    private val highlightBg: Option[String],
+    private val _content: Widget.Polymorphic[Env, Action, StateGet, StateSet],
+) extends PWidget.Deferred[Env, Action, StateGet, StateSet] {
 
-  //////////////////////////////////////////////////////////////////////////////////////////////////////
-  //      Props
-  //////////////////////////////////////////////////////////////////////////////////////////////////////
+  def color(c: String): InfoSection[Env, Action, StateGet, StateSet] = copy(_color = c)
+  def primary: InfoSection[Env, Action, StateGet, StateSet] = color(S.color.primary)
+  def positive: InfoSection[Env, Action, StateGet, StateSet] = color(S.color.status.positive)
+  def negative: InfoSection[Env, Action, StateGet, StateSet] = color(S.color.status.negative)
+  def alert: InfoSection[Env, Action, StateGet, StateSet] = color(S.color.status.alert)
+  def informational: InfoSection[Env, Action, StateGet, StateSet] = color(S.color.status.informational)
+  def brandPrimary1: InfoSection[Env, Action, StateGet, StateSet] = color(S.color.brand.primary1)
+  def brandPrimary2: InfoSection[Env, Action, StateGet, StateSet] = color(S.color.brand.primary2)
 
-  final case class Props(
-      color: String,
-      backHighlight: Boolean, // if you want to use this, your color must be a 6-digit hex string, or a variable that points to one
-  ) {
+  def backHighlight: InfoSection[Env, Action, StateGet, StateSet] =
+    copy(highlightBg = Some(S.color.bg.layerOne.toString))
 
-    lazy val backHighlightColor: String = CSSColor.eval(color).setOpacity(10.0)
+  def apply[Env2 <: Env, Action2 >: Action, StateGet2 <: StateGet, StateSet2 >: StateSet <: StateGet2](
+      children: Widget.Polymorphic[Env2, Action2, StateGet2, StateSet2]*,
+  ): InfoSection[Env2, Action2, StateGet2, StateSet2] =
+    copy(_content = fragment(_content, Widget.fragment(children)))
 
-  }
-  object Props extends PropsCompanion {
-
-    override protected lazy val initialProps: Props =
-      Props(
-        color = "transparent",
-        backHighlight = false,
-      )
-
-  }
-
-  //////////////////////////////////////////////////////////////////////////////////////////////////////
-  //      Decorator
-  //////////////////////////////////////////////////////////////////////////////////////////////////////
-
-  trait DecoratorBuilder extends DecoratorBuilder0 {
-
-    private def makeColor(n: String, c: String): Decorator = make(n) { _.copy(color = c) }
-
-    final def color(c: String): Decorator = makeColor(s"custom(color = $c)", c)
-    final lazy val primary: Decorator = makeColor("Primary", S.color.primary)
-    final lazy val positive: Decorator = makeColor("Positive", S.color.status.positive)
-    final lazy val negative: Decorator = makeColor("Negative", S.color.status.negative)
-    final lazy val alert: Decorator = makeColor("Alert", S.color.status.alert)
-    final lazy val informational: Decorator = makeColor("Info", S.color.status.informational)
-    final lazy val brandPrimary1: Decorator = makeColor("BrandPrimary1", S.color.brand.primary1)
-    final lazy val brandPrimary2: Decorator = makeColor("BrandPrimary2", S.color.brand.primary2)
-
-    final lazy val backHighlight: Decorator = make("backHighlight") { _.copy(backHighlight = true) }
-
-  }
-
-  final class Decorator private[InfoSection] (protected val genericDecorator: GenericDecorator[Props]) extends DecoratorBuilder, DecoratorBuilderType
-  object Decorator extends DecoratorBuilder, DecoratorBuilderCompanion {
-
-    override protected def wrapGeneric(genericDecorator: GenericDecorator[Props]): Decorator = new Decorator(genericDecorator)
-
-    override lazy val defaultStyling: Decorator = empty.informational
-
-  }
-
-  //////////////////////////////////////////////////////////////////////////////////////////////////////
-  //      Widget
-  //////////////////////////////////////////////////////////////////////////////////////////////////////
-
-  def apply(decorator: Decorator): Node = {
-    val props: Props = decorator.computed
+  override protected def build: PWidget[Env, Action, StateGet, StateSet] =
     p(
       margin(S.spacing._2, S.spacing._0),
       padding(S.spacing._2, S.spacing._4),
-      borderLeft(2.px, "solid", props.color),
-      Widget.when(props.backHighlight) {
-        backgroundColor := props.backHighlightColor
+      borderLeft(2.px, "solid", _color),
+      Widget.foreach(highlightBg) { bg =>
+        backgroundColor := bg
       },
+      _content,
     )
-  }
 
-  def apply(decorator: Decorator => Decorator): Node =
-    apply(decorator(Decorator.defaultStyling))
+}
+object InfoSection extends WidgetTypes[InfoSection] {
 
-  def apply(): Node = default
+  val empty: InfoSection.Const =
+    InfoSection(S.color.status.informational, None, Widget.empty)
 
-  lazy val default: Node = apply(Decorator.defaultStyling)
+  def apply(): InfoSection.Const = empty
+
+  def apply(configure: InfoSection.Const => InfoSection.Const): InfoSection.Const =
+    configure(empty)
+
+  lazy val default: InfoSection.Const = empty
 
 }

@@ -5,8 +5,8 @@ import oxygen.example.ui.common.*
 import oxygen.example.ui.page as P
 import oxygen.example.ui.service.LocalService
 import oxygen.ui.web.*
-import oxygen.ui.web.component.*
 import oxygen.ui.web.create.{*, given}
+import oxygen.ui.web.layout.*
 import zio.*
 
 object HomePage extends RoutablePage.NoParams[LocalService] {
@@ -36,7 +36,6 @@ object HomePage extends RoutablePage.NoParams[LocalService] {
       .topHeight(40.px)
       .top(signedInNavBar(renderState.user))
       .center(
-        PageMessagesBottomCorner.default,
         h1("Home"),
       )
 

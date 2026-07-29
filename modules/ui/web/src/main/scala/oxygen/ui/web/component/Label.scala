@@ -1,97 +1,77 @@
 package oxygen.ui.web.component
 
 import oxygen.predef.core.*
+import oxygen.ui.web.*
 import oxygen.ui.web.create.{*, given}
 
-object Label extends Decorable {
+/**
+  * HolyGrail-style label (W2-T05).
+  */
+final case class Label(
+    private val labelText: String,
+    private val description: Option[Widget],
+    private val labelMarginLeft: String,
+    private val descriptionMarginLeft: String,
+    private val labelDescriptionSpacing: String,
+    private val labelExtra: Widget,
+    private val descriptionExtra: Widget,
+    private val rootExtra: Widget,
+) extends PWidget.Deferred[Any, Nothing, Any, Nothing] {
 
-  //////////////////////////////////////////////////////////////////////////////////////////////////////
-  //      Props
-  //////////////////////////////////////////////////////////////////////////////////////////////////////
+  def text(t: String): Label = copy(labelText = t)
+  def describe(d: Widget): Label = copy(description = d.some)
+  def labelMarginLeft(v: String): Label = copy(labelMarginLeft = v)
+  def descriptionMarginLeft(v: String): Label = copy(descriptionMarginLeft = v)
 
-  final case class Props(
-      labelText: String,
-      description: Option[Widget],
-      labelMarginLeft: String,
-      descriptionMarginLeft: String,
-      labelDescriptionSpacing: String,
-      mod: NodeModifier,
-      labelMod: NodeModifier,
-      descriptionMod: NodeModifier,
-  )
-  object Props extends PropsCompanion {
+  def labelExtra(mods: Widget*): Label = copy(labelExtra = fragment(this.labelExtra, Widget.fragment(mods)))
+  def descriptionExtra(mods: Widget*): Label = copy(descriptionExtra = fragment(this.descriptionExtra, Widget.fragment(mods)))
+  def rootExtra(mods: Widget*): Label = copy(rootExtra = fragment(this.rootExtra, Widget.fragment(mods)))
 
-    override protected lazy val initialProps: Props =
-      Props(
-        labelText = "<???>",
-        description = None,
-        labelMarginLeft = S.spacing._6,
-        descriptionMarginLeft = S.spacing._3,
-        labelDescriptionSpacing = S.spacing._1,
-        mod = NodeModifier.empty,
-        labelMod = NodeModifier.empty,
-        descriptionMod = NodeModifier.empty,
-      )
+  /** Alias for label text extras (former Decorator.mod / labelMod). */
+  def mod(mods: Widget*): Label = labelExtra(mods*)
 
-  }
-
-  //////////////////////////////////////////////////////////////////////////////////////////////////////
-  //      Decorator
-  //////////////////////////////////////////////////////////////////////////////////////////////////////
-
-  trait DecoratorBuilder extends DecoratorBuilder0 {
-
-    final def label(text: String): Decorator = make("labeled") { _.copy(labelText = text) }
-    final def describe(description: Widget): Decorator = make("described") { _.copy(description = description.some) }
-
-    final def labelMarginLeft(value: String): Decorator = make("labelMarginLeft") { _.copy(labelMarginLeft = value) }
-    final def descriptionMarginLeft(value: String): Decorator = make("descriptionMarginLeft") { _.copy(descriptionMarginLeft = value) }
-
-    final lazy val mod: FocusNodeModifier = focusNodeModifier("mod")(_.mod)
-    final lazy val labelMod: FocusNodeModifier = focusNodeModifier("labelMod")(_.labelMod)
-    final lazy val descriptionMod: FocusNodeModifier = focusNodeModifier("descriptionMod")(_.descriptionMod)
-
-  }
-
-  final class Decorator private[Label] (protected val genericDecorator: GenericDecorator[Props]) extends DecoratorBuilder, DecoratorBuilderType
-  object Decorator extends DecoratorBuilder, DecoratorBuilderCompanion {
-
-    override protected def wrapGeneric(genericDecorator: GenericDecorator[Props]): Decorator = new Decorator(genericDecorator)
-
-    override lazy val defaultStyling: Decorator = empty
-
-  }
-
-  //////////////////////////////////////////////////////////////////////////////////////////////////////
-  //      Widget
-  //////////////////////////////////////////////////////////////////////////////////////////////////////
-
-  def apply(decorator: Decorator): Widget = {
-    val props = decorator.computed
-
+  override protected def build: PWidget[Any, Nothing, Any, Nothing] =
     div(
       O.Label,
       div(
         O.Label.LabelText,
-        marginLeft := props.labelMarginLeft,
+        marginLeft := labelMarginLeft,
         fontWeight := S.fontWeight.semiBold,
         fontSize := S.fontSize._4,
-        props.labelText,
-      )(props.labelMod),
-      Widget.foreach(props.description) { description =>
+        labelText,
+        labelExtra,
+      ),
+      Widget.foreach(description) { desc =>
         div(
           O.Label.DescriptionText,
           whiteSpace.pre,
-          marginTop := props.labelDescriptionSpacing,
-          marginLeft := props.descriptionMarginLeft,
-          description,
-        )(props.descriptionMod)
+          marginTop := labelDescriptionSpacing,
+          marginLeft := descriptionMarginLeft,
+          desc,
+          descriptionExtra,
+        )
       },
-    )(props.mod)
-  }
+      rootExtra,
+    )
 
-  def apply(decorator: Decorator => Decorator): Widget =
-    Label(decorator(Decorator.defaultStyling))
+}
+object Label {
+
+  val empty: Label =
+    Label(
+      labelText = "",
+      description = None,
+      labelMarginLeft = S.spacing._6,
+      descriptionMarginLeft = S.spacing._3,
+      labelDescriptionSpacing = S.spacing._1,
+      labelExtra = Widget.empty,
+      descriptionExtra = Widget.empty,
+      rootExtra = Widget.empty,
+    )
+
+  def apply(text: String): Label = empty.text(text)
+
+  def apply(): Label = empty
 
   lazy val defaultInputSpacing: String = S.spacing._2
 

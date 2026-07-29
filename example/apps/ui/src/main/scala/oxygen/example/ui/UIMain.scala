@@ -9,7 +9,7 @@ import oxygen.ui.web.*
 import oxygen.ui.web.apispec.ApiSpecPage
 import oxygen.ui.web.create.*
 import oxygen.ui.web.defaults.*
-import oxygen.ui.web.service.LocalStorage
+import oxygen.ui.web.service.{ColorMode, LocalStorage, Theme}
 import scala.collection.immutable.ArraySeq
 import zio.*
 
@@ -29,12 +29,14 @@ object UIMain extends PageApp[UIMain.Env] {
     )
    */
 
-  override val styleSheets: ArraySeq[StyleSheet] = ArraySeq(
-    normalizeCssReset,
-    OxygenStyleVars.toCSS(OxygenStyleVarDefaults.CZR),
-    InlinePseudoClassStyles.compiled,
-    OxygenStyleSheet.compiled,
-  )
+  override val styleSheets: ArraySeq[StyleSheet] =
+    coreOxygenStyleSheets
+
+  override protected def prePageLoad: RIO[Env & Scope, Unit] =
+    ColorMode.applyStoredOrSystem *>
+      Theme.applyStoredOrDefault *>
+      ColorMode.subscribeCrossTab *>
+      Theme.subscribeCrossTab
 
   override val pages: ArraySeq[RoutablePage[Env]] = ArraySeq(
     P.index.IndexPage,
@@ -46,6 +48,34 @@ object UIMain extends PageApp[UIMain.Env] {
     ApiSpecPage,
     StylesPage,
     ComponentsPage,
+    // EX-T03 showcase demos (Any env; mock data) — pages package split
+    P.showcase.pages.ShowcaseHubPage,
+    P.showcase.pages.ShellPage,
+    P.showcase.pages.SignInPage,
+    P.showcase.pages.RegisterPage,
+    P.showcase.pages.DashboardPage,
+    P.showcase.pages.ThemePage,
+    P.showcase.pages.IconsPage,
+    P.showcase.pages.FormValidationPage,
+    P.showcase.pages.FormLockPage,
+    P.showcase.pages.FormChoicesPage,
+    P.showcase.pages.FormDateTimePage,
+    P.showcase.pages.FormColorPage,
+    P.showcase.pages.FormUploadPage,
+    P.showcase.pages.FormAllPage,
+    P.showcase.pages.ModalPage,
+    P.showcase.pages.DrawerPage,
+    P.showcase.pages.TooltipPage,
+    P.showcase.pages.TablePage,
+    P.showcase.pages.FeedPage,
+    P.showcase.pages.SortablePage,
+    P.showcase.pages.TabsPage,
+    P.showcase.pages.WizardPage,
+    P.showcase.pages.BusyPage,
+    P.showcase.pages.MessagesPage,
+    P.showcase.pages.AnchorsPage,
+    P.showcase.pages.GridPage,
+    P.showcase.pages.KitchenSinkPage,
   )
 
   override def layer: TaskLayer[Env] =

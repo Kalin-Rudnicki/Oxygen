@@ -3,6 +3,18 @@ package oxygen.ui.web.component
 import oxygen.ui.web.*
 import oxygen.ui.web.create.{OxygenStyleVars as S, *, given}
 
+/**
+  * Vertical rail slots for [[oxygen.ui.web.layout.HolyGrail]] (W2-T13).
+  * Builder-style: Cache + top/middle/bottom slots; pure CSS vars only.
+  *
+  * {{{
+  * SideBar()
+  *   .top("Brand")
+  *   .middle(navItems*)
+  *   .bottom(userMenu)
+  *   .surface
+  * }}}
+  */
 final case class SideBar[-Env, +Action, -StateGet, +StateSet <: StateGet](
     private val _cache: SideBar.Cache,
     private val _root: Widget.Polymorphic[Env, Action, StateGet, StateSet],
@@ -23,6 +35,7 @@ final case class SideBar[-Env, +Action, -StateGet, +StateSet <: StateGet](
       width := 100.pct,
       minHeight := 0,
       minWidth := 0,
+      backgroundColor := _cache.bg,
       //
       gridTemplateAreas := _cache.gridTemplateAreas,
       gridTemplateRows := _cache.gridTemplateRows,
@@ -30,7 +43,7 @@ final case class SideBar[-Env, +Action, -StateGet, +StateSet <: StateGet](
       //
       _root,
       Widget.when(_cache.showTop) { div(gridArea := "side-bar-top", _top) },
-      div(gridArea := "side-bar-middle", _middle),
+      div(gridArea := "side-bar-middle", minHeight := 0, _middle),
       Widget.when(_cache.showBottom) { div(gridArea := "side-bar-bottom", _bottom) },
     )
 
@@ -54,23 +67,37 @@ final case class SideBar[-Env, +Action, -StateGet, +StateSet <: StateGet](
   ): SideBar[Env2, Action2, StateGet2, StateSet2] =
     copy(_cache = getCached(_cache.showBottom, true, _cache.copy(showBottom = true)), _bottom = fragment(this._bottom, Widget.fragment(addChildren)))
 
+  def bg(color: String): SideBar[Env, Action, StateGet, StateSet] =
+    copy(_cache = _cache.copy(bg = color))
+
+  /** Layer-one surface rail. */
+  def surface: SideBar[Env, Action, StateGet, StateSet] =
+    bg(S.color.bg.layerOne)
+
+  /** Brand-tinted rail. */
+  def brand: SideBar[Env, Action, StateGet, StateSet] =
+    bg(S.color.brand.primary1)
+
 }
-object SideBar {
+object SideBar extends WidgetTypes[SideBar] {
 
   def basicItem(selected: Boolean): Node =
     div(
       borderBottom(1.px, S.color.fg.default),
       Widget.when(selected) {
         fragment(
-          backgroundColor.dynamic := S.color.primary.strong,
-          color.dynamic := S.color.fg.inverse,
+          backgroundColor.dynamic := S.color.primary.standard,
+          color.dynamic := S.color.primary.on,
         )
       },
-      backgroundColor.dynamic.hover := S.color.primary,
-      color.dynamic.hover := S.color.fg.inverse,
+      backgroundColor.dynamic.hover := S.color.primary.subtle,
+      color.dynamic.hover := S.color.primary.standard,
       userSelect.none,
       cursor.pointer,
+      // Default nav density — slightly larger than body microcopy for scanability.
+      fontSize := S.fontSize._3,
       padding(S.spacing._2, S.spacing._3),
+      O.WrapText,
     )
 
   final case class Cache(
@@ -78,6 +105,7 @@ object SideBar {
       showBottom: Boolean,
       topSize: String,
       bottomSize: String,
+      bg: String,
   ) {
 
     val showAny: Boolean =
@@ -104,15 +132,20 @@ object SideBar {
         showBottom = false,
         topSize = "auto",
         bottomSize = "auto",
+        bg = S.color.bg.layerOne,
       )
 
   }
 
-  def apply(
-  ): SideBar[Any, Nothing, Any, Nothing] =
-    new SideBar(
+  val empty: SideBar.Const =
+    SideBar(
       _cache = Cache.default,
-      _root = Widget.empty,
+      _root = fragment(
+        backgroundColor := Cache.default.bg,
+        color := S.color.fg.default,
+        minWidth := 0,
+        minHeight := 0,
+      ),
       _top = fragment(
         padding(S.spacing._2, S.spacing._3),
       ),
@@ -123,5 +156,7 @@ object SideBar {
         padding(S.spacing._2, S.spacing._3),
       ),
     )
+
+  def apply(): SideBar.Const = empty
 
 }

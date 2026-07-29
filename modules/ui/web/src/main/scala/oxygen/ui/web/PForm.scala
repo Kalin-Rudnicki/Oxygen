@@ -86,6 +86,7 @@ object PForm {
   }
   object Deferred {
 
+    type Stateless[-Env, +Action, +Value] = PForm.Deferred[Env, Action, Any, Nothing, Value]
     type Stateful[-Env, +Action, State, +Value] = PForm.Deferred[Env, Action, State, State, Value]
 
   }

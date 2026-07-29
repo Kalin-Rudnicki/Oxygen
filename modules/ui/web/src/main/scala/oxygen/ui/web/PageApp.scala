@@ -31,6 +31,29 @@ abstract class PageApp[Env: {HasNoScope, EnvironmentTag}] extends ZIOAppDefault 
       document.head.append(styleElement)
     }
 
+  /**
+    * Mobile browsers default to a ~980px layout width without this, so the whole UI
+    * looks like a shrunk desktop page. Host HTML should include the tag; we also
+    * inject it at runtime for hosts that forgot (old index.html, electron shells).
+    */
+  private def ensureViewportMeta: Task[Unit] =
+    ZIO.attempt {
+      val head = document.head
+      if head != null then {
+        val existing = head.querySelector("""meta[name="viewport"]""")
+        if existing == null then {
+          val meta = document.createElement("meta")
+          meta.setAttribute("name", "viewport")
+          meta.setAttribute("content", "width=device-width, initial-scale=1, viewport-fit=cover")
+          // Prefer early in <head> so layout is correct ASAP
+          Option(head.firstChild) match {
+            case Some(first) => head.insertBefore(meta, first)
+            case None        => head.append(meta)
+          }
+        }
+      }
+    }
+
   protected def prePageLoad: RIO[Env & Scope, Unit] = ZIO.unit
 
   protected def postPageLoad: RIO[Env & Scope, Unit] = ZIO.unit
@@ -43,10 +66,13 @@ abstract class PageApp[Env: {HasNoScope, EnvironmentTag}] extends ZIOAppDefault 
 
       _ <- ZIO.logInfo("Welcome to Oxygen Web UI!")
       watchdog <- ActivityWatchdog.make
+      _ <- ensureViewportMeta
+      // Default CSS first, then prePageLoad (themes etc. must inject *after* defaults
+      // so equal-specificity variable blocks actually win).
+      _ <- ZIO.foreachDiscard(styleSheets)(addStyleSheet)
       _ <- prePageLoad
       router <- Router.init[Env](pages, pagePrefix, RootErrorHandler.Default(defaultPages), watchdog)
 
-      _ <- ZIO.foreachDiscard(styleSheets)(addStyleSheet)
       _ <- router.route(NavigationEvent.renderPage(defaultPages.initial)(()), 0)
 
       _ <- router.route(NavigationEvent.browserLoad(pageUrl), 0)

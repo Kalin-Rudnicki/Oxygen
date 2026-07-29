@@ -102,12 +102,16 @@ object PageHtmlResponse {
       faviconText(favicon) ++
         globalVarsScriptText(oxygenCustomUIConfig_varName -> customJsonConfig)
 
+    // TODO (KR): support at least base Open Graph meta tags (og:title, og:description, og:image, …).
+    // TODO (KR): mobile is much better with viewport-fit=cover, but shell still messy on some devices —
+    //   leave notes only; don't rabbit-hole full mobile chrome here.
     val html: Text =
       str"""<!DOCTYPE html>
            |<html lang="en">
            |
            |<head>
            |    <meta charset="UTF-8">
+           |    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
            |    <title>$title</title>$interpolateTags
            |    <script id="scripts" src="$scriptPath"></script>
            |</head>

@@ -1,25 +1,34 @@
 package oxygen.ui.web.create
 
-// TODO (KR) : relocate this
-import oxygen.ui.web.style.colorPalette
-
 object OxygenStyleSheet extends StyleSheetBuilder {
 
   //////////////////////////////////////////////////////////////////////////////////////////////////////
   //      Global
   //////////////////////////////////////////////////////////////////////////////////////////////////////
 
+  // Root: rem basis + stop iOS text inflation games. Viewport meta is separate
+  // (PageHtmlResponse / PageApp.ensureViewportMeta) — without it phones still look desktop-y.
+  T.html.apply(
+    fontSize := "16px",
+    Widget.raw.css("-webkit-text-size-adjust", "100%"),
+    Widget.raw.css("text-size-adjust", "100%"),
+  )
+
   T.body.apply(
     backgroundColor := OxygenStyleVars.color.bg.default,
     color := OxygenStyleVars.color.fg.default,
     fontSize := OxygenStyleVars.fontSize._3,
+    lineHeight := "1.5",
+    // safe areas for notched phones
+    Widget.raw.css("padding-left", "env(safe-area-inset-left)"),
+    Widget.raw.css("padding-right", "env(safe-area-inset-right)"),
   )
 
   T.h1.apply(
-    color := OxygenStyleVars.color.brand.primary2.dark,
-    // TODO (KR) :
-    paddingLeft := 100.px,
-    fontSize := "3rem",
+    color := OxygenStyleVars.color.fg.default,
+    fontSize := "1.75rem",
+    fontWeight := OxygenStyleVars.fontWeight.bold,
+    marginTop := "0",
   )
 
   T.apply("*")
@@ -27,6 +36,52 @@ object OxygenStyleSheet extends StyleSheetBuilder {
       boxSizing.borderBox,
       fontFamily := S.fontStyle.default,
     )
+
+  // W3-T01: flex/grid children shrink by default (classic long-text overflow fix)
+  T.apply("*, *::before, *::after").apply(
+    minWidth := 0,
+    minHeight := 0,
+  )
+
+  // Helpers applied via classes on widgets that need deliberate overflow policy
+  object Ellipsis extends Class("oxy-ellipsis") {
+    selector(
+      overflow.hidden,
+      textOverflow := "ellipsis",
+      whiteSpace.nowrap,
+      maxWidth := 100.pct,
+    )
+  }
+
+  object WrapText extends Class("oxy-wrap") {
+    selector(
+      whiteSpace := "normal",
+      wordBreak := "break-word",
+      maxWidth := 100.pct,
+    )
+  }
+
+  object ClipX extends Class("oxy-clip-x") {
+    selector(
+      overflowX.hidden,
+      maxWidth := 100.pct,
+    )
+  }
+
+  // W3-T04: default field chrome + focus ring.
+  // layerTwo inset so fields contrast on Section.level1 (layerOne) cards.
+  T.apply("input, textarea").apply(
+    transition := "border-color 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease",
+    border := s"1px solid ${S.color.fg.subtle}",
+    color := S.color.fg.default,
+    backgroundColor := S.color.bg.layerTwo,
+  )
+
+  T.apply("input:focus-visible, textarea:focus-visible").apply(
+    outline := s"2px solid ${S.color.fg.focus}",
+    Widget.raw.css("outline-offset", "1px"),
+    borderColor := S.color.fg.focus,
+  )
 
   //////////////////////////////////////////////////////////////////////////////////////////////////////
   //      NavBar
@@ -88,39 +143,6 @@ object OxygenStyleSheet extends StyleSheetBuilder {
   }
 
   //////////////////////////////////////////////////////////////////////////////////////////////////////
-  //      CenteredCardPage
-  //////////////////////////////////////////////////////////////////////////////////////////////////////
-
-  object CenteredCardPage extends Class("centered-card-page") { ccp =>
-
-    selector(
-      display.flex,
-      flexDirection.column,
-      justifyContent.center,
-      alignItems.center,
-    )
-
-    object Card extends ccp.Class("card") {
-
-      selector(
-        backgroundColor := OxygenStyleVars.color.bg.layerOne,
-        display.flex,
-        flexDirection.column,
-        alignItems.center,
-        justifyContent.center,
-        maxHeight := 70.pct,
-        minWidth := "min(300px, 100%)",
-        maxWidth := 600.px,
-        width := 50.pct,
-        borderRadius := 40.px,
-        padding := 40.px,
-      )
-
-    }
-
-  }
-
-  //////////////////////////////////////////////////////////////////////////////////////////////////////
   //      Scrollable
   //////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -135,7 +157,7 @@ object OxygenStyleSheet extends StyleSheetBuilder {
     Scrollable(
       overflowY.auto,
       scrollbarColor := "transparent",
-      scrollbarThumbColor := colorPalette.czr.gray._1000,
+      scrollbarThumbColor := S.color.fg.subtle,
       scrollbarWidth := 10.px,
       thumbRadius := 5.px,
       scrollbarBottomRightRadius := "0",
@@ -161,7 +183,24 @@ object OxygenStyleSheet extends StyleSheetBuilder {
   //      Button
   //////////////////////////////////////////////////////////////////////////////////////////////////////
 
-  object Button extends Class("button") { b => }
+  object Button extends Class("button") { b =>
+
+    // W3-T04: modern chrome; colors still come from widget intent vars.
+    // No margin — parents own spacing (flex gap, etc.). Global margin fought layouts.
+    Button(
+      transition := "background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease",
+      userSelect.none,
+      lineHeight := "1.25",
+      letterSpacing := "0.01em",
+      margin := "0",
+    )
+
+    Button.pc(":focus-visible")(
+      outline := s"2px solid ${S.color.fg.focus}",
+      Widget.raw.css("outline-offset", "2px"),
+    )
+
+  }
 
   //////////////////////////////////////////////////////////////////////////////////////////////////////
   //      ToggleThumb
@@ -184,7 +223,7 @@ object OxygenStyleSheet extends StyleSheetBuilder {
       borderStyle.solid,
       borderColor := S.color.fg.inverse,
       borderRadius := 50.pct,
-      backgroundColor := S.color.bg.base.getColorValue.lighten(5.0),
+      backgroundColor := S.color.bg.default,
       transition := "transform 0.4s",
     )
 
@@ -232,6 +271,8 @@ object OxygenStyleSheet extends StyleSheetBuilder {
       alignItems.center,
       cursor.pointer,
       zIndex := ZIndices.modalBehindPageMessages,
+      // W7-T07: light enter motion (durations zero under prefers-reduced-motion via Motion.sheet)
+      animation := "oxy-fade-in var(--oxy-motion-duration-fast) var(--oxy-motion-easing-enter) both",
     )
 
     object Modal extends mo.Class("modal") {
@@ -239,6 +280,7 @@ object OxygenStyleSheet extends StyleSheetBuilder {
       selector(
         cursor.auto,
         borderRadius := S.borderRadius.l,
+        animation := "oxy-slide-up var(--oxy-motion-duration-normal) var(--oxy-motion-easing-enter) both",
       )
 
     }
@@ -279,6 +321,8 @@ object OxygenStyleSheet extends StyleSheetBuilder {
     )
     ((Dropdown & Dropdown.Expanded) >> Dropdown.Options)(
       display.block,
+      // W7-T07: subtle open animation
+      animation := "oxy-fade-in var(--oxy-motion-duration-fast) var(--oxy-motion-easing-enter) both",
     )
 
     Dropdown.Options.Option(
@@ -324,13 +368,32 @@ object OxygenStyleSheet extends StyleSheetBuilder {
 
     ///////  ///////////////////////////////////////////////////////////////
 
+    // Collapse keeps shared cell borders. Radius/overflow do NOT belong on <table>
+    // (collapse ignores radius; overflow:hidden clips border paint at corners).
+    // Clip + outer edge live on [[Shell]] (Table Deferred outer div).
     Table(
       borderCollapse.collapse,
+      width := 100.pct,
     )
 
+    /**
+      * Outer clip wrapper class. Radius / border / overflow are set inline in
+      * [[oxygen.ui.web.component.Table]] build. [[OuterBorder]] marks when the shell
+      * owns the perimeter so cell rules can drop outer edges (no double stroke).
+      */
+    object Shell extends tab.Class("shell") { sh =>
+      object OuterBorder extends sh.Modifier("outer-border")
+
+      Shell(
+        display.block,
+        maxWidth := 100.pct,
+      )
+    }
+
+    // Borders live on th/td only — never on tr (tr full-box borders double the shell perimeter).
+    // Cell mode: full grid on every cell.
     (
-      ((Table & Table.RowBorders) >> T.tr) |
-        ((Table & Table.CellBorders) >> (T.th | T.td)) |
+      ((Table & Table.CellBorders) >> (T.th | T.td)) |
         (Table >> Bordered)
     )(
       borderColor := defaultBorderColor,
@@ -338,11 +401,52 @@ object OxygenStyleSheet extends StyleSheetBuilder {
       borderStyle.solid,
     )
 
+    // Row mode: horizontal rules only (bottom edge of each cell).
+    ((Table & Table.RowBorders) >> (T.th | T.td))(
+      borderColor := defaultBorderColor,
+      borderWidth := defaultBorderWidth,
+      borderStyle.solid,
+      borderLeftWidth := 0.px,
+      borderRightWidth := 0.px,
+      borderTopWidth := 0.px,
+    )
+
+    // Shell owns the outer edge → suppress cell edges that would double-paint with it.
+    // Row mode: last body row bottom would sit under the shell bottom.
+    ((Shell & Shell.OuterBorder) >> (Table & Table.RowBorders) >> T.tbody >> T.tr.pc("last-child") >> (T.th | T.td))(
+      borderBottomWidth := 0.px,
+    )
+    // Also if rows are direct children of table (no tbody wrapper).
+    ((Shell & Shell.OuterBorder) >> (Table & Table.RowBorders) > T.tr.pc("last-child") >> (T.th | T.td))(
+      borderBottomWidth := 0.px,
+    )
+
+    // Cell mode: drop the four outer sides of the grid.
+    ((Shell & Shell.OuterBorder) >> (Table & Table.CellBorders) >> T.thead.pc("first-child") >> T.tr.pc("first-child") >> (T.th | T.td))(
+      borderTopWidth := 0.px,
+    )
+    ((Shell & Shell.OuterBorder) >> (Table & Table.CellBorders) >> T.tbody.pc("first-child") >> T.tr.pc("first-child") >> (T.th | T.td))(
+      borderTopWidth := 0.px, // no thead case
+    )
+    ((Shell & Shell.OuterBorder) >> (Table & Table.CellBorders) >> T.tbody.pc("last-child") >> T.tr.pc("last-child") >> (T.th | T.td))(
+      borderBottomWidth := 0.px,
+    )
+    ((Shell & Shell.OuterBorder) >> (Table & Table.CellBorders) >> T.tr >> (T.th | T.td).pc("first-child"))(
+      borderLeftWidth := 0.px,
+    )
+    ((Shell & Shell.OuterBorder) >> (Table & Table.CellBorders) >> T.tr >> (T.th | T.td).pc("last-child"))(
+      borderRightWidth := 0.px,
+    )
+
     (Table >> T.th)(
       color := HeaderCellVars.fgColor,
       backgroundColor := HeaderCellVars.bgColor,
       padding := HeaderCellVars.padding,
       textAlign := HeaderCellVars.alignment,
+      fontWeight := "600",
+      fontSize := S.fontSize._2,
+      letterSpacing := "0.02em",
+      textTransform := "uppercase",
     )
 
     (Table >> T.td)(
@@ -350,6 +454,12 @@ object OxygenStyleSheet extends StyleSheetBuilder {
       backgroundColor := CellCellVars.bgColor,
       padding := CellCellVars.padding,
       textAlign := CellCellVars.alignment,
+      fontSize := S.fontSize._3,
+    )
+
+    // subtle hover on body rows (header excluded via tbody)
+    (Table >> T.tbody >> T.tr.hover >> T.td)(
+      backgroundColor := S.color.bg.layerTwo,
     )
 
   }

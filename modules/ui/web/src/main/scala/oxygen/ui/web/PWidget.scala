@@ -133,6 +133,12 @@ object PWidget {
     protected def build: PWidget[Env, Action, StateGet, StateSet]
 
   }
+  object Deferred {
+
+    type Stateless[-Env, +Action] = PWidget.Deferred[Env, Action, Any, Nothing]
+    type Stateful[-Env, +Action, State] = PWidget.Deferred[Env, Action, State, State]
+
+  }
 
   object HandleActionBuilders {
 
@@ -925,5 +931,7 @@ object PWidget {
       Growable.single(DOMElement.ObjectAttr(key, (e: Event) => handleEvent[Env2](state.fix, rh, pageInstance, uiRuntime)(e)))
 
   }
+
+  private[web] trait Custom[-Env, +Action, -StateGet, +StateSet <: StateGet] extends PWidget[Env, Action, StateGet, StateSet]
 
 }

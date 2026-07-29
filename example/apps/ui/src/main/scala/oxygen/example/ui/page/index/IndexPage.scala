@@ -11,6 +11,7 @@ import oxygen.predef.core.*
 import oxygen.ui.web.*
 import oxygen.ui.web.component.*
 import oxygen.ui.web.create.{*, given}
+import oxygen.ui.web.layout.*
 import zio.*
 import zio.stream.*
 
@@ -67,13 +68,14 @@ object IndexPage extends RoutablePage.NoParams[LocalService & StreamApi] {
       .topHeight(40.px)
       .top(optionalSignedInNavBar(renderState.user))
       .center(
-        PageMessagesBottomCorner.default,
         h1("Oxygen Example"),
         Section.section1()(
           InfoSection()(s"Id: ${renderState.uuid.fold("N/A")(_.toString)}"),
           InfoSection()(s"Counter: ${renderState.counter}"),
           InfoSection()(s"Return Count: ${renderState.returnCount}"),
         ),
+        div(height := 16.px),
+        Button("Open UI Showcase (25 demos)").primary.content(onClick.push(P.showcase.pages.ShowcaseHubPage.nav())),
       )
 
   //////////////////////////////////////////////////////////////////////////////////////////////////////

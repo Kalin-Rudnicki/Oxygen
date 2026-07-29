@@ -1,10 +1,21 @@
 package oxygen.ui.web.create
 
+import org.scalajs.dom.KeyboardEvent
+
 final case class KeyCode(
     name: String,
     keyCode: Int,
-)
+) {
+
+  /** True if this key matches the event (`key` preferred; `keyCode` fallback). */
+  def matches(e: KeyboardEvent): Boolean =
+    e.key == name || e.keyCode == keyCode
+}
 object KeyCode {
+
+  /** Enter via `key` or legacy `keyCode` (13). */
+  def isEnter(e: KeyboardEvent): Boolean = Enter.matches(e)
+
   // format: off
   val Backspace: KeyCode = KeyCode("Backspace", 8)
   val Tab:       KeyCode = KeyCode("Tab", 9)

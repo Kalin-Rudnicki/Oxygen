@@ -12,6 +12,7 @@ def signedOutNavBar(loginRegisterEmail: Option[String]): TopBar.Const =
   TopBar.empty
     .leftItems(
       _.index("Oxygen Example").onClickPush(P.index.IndexPage.nav()),
+      _("Showcase").onClickPush(P.showcase.pages.ShowcaseHubPage.nav()),
       _("Oxygen API Spec").onClickPush(ApiSpecPage.nav()),
     )
     .rightItems(
@@ -24,6 +25,7 @@ def signedInNavBar(user: User): TopBar.Const =
     .leftItems(
       _("Oxygen Example").index.onClickPush(P.index.IndexPage.nav()),
       _("Home").onClickPush(P.home.HomePage.nav()),
+      _("Showcase").onClickPush(P.showcase.pages.ShowcaseHubPage.nav()),
       _("Oxygen API Spec").onClickPush(ApiSpecPage.nav()),
     )
     .rightItems(

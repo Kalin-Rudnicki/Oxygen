@@ -4,6 +4,7 @@ import org.scalajs.dom.{document as D, window as W}
 import org.scalajs.dom.window
 import oxygen.ui.web.PageURL
 import oxygen.ui.web.internal.Router
+import scala.scalajs.js
 import zio.*
 
 object Window {
@@ -27,6 +28,19 @@ object Window {
     def assign(url: String): UIO[Unit] = ZIO.succeed { W.location.assign(url) }
     def replace(url: String): UIO[Unit] = ZIO.succeed { W.location.replace(url) }
 
+    /**
+      * Set / clear the URL fragment (`#id`). Empty clears the hash.
+      * Triggers the browser `hashchange` listener (Router → HashScroll).
+      */
+    def setHash(fragment: String): UIO[Unit] =
+      ZIO.succeed {
+        val id = fragment.stripPrefix("#").trim
+        W.location.hash = if id.isEmpty then "" else id
+      }
+
+    def hash: UIO[String] =
+      ZIO.succeed { Option(W.location.hash).getOrElse("").stripPrefix("#") }
+
   }
 
   object history {
@@ -40,6 +54,69 @@ object Window {
     def replace(url: String): UIO[Unit] = ZIO.succeed { W.history.replaceState(null, null, url) }
     def replace(url: PageURL, title: String): UIO[Unit] = replace(url.formatted, title)
     def replace(url: PageURL): UIO[Unit] = replace(url.formatted)
+
+  }
+
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
+  //      Scroll (W7-T02)
+  //
+  // Uses document (window) scrolling by default. Nested scroll containers (e.g. HolyGrail center
+  // panel with overflow:auto) need the element to be inside that scroller; offsetPx compensates for
+  // fixed top bars. For a custom container, scroll its scrollTop yourself or pass offset relative
+  // to the document viewport.
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
+
+  object scroll {
+
+    // TODO (KR): support scrolling to Top / Middle / Bottom of the document (and optionally of a container).
+
+    final case class Options(
+        smooth: Boolean = true,
+        /** Extra offset from top (e.g. fixed top bar height). */
+        offsetPx: Double = 0,
+    )
+
+    private def behaviorStr(smooth: Boolean): String =
+      if smooth then "smooth" else "instant"
+
+    private def scrollWindowTo(y: Double, smooth: Boolean): Unit =
+      // scalajs-dom 2.8 only types scrollTo(x,y); options object via dynamic for smooth + top.
+      W.asInstanceOf[js.Dynamic].scrollTo(
+        js.Dynamic.literal(
+          top = y,
+          left = 0.0,
+          behavior = behaviorStr(smooth),
+        ),
+      )
+
+    private def scrollElementIntoView(el: org.scalajs.dom.Element, smooth: Boolean): Unit =
+      el.asInstanceOf[js.Dynamic].scrollIntoView(
+        js.Dynamic.literal(
+          behavior = behaviorStr(smooth),
+          block = "start",
+        ),
+      )
+
+    /** Scroll the document so `#id` is visible. Returns false if element missing. */
+    def toId(id: String, options: Options = Options()): UIO[Boolean] =
+      ZIO.succeed {
+        val el = Option(D.getElementById(id.stripPrefix("#")))
+        el.foreach { e =>
+          if options.offsetPx == 0 then scrollElementIntoView(e, options.smooth)
+          else {
+            val top = e.getBoundingClientRect().top + W.scrollY - options.offsetPx
+            scrollWindowTo(top, options.smooth)
+          }
+        }
+        el.isDefined
+      }
+
+    /** Alias matching task acceptance wording. */
+    def scrollToId(id: String, options: Options = Options()): UIO[Boolean] = toId(id, options)
+
+    /** Scroll document to y. */
+    def toY(y: Double, smooth: Boolean = true): UIO[Unit] =
+      ZIO.succeed { scrollWindowTo(y, smooth) }
 
   }
 

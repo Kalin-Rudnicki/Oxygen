@@ -95,6 +95,8 @@ object PageInstance {
       page: RoutablePage.AuxE[Env, Params, State],
       uiRuntime: UIRuntime[Env],
       pagePrefixPath: Path,
+      /** Fragment from the navigation URL that opened this page (W7-T03). */
+      navFragment: Option[String],
   ) extends PageInstance.TypedEnv[Env, Params, State] {
 
     override private[web] def recordNewValues(state: State, navType: NavigationEvent.NavType): UIO[Unit] = {
@@ -105,8 +107,13 @@ object PageInstance {
         case Some(lastEval) if lastEval.params == params =>
           Window.setTitle(title).whenDiscard(title != lastEval.title) *>
             lastEvalRef.set(Routable.LastEval(params, state, lastEval.url, title).some)
-        case _ =>
-          val newUrl = page.paramCodec.encode(params)
+        case Some(lastEval) =>
+          // Preserve fragment across param-driven URL updates when present
+          val newUrl = page.paramCodec.encode(params).withFragment(lastEval.url.fragment)
+          nav(pagePrefixPath, newUrl, title, navType) *>
+            lastEvalRef.set(Routable.LastEval(params, state, newUrl, title).some)
+        case None =>
+          val newUrl = page.paramCodec.encode(params).withFragment(navFragment)
           nav(pagePrefixPath, newUrl, title, navType) *>
             lastEvalRef.set(Routable.LastEval(params, state, newUrl, title).some)
       }

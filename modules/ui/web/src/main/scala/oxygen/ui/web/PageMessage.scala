@@ -19,6 +19,7 @@ object PageMessage {
   )
   object Styling {
 
+    /** Eager CSSColor math — prefer [[fromRole]] for mode-safe theme colors. */
     def make(
         base: CSSColor,
     ): Styling =
@@ -27,6 +28,15 @@ object PageMessage {
         fontColor = base.darken(66.0),
         buttonColor = base.darken(20.0),
         borderColor = base.darken(20.0),
+      )
+
+    /** Pure CSS-var styling (mode-safe). Pass strength tokens from `S.color.*`. */
+    def fromRole(standard: CSSVar, subtle: CSSVar, hover: CSSVar): Styling =
+      Styling(
+        backgroundColor = subtle.toString,
+        fontColor = S.color.fg.default.toString,
+        buttonColor = hover.toString,
+        borderColor = standard.toString,
       )
 
   }

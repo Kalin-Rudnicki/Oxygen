@@ -22,6 +22,10 @@ nav:
     - 'Server': 'http/server/index.md'
   - 'Oxygen UI':
     - 'UI Overview': 'ui/index.md'
+    - 'Forms': 'ui/forms.md'
+    - 'Builders & components': 'ui/builders.md'
+    - 'Migrating forms & builders': 'ui/migration-forms.md'
+    - 'Agent guide': 'ui/agent-guide.md'
   - 'Oxygen Executable':
     - 'Executable Overview': 'executable/index.md'
     - 'CLI Annotations': 'executable/cli.md'
@@ -49,6 +53,7 @@ theme:
     - content.code.copy
     - content.code.select
     - content.tooltips
+    - content.tabs
     - navigation.expand
     - navigation.footer
     - navigation.instant
@@ -100,6 +105,8 @@ markdown_extensions:
   - pymdownx.inlinehilite
   - pymdownx.snippets
   - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
 plugins:
   - macros
   - search

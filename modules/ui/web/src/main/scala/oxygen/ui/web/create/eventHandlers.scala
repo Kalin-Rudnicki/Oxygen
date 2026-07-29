@@ -95,6 +95,43 @@ object onDragOver extends EventHandlerBuilder[DragEvent]("ondragover")
 object onDrop extends EventHandlerBuilder[DragEvent]("ondrop")
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////
+//      DnD helpers (W11-T01)
+//////////////////////////////////////////////////////////////////////////////////////////////////////
+
+/** HTML `draggable` attribute builder. */
+object draggable extends TypedHtmlAttrBuilder[Boolean]("draggable", b => if b then "true" else "false") {
+  def enable: HtmlAttr = this := true
+  def disable: HtmlAttr = this := false
+}
+
+/**
+  * Convenience fragment: mark node draggable and attach dragstart payload via dataTransfer.
+  * Presentation modes (W11-T02) build on these handlers.
+  */
+object DnD {
+
+  def allowDrop: Widget =
+    onDragOver.e.handle { e =>
+      e.preventDefault()
+      ZIO.unit
+    }
+
+  def setDragData(mime: String, data: String): Widget =
+    onDragStart.e.handle { e =>
+      e.dataTransfer.setData(mime, data)
+      ZIO.unit
+    }
+
+  def onDropData(mime: String)(handle: String => zio.UIO[Unit]): Widget =
+    onDrop.e.handle { e =>
+      e.preventDefault()
+      val data = e.dataTransfer.getData(mime)
+      handle(data)
+    }
+
+}
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////
 //      Builder(s)
 //////////////////////////////////////////////////////////////////////////////////////////////////////
 

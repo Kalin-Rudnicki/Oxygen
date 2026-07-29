@@ -17,6 +17,8 @@ trait PageManager {
       target: NavigationEvent.Target.PageWithParams[Env],
       navType: NavigationEvent.NavType,
       uiRuntime: UIRuntime[Env],
+      /** Fragment from navigating URL (without `#`); scrolled after first paint. */
+      fragment: Option[String],
   ): ZIO[Env, RootErrorHandler.RootError, Unit]
 
   def reRenderCurrentPage: UIO[Unit]
@@ -47,6 +49,7 @@ object PageManager {
         scope: Scope.Closeable,
         uiRuntime: UIRuntime[Env],
         page: Page.AuxE[Env, Params, State],
+        navFragment: Option[String],
     ): UIO[PageInstance.TypedEnv[Env, Params, State]] =
       page match {
         case page: RoutablePage.AuxE[Env @unchecked, Params, State] =>
@@ -62,6 +65,7 @@ object PageManager {
             page = page,
             uiRuntime = uiRuntime,
             pagePrefixPath = pagePrefixPath,
+            navFragment = navFragment,
           )
         case page: NonRoutablePage.AuxE[Env @unchecked, Params, State] =>
           for
@@ -83,6 +87,7 @@ object PageManager {
         target: Target.PageWithParams[Env],
         navType: NavigationEvent.NavType,
         uiRuntime: UIRuntime[Env],
+        fragment: Option[String],
     ): ZIO[Env, RootErrorHandler.RootError, Unit] =
       (for
         _ <- ZIO.logTrace(s"----- Loading Page - ${target.page} ---")
@@ -106,7 +111,7 @@ object PageManager {
           // TODO (KR) : what happens if one page takes 5s to load, and in that time, you try to load another page
 
           _ <- ZIO.logTrace("Creating page instance")
-          pageInstance <- makeRaw[Env, target.page.PageParams, target.page.PageState](newScope, uiRuntime, target.page) // TODO (KR) : thread Params and State into `makeRaw`
+          pageInstance <- makeRaw[Env, target.page.PageParams, target.page.PageState](newScope, uiRuntime, target.page, fragment)
           _ <- ZIO.succeed { pageInstance.pageStateValue.set(initialState) }
 
           _ <- ZIO.logTrace("Switching current and closing previous")
@@ -114,6 +119,9 @@ object PageManager {
           _ <- ZIO.foreachDiscard(currentPageInstance)(_.close)
 
           _ <- pageInstance.render(navType)
+
+          // W7-T03: after first paint, scroll to #fragment (retry for async content)
+          _ <- oxygen.ui.web.service.HashScroll.toFragment(fragment).unit
 
           _ <- ZIO.logTrace("PageManager.postLoad.start")
           _ <-
