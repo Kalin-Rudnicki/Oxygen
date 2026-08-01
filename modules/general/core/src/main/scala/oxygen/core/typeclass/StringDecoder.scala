@@ -1,7 +1,7 @@
 package oxygen.core.typeclass
 
 import java.time.{Duration, LocalDate, LocalDateTime, LocalTime}
-import oxygen.core.TypeTag
+import oxygen.core.{Text, TypeTag}
 import oxygen.core.syntax.either.*
 import oxygen.core.syntax.option.*
 import oxygen.core.syntax.string.*
@@ -268,7 +268,7 @@ object StringDecoder extends StringDecoderLowPriority.LowPriority1 {
       lastSuccessfulValue: Any,
       message: Option[String],
       hint: Option[Hint],
-  ) {
+  ) extends oxygen.core.error.Error {
 
     private lazy val cameFromString: Boolean = prevTypeInfo == TypeTag[String]
 
@@ -290,7 +290,7 @@ object StringDecoder extends StringDecoderLowPriority.LowPriority1 {
         case (None, Some(hint))          => s"$transformHintStr ~ $hint"
         case (None, None)                => transformHintStr
 
-    override def toString: String = showDetailed
+    override def errorMessage: Text = Text.fromString(showDetailed)
 
   }
 
