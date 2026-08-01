@@ -10,7 +10,7 @@ object UnimplementedCommandService extends CommandService {
       stdIn: CommandInputSource,
       trim: Boolean,
   )(using Trace): IO[CommandError, (stdOut: String, stdErr: String, exitCode: Int)] =
-    ??? // FIX-PRE-MERGE (KR) :
+    ZIO.fail(CommandError.Unimplemented(command))
 
   override def executeSyncStreamErr(
       command: BuiltCommand,
@@ -18,7 +18,7 @@ object UnimplementedCommandService extends CommandService {
       stdErr: CommandOutputSource,
       trim: Boolean,
   )(using Trace): IO[CommandError, (stdOut: String, exitCode: Int)] =
-    ??? // FIX-PRE-MERGE (KR) :
+    ZIO.fail(CommandError.Unimplemented(command))
 
   override def executeCode(
       command: BuiltCommand,
@@ -26,6 +26,6 @@ object UnimplementedCommandService extends CommandService {
       stdOut: CommandOutputSource,
       stdErr: CommandOutputSource,
   )(using Trace): IO[CommandError, Int] =
-    ??? // FIX-PRE-MERGE (KR) :
+    ZIO.fail(CommandError.Unimplemented(command))
 
 }

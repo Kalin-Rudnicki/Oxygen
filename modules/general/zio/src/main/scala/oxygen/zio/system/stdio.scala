@@ -1,6 +1,5 @@
 package oxygen.zio.system
 
-import oxygen.core.StringBuilder
 import oxygen.predef.core.*
 import oxygen.zio.ZIOAspectPoly
 import zio.*
