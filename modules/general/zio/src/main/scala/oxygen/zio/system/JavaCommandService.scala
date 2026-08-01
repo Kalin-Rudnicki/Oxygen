@@ -184,6 +184,7 @@ object JavaCommandService extends CommandService {
   //      Stdin
   //////////////////////////////////////////////////////////////////////////////////////////////////////
 
+  // FIX-PRE-MERGE (KR) : I do not like this
   private def writeInput(
       command: BuiltCommand,
       process: jl.Process,
@@ -218,6 +219,7 @@ object JavaCommandService extends CommandService {
   //      Stdout / stderr
   //////////////////////////////////////////////////////////////////////////////////////////////////////
 
+  // FIX-PRE-MERGE (KR) : I do not like this
   private def consumeOutput(
       command: BuiltCommand,
       stream: InputStream,
@@ -287,6 +289,7 @@ object JavaCommandService extends CommandService {
   }
   private object OutputMode {
 
+    // FIX-PRE-MERGE (KR) : I do not like this
     def fromSource(command: BuiltCommand, source: CommandOutputSource)(using Trace): IO[CommandError, OutputMode] =
       source match {
         case CommandOutputSource.Empty =>
