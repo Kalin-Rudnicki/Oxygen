@@ -125,10 +125,10 @@ A nested sub-app's `RequiredEnv` must line up with the env its parent runs comma
 
 ## Full example (abbreviated)
 
-Illustrative app showing subcommands, a nested app (with its own `given`), `@envConfig`, and `def env`:
+Illustrative app showing subcommands, a nested app (deriving itself), `@envConfig`, and `def env`:
 
 ```scala
-final case class ExampleApp() extends CliApp[Any, String] {
+final case class ExampleApp() extends CliApp[Any, String] derives CompiledCliApp.DeriveRootApp {
 
   @doc("Provides runtime environment", "for subcommands")
   def env(@named host: String = "localhost"): EnvLayer =
@@ -154,11 +154,12 @@ final case class ExampleApp() extends CliApp[Any, String] {
   @command
   def nested1: Nested1 = Nested1()
 }
-object ExampleApp extends CliApp.Executable[ExampleApp](CliApp.derive)
+object ExampleApp extends CliApp.Executable[ExampleApp]
 
-// the nested sub-app publishes its own derivation
-final case class Nested1() extends CliApp[String, Any] { @execute def run(): Effect = ZIO.unit }
-object Nested1 { given CliApp.Derived[Nested1, String] = CliApp.derive }
+// the nested sub-app derives itself with `DeriveSubApp` (no companion given needed)
+final case class Nested1() extends CliApp[String, Any] derives CompiledCliApp.DeriveSubApp {
+  @execute def run(): Effect = ZIO.unit
+}
 ```
 
 ## `--` passthrough

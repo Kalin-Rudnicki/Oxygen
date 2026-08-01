@@ -41,6 +41,10 @@ sealed trait ArgsParser[+A] { self: ArgsParser.SelfT[A] =>
   def as[B](f: => B): ArgsParser[B] = this.map { _ => f }
   def map[B](f: A => B): ArgsParser[B] = ArgsParser.Mapped(this, f)
 
+  // Rewrite the named side's auto (`Defaultable.Default`) short names with a global, collision-aware
+  // two-phase pass. Value-preserving: only which flags match changes, never the parse-result type/values.
+  final def resolveAutoShortNames: ArgsParser[A] = ArgsParser.ShortNamesResolved(this)
+
 }
 object ArgsParser {
 
@@ -138,6 +142,26 @@ object ArgsParser {
     override def help: Help = a.help
     override def show: String = a.show
     override def complete(request: CompletionRequest, value: String): Task[List[String]] = a.complete(request, value)
+
+  }
+
+  // Wraps a fully-assembled parser, exposing its named side with auto short names globally resolved.
+  // Only the named parser is rebuilt (see `NamedArgsParser.resolveAutoShortNames`); positional parsing
+  // and `zipResult` are delegated untouched, so results are identical to `underlying`.
+  final case class ShortNamesResolved[A](underlying: ArgsParser[A]) extends ArgsParser.Root[A] {
+
+    override type PositionalT = underlying.PositionalT
+    override type NamedT = underlying.NamedT
+
+    override val positionalParser: PositionalArgsParser[PositionalT] = underlying.positionalParser
+    override val namedParser: NamedArgsParser[NamedT] = NamedArgsParser.resolveAutoShortNames(underlying.namedParser)
+
+    override def zipResult(positional: PositionalT, named: NamedT): A = underlying.zipResult(positional, named)
+
+    override def help: Help = Help.And(positionalParser.help, namedParser.help)
+    override def show: String = underlying.show
+    override def complete(request: CompletionRequest, value: String): Task[List[String]] =
+      positionalParser.complete(request, value).zipWith(namedParser.complete(request, value))((p, n) => (p ::: n).distinct)
 
   }
 
@@ -679,10 +703,84 @@ object NamedArgsParser {
   ///////  ///////////////////////////////////////////////////////////////
 
   // `Defaultable.Default` short names auto-derive from the first char of the long name. See cli-decisions.md (D2).
+  // NB: this is the *local* fallback used by an un-normalized parser; `resolveAutoShortNames` below does the
+  // global, collision-aware resolution and is what the executable pipeline applies before parsing/help.
   private[cli] def resolvedShortName(longName: String, shortName: Defaultable.Opt[Char]): Option[Char] =
     shortName match
       case Defaultable.Explicit(opt) => opt
       case Defaultable.Default       => longName.headOption
+
+  // Two-phase auto short-name resolution over a fully-assembled named parser tree (D2):
+  //   phase 1 — reserve every *explicitly* set short (`Explicit(Some)` on Named/Flag, both chars of a Toggle),
+  //             and reject two params that explicitly claim the *same* short (a developer bug, not user input);
+  //   phase 2 — walk left-to-right giving each `Default` the first char of its long name (then its
+  //             case-flipped variant), but only if still free; otherwise it gets no short (`Explicit(None)`).
+  // Explicit names always win over autos, and earlier autos win over later ones. This runs once per command,
+  // lazily, when that command's parser is assembled — not eagerly for the whole app.
+  def resolveAutoShortNames[A](parser: NamedArgsParser[A]): NamedArgsParser[A] = {
+    val explicitClaims: List[(Char, String)] = explicitShortClaims(parser)
+    explicitClaims.groupBy(_._1).toList.sortBy(_._1).collectFirst { case (c, claims) if claims.sizeIs > 1 => (c, claims.map(_._2).sorted) }.foreach { (c, names) =>
+      throw new IllegalArgumentException(
+        s"CLI parser assigns the short name -$c to more than one param (${names.mkString(", ")}); explicit short names must be unique.",
+      )
+    }
+    val used: scala.collection.mutable.Set[Char] = scala.collection.mutable.Set.from(explicitClaims.iterator.map(_._1))
+
+    def claimAuto(longName: String, shortName: Defaultable.Opt[Char]): Defaultable.Opt[Char] =
+      shortName match
+        case Defaultable.Explicit(_) => shortName
+        case Defaultable.Default     =>
+          longName.headOption match
+            case None    => Defaultable.Explicit(None)
+            case Some(c) =>
+              // Try the first char as-is, then its case-flipped variant (`--host` -> -h, `--hotness` -> -H),
+              // else no short. Only these two candidates, so a third `h*` param simply gets nothing.
+              val flipped: Char = if c.isUpper then c.toLower else c.toUpper
+              List(c, flipped).distinct.find(!used.contains(_)) match
+                case Some(chosen) => used += chosen; Defaultable.Explicit(Some(chosen))
+                case None         => Defaultable.Explicit(None)
+
+    def rewrite[X](p: NamedArgsParser[X]): NamedArgsParser[X] =
+      (p match
+        case Empty       => Empty
+        case c: Const[?] => c
+        case t: Toggle   => t // toggles never auto-derive a short; only reserved in phase 1
+        case n: Named[?] => Named(n.longName, claimAuto(n.longName, n.shortName), n.nested, n.subHelp)
+        case f: Flag     => Flag(f.longName, claimAuto(f.longName, f.shortName), f.default, f.subHelp)
+        // structural nodes: recurse (args evaluated left-to-right, preserving declaration order for phase 2)
+        case a: AndWith[?, ?, ?]   => AndWith(rewrite(a.a), rewrite(a.b), a.zip)
+        case m: Mapped[?, ?]       => Mapped(rewrite(m.a), m.f)
+        case m: MappedOrFail[?, ?] => MappedOrFail(rewrite(m.a), m.f)
+        case o: FirstOf[?]         => FirstOf(rewrite(o.a), rewrite(o.b))
+        case o: Optional[?]        => Optional(rewrite(o.inner))
+        case r: Repeated[?]        => Repeated(rewrite(r.inner))
+        case r: RepeatedNel[?]     => RepeatedNel(rewrite(r.inner))
+        case w: WithDefault[?]     => WithDefault(rewrite(w.inner), w.default, w.shownDefault)
+      ).asInstanceOf[NamedArgsParser[X]]
+
+    rewrite(parser)
+  }
+
+  // Every explicitly-set short and the label of the param claiming it (for the duplicate-collision error).
+  private def explicitShortClaims(parser: NamedArgsParser[?]): List[(Char, String)] = {
+    def loop(p: NamedArgsParser[?], acc: List[(Char, String)]): List[(Char, String)] =
+      p match
+        case Empty       => acc
+        case _: Const[?] => acc
+        case n: Named[?] => n.shortName match { case Defaultable.Explicit(Some(c)) => (c, s"--${n.longName}") :: acc; case _ => acc }
+        case f: Flag     => f.shortName match { case Defaultable.Explicit(Some(c)) => (c, s"--${f.longName}") :: acc; case _ => acc }
+        case t: Toggle   =>
+          t.shortNames match { case Some((a, b)) => (a, s"--${t.longNames.trueLongName}") :: (b, s"--${t.longNames.falseLongName}") :: acc; case None => acc }
+        case a: AndWith[?, ?, ?]   => loop(a.b, loop(a.a, acc))
+        case m: Mapped[?, ?]       => loop(m.a, acc)
+        case m: MappedOrFail[?, ?] => loop(m.a, acc)
+        case o: FirstOf[?]         => loop(o.b, loop(o.a, acc))
+        case o: Optional[?]        => loop(o.inner, acc)
+        case r: Repeated[?]        => loop(r.inner, acc)
+        case r: RepeatedNel[?]     => loop(r.inner, acc)
+        case w: WithDefault[?]     => loop(w.inner, acc)
+    loop(parser, Nil)
+  }
 
   extension [A](self: NamedArgsParser[A])
     def &&[B](that: NamedArgsParser[B])(using zip: Zip[A, B]): NamedArgsParser[zip.Out] =

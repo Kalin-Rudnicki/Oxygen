@@ -19,6 +19,11 @@ final case class WorkspaceCtx(
     connected: Boolean,
 )
 
+final case class GizmoCtx(
+    gizmoId: String,
+    calibrated: Boolean,
+)
+
 final case class ShowcaseSettings(
     theme: String,
     retries: Int,

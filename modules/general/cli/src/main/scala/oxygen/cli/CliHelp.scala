@@ -47,17 +47,11 @@ object CliHelp {
     @tailrec
     def loop(queue: List[NamedArg], kept: List[NamedArg], found: Option[HelpType]): (NamedArgs, Option[HelpType]) =
       queue match
+        // Built-in help is long-only (`--help` / `--help-extra`): no `-h`/`-H`, so the entire short-name
+        // namespace belongs to the app and auto short-name derivation never has to reserve a letter.
         case LongNameArg(_, "help-extra", nested) :: tail if NamedArgNested.isEmpty(nested) =>
           loop(tail, kept, found.orElse(Some(HelpType.HelpExtra)))
         case LongNameArg(_, "help", nested) :: tail if NamedArgNested.isEmpty(nested) =>
-          loop(tail, kept, found.orElse(Some(HelpType.Help)))
-        case ShortNameArg(_, 'H', nested) :: tail if NamedArgNested.isEmpty(nested) =>
-          loop(tail, kept, found.orElse(Some(HelpType.HelpExtra)))
-        case ShortNameArg(_, 'h', nested) :: tail if NamedArgNested.isEmpty(nested) =>
-          loop(tail, kept, found.orElse(Some(HelpType.Help)))
-        case MultiShortNameArg(_, _, 'H') :: tail =>
-          loop(tail, kept, found.orElse(Some(HelpType.HelpExtra)))
-        case MultiShortNameArg(_, _, 'h') :: tail =>
           loop(tail, kept, found.orElse(Some(HelpType.Help)))
         case head :: tail => loop(tail, head :: kept, found)
         case Nil          => (NamedArgs(kept.reverse), found)
@@ -69,7 +63,7 @@ object CliHelp {
     peel(args.named) match
       case (stripped, ht) => (Args(args.positional, stripped), ht)
 
-  val builtinFlags: List[String] = List("--help", "--help-extra", "-h", "-H")
+  val builtinFlags: List[String] = List("--help", "--help-extra")
 
   def builtinFlagCompletions(value: String): List[String] =
     builtinFlags.filter(_.startsWith(value))

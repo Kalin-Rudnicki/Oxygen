@@ -10,7 +10,7 @@ import zio.*
   * CLI feature showcase — flat commands, one-level groups, four-level nesting,
   * and a wide mix of parameter annotations/types.
   */
-final case class ShowcaseApp() extends CliApp[Any, RootCtx] {
+final case class ShowcaseApp() extends CliApp[Any, RootCtx] derives CompiledCliApp.DeriveRootApp {
 
   @doc("Root environment", "shared by every subcommand")
   def env(
@@ -112,5 +112,42 @@ final case class ShowcaseApp() extends CliApp[Any, RootCtx] {
       @named @shortName('s') seed: Int,
   ): CapsuleApp = CapsuleApp(seed)
 
+  // ── non-case-class (trait) sub-app ────────────────────────────────────
+
+  @command
+  def gadget: GadgetApp = new GadgetApp {
+    override def run(name: String, loud: Boolean): Effect =
+      ZIO.serviceWithZIO[RootCtx] { root =>
+        val msg = s"gadget host=${root.host} name=$name"
+        if loud then ZIO.logInfo(msg.toUpperCase) else ZIO.logInfo(msg)
+      }
+  }
+
+  // ── trait sub-app with its own env layer (requires RootCtx, provides GizmoCtx) ──
+
+  @command
+  def widget: WidgetApp = new WidgetApp {
+    override def run(power: Int): Effect =
+      for {
+        root <- ZIO.service[RootCtx]
+        gizmo <- ZIO.service[GizmoCtx]
+        _ <- ZIO.logInfo(s"widget host=${root.host} gizmo=$gizmo power=$power")
+      } yield ()
+  }
+
+  // ── trait sub-app whose `def env` is abstract too (child implements both) ──
+
+  @command
+  def contraption: ContraptionApp = new ContraptionApp {
+    override def env(gizmoId: String, calibrated: Boolean): EnvLayer =
+      ZLayer.succeed(GizmoCtx(s"contraption-$gizmoId", calibrated))
+    override def run(power: Int): Effect =
+      for {
+        root <- ZIO.service[RootCtx]
+        gizmo <- ZIO.service[GizmoCtx]
+        _ <- ZIO.logInfo(s"contraption host=${root.host} gizmo=$gizmo power=$power")
+      } yield ()
+  }
+
 }
-object ShowcaseApp extends CliApp.Executable[ShowcaseApp](CliApp.derive)
+object ShowcaseApp extends CliApp.Executable[ShowcaseApp]
