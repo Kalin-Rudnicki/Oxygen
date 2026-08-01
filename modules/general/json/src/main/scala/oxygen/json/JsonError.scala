@@ -2,17 +2,14 @@ package oxygen.json
 
 import oxygen.predef.core.*
 
-final case class JsonError(path: List[JsonError.Path], cause: JsonError.Cause) extends Throwable {
+final case class JsonError(path: List[JsonError.Path], cause: JsonError.Cause) extends Error {
 
   def inField(name: String): JsonError = JsonError(JsonError.Path.Field(name) :: path, cause)
   def atIndex(index: Int): JsonError = JsonError(JsonError.Path.Index(index) :: path, cause)
 
-  override def getMessage: String =
-    path match
-      case head :: tail => s"${head.showFirst}${tail.map(_.showNonFirst).mkString} : ${cause.show}"
-      case Nil          => cause.show
-
-  override def toString: String = getMessage
+  override def errorMessage: Text = path match
+    case head :: tail => str"${head.showFirst}${tail.map(_.showNonFirst).mkString} : ${cause.show}"
+    case Nil          => Text.fromString(cause.show)
 
 }
 object JsonError {

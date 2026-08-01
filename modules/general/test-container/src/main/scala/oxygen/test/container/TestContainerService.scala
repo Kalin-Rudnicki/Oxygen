@@ -66,7 +66,9 @@ final class TestContainerService(config: TestContainerConfig, acquiredPortsRef: 
       Command("docker")("stop", container.name)
         .executeSuccess(outLevel = LogLevel.Debug)
         .foldCauseZIO(
-          ZIO.logErrorCause("Error stopping container, going to attempt force stop", _) *> Command("docker")("rm", container.name, "--force", "--volumes").executeSuccess(outLevel = LogLevel.Debug),
+          ZIO.logErrorCause("Error stopping container, going to attempt force stop", _) *> Command("docker")("rm", container.name, "--force", "--volumes").executeSuccess(outLevel =
+            LogLevel.Debug,
+          ),
           _ => Command("docker")("rm", container.name, "--volumes").executeSuccess(outLevel = LogLevel.Debug),
         )
         .mapError(TestContainerError.UnableToStopContainer(config, container, _))
