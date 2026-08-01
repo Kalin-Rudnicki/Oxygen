@@ -19,6 +19,7 @@ object CommandInputSource {
 
   sealed trait NonEmpty extends CommandInputSource
   case object Pipe extends CommandInputSource.NonEmpty
+  final case class File(path: Path) extends CommandInputSource.NonEmpty
   final case class Const(stdIn: String) extends CommandInputSource.NonEmpty
   final case class Stream(stdIn: zio.stream.Stream[Throwable, Byte]) extends CommandInputSource.NonEmpty
 
@@ -38,6 +39,7 @@ object CommandOutputSource {
   sealed trait NonEmpty extends CommandOutputSource
   case object PipeStdOut extends CommandOutputSource.NonEmpty
   case object PipeStdErr extends CommandOutputSource.NonEmpty
+  final case class File(path: Path) extends CommandOutputSource.NonEmpty
   final case class Log(logLevel: LogLevel, showCommand: ShowCommand) extends CommandOutputSource.NonEmpty
 
   // TODO (KR) : have some way to pipe and collect? collect into StringBuilder? seems not worth it for the moment.

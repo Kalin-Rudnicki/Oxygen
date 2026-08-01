@@ -49,11 +49,12 @@ object JavaCommandService extends CommandService {
   )(using Trace): IO[CommandError, (stdOut: String, exitCode: Int)] =
     for {
       outRef <- Ref.make("")
+      stdErrMode <- OutputMode.fromSource(command, stdErr)
       exitCode <- run(
         command = command,
         stdIn = stdIn,
         stdOut = OutputMode.Collect(outRef),
-        stdErr = OutputMode.fromSource(stdErr),
+        stdErr = stdErrMode,
       )
       stdOut <- outRef.get
     } yield (
@@ -67,12 +68,16 @@ object JavaCommandService extends CommandService {
       stdOut: CommandOutputSource,
       stdErr: CommandOutputSource,
   )(using Trace): IO[CommandError, Int] =
-    run(
-      command = command,
-      stdIn = stdIn,
-      stdOut = OutputMode.fromSource(stdOut),
-      stdErr = OutputMode.fromSource(stdErr),
-    )
+    for {
+      stdOutMode <- OutputMode.fromSource(command, stdOut)
+      stdErrMode <- OutputMode.fromSource(command, stdErr)
+      exitCode <- run(
+        command = command,
+        stdIn = stdIn,
+        stdOut = stdOutMode,
+        stdErr = stdErrMode,
+      )
+    } yield exitCode
 
   //////////////////////////////////////////////////////////////////////////////////////////////////////
   //      Core runner
@@ -86,9 +91,13 @@ object JavaCommandService extends CommandService {
   )(using Trace): IO[CommandError, Int] =
     ZIO.scoped {
       for {
-        process <- startProcess(command, stdIn, stdOut, stdErr)
+        inRedirect <- inputRedirect(command, stdIn)
+        outRedirect = outputRedirect(stdOut)
+        errRedirect = outputRedirect(stdErr)
+        process <- startProcess(command, inRedirect, outRedirect, errRedirect)
 
-        // Stdout/stderr must be consumed concurrently with waitFor to avoid pipe-buffer deadlocks.
+        // Stdout/stderr must be consumed concurrently with waitFor to avoid pipe-buffer deadlocks
+        // whenever those streams are PIPE'd into our process.
         outFiber <- consumeOutput(command, process.getInputStream, stdOut).forkScoped
         errFiber <- consumeOutput(command, process.getErrorStream, stdErr).forkScoped
         inFiber <- writeInput(command, process, stdIn).forkScoped
@@ -98,7 +107,7 @@ object JavaCommandService extends CommandService {
             .attemptBlockingInterrupt { process.waitFor() }
             .convertCausesFail { executionFailure(command, "wait for process exit", _) }
 
-        // Process is done — stop feeding stdin; still drain stdout/stderr fully.
+        // Process is done — stop feeding stdin; still drain any piped stdout/stderr fully.
         _ <- inFiber.interrupt
         _ <- outFiber.join
         _ <- errFiber.join
@@ -107,9 +116,9 @@ object JavaCommandService extends CommandService {
 
   private def startProcess(
       command: BuiltCommand,
-      stdIn: CommandInputSource,
-      stdOut: OutputMode,
-      stdErr: OutputMode,
+      inRedirect: jl.ProcessBuilder.Redirect,
+      outRedirect: jl.ProcessBuilder.Redirect,
+      errRedirect: jl.ProcessBuilder.Redirect,
   )(using Trace): ZIO[Scope, CommandError, jl.Process] = {
     val acquire: IO[CommandError, jl.Process] =
       for {
@@ -126,9 +135,9 @@ object JavaCommandService extends CommandService {
                 command.env.foreach { (k, v) => env.put(k, v) }
               }
 
-              pb.redirectInput(inputRedirect(stdIn))
-              pb.redirectOutput(outputRedirect(stdOut))
-              pb.redirectError(outputRedirect(stdErr))
+              pb.redirectInput(inRedirect)
+              pb.redirectOutput(outRedirect)
+              pb.redirectError(errRedirect)
 
               pb.start()
             }
@@ -151,18 +160,24 @@ object JavaCommandService extends CommandService {
       .foreach(command.cwd)(_.toJavaFile)
       .convertCausesFail { executionFailure(command, "resolve working directory", _) }
 
-  private def inputRedirect(stdIn: CommandInputSource): jl.ProcessBuilder.Redirect =
+  private def resolveJavaFile(command: BuiltCommand, path: Path, whileAttemptingTo: String)(using Trace): IO[CommandError, java.io.File] =
+    path.toJavaFile.convertCausesFail { executionFailure(command, whileAttemptingTo, _) }
+
+  private def inputRedirect(command: BuiltCommand, stdIn: CommandInputSource)(using Trace): IO[CommandError, jl.ProcessBuilder.Redirect] =
     stdIn match {
-      case CommandInputSource.Empty              => jl.ProcessBuilder.Redirect.DISCARD
-      case CommandInputSource.Pipe               => jl.ProcessBuilder.Redirect.INHERIT
-      case _: CommandInputSource.Const           => jl.ProcessBuilder.Redirect.PIPE
-      case _: CommandInputSource.Stream          => jl.ProcessBuilder.Redirect.PIPE
+      case CommandInputSource.Empty     => ZIO.succeed { jl.ProcessBuilder.Redirect.DISCARD }
+      case CommandInputSource.Pipe      => ZIO.succeed { jl.ProcessBuilder.Redirect.INHERIT }
+      case CommandInputSource.File(path) =>
+        resolveJavaFile(command, path, "resolve stdin file").map { jl.ProcessBuilder.Redirect.from }
+      case _: CommandInputSource.Const  => ZIO.succeed { jl.ProcessBuilder.Redirect.PIPE }
+      case _: CommandInputSource.Stream => ZIO.succeed { jl.ProcessBuilder.Redirect.PIPE }
     }
 
   private def outputRedirect(mode: OutputMode): jl.ProcessBuilder.Redirect =
     mode match {
-      case OutputMode.Discard => jl.ProcessBuilder.Redirect.DISCARD
-      case _                  => jl.ProcessBuilder.Redirect.PIPE
+      case OutputMode.Discard       => jl.ProcessBuilder.Redirect.DISCARD
+      case OutputMode.ToFile(file)  => jl.ProcessBuilder.Redirect.to(file)
+      case _                        => jl.ProcessBuilder.Redirect.PIPE
     }
 
   //////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -175,7 +190,8 @@ object JavaCommandService extends CommandService {
       stdIn: CommandInputSource,
   )(using Trace): IO[CommandError, Unit] =
     stdIn match {
-      case CommandInputSource.Empty | CommandInputSource.Pipe =>
+      // OS / ProcessBuilder already owns these
+      case CommandInputSource.Empty | CommandInputSource.Pipe | _: CommandInputSource.File =>
         ZIO.unit
 
       case CommandInputSource.Const(value) =>
@@ -192,13 +208,9 @@ object JavaCommandService extends CommandService {
       case CommandInputSource.Stream(bytes) =>
         val os: OutputStream = process.getOutputStream
         bytes
-          .run {
-            ZSink.fromOutputStream(os)
-          }
+          .run { ZSink.fromOutputStream(os) }
           .unit
-          .ensuring {
-            ZIO.attempt { os.close() }.orDie
-          }
+          .ensuring { ZIO.attempt { os.flush() }.ignore *> ZIO.attempt { os.close() }.ignore }
           .convertCausesFail { executionFailure(command, "write stdin stream", _) }
     }
 
@@ -212,8 +224,9 @@ object JavaCommandService extends CommandService {
       mode: OutputMode,
   )(using Trace): IO[CommandError, Unit] =
     mode match {
-      case OutputMode.Discard =>
-        ZIO.unit // Redirect.DISCARD — nothing to read
+      // OS / ProcessBuilder already owns these
+      case OutputMode.Discard | _: OutputMode.ToFile =>
+        ZIO.unit
 
       case OutputMode.Collect(ref) =>
         ZStream
@@ -261,21 +274,31 @@ object JavaCommandService extends CommandService {
   /**
     * Internal sink policy for a single process stream (stdout or stderr).
     * Built from [[CommandOutputSource]] for the streaming APIs, or [[Collect]] for capture APIs.
+    *
+    * File redirects are resolved up front to a [[java.io.File]] and handed to ProcessBuilder
+    * (`Redirect.from` / `Redirect.to`); no ZIO-side stream copy.
     */
   private enum OutputMode {
     case Discard
     case Collect(ref: Ref[String])
     case PipeTo(target: OutputStream)
+    case ToFile(file: java.io.File)
     case Log(logLevel: LogLevel, showCommand: ShowCommand)
   }
   private object OutputMode {
 
-    def fromSource(source: CommandOutputSource): OutputMode =
+    def fromSource(command: BuiltCommand, source: CommandOutputSource)(using Trace): IO[CommandError, OutputMode] =
       source match {
-        case CommandOutputSource.Empty            => OutputMode.Discard
-        case CommandOutputSource.PipeStdOut       => OutputMode.PipeTo(jl.System.out)
-        case CommandOutputSource.PipeStdErr       => OutputMode.PipeTo(jl.System.err)
-        case CommandOutputSource.Log(level, show) => OutputMode.Log(level, show)
+        case CommandOutputSource.Empty =>
+          ZIO.succeed { OutputMode.Discard }
+        case CommandOutputSource.PipeStdOut =>
+          ZIO.succeed { OutputMode.PipeTo(jl.System.out) }
+        case CommandOutputSource.PipeStdErr =>
+          ZIO.succeed { OutputMode.PipeTo(jl.System.err) }
+        case CommandOutputSource.File(path) =>
+          resolveJavaFile(command, path, "resolve output file").map { OutputMode.ToFile(_) }
+        case CommandOutputSource.Log(level, show) =>
+          ZIO.succeed { OutputMode.Log(level, show) }
       }
 
   }

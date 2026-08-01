@@ -89,6 +89,7 @@ trait CommandService {
           case CommandOutputSource.Empty                                            => ZIO.unit
           case CommandOutputSource.PipeStdOut                                       => Console.printLine { stdErrString }.orDie
           case CommandOutputSource.PipeStdErr                                       => Console.printLineError { stdErrString }.orDie
+          case CommandOutputSource.File(path)                                       => path.write(stdErrString).mapError { CommandError.ExecutionFailure(command, _) }
           case CommandOutputSource.Log(logLevel, showCommand: ShowCommand.NonEmpty) => ZIO.logAtLevel(logLevel)(stdErrString, Cause.Empty) @@ showCommand.toAspect(command)
           case CommandOutputSource.Log(logLevel, ShowCommand.Empty)                 => ZIO.logAtLevel(logLevel)(stdErrString, Cause.Empty)
         }
