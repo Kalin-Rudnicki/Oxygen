@@ -21,7 +21,7 @@ import oxygen.sql.{Database, DbConfig}
 import oxygen.sql.migration.*
 import zio.*
 
-final case class WebServerMain() extends CliApp[Any, WebServerMain.Env] {
+final case class WebServerMain() extends CliApp[Any, WebServerMain.Env] derives CompiledCliApp.DeriveRootApp {
 
   def env(@envConfig("APP_CONFIG") config: WebServerMain.Config): EnvLayer =
     WebServerMain.Env.layer(config)
@@ -31,7 +31,7 @@ final case class WebServerMain() extends CliApp[Any, WebServerMain.Env] {
     ZIO.never
 
 }
-object WebServerMain extends CliApp.Executable[WebServerMain](CliApp.derive) {
+object WebServerMain extends CliApp.Executable[WebServerMain] {
 
   final case class Config(
       http: Config.Http,

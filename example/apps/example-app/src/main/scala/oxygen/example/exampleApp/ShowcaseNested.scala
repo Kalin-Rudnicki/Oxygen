@@ -6,7 +6,7 @@ import oxygen.schema.instances.jsonCodecFromSchema
 import zio.*
 
 /** One level deep — several sibling subcommands with different param styles. */
-final case class CatalogApp() extends CliApp[RootCtx, Any] {
+final case class CatalogApp() extends CliApp[RootCtx, Any] derives CompiledCliApp.DeriveSubApp {
 
   @command
   def list(
@@ -33,7 +33,7 @@ final case class CatalogApp() extends CliApp[RootCtx, Any] {
 }
 
 /** Nested `def env` — provides [[WorkspaceCtx]] on top of [[RootCtx]]. */
-final case class WorkspaceApp() extends CliApp[RootCtx, WorkspaceCtx] {
+final case class WorkspaceApp() extends CliApp[RootCtx, WorkspaceCtx] derives CompiledCliApp.DeriveSubApp {
 
   def env(
       @named @shortName('w') workspaceId: String,
@@ -69,28 +69,28 @@ final case class WorkspaceApp() extends CliApp[RootCtx, WorkspaceCtx] {
 }
 
 /** Four levels deep: `showcase deep level down bottom …` */
-final case class DeepL1() extends CliApp[RootCtx, Any] {
+final case class DeepL1() extends CliApp[RootCtx, Any] derives CompiledCliApp.DeriveSubApp {
 
   @command
   def level: DeepL2 = DeepL2()
 
 }
 
-final case class DeepL2() extends CliApp[RootCtx, Any] {
+final case class DeepL2() extends CliApp[RootCtx, Any] derives CompiledCliApp.DeriveSubApp {
 
   @command
   def down: DeepL3 = DeepL3()
 
 }
 
-final case class DeepL3() extends CliApp[RootCtx, Any] {
+final case class DeepL3() extends CliApp[RootCtx, Any] derives CompiledCliApp.DeriveSubApp {
 
   @command
   def bottom: DeepL4 = DeepL4()
 
 }
 
-final case class DeepL4() extends CliApp[RootCtx, Any] {
+final case class DeepL4() extends CliApp[RootCtx, Any] derives CompiledCliApp.DeriveSubApp {
 
   @execute
   def run(
@@ -109,10 +109,59 @@ final case class DeepL4() extends CliApp[RootCtx, Any] {
 
 }
 
+/**
+  * Non-case-class sub-app (`showcase gadget …`): a plain `trait` with an *abstract* `@execute`. A sub-app
+  * is never instantiated by the derivation macro — the parent `@command` supplies the concrete instance —
+  * so it needn't be a case class. Only runnable *roots* must be an instantiable case class / object.
+  */
+trait GadgetApp extends CliApp[RootCtx, Any] derives CompiledCliApp.DeriveSubApp {
+  @execute
+  def run(
+      @named @shortName('n') name: String,
+      @flag loud: Boolean = false,
+  ): Effect
+}
+
+/**
+  * Non-case-class sub-app that also has an env layer (`showcase widget …`): a `trait` requiring `RootCtx`
+  * and providing `GizmoCtx` via a (concrete) `def env`, with an *abstract* `@execute`. The env params are
+  * parsed and the layer prepended just like a case-class app; only the effect body comes from the parent.
+  */
+trait WidgetApp extends CliApp[RootCtx, GizmoCtx] derives CompiledCliApp.DeriveSubApp {
+
+  def env(
+      @named @shortName('g') gizmoId: String,
+      @flag calibrated: Boolean = false,
+  ): EnvLayer =
+    ZLayer.succeed(GizmoCtx(gizmoId, calibrated))
+
+  @execute
+  def run(@named @shortName('p') power: Int = 1): Effect
+
+}
+
+/**
+  * Like [[WidgetApp]], but the env layer itself is *abstract* (`showcase contraption …`): the trait only
+  * declares `def env(...): EnvLayer` (with its CLI param annotations) and leaves both `env` and `@execute`
+  * for the parent to implement. The derivation reads the env params off the abstract declaration and calls
+  * the (parent-supplied) `env` at runtime — so the child decides how the parsed params become a layer.
+  */
+trait ContraptionApp extends CliApp[RootCtx, GizmoCtx] derives CompiledCliApp.DeriveSubApp {
+
+  def env(
+      @named @shortName('g') gizmoId: String,
+      @flag calibrated: Boolean = false,
+  ): EnvLayer
+
+  @execute
+  def run(@named @shortName('p') power: Int = 1): Effect
+
+}
+
 /** Constructor param passed into a nested app (`showcase capsule …`). */
 final case class CapsuleApp(
     seed: Int,
-) extends CliApp[RootCtx, Any] {
+) extends CliApp[RootCtx, Any] derives CompiledCliApp.DeriveSubApp {
 
   @execute
   def run(
@@ -122,11 +171,3 @@ final case class CapsuleApp(
     ZIO.logInfo(s"capsule seed=$seed label=$label sealed=$isSealed")
 
 }
-
-object CatalogApp { given oxygen.executable.CliApp.Derived[CatalogApp, RootCtx] = oxygen.executable.CliApp.derive }
-object WorkspaceApp { given oxygen.executable.CliApp.Derived[WorkspaceApp, RootCtx] = oxygen.executable.CliApp.derive }
-object DeepL1 { given oxygen.executable.CliApp.Derived[DeepL1, RootCtx] = oxygen.executable.CliApp.derive }
-object DeepL2 { given oxygen.executable.CliApp.Derived[DeepL2, RootCtx] = oxygen.executable.CliApp.derive }
-object DeepL3 { given oxygen.executable.CliApp.Derived[DeepL3, RootCtx] = oxygen.executable.CliApp.derive }
-object DeepL4 { given oxygen.executable.CliApp.Derived[DeepL4, RootCtx] = oxygen.executable.CliApp.derive }
-object CapsuleApp { given oxygen.executable.CliApp.Derived[CapsuleApp, RootCtx] = oxygen.executable.CliApp.derive }

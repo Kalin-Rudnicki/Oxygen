@@ -78,6 +78,75 @@ object ArgsParserSpec extends OxygenSpecDefault {
           assertTrue(parse(p) == CliParseResult.Success(false, Args.empty))
         },
       ),
+      suite("resolveAutoShortNames (global two-phase pass)")(
+        test("two autos sharing a first char: first wins it, second gets the case-flipped char") {
+          val parser =
+            NamedArgsParser.Flag("verbose", Defaultable.Default, default = false, SubHelp.Empty) &&
+              NamedArgsParser.Flag("version", Defaultable.Default, default = false, SubHelp.Empty)
+          NamedArgsParser.resolveAutoShortNames(parser) match
+            case NamedArgsParser.AndWith(a: NamedArgsParser.Flag, b: NamedArgsParser.Flag, _) =>
+              assertTrue(a.shortName == Defaultable.Explicit(Some('v')), b.shortName == Defaultable.Explicit(Some('V')))
+            case other => assertTrue(false).label(s"unexpected shape: $other")
+        },
+        test("explicit short is reserved and wins over a colliding auto, regardless of order") {
+          val parser =
+            NamedArgsParser.Flag("verbose", Defaultable.Default, default = false, SubHelp.Empty) &&
+              NamedArgsParser.Flag("verify", Defaultable.Explicit(Some('v')), default = false, SubHelp.Empty)
+          NamedArgsParser.resolveAutoShortNames(parser) match
+            // `verify` keeps its explicit -v; the auto `verbose` doesn't steal it, falling back to -V.
+            case NamedArgsParser.AndWith(a: NamedArgsParser.Flag, b: NamedArgsParser.Flag, _) =>
+              assertTrue(a.shortName == Defaultable.Explicit(Some('V')), b.shortName == Defaultable.Explicit(Some('v')))
+            case other => assertTrue(false).label(s"unexpected shape: $other")
+        },
+        test("colliding autos fall back to the case-flipped first char, then give up") {
+          val parser =
+            NamedArgsParser.Flag("host", Defaultable.Default, default = false, SubHelp.Empty) &&
+              NamedArgsParser.Flag("hotness", Defaultable.Default, default = false, SubHelp.Empty) &&
+              NamedArgsParser.Flag("height", Defaultable.Default, default = false, SubHelp.Empty)
+          NamedArgsParser.resolveAutoShortNames(parser) match
+            case NamedArgsParser.AndWith(NamedArgsParser.AndWith(a: NamedArgsParser.Flag, b: NamedArgsParser.Flag, _), c: NamedArgsParser.Flag, _) =>
+              assertTrue(
+                a.shortName == Defaultable.Explicit(Some('h')), // as-is
+                b.shortName == Defaultable.Explicit(Some('H')), // 'h' taken -> case-flipped
+                c.shortName == Defaultable.Explicit(None), // both 'h' and 'H' taken -> none
+              )
+            case other => assertTrue(false).label(s"unexpected shape: $other")
+        },
+        test("two params explicitly claiming the same short are rejected") {
+          val parser =
+            NamedArgsParser.Flag("foo", Defaultable.Explicit(Some('f')), default = false, SubHelp.Empty) &&
+              NamedArgsParser.Flag("bar", Defaultable.Explicit(Some('f')), default = false, SubHelp.Empty)
+          val err = scala.util.Try(NamedArgsParser.resolveAutoShortNames(parser)).failed.toOption
+          assertTrue(err.exists(e => e.getMessage.contains("-f") && e.getMessage.contains("--foo") && e.getMessage.contains("--bar")))
+        },
+        test("an explicit short colliding with an auto is fine (auto yields, no error)") {
+          val parser =
+            NamedArgsParser.Flag("foo", Defaultable.Explicit(Some('f')), default = false, SubHelp.Empty) &&
+              NamedArgsParser.Flag("force", Defaultable.Default, default = false, SubHelp.Empty)
+          NamedArgsParser.resolveAutoShortNames(parser) match
+            case NamedArgsParser.AndWith(a: NamedArgsParser.Flag, b: NamedArgsParser.Flag, _) =>
+              assertTrue(a.shortName == Defaultable.Explicit(Some('f')), b.shortName == Defaultable.Explicit(Some('F')))
+            case other => assertTrue(false).label(s"unexpected shape: $other")
+        },
+        test("non-colliding autos each keep their first char") {
+          val parser =
+            NamedArgsParser.Flag("verbose", Defaultable.Default, default = false, SubHelp.Empty) &&
+              NamedArgsParser.Flag("count", Defaultable.Default, default = false, SubHelp.Empty)
+          NamedArgsParser.resolveAutoShortNames(parser) match
+            case NamedArgsParser.AndWith(a: NamedArgsParser.Flag, b: NamedArgsParser.Flag, _) =>
+              assertTrue(a.shortName == Defaultable.Explicit(Some('v')), b.shortName == Defaultable.Explicit(Some('c')))
+            case other => assertTrue(false).label(s"unexpected shape: $other")
+        },
+        test("resolved short parses; the loser only matches by long name") {
+          val parser: ArgsParser[(Boolean, Boolean)] =
+            (NamedArgsParser.Flag("verbose", Defaultable.Default, default = false, SubHelp.Empty) &&
+              NamedArgsParser.Flag("version", Defaultable.Default, default = false, SubHelp.Empty)).resolveAutoShortNames
+          assertTrue(
+            parse(parser, "-v") == CliParseResult.Success((true, false), Args.empty),
+            parse(parser, "--version") == CliParseResult.Success((false, true), Args.empty),
+          )
+        },
+      ),
       suite("combined positional + named (two independent passes)")(
         test("positional then flag both parse") {
           val parser: ArgsParser[(String, Boolean)] =

@@ -23,9 +23,11 @@ final class Command private (isSudo: Boolean, command: String, args: Growable[St
   def addEnv(env: Growable[(String, String)]): Command = new Command(isSudo, command, args, file, this.env ++ env)
   def envVar(key: String, value: String): Command = new Command(isSudo, command, args, file, this.env :+ (key, value))
   def envVar(key: String, value: Option[String]): Command = value.fold(this)(this.envVar(key, _))
+  def getEnv: Growable[(String, String)] = env
 
   def cwd(file: Path): Command = new Command(isSudo, command, args, file.some, env)
   def cwd(file: Option[Path]): Command = new Command(isSudo, command, args, file, env)
+  def getCwd: Option[Path] = file
 
   //////////////////////////////////////////////////////////////////////////////////////////////////////
   //      Execute

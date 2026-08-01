@@ -5,44 +5,58 @@ import oxygen.predef.test.*
 import zio.*
 
 // Root app: constructor params are not parsed (roots are zero-arg) — `count` moves to @execute here.
-final case class V2Greeter() extends CliApp[Any, Any] {
+final case class V2Greeter() extends CliApp[Any, Any] derives CompiledCliApp.DeriveRootApp {
   @execute
   def run(@named count: Int, @positional name: String, @flag loud: Boolean): Effect =
     ZIO.succeed(ExitCode(count + name.length + (if loud then 1 else 0)))
 }
-object V2Greeter { given CliApp.Derived[V2Greeter, Any] = CliApp.derive }
 
 // Env layer: `def env` provides a service that the effect consumes.
 trait V2Greeting { def text: String }
-final case class V2EnvApp() extends CliApp[Any, V2Greeting] {
+final case class V2EnvApp() extends CliApp[Any, V2Greeting] derives CompiledCliApp.DeriveRootApp {
   def env: EnvLayer = ZLayer.succeed(new V2Greeting { def text = "hi" })
   @execute
   def run(): Effect = ZIO.serviceWith[V2Greeting](g => ExitCode(g.text.length))
 }
-object V2EnvApp { given CliApp.Derived[V2EnvApp, Any] = CliApp.derive }
 
 // Sub-commands.
-final case class V2Calc() extends CliApp[Any, Any] {
+final case class V2Calc() extends CliApp[Any, Any] derives CompiledCliApp.DeriveRootApp {
   @command def add(@positional a: Int, @positional b: Int): Effect = ZIO.succeed(ExitCode(a + b))
   @command def half(@positional a: Int): Effect = ZIO.succeed(ExitCode(a / 2))
 }
-object V2Calc { given CliApp.Derived[V2Calc, Any] = CliApp.derive }
 
 // Nested sub-app: a @command that returns another CliApp (which derives itself).
-final case class V2Inner() extends CliApp[Any, Any] {
+final case class V2Inner() extends CliApp[Any, Any] derives CompiledCliApp.DeriveSubApp {
   @execute
   def run(@positional x: Int, @flag verbose: Boolean): Effect = ZIO.succeed(ExitCode(if verbose then x + 1 else x))
 }
-object V2Inner { given CliApp.Derived[V2Inner, Any] = CliApp.derive }
 
-final case class V2Outer() extends CliApp[Any, Any] {
+final case class V2Outer() extends CliApp[Any, Any] derives CompiledCliApp.DeriveRootApp {
   @command def inner: V2Inner = V2Inner()
 }
-object V2Outer { given CliApp.Derived[V2Outer, Any] = CliApp.derive }
+
+// Non-case-class sub-app: a plain trait with an *abstract* @execute, derived via DeriveSubApp. The parent
+// supplies the concrete instance, so the derivation never needs to instantiate it (no case-class required).
+trait V2TraitSub extends CliApp[Any, Any] derives CompiledCliApp.DeriveSubApp {
+  @execute def run(@positional x: Int, @flag doubled: Boolean): Effect
+}
+
+final case class V2TraitOuter() extends CliApp[Any, Any] derives CompiledCliApp.DeriveRootApp {
+  @command def sub: V2TraitSub = new V2TraitSub {
+    override def run(x: Int, doubled: Boolean): Effect = ZIO.succeed(ExitCode(if doubled then x * 2 else x))
+  }
+}
+
+// Three named params sharing a first char ('c'): auto short-name resolution must give `-c` to exactly one.
+final case class V2ShortCollision() extends CliApp[Any, Any] derives CompiledCliApp.DeriveRootApp {
+  @execute
+  def run(@named count: Int, @named color: String, @flag caps: Boolean): Effect =
+    ZIO.succeed(ExitCode(count + color.length + (if caps then 1 else 0)))
+}
 
 object DeriveCliAppSpec extends OxygenSpecDefault {
 
-  private def appOf[A](using d: CliApp.Derived[A, Any]): CompiledCliApp[Unit, Any] = d.app
+  private def appOf[A <: CliApp[Any, ?]](using d: CompiledCliApp.DeriveRootApp[A]): CompiledCliApp[Unit, Any] = d.app
 
   private def run(app: CompiledCliApp[Unit, Any], args: String*): ZIO[Scope, ExecutableError, ExitCode] =
     Args.parse(args.toList) match
@@ -81,6 +95,27 @@ object DeriveCliAppSpec extends OxygenSpecDefault {
       suite("nested sub-app (@command returning a CliApp)")(
         test("dispatches into the nested app's @execute") {
           ZIO.scoped(run(appOf[V2Outer], "inner", "7")).map(ec => assertTrue(ec == ExitCode(7)))
+        },
+        test("sub-app may be a non-case-class trait with an abstract @execute") {
+          ZIO.scoped(run(appOf[V2TraitOuter], "sub", "5", "--doubled")).map(ec => assertTrue(ec == ExitCode(10)))
+        },
+      ),
+      suite("auto short-name collision resolution")(
+        test("only the first colliding param wins `-c`; it parses to that param") {
+          // `-c 4` must set `count` (the first 'c' param), not `color`.
+          ZIO.scoped(run(appOf[V2ShortCollision], "-c", "4", "--color", "red")).map(ec => assertTrue(ec == ExitCode(7)))
+        },
+        test("the losing params are still reachable by their long names") {
+          ZIO.scoped(run(appOf[V2ShortCollision], "--count", "4", "--color", "red", "--caps")).map(ec => assertTrue(ec == ExitCode(8)))
+        },
+        test("help shows a single `-c`, on `--count` only") {
+          val help = appOf[V2ShortCollision].helpFor(Nil, Nil, HelpType.Help).toString
+          assertTrue(
+            help.contains("--count, -c"),
+            help.contains("--color"),
+            !help.contains("--color, -c"),
+            !help.contains("--caps, -c"),
+          )
         },
       ),
       suite("completion")(

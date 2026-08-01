@@ -132,7 +132,7 @@ For real installs, use a packaged JAR and the workflow above.
 ## What completes
 
 - Subcommand names
-- `--help`, `--help-extra`, `-h`, `-H`
+- `--help`, `--help-extra`
 - Parameter long/short names from help
 - **Enum values** for parameters whose type has `CompletionOptions` (automatic for `StrictEnum`)
 - Custom values if you provide `given CompletionOptions[A]`
