@@ -75,6 +75,16 @@ object JsonSpec extends OxygenSpecDefault {
     final case class Case2(b: Boolean) extends Sum3
   }
 
+  /**
+    * Fixture for generic sealed-sum derivation (`sealed trait MyGeneric[A] -> SumGeneric`).
+    * Currently de-scoped in SumGeneric.unsafeOf ("Type params on sum types is not yet supported").
+    */
+  sealed trait GenericSum1[+A] derives JsonCodec
+  object GenericSum1 {
+    final case class WithA[+A](int: Int, string: Option[String], generic: A) extends GenericSum1[A]
+    final case class WithoutA(x: Int) extends GenericSum1[Nothing]
+  }
+
   final case class MyClass1(`type`: String, value: String)
   object MyClass1 {
     given JsonCodec[MyClass1] = JsonCodec.jsonStringFromStringCodec { StringCodec.fromDerivedJsonCodec[MyClass1] @@ StringCodec.base64UrlNoPadding }
@@ -224,6 +234,18 @@ object JsonSpec extends OxygenSpecDefault {
         suite("Sum3")(
           directRoundTripTest[Sum3]("""{"type":"c1","f1":1}""")(Sum3.Case1(1)),
           directRoundTripTest[Sum3]("""{"type":"Case2","b":true}""")(Sum3.Case2(true)),
+        ),
+        suite("GenericSum1")(
+          directRoundTripTest[GenericSum1[String]]("""{"WithA":{"int":1,"string":"hi","generic":"abc"}}""")(
+            GenericSum1.WithA(1, "hi".some, "abc"),
+          ),
+          directRoundTripTest[GenericSum1[String]]("""{"WithA":{"int":1,"generic":"abc"}}""")(
+            GenericSum1.WithA(1, None, "abc"),
+          ),
+          directRoundTripTest[GenericSum1[String]]("""{"WithoutA":{"x":9}}""")(GenericSum1.WithoutA(9)),
+          directRoundTripTest[GenericSum1[Product1]]("""{"WithA":{"int":2,"generic":{"s":"ABC","b":true,"i":1}}}""")(
+            GenericSum1.WithA(2, None, Product1("ABC", true, 1.some)),
+          ),
         ),
         suite("NestedSums")(
           suite("UnrollNoDiscriminator")(

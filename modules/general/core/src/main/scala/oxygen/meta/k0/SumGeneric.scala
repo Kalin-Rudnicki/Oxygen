@@ -134,19 +134,170 @@ object SumGeneric {
       config: Derivable.Config,
   )(using Quotes): SumGeneric[A] = {
 
+    val nothingType: TypeRepr = TypeRepr.of[Nothing]
+
+    def isNothingType(tpe: TypeRepr): Boolean =
+      tpe.dealias =:= nothingType || tpe.dealias.typeSymbol == nothingType.typeSymbol
+
+    def typeParamNames(sym: Symbol): List[String] =
+      sym.tree.narrowOpt[ClassDef].toList
+        .flatMap(_.constructor.paramss)
+        .collectFirst { case tpc: TypeParamClause => tpc.params.map(_.name) }
+        .getOrElse(Nil)
+
+    def appliedTypeRepr(sym: Symbol, appliedArgs: List[TypeRepr]): TypeRepr =
+      if appliedArgs.isEmpty then sym.typeRef
+      else sym.typeRef.appliedTo(appliedArgs)
+
+    /**
+      * Resolve a child's type arguments from how it extends the parent sum type.
+      *
+      * Supported extends type-args only:
+      *   - raw forwarding of the child's own type params (e.g. `extends Parent[A]`)
+      *   - `Nothing` (e.g. `extends Parent[Nothing]` for non-generic cases)
+      */
+    def resolveChildAppliedArgs(
+        childSym: Symbol,
+        parentSym: Symbol,
+        parentArgs: List[TypeRepr],
+    ): List[TypeRepr] = {
+      childSym.typeType.option match {
+        case Some(TypeType.CaseObject | TypeType.EnumCaseObject | TypeType.Scala2CaseObject) =>
+          return Nil
+        case _ => ()
+      }
+
+      val childParamNames: List[String] = typeParamNames(childSym)
+
+      if parentArgs.isEmpty then {
+        if childParamNames.nonEmpty then
+          report.errorAndAbort(
+            s"Type params on ${childSym.name} under non-generic sum parent ${parentSym.name} is not supported",
+            childSym.pos,
+          )
+        return Nil
+      }
+
+      val classDef: ClassDef = childSym.tree.narrow[ClassDef]
+
+      def matchesParent(tpe: TypeRepr): Boolean = {
+        val dealiased = tpe.dealias
+        dealiased.typeSymbol == parentSym || dealiased.baseClasses.contains(parentSym)
+      }
+
+      val parentTypeTree: TypeTree =
+        classDef.parents
+          .collectFirst { case tt: TypeTree if matchesParent(tt.tpe) => tt }
+          .getOrElse {
+            report.errorAndAbort(
+              s"Could not find parent ${parentSym.name} in extends clause of ${childSym.name}",
+              childSym.pos,
+            )
+          }
+
+      val extendsArgTrees: List[TypeTree] =
+        parentTypeTree match {
+          case app: Applied =>
+            app.args.map {
+              case tt: TypeTree => tt
+              case _            =>
+                report.errorAndAbort(
+                  s"Type bounds in extends of ${childSym.name} are not supported",
+                  childSym.pos,
+                )
+            }
+          case _ =>
+            parentTypeTree.tpe.dealias match {
+              case app: AppliedType =>
+                app.args.map { tpe =>
+                  tpe.asType match {
+                    case '[a] => TypeTree.of[a]
+                    case _    =>
+                      report.errorAndAbort(
+                        s"Unexpected type kind for ${tpe.show} in extends of ${childSym.name}",
+                        childSym.pos,
+                      )
+                  }
+                }
+              case _ =>
+                report.errorAndAbort(
+                  s"${childSym.name} extends ${parentSym.name} without type args, but parent is generic",
+                  childSym.pos,
+                )
+            }
+        }
+
+      if extendsArgTrees.size != parentArgs.size then
+        report.errorAndAbort(
+          s"${childSym.name} extends ${parentSym.name} with ${extendsArgTrees.size} type arg(s), expected ${parentArgs.size}",
+          childSym.pos,
+        )
+
+      val childParamNameSet: Set[String] = childParamNames.toSet
+
+      def forwardedParamName(argTree: TypeTree): Option[String] = {
+        argTree match {
+          case TypeIdent(name) if childParamNameSet.contains(name) => return Some(name)
+          case _                                                   => ()
+        }
+        val argSym = argTree.tpe.typeSymbol
+        val name = argSym.name
+        if childParamNameSet.contains(name) then {
+          val typeMember = childSym.typeMember(name)
+          if argSym == typeMember || typeMember.exists then Some(name)
+          else None
+        } else None
+      }
+
+      val mapping: Map[String, TypeRepr] =
+        extendsArgTrees
+          .zip(parentArgs)
+          .foldLeft(Map.empty[String, TypeRepr]) { case (acc, (argTree, parentArg)) =>
+            forwardedParamName(argTree) match {
+              case Some(name) =>
+                acc.get(name) match {
+                  case Some(existing) if existing !=:= parentArg =>
+                    report.errorAndAbort(
+                      s"Type param $name of ${childSym.name} is forwarded inconsistently from parent ${parentSym.name}",
+                      childSym.pos,
+                    )
+                  case Some(_) => acc
+                  case None    => acc.updated(name, parentArg)
+                }
+              case None if isNothingType(argTree.tpe) =>
+                acc
+              case None =>
+                report.errorAndAbort(
+                  s"Type params on sum types only support forwarding raw type params or Nothing in extends; " +
+                    s"${childSym.name} extends ${parentSym.name} with unsupported arg ${argTree.tpe.show}",
+                  childSym.pos,
+                )
+            }
+          }
+
+      childParamNames.map { name =>
+        mapping.getOrElse(
+          name,
+          report.errorAndAbort(
+            s"Type param $name of ${childSym.name} is not forwarded from parent ${parentSym.name} " +
+              s"(only raw type-param forwarding or Nothing is supported in extends)",
+            childSym.pos,
+          ),
+        )
+      }
+    }
+
     def childGenericsRec(
         isRoot: Boolean,
         sym: Symbol,
+        appliedArgs: List[TypeRepr],
         inheritedUnroll: SumGeneric.UnrollStrategy,
     ): Growable[ProductOrSumGeneric[? <: A]] =
       sym.typeType.option match {
         case Some(_: TypeType.Case.Class) =>
-          val classDef: ClassDef = sym.tree.narrow[ClassDef]
-          if classDef.constructor.paramss.exists { case _: TypeParamClause => true; case _ => false } then
-            report.errorAndAbort("Type params on sum types is not yet supported")
-
           type B <: A
-          Growable.single(ProductGeneric.unsafeOf[B](sym.typeRef, sym, config))
+          val typeRepr: TypeRepr = appliedTypeRepr(sym, appliedArgs)
+          Growable.single(ProductGeneric.unsafeOf[B](typeRepr, sym, config))
 
         case Some(TypeType.CaseObject) =>
           type B <: A
@@ -161,12 +312,8 @@ object SumGeneric {
           report.errorAndAbort("TODO : support scala-2 case object")
 
         case Some(_: TypeType.Sealed) =>
-          val classDef: ClassDef = sym.tree.narrow[ClassDef]
-          if classDef.constructor.paramss.exists { case _: TypeParamClause => true; case _ => false } then
-            report.errorAndAbort("Type params on sum types is not yet supported")
-
           type B <: A
-          val typeRepr: TypeRepr = sym.typeRef
+          val typeRepr: TypeRepr = appliedTypeRepr(sym, appliedArgs)
           given Type[B] = typeRepr.asTypeOf
 
           val myUnrollStrategy: SumGeneric.UnrollStrategy = SumGeneric.UnrollStrategy.calculate[B](inheritedUnroll, config.overrideUnrollStrategyBehavior)
@@ -182,15 +329,23 @@ object SumGeneric {
             val children = sym.children
             if children.isEmpty then report.errorAndAbort(s"Sum type ${sym.name} has no children", sym.pos)
 
-            Growable.many(children).flatMap(childGenericsRec(false, _, myUnrollStrategy))
+            Growable.many(children).flatMap { childSym =>
+              val childArgs = resolveChildAppliedArgs(childSym, parentSym = sym, parentArgs = appliedArgs)
+              childGenericsRec(false, childSym, childArgs, myUnrollStrategy)
+            }
           } else
             Growable.single(Generic.of[B](config))
 
         case None => report.errorAndAbort(s"Type ${sym.name} is not a product or sum type", sym.pos)
       }
 
+    val rootAppliedArgs: List[TypeRepr] =
+      _typeRepr.dealias match
+        case app: AppliedType => app.args
+        case _                => Nil
+
     val childGenerics: ArraySeq[ProductOrSumGeneric[? <: A]] =
-      childGenericsRec(true, _typeSym, config.defaultUnrollStrategy).toArraySeq.sorted(using config.defaultOrdinalStrategy.ord)
+      childGenericsRec(true, _typeSym, rootAppliedArgs, config.defaultUnrollStrategy).toArraySeq.sorted(using config.defaultOrdinalStrategy.ord)
 
     val filteredGenerics: Either[ArraySeq[ProductOrSumGeneric[? <: A]], Either[ArraySeq[ProductGeneric[? <: A]], ArraySeq[ProductGeneric.CaseObjectGeneric[? <: A]]]] =
       childGenerics
