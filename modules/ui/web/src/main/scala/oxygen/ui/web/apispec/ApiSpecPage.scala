@@ -9,6 +9,7 @@ import oxygen.schema.compiled.{CompiledSchemaRef, FullCompiledJsonSchema, FullCo
 import oxygen.ui.web.*
 import oxygen.ui.web.component.*
 import oxygen.ui.web.create.{*, given}
+import oxygen.ui.web.layout.*
 import zio.*
 import zio.http.{Request, URL}
 
@@ -61,35 +62,30 @@ object ApiSpecPage extends RoutablePage.NoParams[RawClient] {
     Widget.state[PageState].get { st =>
       val full = st.spec
       val endpointCount: Int = full.apis.map(_.endpoints.size).sum
-      div(
-        display.flex,
-        flexDirection.column,
-        height := 100.vh,
-        width := 100.vw,
-        overflow.hidden,
-        navBar,
-        div( // scroll area
-          flexGrow := 1,
-          minHeight := 0.px,
-          overflowX.hidden,
-          OxygenStyleSheet.Scrollable, // overflow-y: auto + themed scrollbar styling
-          backgroundColor := S.color.bg.base,
-          div( // centered content column
-            maxWidth := 1000.px,
-            margin := "0 auto",
-            padding := css(S.spacing._8, S.spacing._6),
-            pageHeading("API Reference"),
-            p(
-              s"$endpointCount endpoints · ${full.schemas.allSchemas.size} schemas",
-              color := S.color.fg.subtle,
-              margin := css(S.spacing._2, "0", S.spacing._6, "0"),
+      // TopBar height is 100% by default — needs HolyGrail's fixed top row (not a free flex child).
+      HolyGrail.empty
+        .topHeight(40.px)
+        .top(navBar)
+        .center(
+          div(
+            backgroundColor := S.color.bg.base,
+            minHeight := 100.pct,
+            div( // centered content column
+              maxWidth := 1000.px,
+              margin := "0 auto",
+              padding := css(S.spacing._8, S.spacing._6),
+              pageHeading("API Reference"),
+              p(
+                s"$endpointCount endpoints · ${full.schemas.allSchemas.size} schemas",
+                color := S.color.fg.subtle,
+                margin := css(S.spacing._2, "0", S.spacing._6, "0"),
+              ),
+              Widget.foreach(full.apis)(renderApi(full, _)),
+              sectionHeading("Schemas"),
+              Widget.foreach(orderedSchemas(full))(renderSchema),
             ),
-            Widget.foreach(full.apis)(renderApi(full, _)),
-            sectionHeading("Schemas"),
-            Widget.foreach(orderedSchemas(full))(renderSchema),
           ),
-        ),
-      )
+        )
     }
 
   //////////////////////////////////////////////////////////////////////////////////////////////////////
