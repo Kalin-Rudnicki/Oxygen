@@ -21,9 +21,107 @@ object FileSystemResourceApi {
     case Stream
   }
 
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
+  //      Cache-Control
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
+
+  /**
+    * Directives for a served resource's `Cache-Control` header. All fields optional/off by default,
+    * so an unconfigured resource emits no header (unchanged behavior). Render is best-effort: only the
+    * set directives are emitted, in a conventional order.
+    */
+  final case class CacheControl(
+      maxAgeSeconds: Option[Long] = None,
+      sMaxAgeSeconds: Option[Long] = None,
+      visibility: Option[CacheControl.Visibility] = None,
+      noCache: Boolean = false,
+      noStore: Boolean = false,
+      mustRevalidate: Boolean = false,
+      immutable: Boolean = false,
+  ) derives JsonSchema {
+
+    /** `Cache-Control` header value; empty when no directives are set. */
+    def render: String = {
+      val parts = List.newBuilder[String]
+      visibility.foreach {
+        case CacheControl.Visibility.Public  => parts += "public"
+        case CacheControl.Visibility.Private => parts += "private"
+      }
+      if noStore then parts += "no-store"
+      if noCache then parts += "no-cache"
+      maxAgeSeconds.foreach(s => parts += s"max-age=$s")
+      sMaxAgeSeconds.foreach(s => parts += s"s-maxage=$s")
+      if mustRevalidate then parts += "must-revalidate"
+      if immutable then parts += "immutable"
+      parts.result().mkString(", ")
+    }
+
+  }
+  object CacheControl {
+
+    enum Visibility derives StrictEnum {
+      case Public, Private
+    }
+
+    /** `no-store` — never cache (sensitive / always-fresh). */
+    val noStore: CacheControl = CacheControl(noStore = true)
+
+    /** `no-cache, must-revalidate` — cache but revalidate every use (good for stable-named bundles like `main.js`). */
+    val revalidate: CacheControl = CacheControl(noCache = true, mustRevalidate = true)
+
+    /** `public, max-age=…[, immutable]` — long-lived caching (good for content-hashed assets). */
+    def maxAge(seconds: Long, immutable: Boolean = false): CacheControl =
+      CacheControl(maxAgeSeconds = Some(seconds), visibility = Some(Visibility.Public), immutable = immutable)
+
+  }
+
+  /**
+    * A single cache rule: apply [[cacheControl]] to resources whose full path (segments joined by `/`)
+    * is in [[paths]], or whose file extension (no dot, case-sensitive) is in [[extensions]].
+    */
+  final case class ResourceCacheRule(
+      cacheControl: CacheControl,
+      paths: List[String] = Nil,
+      extensions: List[String] = Nil,
+  ) derives JsonSchema {
+    def matches(path: String, ext: Option[String]): Boolean =
+      paths.contains(path) || ext.exists(extensions.contains)
+  }
+
+  /**
+    * Cache-Control policy for served resources. First matching [[rules]] wins, else [[default]]
+    * (if any). Empty policy ⇒ no `Cache-Control` header (default, unchanged behavior).
+    */
+  final case class ResourceCacheConfig(
+      default: Option[CacheControl] = None,
+      rules: List[ResourceCacheRule] = Nil,
+  ) derives JsonSchema {
+
+    def cacheControlFor(rest: List[String]): Option[CacheControl] = {
+      val path = rest.mkString("/")
+      val ext = rest.lastOption.flatMap { f =>
+        val i = f.lastIndexOf('.')
+        if i > 0 && i < f.length - 1 then Some(f.substring(i + 1)) else None
+      }
+      rules.find(_.matches(path, ext)).map(_.cacheControl).orElse(default)
+    }
+
+    def headerValueFor(rest: List[String]): Option[String] =
+      cacheControlFor(rest).map(_.render).filter(_.nonEmpty)
+
+  }
+  object ResourceCacheConfig {
+    val empty: ResourceCacheConfig = ResourceCacheConfig()
+  }
+
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
+  //      Config / layer
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
+
   final case class Config(
       basePath: String,
       responseMode: ResponseMode = ResponseMode.Stream,
+      cacheControl: ResourceCacheConfig = ResourceCacheConfig.empty,
   ) derives JsonSchema
 
   val layer: RLayer[FileSystemResourceApi.Config, ResourceApi] =
@@ -38,9 +136,9 @@ object FileSystemResourceApi {
           case Path.Status.DoesNotExist => ZIO.fail(Error(s"FileSystemResourceApi.basePath does not exist [basePath: ${rawBasePath.pathName}] [absBasePath: ${basePath.pathName}]"))
           case _                        => ZIO.fail(Error(s"FileSystemResourceApi.basePath is not a directory [basePath: ${rawBasePath.pathName}] [absBasePath: ${basePath.pathName}]"))
         api <- config.responseMode match
-          case ResponseMode.Cache  => Ref.make(Map.empty[List[String], ByteContentWithType]).map(LiveCacheResourceApi(basePath, _))
-          case ResponseMode.Read   => ZIO.succeed(LiveReadResourceApi(basePath))
-          case ResponseMode.Stream => ZIO.succeed(LiveStreamResourceApi(basePath))
+          case ResponseMode.Cache  => Ref.make(Map.empty[List[String], ByteContentWithType]).map(LiveCacheResourceApi(basePath, _, config.cacheControl))
+          case ResponseMode.Read   => ZIO.succeed(LiveReadResourceApi(basePath, config.cacheControl))
+          case ResponseMode.Stream => ZIO.succeed(LiveStreamResourceApi(basePath, config.cacheControl))
       } yield api
     }
 
@@ -53,6 +151,7 @@ object FileSystemResourceApi {
   final case class LiveCacheResourceApi(
       basePath: Path,
       cacheRef: Ref[Map[List[String], ByteContentWithType]],
+      cacheControl: ResourceCacheConfig,
   ) extends ResourceApi {
 
     private def resolveAndCache(rest: List[String]): IO[ResourceApi.ApiError, ByteContentWithType] =
@@ -64,7 +163,7 @@ object FileSystemResourceApi {
       }
 
     override def resource(rest: List[String]): IO[ResourceApi.ApiError, RawSuccessResponse] =
-      resolveAndCache(rest).map(contentWithTypeToSuccessResponse)
+      resolveAndCache(rest).map(contentWithTypeToSuccessResponse(_, cacheControlHeaders(cacheControl, rest)))
 
   }
 
@@ -72,10 +171,11 @@ object FileSystemResourceApi {
 
   final case class LiveReadResourceApi(
       basePath: Path,
+      cacheControl: ResourceCacheConfig,
   ) extends ResourceApi {
 
     override def resource(rest: List[String]): IO[ResourceApi.ApiError, RawSuccessResponse] =
-      readContentWithType(basePath, rest).map(contentWithTypeToSuccessResponse)
+      readContentWithType(basePath, rest).map(contentWithTypeToSuccessResponse(_, cacheControlHeaders(cacheControl, rest)))
 
   }
 
@@ -83,6 +183,7 @@ object FileSystemResourceApi {
 
   final case class LiveStreamResourceApi(
       basePath: Path,
+      cacheControl: ResourceCacheConfig,
   ) extends ResourceApi {
 
     override def resource(rest: List[String]): IO[ResourceApi.ApiError, RawSuccessResponse] =
@@ -90,7 +191,7 @@ object FileSystemResourceApi {
         (validResolvedPath, mediaType) <- resolvePathAndMediaType(basePath, rest)
         size <- validResolvedPath.size.orDie
         body = Body.fromStream(validResolvedPath.readByteStream, size).optMediaType(mediaType)
-      } yield RawSuccessResponse(Status.Ok, Headers.empty, body)
+      } yield RawSuccessResponse(Status.Ok, cacheControlHeaders(cacheControl, rest), body)
 
   }
 
@@ -99,6 +200,10 @@ object FileSystemResourceApi {
   //////////////////////////////////////////////////////////////////////////////////////////////////////
 
   def showPath(path: List[String]): String = path.mkString("/", "/", "")
+
+  /** `Cache-Control` headers for this resource per the policy, or empty when none applies. */
+  def cacheControlHeaders(cacheControl: ResourceCacheConfig, rest: List[String]): Headers =
+    cacheControl.headerValueFor(rest).fold(Headers.empty)(v => Headers("cache-control", v))
 
   def resolvePath(basePath: Path, rest: List[String]): IO[ResourceApi.ApiError, Path] =
     for {
@@ -126,10 +231,10 @@ object FileSystemResourceApi {
       content <- validResolvedPath.readBytes.orDie
     } yield ByteContentWithType(content, mediaType)
 
-  def contentWithTypeToSuccessResponse(contentWithType: ByteContentWithType): RawSuccessResponse =
+  def contentWithTypeToSuccessResponse(contentWithType: ByteContentWithType, headers: Headers = Headers.empty): RawSuccessResponse =
     RawSuccessResponse(
       status = Status.Ok,
-      headers = Headers.empty,
+      headers = headers,
       body = Body.fromArray(contentWithType.body).optMediaType(contentWithType.contentType),
     )
 
