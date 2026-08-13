@@ -17,7 +17,7 @@ object Settings {
   val testAndCompile = "test->test;compile->compile"
   val testToTest = "test->test"
 
-  private def settingsForAll: Seq[Def.Setting[_]] =
+  private def settingsForAll: Seq[Def.Setting[?]] =
     Seq(
       scalaVersion := Scala_3,
       organization := Dependencies.kalinRudnicki.organization,
@@ -32,14 +32,14 @@ object Settings {
       testFrameworks := Seq(new TestFramework("zio.test.sbt.ZTestFramework")),
     )
 
-  def nonPublishedProjectSettings: Seq[Def.Setting[_]] =
+  def nonPublishedProjectSettings: Seq[Def.Setting[?]] =
     settingsForAll ++ Seq(
       publish / skip := true,
     )
 
-  def publishedProjectSettings: Seq[Def.Setting[_]] =
+  def publishedProjectSettings: Seq[Def.Setting[?]] =
     settingsForAll ++ Seq(
-      licenses := List("MIT" -> new URL("https://opensource.org/licenses/MIT")),
+      licenses := List(License.MIT),
       homepage := Some(url(s"https://github.com/$GithubUsername/$GithubProject")),
       developers := List(
         Developer(
@@ -51,7 +51,7 @@ object Settings {
       ),
     )
 
-  def addCrossDirectory(path: String): Def.Setting[_] =
+  def addCrossDirectory(path: String): Def.Setting[?] =
     (Compile / unmanagedSourceDirectories) +=
       baseDirectory.value / ".." / path / "src" / "main" / "scala"
 
