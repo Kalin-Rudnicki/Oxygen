@@ -23,6 +23,20 @@ jobs:
   publish:
     needs: warm-cache
     runs-on: ubuntu-22.04
+    # These must live at the JOB level, not on the `Release` step.
+    # sbt 2 runs a background server: the first `sbt` invocation in the job
+    # (the cache step's `sbt update`, or `sbt +compile`) boots a server that
+    # captures the environment at that moment, and later `sbt` calls just
+    # forward commands to it. ci-release checks `getenv("PGP_SECRET")` inside
+    # that server, so if the secrets are only set on the Release step the
+    # server never sees them and ci-release silently no-ops ("No access to
+    # secret variables, doing nothing"). Setting them job-wide means whichever
+    # sbt call starts the server has the secrets.
+    env:
+      PGP_PASSPHRASE: ${{ secrets.PGP_PASSPHRASE }}
+      PGP_SECRET: ${{ secrets.PGP_SECRET }}
+      SONATYPE_PASSWORD: ${{ secrets.SONATYPE_PASSWORD }}
+      SONATYPE_USERNAME: ${{ secrets.SONATYPE_USERNAME }}
     steps:
       - uses: actions/checkout@v6
         with:
@@ -36,8 +50,3 @@ jobs:
         run: sbt +compile
       - name: Release
         run: sbt ci-release
-        env:
-          PGP_PASSPHRASE: ${{ secrets.PGP_PASSPHRASE }}
-          PGP_SECRET: ${{ secrets.PGP_SECRET }}
-          SONATYPE_PASSWORD: ${{ secrets.SONATYPE_PASSWORD }}
-          SONATYPE_USERNAME: ${{ secrets.SONATYPE_USERNAME }}
