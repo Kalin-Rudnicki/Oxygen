@@ -13,8 +13,12 @@ import scala.sys.process.*
 ThisBuild / watchBeforeCommand := Watch.clearScreen
 ThisBuild / resolvers ++= Seq(Resolver.sonatypeCentralSnapshots, Resolver.mavenLocal)
 ThisBuild / updateOptions ~= (_.withLatestSnapshots(false))
+// zio-test-sbt (native) was built against an older Scala Native than our plugin; 0.5.x patches are compatible, so take the newer test-interface
+ThisBuild / libraryDependencySchemes += "org.scala-native" % "test-interface_native0.5_3" % "always"
 
 enablePlugins(GitVersioning)
+// JGit can't read linked git worktrees (bare-repo error); shell out to the git CLI instead
+ThisBuild / com.github.sbt.git.SbtGit.GitKeys.useConsoleForROGit := true
 git.gitTagToVersionNumber := { tag =>
   if (tag.matches("^\\d+\\..*$")) Some(tag)
   else None
@@ -511,7 +515,7 @@ lazy val `oxygen-http`: CrossProject =
       name := "oxygen-http-zio",
       description := "Use macros to turn traits into clients AND servers.",
       libraryDependencies ++= Seq(
-        zio.organization %%% zio.http % zio.httpVersion,
+        zio.organization %% zio.http % zio.httpVersion,
       ),
     )
     .dependsOn(
@@ -544,8 +548,8 @@ lazy val `oxygen-ui-web`: Project =
       name := "oxygen-ui-web",
       description := "Make your web-ui using scala and FP principles!",
       libraryDependencies ++= Seq(
-        monocle.organization %%% monocle.core % monocle.version,
-        monocle.organization %%% monocle.`macro` % monocle.version,
+        monocle.organization %% monocle.core % monocle.version,
+        monocle.organization %% monocle.`macro` % monocle.version,
       ),
     )
     .dependsOn(
@@ -592,8 +596,8 @@ lazy val `oxygen-zio`: CrossProject =
       name := "oxygen-zio",
       description := "Opinionated library of basic utilities to integrate with the `zio` ecosystem.",
       libraryDependencies ++= Seq(
-        zio.organization %%% zio.zio % zio.coreVersion,
-        zio.organization %%% zio.streams % zio.coreVersion,
+        zio.organization %% zio.zio % zio.coreVersion,
+        zio.organization %% zio.streams % zio.coreVersion,
       ),
     )
     .dependsOn(
@@ -613,8 +617,8 @@ lazy val `oxygen-test`: CrossProject =
       name := "oxygen-test",
       description := "Thin layer on top of `zio-test` that provides usability benefits within the `oxygen` ecosystem.",
       libraryDependencies ++= Seq(
-        zio.organization %%% zio.test % zio.coreVersion,
-        zio.organization %%% zio.testSbt % zio.coreVersion,
+        zio.organization %% zio.test % zio.coreVersion,
+        zio.organization %% zio.testSbt % zio.coreVersion,
       ),
     )
     .dependsOn(
@@ -732,7 +736,7 @@ lazy val `ut`: CrossProject =
     .in(file("modules/tests/pre-test-unit-tests"))
     .settings(
       nonPublishedProjectSettings,
-      name := "oxygen-core",
+      name := "unit-tests",
       description := "This serves no purpose besides being able to use `oxygen-test` to write tests for sub-projects that `oxygen-test` depends on.",
     )
     .dependsOn(
@@ -1115,18 +1119,18 @@ lazy val `example-ui-electron`: Project =
 //////////////////////////////////////////////////////////////////////////////////////////////////////
 
 addCommandAlias("jvm-compile", "oxygen-modules-jvm/compile")
-addCommandAlias("jvm-test-compile", "oxygen-modules-jvm/test:compile")
-addCommandAlias("jvm-test", "oxygen-modules-jvm/test")
+addCommandAlias("jvm-test-compile", "oxygen-modules-jvm/Test/compile")
+addCommandAlias("jvm-test", "oxygen-modules-jvm/testFull")
 
 addCommandAlias("js-compile", "oxygen-modules-js/compile")
-addCommandAlias("js-test-compile", "oxygen-modules-js/test:compile")
-addCommandAlias("js-test", "oxygen-modules-js/test")
+addCommandAlias("js-test-compile", "oxygen-modules-js/Test/compile")
+addCommandAlias("js-test", "oxygen-modules-js/testFull")
 
 addCommandAlias("native-compile", "oxygen-modules-native/compile")
-addCommandAlias("native-test-compile", "oxygen-modules-native/test:compile")
-addCommandAlias("native-test", "oxygen-modules-native/test")
+addCommandAlias("native-test-compile", "oxygen-modules-native/Test/compile")
+addCommandAlias("native-test", "oxygen-modules-native/testFull")
 
 addCommandAlias("fmt", "scalafmtSbt; scalafmtAll; it/scalafmtAll; example/scalafmtAll;")
 addCommandAlias("fmt-check", "scalafmtSbtCheck; scalafmtCheckAll; it/scalafmtCheckAll; example/scalafmtCheckAll;")
 
-addCommandAlias("comp", "oxygen-all/test:compile;")
+addCommandAlias("comp", "oxygen-all/Test/compile")

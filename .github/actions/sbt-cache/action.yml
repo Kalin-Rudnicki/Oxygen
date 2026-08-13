@@ -17,5 +17,5 @@ runs:
           sbt-cache--${{ runner.os }}--
     - name: Ensure dependencies are downloaded
       if: steps.restore-cache.outputs.cache-hit != 'true'
-      run: sbt +update +Test/update
+      run: sbt update
       shell: bash

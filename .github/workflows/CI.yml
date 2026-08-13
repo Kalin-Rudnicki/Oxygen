@@ -37,7 +37,7 @@ jobs:
       - name: Cache dependencies
         uses: ./.github/actions/sbt-cache
       - name: Compile
-        run: sbt +test:compile
+        run: sbt +Test/compile
 
   example-compiles:
     needs: warm-cache
@@ -58,7 +58,7 @@ jobs:
       - name: Cache dependencies
         uses: ./.github/actions/sbt-cache
       - name: Compile
-        run: sbt example/test:compile
+        run: sbt example/Test/compile
       - name: WebComp
         run: sbt example-ui-web/webComp
 
@@ -102,7 +102,7 @@ jobs:
       - name: Cache dependencies
         uses: ./.github/actions/sbt-cache
       - name: Build and Test
-        run: sbt +it/test
+        run: sbt +it/testFull
 
   fix-todo:
     runs-on: ubuntu-22.04
