@@ -29,6 +29,7 @@ nav:
   - 'Oxygen Executable':
     - 'Executable Overview': 'executable/index.md'
     - 'CLI Annotations': 'executable/cli.md'
+    - 'Config Files': 'executable/config-files.md'
     - 'Migrating from v1': 'executable/migration-from-v1.md'
     - 'Tab Completion': 'executable/completion.md'
   - 'Future Plans': 'future-plans.md'
