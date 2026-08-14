@@ -225,6 +225,19 @@ object ColorModePicker {
   //      Public entry points (backward compatible)
   // ////////////////////////////////////////////////////////////////////////////////////////////
 
+  /**
+    * Per-instance id counter (scala.js is single-threaded, so a plain `var` is safe).
+    * Guarantees every default-configured picker gets a document-unique `idPrefix`, so multiple
+    * pickers on one page don't emit colliding option ids (which would break roving-tabindex focus
+    * and produce invalid duplicate-id HTML). An explicit `.idPrefix(...)` still overrides this.
+    */
+  private var instanceCounter: Long = 0L
+  private def freshIdPrefix(): String = {
+    val n = instanceCounter
+    instanceCounter += 1L
+    s"oxygen-color-mode-$n"
+  }
+
   /** Default segmented Light / Dark / System control. Pass `label` to render a leading caption. */
   def apply(label: Option[String] = None): ColorModePicker =
     ColorModePicker(
@@ -233,7 +246,7 @@ object ColorModePicker {
       _label = label,
       _includeSystem = true,
       _showIcons = false,
-      _idPrefix = "oxygen-color-mode",
+      _idPrefix = freshIdPrefix(),
     )
 
   /** Compact single-button cycle control (icon by default), ideal for a top bar. */

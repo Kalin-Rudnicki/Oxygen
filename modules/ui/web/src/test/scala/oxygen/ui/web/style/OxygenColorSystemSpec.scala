@@ -394,7 +394,8 @@ object OxygenColorSystemSpec extends OxygenSpecDefault {
           val names = Set(Light, Dark, System).map(ColorModePicker.Logic.iconFor(_).name)
           assertTrue(names.size == 3) &&
           assertTrue(ColorModePicker.Logic.iconFor(Light).name == "sun") &&
-          assertTrue(ColorModePicker.Logic.iconFor(Dark).name == "moon")
+          assertTrue(ColorModePicker.Logic.iconFor(Dark).name == "moon") &&
+          assertTrue(ColorModePicker.Logic.iconFor(System).name == "desktop")
         },
         test("effectiveCurrent clamps a stored mode not in options") {
           import ColorMode.Mode.*
