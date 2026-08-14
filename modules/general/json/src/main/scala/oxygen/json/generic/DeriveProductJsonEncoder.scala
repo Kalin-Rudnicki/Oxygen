@@ -19,8 +19,16 @@ final class DeriveProductJsonEncoder[A](
         val instanceExpr: Expr[JsonEncoder[a]] = field.getExpr(instances)
         val fieldExpr: Expr[a] = field.fromParent(value)
         val isFlattened: Boolean = field.annotations.optionalOf[jsonFlatten].nonEmpty
+        val isOmitted: Boolean = field.annotations.optionalOf[jsonOmit].nonEmpty
 
-        if isFlattened then
+        if isOmitted then
+          // `@jsonOmit` unconditionally suppresses the field (takes precedence over `@jsonFlatten`).
+          // Reference the instance so its cached val is not flagged unused by `-Wunused`.
+          '{
+            val _ = $instanceExpr
+            Growable.empty[(String, Json)]
+          }
+        else if isFlattened then
           // TODO (KR) : is there a more type-safe & compile-time way to do this?
           '{
             $instanceExpr.toObjectEncoderOrThrow.encodeJsonObjectFields($fieldExpr)
@@ -48,8 +56,16 @@ final class DeriveProductJsonEncoder[A](
         val instanceExpr: Expr[JsonEncoder[a]] = field.getExpr(instances)
         val fieldExpr: Expr[a] = field.fromParent(value)
         val isFlattened: Boolean = field.annotations.optionalOf[jsonFlatten].nonEmpty
+        val isOmitted: Boolean = field.annotations.optionalOf[jsonOmit].nonEmpty
 
-        if isFlattened then
+        if isOmitted then
+          // `@jsonOmit` unconditionally suppresses the field (takes precedence over `@jsonFlatten`).
+          // Reference the instance so its cached val is not flagged unused by `-Wunused`.
+          '{
+            val _ = $instanceExpr
+            Growable.empty[(String, Ior[PlainTextJson, SecretJson])]
+          }
+        else if isFlattened then
           // TODO (KR) : is there a more type-safe & compile-time way to do this?
           '{
             $instanceExpr.toObjectEncoderOrThrow.encodeSplitJsonObjectFields($fieldExpr)

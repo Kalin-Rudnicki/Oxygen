@@ -560,6 +560,7 @@ object JsonSchema extends Derivable[JsonSchema.ObjectLike], JsonSchemaLowPriorit
             val fieldDoc: Option[String] = field.annotations.optionalOfValue[doc].map(_.value)
             val instanceExpr: Expr[JsonSchema[a]] = field.getExpr(instances)
             val isFlattened: Boolean = field.annotations.optionalOf[jsonFlatten].nonEmpty
+            val isOmitted: Boolean = field.annotations.optionalOf[jsonOmit].nonEmpty
 
             def flattenSumErrorString(underlyingType: String): String =
               s"""Not Supprted : JsonSchema only supports @jsonFlatten on product schema, but got $underlyingType.
@@ -568,7 +569,11 @@ object JsonSchema extends Derivable[JsonSchema.ObjectLike], JsonSchemaLowPriorit
                  |   field-type: ${field.typeRepr.showCode}
                  |""".stripMargin
 
-            if isFlattened then
+            if isOmitted then
+              // `@jsonOmit` fields are not part of the wire representation, so hide them from the schema.
+              // The instance is still referenced via the reused encoder/decoder derivation.
+              '{ Growable.empty[ProductField[?]] }
+            else if isFlattened then
               '{
                 $instanceExpr.toProductLikeOrThrow match {
                   case fieldInstance: JsonSchema.ProductSchema[?] => Growable.many(fieldInstance.fields)
