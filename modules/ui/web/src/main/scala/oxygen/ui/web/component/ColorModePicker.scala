@@ -61,7 +61,8 @@ object ColorModePicker {
           backgroundColor.dynamic := S.color.bg.layerTwo,
           backgroundColor.dynamic.hover := S.color.bg.layerThree,
           borderColor.dynamic := S.color.bg.layerThree,
-        ),
+        )
+      ,
       mode.pretty,
       onClick := (ColorMode.setAndPersist(mode) *> st.set(mode)),
     )
