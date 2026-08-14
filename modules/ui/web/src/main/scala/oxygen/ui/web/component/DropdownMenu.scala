@@ -234,10 +234,10 @@ object DropdownMenu {
 
   private def panelKeyDown(st: WidgetState[Boolean], e: dom.KeyboardEvent, id: String): UIO[Unit] =
     e.key match {
-      case "ArrowDown" => e.preventDefault(); ZIO.succeed(moveFocus(id, +1))
-      case "ArrowUp"   => e.preventDefault(); ZIO.succeed(moveFocus(id, -1))
-      case "Home"      => e.preventDefault(); ZIO.succeed(focusItem(id, 0))
-      case "End"       => e.preventDefault(); ZIO.succeed(focusItem(id, Int.MaxValue))
+      case "ArrowDown"   => e.preventDefault(); ZIO.succeed(moveFocus(id, +1))
+      case "ArrowUp"     => e.preventDefault(); ZIO.succeed(moveFocus(id, -1))
+      case "Home"        => e.preventDefault(); ZIO.succeed(focusItem(id, 0))
+      case "End"         => e.preventDefault(); ZIO.succeed(focusItem(id, Int.MaxValue))
       case "Enter" | " " =>
         e.preventDefault()
         ZIO.succeed(clickActive())
