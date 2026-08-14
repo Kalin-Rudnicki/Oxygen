@@ -1,6 +1,6 @@
 package oxygen.ui.web.defaults
 
-import oxygen.ui.web.component.{ColumnsStyle, SortableList, Tooltip}
+import oxygen.ui.web.component.{ColumnsStyle, SortableList, Tooltip, TopBar}
 import oxygen.ui.web.create.{Motion, OxygenStyleSheet, StyleSheet}
 import oxygen.ui.web.layout.HolyGrail
 import scala.collection.immutable.ArraySeq
@@ -26,6 +26,7 @@ val coreOxygenStyleSheets: ArraySeq[StyleSheet] =
       OxygenStyleSheet.compiled,
       ColumnsStyle.sheet,
       HolyGrail.responsiveSheet,
+      TopBar.responsiveSheet,
       Motion.sheet,
       Tooltip.sheet,
       SortableList.sheet,

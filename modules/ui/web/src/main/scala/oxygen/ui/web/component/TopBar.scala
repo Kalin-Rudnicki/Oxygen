@@ -22,6 +22,9 @@ final case class TopBar[-Env, +Action, -StateGet, +StateSet <: StateGet](
     private val _cache: TopBar.Cache,
     private val _left: Seq[TopBar.Item[Env, Action, StateGet, StateSet]],
     private val _right: Seq[TopBar.Item[Env, Action, StateGet, StateSet]],
+    private val _nav: Seq[DropdownMenu.Item[Env, Action]] = Nil,
+    private val _moreLabel: String = "More",
+    private val _moreId: String = "topbar-overflow",
 ) extends PWidget.Deferred[Env, Action, StateGet, StateSet] {
   import TopBar.*
 
@@ -94,6 +97,37 @@ final case class TopBar[-Env, +Action, -StateGet, +StateSet <: StateGet](
   ): TopBar[Env2, Action2, StateGet2, StateSet2] =
     copy(_right = _right ++ addChildren.flatten)
 
+  /**
+    * Responsive nav items (OXY-151). Shown inline (next to the left slot) at `>= md`, and auto-collapsed
+    * into a single overflow "More" [[DropdownMenu]] below `md` — no JS/`matchMedia`, the swap is pure CSS
+    * (see [[TopBar.responsiveSheet]], registered via [[oxygen.ui.web.defaults.coreOxygenStyleSheets]]).
+    *
+    * Items are typed [[DropdownMenu.Item]]s (label / icon / `onClickPush` / `onSelect` / `disabled`), the
+    * exact same model the overflow panel renders — so nothing is duplicated between the two layouts.
+    *
+    * {{{
+    * TopBar.empty.brand
+    *   .left(TopBar.item.index("MyApp").onClickPush(HomePage))
+    *   .nav(
+    *     TopBar.menuItem("Home").onClickPush(HomePage),
+    *     TopBar.menuItem("Products").withIcon(Icon.grid).onClickPush(ProductsPage),
+    *     TopBar.menuItem("About").onClickPush(AboutPage),
+    *   )
+    * }}}
+    */
+  def nav[Env2 <: Env, Action2 >: Action, StateGet2 <: StateGet, StateSet2 >: StateSet <: StateGet2](
+      addItems: DropdownMenu.Item[Env2, Action2]*,
+  ): TopBar[Env2, Action2, StateGet2, StateSet2] =
+    copy(_nav = _nav ++ addItems)
+
+  /** Label for the collapsed overflow menu trigger (default `"More"`). */
+  def moreLabel(label: String): TopBar[Env, Action, StateGet, StateSet] =
+    copy(_moreLabel = label)
+
+  /** Stable id for the overflow menu's open/closed state (must be unique per call site). */
+  def moreId(id: String): TopBar[Env, Action, StateGet, StateSet] =
+    copy(_moreId = id)
+
   override protected def build: PWidget[Env, Action, StateGet, StateSet] = {
     import oxygen.ui.web.create.{height as heightAttr, width as widthAttr}
     val c = _cache
@@ -120,12 +154,72 @@ final case class TopBar[-Env, +Action, -StateGet, +StateSet <: StateGet](
         flexGrow := 1,
         flexShrink := 0,
       )
+
+    // Responsive nav (OXY-151): both layouts are rendered; CSS media queries show exactly one.
+    //   - `.oxy-topbar-nav`      : inline items, hidden below `md`
+    //   - `.oxy-topbar-overflow` : collapsed "More" dropdown, hidden at/above `md`
+    val navInline: PWidget[Env, Action, Any, Nothing] =
+      Widget.when(_nav.nonEmpty) {
+        div(
+          Widget.`class`("oxy-topbar-nav"),
+          heightAttr := 100.pct,
+          display.flex,
+          alignItems.center,
+          flexShrink := "0",
+          Widget.fragment(_nav.map(navItemInline(_, c))),
+        )
+      }
+    val navOverflow: PWidget[Env, Action, Any, Nothing] =
+      Widget.when(_nav.nonEmpty) {
+        div(
+          Widget.`class`("oxy-topbar-overflow"),
+          heightAttr := 100.pct,
+          display.flex,
+          alignItems.center,
+          flexShrink := "0",
+          overflowMenu(c),
+        )
+      }
+
     bar(
       shrinkSection(_left.map(_.withBarColors(c))*),
+      navInline,
+      navOverflow,
       growSection,
       shrinkSection(_right.map(_.withBarColors(c, alignEnd = true))*),
     )
   }
+
+  private def navItemInline(item: DropdownMenu.Item[Env, Action], c: Cache): PWidget[Env, Action, Any, Nothing] =
+    if item.barSeparator then Widget.empty
+    else if item.barDisabled then
+      TopBar.itemWidget(c)(
+        cursor := "not-allowed",
+        opacity := "0.55",
+        item.barIcon.map(_.md).getOrElse(Widget.empty),
+        Widget.when(item.barLabel.nonEmpty)(span(item.barLabel)),
+      )
+    else
+      TopBar.itemWidget(c)(
+        item.barIcon.map(_.md).getOrElse(Widget.empty),
+        Widget.when(item.barLabel.nonEmpty)(span(item.barLabel)),
+        gap := S.spacing._2,
+        onClick.a[Action].handle(rh => item.barSelect(rh)),
+      )
+
+  private def overflowMenu(c: Cache): PWidget[Env, Action, Any, Nothing] =
+    DropdownMenu(_moreId, span(_moreLabel))
+      .items(_nav*)
+      .caret
+      .trigger(
+        create.height := 100.pct,
+        padding := "0 1rem",
+        fontSize := S.fontSize._5,
+        color := c.itemFg,
+        fontWeight := S.fontWeight.medium,
+        backgroundColor.dynamic.hover := c.itemHover,
+        backgroundColor.dynamic.hoverActive := c.itemActive,
+      )
 
 }
 object TopBar extends WidgetTypes[TopBar] {
@@ -286,6 +380,23 @@ object TopBar extends WidgetTypes[TopBar] {
         itemFg = S.color.primary.on,
       )
   }
+
+  /**
+    * OXY-151: auto-swap the responsive [[TopBar.nav]] items between inline (desktop) and a collapsed
+    * "More" overflow menu (mobile) purely via CSS `@media` — no JS/`matchMedia`, so it is SSR/hydration
+    * safe (no FOUC). Registered by [[oxygen.ui.web.defaults.coreOxygenStyleSheets]].
+    */
+  val responsiveSheet: StyleSheet =
+    MediaCSS.styleSheet("topbar-responsive")(
+      MediaCSS.mdUp(
+        """.oxy-topbar-overflow { display: none !important; }""",
+      ),
+      MediaCSS.belowMd(
+        """|.oxy-topbar-nav { display: none !important; }
+           |.oxy-topbar-overflow { display: flex !important; }
+           |""".stripMargin,
+      ),
+    )
 
   private def unsafeUrl(url: String): URL = URL.decode(url) match
     case Right(url)  => url

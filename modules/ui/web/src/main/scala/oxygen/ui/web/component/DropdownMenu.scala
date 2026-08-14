@@ -184,6 +184,14 @@ object DropdownMenu {
     def onSelect[Env2 <: Env](effect: => ZIO[Env2 & Scope, UIError, Unit]): Item[Env2, Action] =
       new Item[Env2, Action](_label, _icon, _isDisabled, _isSeparator, _ => effect)
 
+    // Accessors so sibling components (e.g. TopBar responsive overflow) can render the same
+    // typed item inline without duplicating the item model.
+    private[component] def barLabel: String = _label
+    private[component] def barIcon: Option[Icon] = _icon
+    private[component] def barDisabled: Boolean = _isDisabled
+    private[component] def barSeparator: Boolean = _isSeparator
+    private[component] def barSelect(rh: RaiseHandler[Any, Action]): ZIO[Env & Scope, UIError, Unit] = _onSelect(rh)
+
   }
   object Item {
     type Const = Item[Any, Nothing]

@@ -57,6 +57,7 @@ object ShowcaseLayout {
       navItem("Modal", ModalPage, currentPath),
       navItem("Drawer", DrawerPage, currentPath),
       navItem("Dropdown menu", DropdownMenuPage, currentPath),
+      navItem("Responsive TopBar", ResponsiveTopBarPage, currentPath),
       navItem("Tooltips", TooltipPage, currentPath),
       navItem("Table", TablePage, currentPath),
       navItem("Feed", FeedPage, currentPath),

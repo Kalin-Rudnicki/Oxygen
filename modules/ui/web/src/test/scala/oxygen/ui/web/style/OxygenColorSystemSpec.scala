@@ -361,6 +361,16 @@ object OxygenColorSystemSpec extends OxygenSpecDefault {
           assertTrue(sb.bg.nonEmpty) &&
           assertTrue(!tb.bg.contains("#") || tb.bg.startsWith("var(") || tb.bg.contains("--"))
         },
+        test("TopBar.responsiveSheet swaps inline nav and overflow menu at md (OXY-151)") {
+          val css = TopBar.responsiveSheet.innerHTML
+          // Desktop (>= md): overflow "More" hidden.
+          assertTrue(css.contains("@media (min-width: 768px)")) &&
+          assertTrue(css.contains(".oxy-topbar-overflow { display: none !important; }")) &&
+          // Mobile (< md): inline nav hidden, overflow shown.
+          assertTrue(css.contains("@media (max-width: 767px)")) &&
+          assertTrue(css.contains(".oxy-topbar-nav { display: none !important; }")) &&
+          assertTrue(css.contains(".oxy-topbar-overflow { display: flex !important; }"))
+        },
       ),
       suite("Contrast (W1-T09)")(
         test("black on white meets AA normal") {

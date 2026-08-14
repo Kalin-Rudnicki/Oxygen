@@ -149,6 +149,27 @@ HolyGrail.empty
 
 **Height fighting:** set height on **either** HolyGrail’s top row (`.topHeight`) **or** `TopBar.barHeight`, not both. Under HolyGrail, leave TopBar height unset so the grid row owns size.
 
+### Responsive TopBar (overflow menu)
+
+`TopBar.nav(…)` declares nav items **once** as typed `DropdownMenu.Item`s. At `>= md` they render inline next to the `left` slot; below `md` they auto-collapse into a single **"More"** dropdown (the reused OXY-152 `DropdownMenu` — same scrim / keyboard / a11y). The swap is **pure CSS** (`TopBar.responsiveSheet`, in `coreOxygenStyleSheets`) — no JS/`matchMedia`, so it is SSR/hydration safe (no FOUC).
+
+```scala
+TopBar.empty.brand
+  .left(TopBar.item.index("MyApp").onClickPush(HomePage))
+  .nav(
+    TopBar.menuItem("Home").withIcon(Icon.home).onClickPush(HomePage),
+    TopBar.menuItem("Products").withIcon(Icon.grid).onClickPush(ProductsPage),
+    TopBar.menuSeparator,
+    TopBar.menuItem("About").onClickPush(AboutPage),
+  )
+  .right(TopBar.item.dropdownWithIcon("user", Icon.user, "Jane")(userMenu*))
+```
+
+- `TopBar.menuItem(…)` / `TopBar.menuSeparator` build the shared items (`onClickPush` / `onSelect` / `withIcon` / `disabled`). Separators are dropped in the inline layout, kept in the collapsed menu.
+- `.moreLabel("Menu")` renames the collapsed trigger; `.moreId("…")` sets a unique open-state id (default `"topbar-overflow"` — override if you mount more than one responsive TopBar on a page).
+- Breakpoint is `md` (`style.Breakpoints.md`, 768px), matching `HolyGrail.responsiveSheet`.
+- Showcase: **Responsive TopBar** page.
+
 ### CenteredCard
 
 Auth / marketing body preset in `oxygen.ui.web.layout.CenteredCard` — not a form system.
@@ -222,7 +243,7 @@ These are intentional honesty notes for agents and humans (from the UI overhaul 
 | `Drawer` | Works; Deferred conversion still TODO |
 | `Button.form` | Internally uses `Button.Const` today; full Env/Action/State params are a known follow-up |
 | `LockAware` | Revisit after remaining component cleanup |
-| Mobile shell | Viewport meta helps a lot; narrow layouts still rough |
+| Mobile shell | Viewport meta + `TopBar.nav(…)` overflow menu land the nav; hamburger→`Drawer` side nav still TODO (rest of OXY-151) |
 | `PageHtmlResponse` | Needs OG / social meta support (TODO) |
 | `service.Broadcast` / `MatchMedia` / some IDB edges | APIs may still change — prefer Theme/ColorMode patterns |
 

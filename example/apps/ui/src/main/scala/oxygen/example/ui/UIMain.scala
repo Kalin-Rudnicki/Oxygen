@@ -66,6 +66,7 @@ object UIMain extends PageApp[UIMain.Env] {
     P.showcase.pages.ModalPage,
     P.showcase.pages.DrawerPage,
     P.showcase.pages.DropdownMenuPage,
+    P.showcase.pages.ResponsiveTopBarPage,
     P.showcase.pages.TooltipPage,
     P.showcase.pages.TablePage,
     P.showcase.pages.FeedPage,
