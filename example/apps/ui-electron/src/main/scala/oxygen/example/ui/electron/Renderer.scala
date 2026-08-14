@@ -4,7 +4,7 @@ import oxygen.example.ui.electron.page as P
 import oxygen.ui.web.*
 import oxygen.ui.web.create.*
 import oxygen.ui.web.defaults.*
-import oxygen.ui.web.service.{ColorMode, Theme}
+import oxygen.ui.web.service.ColorTheme
 import scala.collection.immutable.ArraySeq
 import scala.scalajs.js.annotation.JSExportTopLevel
 import zio.*
@@ -30,8 +30,7 @@ object Renderer extends PageApp[Renderer.Env] {
     coreOxygenStyleSheets
 
   override protected def prePageLoad: RIO[Env & Scope, Unit] =
-    ColorMode.applyStoredOrSystem *>
-      Theme.applyStoredOrDefault
+    ColorTheme.applyStored
 
   override val pages: ArraySeq[RoutablePage[Env]] = ArraySeq(
     P.IndexPage,

@@ -186,6 +186,19 @@ Do not reinvent a partial list of sheets unless you know which ones you can drop
 
 ### Theme + color mode
 
+**Preferred:** one combinator wires both color mode (`ColorMode`) and theme pack (`Theme`) — apply
+stored preferences first-paint, then subscribe both to their cross-tab channels:
+
+```scala
+import oxygen.ui.web.service.ColorTheme
+
+override protected def prePageLoad: RIO[Env & Scope, Unit] =
+  ColorTheme.install
+```
+
+`ColorTheme.applyStored` (apply only, no cross-tab subscription) and the underlying
+`ColorMode.*` / `Theme.*` methods remain available for manual wiring:
+
 ```scala
 import oxygen.ui.web.service.{ColorMode, Theme}
 
@@ -195,6 +208,21 @@ override protected def prePageLoad: RIO[Env & Scope, Unit] =
     ColorMode.subscribeCrossTab *>
     Theme.subscribeCrossTab
 ```
+
+**Pickers (UI):** drop-in reusable widgets — no page state to wire:
+
+```scala
+import oxygen.ui.web.component.{ColorModePicker, ThemePicker}
+
+ColorModePicker()                              // Light / Dark / System segmented control
+ColorModePicker(label = Some("Color mode"))
+ThemePicker()                                  // all OxygenThemes packs, as selectable cards
+ThemePicker(OxygenThemes.graphiteFamilyPacks)  // filter to a pack family
+```
+
+Both are self-contained (backed by a shared `GlobalState` seeded from the stored value): they
+reflect the current selection and call `ColorMode.setAndPersist` / `Theme.applyAndPersist` on
+select. They do not re-highlight on cross-tab changes until the page re-renders.
 
 ### Mobile / viewport
 
