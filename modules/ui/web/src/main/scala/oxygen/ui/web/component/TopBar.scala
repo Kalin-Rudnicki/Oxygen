@@ -123,7 +123,7 @@ final case class TopBar[-Env, +Action, -StateGet, +StateSet <: StateGet](
     bar(
       shrinkSection(_left.map(_.withBarColors(c))*),
       growSection,
-      shrinkSection(_right.map(_.withBarColors(c))*),
+      shrinkSection(_right.map(_.withBarColors(c, alignEnd = true))*),
     )
   }
 
@@ -135,18 +135,88 @@ object TopBar extends WidgetTypes[TopBar] {
 
   val item: TopBar.Item.Const = TopBar.Item.empty
 
+  /** A menu entry for a [[Item.dropdown]] (delegates to [[DropdownMenu.item]]). */
+  def menuItem(label: String): DropdownMenu.Item.Const = DropdownMenu.item(label)
+
+  /** A separator line inside a [[Item.dropdown]] menu. */
+  val menuSeparator: DropdownMenu.Item.Const = DropdownMenu.separator
+
   final case class Item[-Env, +Action, -StateGet, +StateSet <: StateGet] private (
       private val _children: Growable[Widget.Polymorphic[Env, Action, StateGet, StateSet]],
       private val _bar: Cache,
+      private val _dropdownId: Option[String],
+      private val _triggerContent: Growable[Widget],
+      private val _menuItems: Growable[DropdownMenu.Item[Env, Action]],
+      private val _alignEnd: Boolean,
   ) extends PWidget.Deferred[Env, Action, StateGet, StateSet] {
 
     private lazy val _built: Widget.Polymorphic[Env, Action, StateGet, StateSet] =
-      TopBar.itemWidget(_bar).appendChildren(_children)
+      _dropdownId match {
+        case Some(id) =>
+          // Trigger reuses the bar-item chrome (height / colors / hover) + caret; panel is the shared DropdownMenu.
+          DropdownMenu(id, _triggerContent.to[Seq]*)
+            .items(_menuItems.to[Seq]*)
+            .align(if _alignEnd then DropdownMenu.Align.End else DropdownMenu.Align.Start)
+            .caret
+            .trigger(
+              create.height := 100.pct,
+              padding := "0 1rem",
+              fontSize := S.fontSize._5,
+              color := _bar.itemFg,
+              fontWeight := S.fontWeight.medium,
+              backgroundColor.dynamic.hover := _bar.itemHover,
+              backgroundColor.dynamic.hoverActive := _bar.itemActive,
+            )
+        case None =>
+          TopBar.itemWidget(_bar).appendChildren(_children)
+      }
 
     override protected def build: PWidget[Env, Action, StateGet, StateSet] = _built
 
     private[TopBar] def withBarColors(c: Cache): Item[Env, Action, StateGet, StateSet] =
       copy(_bar = c)
+
+    private[TopBar] def withBarColors(c: Cache, alignEnd: Boolean): Item[Env, Action, StateGet, StateSet] =
+      copy(_bar = c, _alignEnd = alignEnd)
+
+    /**
+      * Turn this item into a dropdown / popup menu (OXY-152). `id` must be stable + unique per call site
+      * (keys the menu's internal open/closed state). Built on the shared [[DropdownMenu]] component so the
+      * panel behaviour (scrim, keyboard, a11y) is consistent everywhere.
+      *
+      * {{{
+      * TopBar.item.dropdown("nav-products", "Products")(
+      *   TopBar.menuItem("Overview").onClickPush(OverviewPage.nav()),
+      *   TopBar.menuItem("Pricing").onClickPush(PricingPage.nav()),
+      *   TopBar.menuSeparator,
+      * )
+      * }}}
+      */
+    def dropdown[Env2 <: Env, Action2 >: Action, StateGet2 <: StateGet, StateSet2 >: StateSet <: StateGet2](
+        id: String,
+        label: String,
+    )(
+        addItems: DropdownMenu.Item[Env2, Action2]*,
+    ): Item[Env2, Action2, StateGet2, StateSet2] =
+      copy(
+        _dropdownId = id.some,
+        _triggerContent = Growable.single(span(label)),
+        _menuItems = _menuItems ++ Growable.many(addItems),
+      )
+
+    /** Dropdown with a leading icon on the trigger. */
+    def dropdownWithIcon[Env2 <: Env, Action2 >: Action, StateGet2 <: StateGet, StateSet2 >: StateSet <: StateGet2](
+        id: String,
+        icon: Icon,
+        label: String,
+    )(
+        addItems: DropdownMenu.Item[Env2, Action2]*,
+    ): Item[Env2, Action2, StateGet2, StateSet2] =
+      copy(
+        _dropdownId = id.some,
+        _triggerContent = Growable.many(Seq(icon.md, span(label))),
+        _menuItems = _menuItems ++ Growable.many(addItems),
+      )
 
     def apply[Env2 <: Env, Action2 >: Action, StateGet2 <: StateGet, StateSet2 >: StateSet <: StateGet2](
         addChildren: PWidget[Env2, Action2, StateGet2, StateSet2]*,
@@ -187,7 +257,7 @@ object TopBar extends WidgetTypes[TopBar] {
   }
   object Item extends WidgetTypes[TopBar.Item] {
 
-    val empty: TopBar.Item.Const = Item(Growable.empty, Cache.default)
+    val empty: TopBar.Item.Const = Item(Growable.empty, Cache.default, None, Growable.empty, Growable.empty, false)
 
     def apply(text: String): TopBar.Item.Const =
       empty.apply(text)
