@@ -3,7 +3,6 @@ package oxygen.ui.web.defaults
 import oxygen.ui.web.*
 import oxygen.ui.web.component.*
 import oxygen.ui.web.create.{*, given}
-import oxygen.ui.web.service.ColorMode
 import zio.{Scope, ZIO}
 
 /**
@@ -50,6 +49,7 @@ object StylesPage extends RoutablePage.NoParams[Any] {
       div(height := 25.px),
     )
 
+  // OXY-154: reusable ColorModePicker replaces the hand-rolled Light/Dark/System buttons.
   private lazy val colorModeToggle: Widget =
     div(
       display.flex,
@@ -59,10 +59,7 @@ object StylesPage extends RoutablePage.NoParams[Any] {
       padding := OxygenStyleVars.spacing._4,
       backgroundColor := OxygenStyleVars.color.bg.layerOne,
       borderRadius := OxygenStyleVars.borderRadius._4,
-      span("Color mode:", color := OxygenStyleVars.color.fg.moderate),
-      Button("Light").small.subtle.content(onClick := ColorMode.setAndPersist(ColorMode.Mode.Light)),
-      Button("Dark").small.subtle.content(onClick := ColorMode.setAndPersist(ColorMode.Mode.Dark)),
-      Button("System").small.subtle.content(onClick := ColorMode.setAndPersist(ColorMode.Mode.System)),
+      ColorModePicker(label = Some("Color mode:")),
     )
 
   /** Quick surface / text / status chips for at-a-glance mode checking. */
