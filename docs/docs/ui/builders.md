@@ -222,7 +222,37 @@ ThemePicker(OxygenThemes.graphiteFamilyPacks)  // filter to a pack family
 
 Both are self-contained (backed by a shared `GlobalState` seeded from the stored value): they
 reflect the current selection and call `ColorMode.setAndPersist` / `Theme.applyAndPersist` on
-select. They do not re-highlight on cross-tab changes until the page re-renders.
+select.
+
+**`ColorModePicker`** is a first-class, standalone Light/Dark/System control — independent of the
+theme-pack machinery (depends only on the `ColorMode` service). It is a config builder (à la
+`ToggleThumb` / `HorizontalRadio`):
+
+```scala
+ColorModePicker()                    // segmented radiogroup (default)
+ColorModePicker.compact              // single icon button that cycles modes (top-bar friendly)
+ColorModePicker.segmentedWithIcons   // segmented + Light/Dark/System glyphs
+ColorModePicker().lightDarkOnly      // drop the System option
+ColorModePicker().large.label("Theme")
+```
+
+- **a11y:** segmented is a `role=radiogroup` with `role=radio` + `aria-checked` per option, roving
+  `tabindex`, and keyboard nav (Left/Up = prev, Right/Down = next, Home/End = first/last with wrap,
+  Space/Enter select) that moves selection **and** DOM focus together. Compact is a native
+  `<button>` with a descriptive `aria-label`/`title`.
+- **Live cross-tab highlight (opt-in):** by default the highlight reflects the mode at render time.
+  Wire `ColorModePicker.syncAcrossTabs` once (e.g. from `prePageLoad`) to have every mounted picker
+  re-highlight on cross-tab / programmatic `ColorMode` changes:
+
+  ```scala
+  override protected def prePageLoad: RIO[Env & Scope, Unit] =
+    ColorTheme.install *> ColorModePicker.syncAcrossTabs
+  ```
+
+  (For labeled *form* contexts, use the generic `HorizontalRadio.form[ColorMode.Mode]` instead — a
+  dedicated dropdown variant is intentionally omitted.)
+
+`ThemePicker` does not re-highlight on cross-tab changes until the page re-renders.
 
 ### Mobile / viewport
 
