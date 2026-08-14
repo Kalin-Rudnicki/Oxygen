@@ -29,21 +29,33 @@ object BuiltCommand {
 
   given Conversion[Command2, BuiltCommand] = _.build
 
+  /**
+    * Render a single command token for _display / logging only_ (commands are executed via an explicit
+    * argv list through `ProcessBuilder`, never through a shell). When a token needs quoting it is wrapped
+    * in POSIX single quotes, with embedded single quotes escaped using the standard `'\''` idiom so that
+    * the rendered string could be safely pasted into a shell.
+    */
   def safeShow(value: String, forceEscape: Boolean): String = {
-    val needsEscape: Boolean = // FIX-PRE-MERGE (KR) : is this correct?
-      forceEscape || value.exists {
-        case '\'' | '"' | ' ' | '\n' => true
-        case _                       => false
+    val needsEscape: Boolean =
+      forceEscape || value.isEmpty || value.exists {
+        case '\'' | '"' | ' ' | '\t' | '\n' => true
+        case _                              => false
       }
 
-    // FIX-PRE-MERGE (KR) : is this correct?
-    if needsEscape then s"'${value.flatMap { case '\'' => "\\'"; case c => c.toString }}'"
+    if needsEscape then s"'${value.replace("'", "'\\''")}'"
     else value
   }
 
 }
 
-// FIX-PRE-MERGE (KR) : rename
+/**
+  * Immutable builder for an external OS command, executed through [[CommandService]].
+  *
+  * This is the "v2" command API: unlike the legacy [[Command]] (which shells out via `scala.sys.process`),
+  * execution goes through the pluggable [[CommandService]] with first-class stdin/stdout/stderr sources and
+  * typed decoding of process output. It is intentionally kept alongside the legacy [[Command]] until all
+  * call-sites have migrated; the `Command2` name is a deliberate interim so the two can coexist.
+  */
 final class Command2 private (isSudo: Boolean, command: String, args: Growable[String], cwdPath: Option[Path], env: Growable[(String, String)]) {
 
   lazy val fullCommand: Growable[String] =
@@ -175,9 +187,10 @@ final class Command2 private (isSudo: Boolean, command: String, args: Growable[S
       _.executeSyncDecodeWith(command = build, stdIn = stdIn, stdErrOnSuccess = stdErrOnSuccess, trim = trim) { dec.decodeJsonString }
     }
 
-  /////// For backwards compat ///////////////////////////////////////////////////////////////
+  /////// Legacy-compatible convenience methods ///////////////////////////////////////////////////////////////
 
-  // TODO (KR) : deprecate
+  // These mirror the method names/shape of the legacy `Command` API to ease migration to `Command2`.
+  // They are thin wrappers over the `execute*` methods above and can be retired once migration is complete.
 
   def execute(
       outLevel: LogLevel = LogLevel.Info,

@@ -165,8 +165,10 @@ object JavaCommandService extends CommandService {
 
   private def inputRedirect(command: BuiltCommand, stdIn: CommandInputSource)(using Trace): IO[CommandError, jl.ProcessBuilder.Redirect] =
     stdIn match {
-      case CommandInputSource.Empty     => ZIO.succeed { jl.ProcessBuilder.Redirect.DISCARD }
-      case CommandInputSource.Pipe      => ZIO.succeed { jl.ProcessBuilder.Redirect.INHERIT }
+      // `Redirect.DISCARD` is WRITE-only and is rejected as an input redirect. For "no input" we PIPE and
+      // then close the child's stdin immediately (see `writeInput`) so the process observes EOF.
+      case CommandInputSource.Empty      => ZIO.succeed { jl.ProcessBuilder.Redirect.PIPE }
+      case CommandInputSource.Pipe       => ZIO.succeed { jl.ProcessBuilder.Redirect.INHERIT }
       case CommandInputSource.File(path) =>
         resolveJavaFile(command, path, "resolve stdin file").map { jl.ProcessBuilder.Redirect.from }
       case _: CommandInputSource.Const  => ZIO.succeed { jl.ProcessBuilder.Redirect.PIPE }
@@ -175,16 +177,15 @@ object JavaCommandService extends CommandService {
 
   private def outputRedirect(mode: OutputMode): jl.ProcessBuilder.Redirect =
     mode match {
-      case OutputMode.Discard       => jl.ProcessBuilder.Redirect.DISCARD
-      case OutputMode.ToFile(file)  => jl.ProcessBuilder.Redirect.to(file)
-      case _                        => jl.ProcessBuilder.Redirect.PIPE
+      case OutputMode.Discard      => jl.ProcessBuilder.Redirect.DISCARD
+      case OutputMode.ToFile(file) => jl.ProcessBuilder.Redirect.to(file)
+      case _                       => jl.ProcessBuilder.Redirect.PIPE
     }
 
   //////////////////////////////////////////////////////////////////////////////////////////////////////
   //      Stdin
   //////////////////////////////////////////////////////////////////////////////////////////////////////
 
-  // FIX-PRE-MERGE (KR) : I do not like this
   private def writeInput(
       command: BuiltCommand,
       process: jl.Process,
@@ -192,8 +193,12 @@ object JavaCommandService extends CommandService {
   )(using Trace): IO[CommandError, Unit] =
     stdIn match {
       // OS / ProcessBuilder already owns these
-      case CommandInputSource.Empty | CommandInputSource.Pipe | _: CommandInputSource.File =>
+      case CommandInputSource.Pipe | _: CommandInputSource.File =>
         ZIO.unit
+
+      // No input: close the child's stdin so it sees EOF immediately rather than blocking on a read.
+      case CommandInputSource.Empty =>
+        ZIO.attemptBlocking { process.getOutputStream.close() }.ignore
 
       case CommandInputSource.Const(value) =>
         ZIO
@@ -208,10 +213,12 @@ object JavaCommandService extends CommandService {
 
       case CommandInputSource.Stream(bytes) =>
         val os: OutputStream = process.getOutputStream
+        // Written with a blocking chunk-write rather than `ZSink.fromOutputStream` so this stays portable
+        // to Scala Native (that sink is JVM-only).
         bytes
-          .run { ZSink.fromOutputStream(os) }
-          .unit
-          .ensuring { ZIO.attempt { os.flush() }.ignore *> ZIO.attempt { os.close() }.ignore }
+          .runForeachChunk { chunk => ZIO.attemptBlockingInterrupt { os.write(chunk.toArray) } }
+          .zipRight { ZIO.attemptBlockingInterrupt { os.flush() } }
+          .ensuring { ZIO.attempt { os.close() }.ignore }
           .convertCausesFail { executionFailure(command, "write stdin stream", _) }
     }
 
@@ -219,7 +226,6 @@ object JavaCommandService extends CommandService {
   //      Stdout / stderr
   //////////////////////////////////////////////////////////////////////////////////////////////////////
 
-  // FIX-PRE-MERGE (KR) : I do not like this
   private def consumeOutput(
       command: BuiltCommand,
       stream: InputStream,
@@ -289,7 +295,6 @@ object JavaCommandService extends CommandService {
   }
   private object OutputMode {
 
-    // FIX-PRE-MERGE (KR) : I do not like this
     def fromSource(command: BuiltCommand, source: CommandOutputSource)(using Trace): IO[CommandError, OutputMode] =
       source match {
         case CommandOutputSource.Empty =>

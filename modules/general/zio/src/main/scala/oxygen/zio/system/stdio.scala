@@ -4,7 +4,7 @@ import oxygen.predef.core.*
 import oxygen.zio.ZIOAspectPoly
 import zio.*
 
-// FIX-PRE-MERGE (KR) : do this?
+// Configuration ADTs describing where a process reads stdin from and where it writes stdout/stderr to.
 
 sealed trait CommandInputSource {
 

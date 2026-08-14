@@ -608,6 +608,13 @@ lazy val `oxygen-zio`: CrossProject =
         zio.organization %% zio.streams % zio.coreVersion,
       ),
     )
+    // `JavaCommandService` relies on `java.lang.ProcessBuilder`, which Scala.js does not provide.
+    // JS falls back to `UnimplementedCommandService` (see the `.js` CommandServicePlatformSpecificImpl),
+    // so exclude the JVM/Native-only implementation from the JS source set.
+    .jsSettings(
+      Compile / unmanagedSources / excludeFilter :=
+        (Compile / unmanagedSources / excludeFilter).value || "JavaCommandService.scala",
+    )
     .dependsOn(
       `oxygen-schema` % testAndCompile,
     )
