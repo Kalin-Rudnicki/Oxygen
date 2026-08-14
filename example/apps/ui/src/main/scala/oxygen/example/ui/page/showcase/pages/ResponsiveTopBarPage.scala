@@ -15,10 +15,11 @@ object ResponsiveTopBarPage extends ShowcaseLayout.SimplePage {
     * A TopBar whose nav items (OXY-151) render inline at `>= md`, and auto-collapse into a single
     * "More" [[DropdownMenu]] (OXY-152) below `md`. The swap is pure CSS — resize the frame to see it.
     */
-  private def demoBar: TopBar.Const =
+  private def demoBar(idSuffix: String): TopBar.Const =
     TopBar.empty
       .brand
       .barHeight(52.px)
+      .moreId(s"topbar-overflow-$idSuffix")
       .left(
         TopBar.item.index("MyApp").onClickPush(ShowcaseHubPage.nav()),
       )
@@ -32,7 +33,7 @@ object ResponsiveTopBarPage extends ShowcaseLayout.SimplePage {
         TopBar.menuItem("Enterprise (soon)").disabled,
       )
       .right(
-        TopBar.item.dropdownWithIcon("responsive-user", Icon.user, "Jane")(
+        TopBar.item.dropdownWithIcon(s"responsive-user-$idSuffix", Icon.user, "Jane")(
           TopBar.menuItem("Profile").withIcon(Icon.user).onSelect(toast("Profile")),
           TopBar.menuSeparator,
           TopBar.menuItem("Sign out").withIcon(Icon.logOut).onSelect(toast("Signed out")),
@@ -47,7 +48,7 @@ object ResponsiveTopBarPage extends ShowcaseLayout.SimplePage {
       border := s"1px solid ${S.color.fg.subtle}",
       borderRadius := S.borderRadius._3,
       overflow.visible,
-      demoBar,
+      demoBar("narrow"),
     )
 
   override def body: Widget =
@@ -63,7 +64,7 @@ object ResponsiveTopBarPage extends ShowcaseLayout.SimplePage {
         borderRadius := S.borderRadius._3,
         overflow.visible,
         marginBottom := S.spacing._6,
-        demoBar,
+        demoBar("live"),
       ),
       h3("Forced-narrow frame (always shows the collapsed \"More\" menu)"),
       p(color := S.color.fg.moderate, fontSize := S.fontSize._2, "The 360px wrapper is below md, so only the overflow menu is visible."),
