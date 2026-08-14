@@ -7,6 +7,7 @@ import oxygen.ui.web.component.{ColorPicker, DatePicker, DateTimePicker, Icon, I
 import oxygen.ui.web.create.{AnchorId, CSSColor, MediaCSS, MediaQuery, Motion}
 import oxygen.ui.web.service.{IndexedDB, Intersect}
 import oxygen.ui.web.service.HashScroll
+import oxygen.ui.web.service.PageScroll
 import oxygen.ui.web.style.Breakpoints
 import oxygen.ui.web.style.OxygenColorSystem.*
 import zio.http.{Path, QueryParams}
@@ -430,6 +431,19 @@ object OxygenColorSystemSpec extends OxygenSpecDefault {
           )
           assertTrue(fgBg.exists(_ >= Contrast.aaLarge)) &&
           assertTrue(w.forall(_.ratio > 0))
+        },
+      ),
+      suite("PageScroll (OXY-155)")(
+        test("no fragment resets to top of page") {
+          assertTrue(PageScroll.targetFor(None) == PageScroll.Target.Top) &&
+          assertTrue(PageScroll.targetFor(Some("")) == PageScroll.Target.Top) &&
+          assertTrue(PageScroll.targetFor(Some("   ")) == PageScroll.Target.Top) &&
+          assertTrue(PageScroll.targetFor(Some("#")) == PageScroll.Target.Top)
+        },
+        test("fragment scrolls to the cleaned anchor id") {
+          assertTrue(PageScroll.targetFor(Some("section-1")) == PageScroll.Target.Fragment("section-1")) &&
+          assertTrue(PageScroll.targetFor(Some("#section-1")) == PageScroll.Target.Fragment("section-1")) &&
+          assertTrue(PageScroll.targetFor(Some("  #section-1  ")) == PageScroll.Target.Fragment("section-1"))
         },
       ),
     )

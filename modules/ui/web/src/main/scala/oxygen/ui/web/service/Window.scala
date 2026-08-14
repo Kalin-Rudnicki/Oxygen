@@ -89,6 +89,21 @@ object Window {
         ),
       )
 
+    /** Page-content scroll containers (HolyGrail center pane, reused across page switches). */
+    private val scrollContainerSelector: String =
+      ".oxy-holy-grail-center, .oxy-holy-grail--center-only"
+
+    private def resetScrollContainers(): Unit = {
+      val nodes = D.querySelectorAll(scrollContainerSelector)
+      var i = 0
+      while i < nodes.length do {
+        val el = nodes(i)
+        el.scrollTop = 0
+        el.scrollLeft = 0
+        i += 1
+      }
+    }
+
     private def scrollElementIntoView(el: org.scalajs.dom.Element, smooth: Boolean): Unit =
       el.asInstanceOf[js.Dynamic].scrollIntoView(
         js.Dynamic.literal(
@@ -117,6 +132,18 @@ object Window {
     /** Scroll document to y. */
     def toY(y: Double, smooth: Boolean = true): UIO[Unit] =
       ZIO.succeed { scrollWindowTo(y, smooth) }
+
+    /**
+      * Reset scroll to the very top of the page. Resets both the document/window scroll and the
+      * reused page-content scroll containers (HolyGrail center pane). Used on page switch so a new
+      * page appears at the top instead of inheriting the previous page's scroll position.
+      * Instant by default: a fresh page should render at the top, not animate up from mid-page.
+      */
+    def toTop(smooth: Boolean = false): UIO[Unit] =
+      ZIO.succeed {
+        scrollWindowTo(0, smooth)
+        resetScrollContainers()
+      }
 
   }
 
