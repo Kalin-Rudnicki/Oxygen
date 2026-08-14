@@ -35,6 +35,17 @@ object ConfigFileServiceSpec extends OxygenSpecDefault {
             loaded <- ConfigFileService.load[AppConfig](file)
           } yield assertTrue(loaded == cfg)
         },
+        test("save overwrites an existing file (second write wins)") {
+          val first = AppConfig("first", 1)
+          val second = AppConfig("second", 2)
+          for {
+            dir <- tempDir
+            file = dir.resolve("local.json")
+            _ <- ConfigFileService.save(file, first)
+            _ <- ConfigFileService.save(file, second)
+            loaded <- ConfigFileService.load[AppConfig](file)
+          } yield assertTrue(loaded == second)
+        },
         test("save creates missing parent directories") {
           val cfg = AppConfig("nested", 1)
           for {

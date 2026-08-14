@@ -71,7 +71,7 @@ trait Path {
   def createDirectories: IO[FileSystemError, Unit]
 
   def copyTo(destination: Path): IO[FileSystemError, Unit]
-  def moveTo(destination: Path): IO[FileSystemError, Unit]
+  def moveTo(destination: Path, replaceExisting: Boolean = false): IO[FileSystemError, Unit]
 
   /////// Delete ///////////////////////////////////////////////////////////////
 

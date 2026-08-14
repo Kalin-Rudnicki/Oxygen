@@ -153,7 +153,7 @@ object ConfigFileService {
           val write: IO[FileSystemError, Unit] =
             ZIO.foreachDiscard(file.parentOption)(_.createDirectories) *>
               tmp.write(contents) *>
-              tmp.moveTo(file)
+              tmp.moveTo(file, replaceExisting = true)
           wrapFs(write).onError { _ => tmp.deleteIfExists.ignore }
 
     //////////////////////////////////////////////////////////////////////////////////////////////////////
