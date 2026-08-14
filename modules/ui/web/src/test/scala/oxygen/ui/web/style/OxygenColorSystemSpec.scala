@@ -3,9 +3,9 @@ package oxygen.ui.web.style
 import java.time.YearMonth
 import oxygen.predef.test.*
 import oxygen.ui.web.{LockState, Memo, PageURL}
-import oxygen.ui.web.component.{ColorPicker, DatePicker, DateTimePicker, Icon, InfiniteScroll, LazySection, Pagination, Progress, SideBar, SortableList, Tabs, TimePicker, TopBar}
+import oxygen.ui.web.component.{ColorModePicker, ColorPicker, DatePicker, DateTimePicker, Icon, InfiniteScroll, LazySection, Pagination, Progress, SideBar, SortableList, Tabs, TimePicker, TopBar}
 import oxygen.ui.web.create.{AnchorId, CSSColor, MediaCSS, Motion}
-import oxygen.ui.web.service.{IndexedDB, Intersect}
+import oxygen.ui.web.service.{ColorMode, IndexedDB, Intersect}
 import oxygen.ui.web.service.HashScroll
 import oxygen.ui.web.style.Breakpoints
 import oxygen.ui.web.style.OxygenColorSystem.*
@@ -381,6 +381,57 @@ object OxygenColorSystemSpec extends OxygenSpecDefault {
           )
           assertTrue(fgBg.exists(_ >= Contrast.aaLarge)) &&
           assertTrue(w.forall(_.ratio > 0))
+        },
+      ),
+      suite("ColorModePicker.Logic")(
+        test("options include/exclude System") {
+          import ColorMode.Mode.*
+          assertTrue(ColorModePicker.Logic.options(true) == List(Light, Dark, System)) &&
+          assertTrue(ColorModePicker.Logic.options(false) == List(Light, Dark))
+        },
+        test("iconFor maps each mode to a distinct icon") {
+          import ColorMode.Mode.*
+          val names = Set(Light, Dark, System).map(ColorModePicker.Logic.iconFor(_).name)
+          assertTrue(names.size == 3) &&
+          assertTrue(ColorModePicker.Logic.iconFor(Light).name == "sun") &&
+          assertTrue(ColorModePicker.Logic.iconFor(Dark).name == "moon")
+        },
+        test("effectiveCurrent clamps a stored mode not in options") {
+          import ColorMode.Mode.*
+          val ld = ColorModePicker.Logic.options(false)
+          assertTrue(ColorModePicker.Logic.effectiveCurrent(ld, Dark) == Dark) &&
+          assertTrue(ColorModePicker.Logic.effectiveCurrent(ld, System) == Light) &&
+          assertTrue(ColorModePicker.Logic.effectiveCurrent(Nil, System) == System)
+        },
+        test("keyToNav maps arrows/home/end/space/enter, ignores others") {
+          import ColorModePicker.Nav.*
+          assertTrue(ColorModePicker.Logic.keyToNav("ArrowLeft").contains(Prev)) &&
+          assertTrue(ColorModePicker.Logic.keyToNav("Up").contains(Prev)) &&
+          assertTrue(ColorModePicker.Logic.keyToNav("ArrowRight").contains(Next)) &&
+          assertTrue(ColorModePicker.Logic.keyToNav("Down").contains(Next)) &&
+          assertTrue(ColorModePicker.Logic.keyToNav("Home").contains(First)) &&
+          assertTrue(ColorModePicker.Logic.keyToNav("End").contains(Last)) &&
+          assertTrue(ColorModePicker.Logic.keyToNav(" ").contains(Select)) &&
+          assertTrue(ColorModePicker.Logic.keyToNav("Enter").contains(Select)) &&
+          assertTrue(ColorModePicker.Logic.keyToNav("a").isEmpty)
+        },
+        test("resolveNav wraps Prev/Next and honors First/Last/Select") {
+          import ColorMode.Mode.*
+          import ColorModePicker.Nav.*
+          val opts = ColorModePicker.Logic.options(true)
+          assertTrue(ColorModePicker.Logic.resolveNav(opts, Light, Prev) == System) &&
+          assertTrue(ColorModePicker.Logic.resolveNav(opts, System, Next) == Light) &&
+          assertTrue(ColorModePicker.Logic.resolveNav(opts, Dark, Next) == System) &&
+          assertTrue(ColorModePicker.Logic.resolveNav(opts, Dark, First) == Light) &&
+          assertTrue(ColorModePicker.Logic.resolveNav(opts, Dark, Last) == System) &&
+          assertTrue(ColorModePicker.Logic.resolveNav(opts, Dark, Select) == Dark)
+        },
+        test("cycle advances with wraparound") {
+          import ColorMode.Mode.*
+          val opts = ColorModePicker.Logic.options(true)
+          assertTrue(ColorModePicker.Logic.cycle(opts, Light) == Dark) &&
+          assertTrue(ColorModePicker.Logic.cycle(opts, Dark) == System) &&
+          assertTrue(ColorModePicker.Logic.cycle(opts, System) == Light)
         },
       ),
     )

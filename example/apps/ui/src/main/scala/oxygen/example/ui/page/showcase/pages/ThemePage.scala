@@ -26,10 +26,29 @@ object ThemePage extends RoutablePage.NoParams[Any] {
             "plus surface personalities (Aurora / Ember / Violet / Ocean). " +
             "Top bar = solid primary + on-primary ink. Light/Dark flips surfaces only.",
         ),
-        // mode — reusable picker
+        // mode — reusable picker, shown in its several variants
+        h3("Color mode picker", marginBottom := S.spacing._3),
+        p(
+          color := S.color.fg.moderate,
+          fontSize := S.fontSize._2,
+          marginBottom := S.spacing._4,
+          "Standalone Light/Dark/System control (independent of theme packs). " +
+            "Keyboard: arrows / Home / End move + select; Space/Enter select. " +
+            "All instances share one persisted preference.",
+        ),
         div(
+          display.flex,
+          flexDirection.column,
+          gap := S.spacing._4,
           marginBottom := S.spacing._5,
-          ColorModePicker(label = Some("Color mode")),
+          // default segmented, with a leading caption
+          ColorModePicker(label = Some("Segmented")),
+          // segmented with icons
+          ColorModePicker.segmentedWithIcons.label("With icons"),
+          // Light/Dark only (no System)
+          ColorModePicker().lightDarkOnly.label("Light / Dark only"),
+          // compact icon cycle button (top-bar style)
+          ColorModePicker.compact.label("Compact"),
         ),
         h3("Oxygen theme packs", marginBottom := S.spacing._3),
         p(
