@@ -30,7 +30,7 @@ object PulsarAdminClientSpec extends OxygenSpecDefault {
           case "toString" => s"${interface.getSimpleName}$$mock"
           case "hashCode" => Int.box(java.lang.System.identityHashCode(proxyInstance))
           case "equals"   => Boolean.box(proxyInstance.asInstanceOf[AnyRef] eq argList.headOption.orNull)
-          case name =>
+          case name       =>
             handle.lift((name, argList)).getOrElse(throw new UnsupportedOperationException(s"${interface.getSimpleName}.$name"))
         }
       }
@@ -58,9 +58,9 @@ object PulsarAdminClientSpec extends OxygenSpecDefault {
       onCreate: () => CompletableFuture[Void],
   ): PulsarAdmin = {
     val topics: Topics = proxy(classOf[Topics]) {
-      case ("getListAsync", _)                    => completed(topicList.asJava)
-      case ("createNonPartitionedTopicAsync", _)  => onCreate()
-      case ("createPartitionedTopicAsync", _)     => onCreate()
+      case ("getListAsync", _)                   => completed(topicList.asJava)
+      case ("createNonPartitionedTopicAsync", _) => onCreate()
+      case ("createPartitionedTopicAsync", _)    => onCreate()
     }
     val namespaces: Namespaces = proxy(classOf[Namespaces]) { case ("getNamespacesAsync", _) =>
       completed(List(namespace.fullyQualified).asJava)
