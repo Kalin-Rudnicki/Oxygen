@@ -128,8 +128,48 @@ input makes it a `QueryO`/`Query`. Pass `debug = true` (`@compile(debug = true)`
 | `orderBy(a.field.asc, …)`, `limit(n)`, `offset(n)` | ordering / paging |
 | `Q.insert[A]` / `Q.update[A]` / `Q.delete[A]` | begin an insert / update / delete |
 | `set(_.field := value)` | assignment in an update |
-| `count.*` / `count(a.field)` | aggregate |
+| `count.*` / `count(a.field)` | `COUNT` aggregate (result `Long`, never null) |
+| `sum(a.field)` / `sum.orNull(a.field)` / `avg(a.field)` / `min(a.field)` / `max(a.field)` | scalar aggregate |
 | `a.tablePK` / `a.tableNPK` | the row's PK / non-PK columns |
+
+### Scalar aggregates
+
+`sum` / `avg` / `min` / `max` aggregate over the **whole** result set (there is no `GROUP BY` yet).
+
+`avg` / `min` / `max` are SQL `NULL` over an empty result set, so they decode to an `Option`. `sum`
+comes in two forms:
+
+- `sum(col)` / `sum.orZero(col)` → `COALESCE(SUM(col), 0)` — a **non-null** result (`0` over an empty set).
+- `sum.orNull(col)` → `SUM(col)` — an `Option` (`None` over an empty set).
+
+```scala
+@compile
+val totalAgeInGroup: QueryIO[UUID, Long] =
+  for {
+    groupId <- input[UUID]
+    p       <- select[Person]
+    _       <- where if p.groupId == groupId
+  } yield sum(p.age)          // COALESCE(SUM(p.age), 0); 0 when the group is empty
+
+// use `sum.orNull(p.age)` for `Option[Long]` (None when the group is empty)
+```
+
+The widened `Out` type follows Postgres' own widening rules (`avg` / `min` / `max` and `sum.orNull`
+wrap it in `Option`):
+
+| Aggregate | Column type | Postgres type | Widened `Out` |
+|-----------|-------------|---------------|---------------|
+| `sum` | `Short` / `Int` | `bigint` | `Long` |
+| `sum` | `Long` / `BigInt` | `numeric` | `BigInt` |
+| `sum` | `BigDecimal` | `numeric` | `BigDecimal` |
+| `sum` | `Float` | `real` | `Float` |
+| `sum` | `Double` | `double precision` | `Double` |
+| `avg` | `Short` / `Int` / `Long` / `BigInt` / `BigDecimal` | `numeric` | `BigDecimal` |
+| `avg` | `Float` / `Double` | `double precision` | `Double` |
+| `min` / `max` | any orderable column `A` | same as `A` | `A` |
+
+The `sum` / `avg` widening is driven by the `SumType` / `AvgType` type-classes, so the query's static
+type already reflects the widened result (e.g. `sum` over an `Int` column is `Long`, `sum.orNull` is `Option[Long]`).
 
 A join example returning a tuple:
 

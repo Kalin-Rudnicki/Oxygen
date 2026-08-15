@@ -38,10 +38,45 @@ final class DecoderBuilder {
         case _: QueryExpr.BinaryComp  => ParseResult.success(GeneratedResultDecoder.single(TypeclassExpr.RowRepr.boolean.resultDecoder, TypeRepr.of[Boolean]))
         case _: QueryExpr.BinaryAndOr => ParseResult.success(GeneratedResultDecoder.single(TypeclassExpr.RowRepr.boolean.resultDecoder, TypeRepr.of[Boolean]))
 
-    def builtIn(queryExpr: QueryExpr.BuiltIn)(using Quotes): ParseResult[GeneratedResultDecoder] =
+    def builtIn(queryExpr: QueryExpr.BuiltIn)(using ParseContext, Quotes): ParseResult[GeneratedResultDecoder] =
       queryExpr match
-        case QueryExpr.Static(fullTerm, _, rowRepr) => ParseResult.success(GeneratedResultDecoder.single(rowRepr.resultDecoder, fullTerm.tpe.widen))
-        case _: QueryExpr.CountWithArg              => ParseResult.success(GeneratedResultDecoder.single(TypeclassExpr.RowRepr.long.resultDecoder, TypeRepr.of[Long]))
+        case QueryExpr.Static(fullTerm, _, rowRepr)                        => ParseResult.success(GeneratedResultDecoder.single(rowRepr.resultDecoder, fullTerm.tpe.widen))
+        case _: QueryExpr.CountWithArg                                     => ParseResult.success(GeneratedResultDecoder.single(TypeclassExpr.RowRepr.long.resultDecoder, TypeRepr.of[Long]))
+        case QueryExpr.AggregateWithArg(fullTerm, fn, coalesceZero, inner) =>
+          // SUM/AVG/MIN/MAX over an empty result set return SQL NULL -> decode as `Option[_]`.
+          // The `sum(_)`/`sum.orZero(_)` variants wrap the result in `COALESCE(_, 0)`, so they are
+          // never null and decode to a non-optional `Out`. The DSL declares the widened result type
+          // (see `SumType`/`AvgType`), so the full term's type is already `Out` / `Option[Out]`.
+          val resultTpe: TypeRepr = fullTerm.tpe.widen
+          fn match
+            case AggregateFunction.Min | AggregateFunction.Max =>
+              // MIN/MAX keep the column's own type: reuse its `RowRepr`, wrapped in `optional`.
+              ParseResult.success(GeneratedResultDecoder.single(inner.rowRepr.optional.resultDecoder, resultTpe))
+            case AggregateFunction.Sum | AggregateFunction.Avg =>
+              // non-COALESCE result type is `Option[Out]`; COALESCE result type is `Out` directly.
+              val outTpe: Option[TypeRepr] = if coalesceZero then Some(resultTpe) else resultTpe.typeArgs.headOption
+              outTpe match
+                case Some(outTpe) =>
+                  convert.aggregateDecoder(outTpe, optional = !coalesceZero) match
+                    case Some(dec) => ParseResult.success(GeneratedResultDecoder.single(dec, resultTpe))
+                    case None      => ParseResult.error(fullTerm, s"unsupported ${fn.sql} result type: ${outTpe.showAnsiCode}")
+                case None =>
+                  ParseResult.error(fullTerm, s"expected an Option[_] result type for ${fn.sql}, got: ${resultTpe.showAnsiCode}")
+
+    /** Result decoder for a widened SUM/AVG output type; `optional` wraps it for the nullable variants. */
+    private def aggregateDecoder(outTpe: TypeRepr, optional: Boolean)(using Quotes): Option[TypeclassExpr.ResultDecoder] = {
+      val base: Option[Expr[oxygen.sql.schema.ResultDecoder[?]]] =
+        if outTpe =:= TypeRepr.of[Long] then Some('{ oxygen.sql.schema.RowRepr.long.decoder })
+        else if outTpe =:= TypeRepr.of[Double] then Some('{ oxygen.sql.schema.RowRepr.double.decoder })
+        else if outTpe =:= TypeRepr.of[Float] then Some('{ oxygen.sql.schema.RowRepr.float.decoder })
+        else if outTpe =:= TypeRepr.of[BigInt] then Some('{ oxygen.sql.schema.RowRepr.bigInt.decoder })
+        else if outTpe =:= TypeRepr.of[BigDecimal] then Some('{ oxygen.sql.schema.RowRepr.bigDecimal.decoder })
+        else None
+      base.map { dec =>
+        val full: Expr[oxygen.sql.schema.ResultDecoder[?]] = if optional then '{ $dec.optional } else dec
+        TypeclassExpr.ResultDecoder(full)
+      }
+    }
 
     def composite(queryExpr: QueryExpr.Composite, parentContext: Option[TypeclassExpr.RowRepr])(using ParseContext, Quotes): ParseResult[GeneratedResultDecoder] =
       queryExpr match

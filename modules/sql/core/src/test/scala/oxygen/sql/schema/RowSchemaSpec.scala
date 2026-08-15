@@ -56,6 +56,8 @@ object RowSchemaSpec extends OxygenSpecDefault {
       singleColumnTest[Short](Column.Type.SmallInt),
       singleColumnTest[Int](Column.Type.Int),
       singleColumnTest[Long](Column.Type.BigInt),
+      singleColumnTest[BigInt](Column.Type.Numeric),
+      singleColumnTest[BigDecimal](Column.Type.Numeric),
       singleColumnTest[Float](Column.Type.Real),
       singleColumnTest[Double](Column.Type.DoublePrecision),
       singleColumnTest[String](Column.Type.Text),

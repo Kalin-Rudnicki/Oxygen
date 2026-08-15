@@ -12,6 +12,13 @@ import oxygen.sql.query.dsl.Q
 import oxygen.sql.schema.TableRepr
 import scala.quoted.*
 
+private[generic] enum AggregateFunction(val sql: String) {
+  case Sum extends AggregateFunction("SUM")
+  case Avg extends AggregateFunction("AVG")
+  case Min extends AggregateFunction("MIN")
+  case Max extends AggregateFunction("MAX")
+}
+
 private[generic] sealed trait RawQueryExpr {
 
   /**
@@ -30,6 +37,7 @@ private[generic] sealed trait RawQueryExpr {
     case RawQueryExpr.ConstValue(_, term)                           => s"{ ${term.showCode} }".cyanFg.toString
     case RawQueryExpr.StaticCount(_, out)                           => s"${"COUNT".cyanFg}( ${out.magentaFg} )"
     case RawQueryExpr.CountWithArg(_, inner)                        => s"${"COUNT".cyanFg}( ${inner.show} )"
+    case RawQueryExpr.AggregateWithArg(_, fn, coalesceZero, inner)  => if coalesceZero then s"COALESCE( ${fn.sql.cyanFg}( ${inner.show} ), ${"0".magentaFg} )" else s"${fn.sql.cyanFg}( ${inner.show} )"
     case RawQueryExpr.SelectProductField(select, inner)             => s"${inner.show}.${select.name.magentaFg}"
     case RawQueryExpr.OptionGet(_, inner)                           => s"${inner.show}.${"get".hexFg("#35A7FF")}"
     case RawQueryExpr.OptionNullability(_, inner, showScala, _)     => s"${inner.show}.${showScala.hexFg("#35A7FF")}"
@@ -284,6 +292,28 @@ private[generic] object RawQueryExpr extends Parser[(Term, RefMap), RawQueryExpr
 
   }
 
+  // `coalesceZero` -> emit `COALESCE(fn(col), 0)` and decode a non-optional result (only `SUM`'s apply/orZero).
+  final case class AggregateWithArg(fullTerm: Term, fn: AggregateFunction, coalesceZero: Boolean, inner: RawQueryExpr) extends RawQueryExpr.BuiltIn
+  object AggregateWithArg extends Parser[(Term, RefMap), AggregateWithArg] {
+
+    override def parse(input: (Term, RefMap))(using ParseContext, Quotes): ParseResult[AggregateWithArg] = {
+      val (term, refs) = input
+
+      def of(fn: AggregateFunction, coalesceZero: Boolean, innerExpr: Expr[?]): ParseResult[AggregateWithArg] =
+        RawQueryExpr.parse((innerExpr.toTerm, refs)).map(AggregateWithArg(term, fn, coalesceZero, _))
+
+      term.asExpr match
+        case '{ Q.sum.orNull[a]($innerExpr)(using $ev) } => { val _ = ev; of(AggregateFunction.Sum, false, innerExpr) }
+        case '{ Q.sum.orZero[a]($innerExpr)(using $ev) } => { val _ = ev; of(AggregateFunction.Sum, true, innerExpr) }
+        case '{ Q.sum.apply[a]($innerExpr)(using $ev) }  => { val _ = ev; of(AggregateFunction.Sum, true, innerExpr) }
+        case '{ Q.avg[a]($innerExpr)(using $ev) }        => { val _ = ev; of(AggregateFunction.Avg, false, innerExpr) }
+        case '{ Q.min[a]($innerExpr) }                   => of(AggregateFunction.Min, false, innerExpr)
+        case '{ Q.max[a]($innerExpr) }                   => of(AggregateFunction.Max, false, innerExpr)
+        case _                                           => ParseResult.unknown(term, "not a scalar aggregate")
+    }
+
+  }
+
   final case class RandomUUID(fullTerm: Term) extends RawQueryExpr.BuiltIn
   object RandomUUID extends Parser[(Term, RefMap), RandomUUID] {
 
@@ -415,6 +445,7 @@ private[generic] object RawQueryExpr extends Parser[(Term, RefMap), RawQueryExpr
     case ReferencedVariable.optional(res)  => res
     case StaticCount.optional(res)         => res
     case CountWithArg.optional(res)        => res
+    case AggregateWithArg.optional(res)    => res
     case SelectPrimaryKey.optional(res)    => res
     case SelectNonPrimaryKey.optional(res) => res
     case OptionGet.optional(res)           => res

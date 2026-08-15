@@ -42,6 +42,7 @@ object domainToDb {
       case Column.Type.BigInt            => ColumnColumn.Type.BigInt
       case Column.Type.Real              => ColumnColumn.Type.Real
       case Column.Type.DoublePrecision   => ColumnColumn.Type.DoublePrecision
+      case Column.Type.Numeric           => ColumnColumn.Type.Numeric
       case Column.Type.Text              => ColumnColumn.Type.Text
       case Column.Type.Timestamp         => ColumnColumn.Type.Timestamp
       case Column.Type.ZonedTimestamp    => ColumnColumn.Type.ZonedTimestamp

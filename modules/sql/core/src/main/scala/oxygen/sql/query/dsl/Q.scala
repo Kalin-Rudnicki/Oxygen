@@ -75,6 +75,24 @@ object Q {
     def _1: Long = macroOnly
   }
 
+  // scalar aggregates over the whole result (no GROUP BY).
+
+  /**
+    * `SUM` over the whole result.
+    *   - `sum(col)` / `sum.orZero(col)` -> `COALESCE(SUM(col), 0)`, a non-null `ev.Out` (`0` over an empty result set).
+    *   - `sum.orNull(col)`              -> `SUM(col)`, `Option[ev.Out]` (SQL `NULL` -> `None` over an empty result set).
+    */
+  object sum {
+    def apply[A](toSum: A)(using ev: SumType[A]): ev.Out = macroOnly
+    def orZero[A](toSum: A)(using ev: SumType[A]): ev.Out = macroOnly
+    def orNull[A](toSum: A)(using ev: SumType[A]): Option[ev.Out] = macroOnly
+  }
+
+  // avg/min/max return `Option`: over an empty result set the aggregate is SQL NULL -> `None`.
+  def avg[A](toAvg: A)(using ev: AvgType[A]): Option[ev.Out] = macroOnly
+  def min[A](toMin: A): Option[A] = macroOnly
+  def max[A](toMax: A): Option[A] = macroOnly
+
   extension [A](self: A) {
     def tablePK(using ev: TableRepr[A]): ev.PrimaryKeyT = ev.pk.get(self)
     def tableNPK(using ev: TableRepr[A]): ev.NonPrimaryKeyT = ev.npk.get(self)

@@ -272,6 +272,64 @@ object CustomQuerySpec extends OxygenSpec[Database] {
           res6 == 2,
         )
       },
+      test("scalar aggregates (sum / avg / min / max)") {
+        for {
+          groupId <- Random.nextUUID
+          emptyGroupId <- Random.nextUUID
+
+          p1 <- Person.generate(groupId)(age = 10)
+          p2 <- Person.generate(groupId)(age = 20)
+          p3 <- Person.generate(groupId)(age = 30)
+
+          _ <- Person.insert.all(p1, p2, p3).unit
+
+          // non-empty group
+          sum <- queries.personAgeSumByGroup.execute(groupId).single
+          sumOrNull <- queries.personAgeSumOrNullByGroup.execute(groupId).single
+          avg <- queries.personAgeAvgByGroup.execute(groupId).single
+          min <- queries.personAgeMinByGroup.execute(groupId).single
+          max <- queries.personAgeMaxByGroup.execute(groupId).single
+
+          // empty group -> SQL NULL -> None (COALESCE `sum` -> 0)
+          sumEmpty <- queries.personAgeSumByGroup.execute(emptyGroupId).single
+          sumOrNullEmpty <- queries.personAgeSumOrNullByGroup.execute(emptyGroupId).single
+          avgEmpty <- queries.personAgeAvgByGroup.execute(emptyGroupId).single
+          minEmpty <- queries.personAgeMinByGroup.execute(emptyGroupId).single
+          maxEmpty <- queries.personAgeMaxByGroup.execute(emptyGroupId).single
+
+        } yield assertTrue(
+          // SUM(int) widens to bigint -> Long; `sum` COALESCEs to a non-optional Long
+          sum == 60L,
+          sumOrNull == Option(60L),
+          // AVG(int) -> numeric -> BigDecimal
+          avg.map(_.doubleValue) == Option(20.0),
+          // MIN/MAX keep the column type -> Int
+          min == Option(10),
+          max == Option(30),
+          // empty set -> COALESCE `sum` -> 0, `sum.orNull`/avg/min/max -> None
+          sumEmpty == 0L,
+          sumOrNullEmpty == Option.empty[Long],
+          avgEmpty == Option.empty[BigDecimal],
+          minEmpty == Option.empty[Int],
+          maxEmpty == Option.empty[Int],
+        )
+      },
+      test("BigInt / BigDecimal columns round-trip through `numeric`") {
+        // values chosen to exceed Long / Double range, so a lossy codec would be caught
+        val big = BigInt("123456789012345678901234567890")
+        val dec = BigDecimal("1234567890123456789.0123456789")
+        val row = Nums(bi = big, bd = dec, biOpt = big.some, bdOpt = None)
+        for {
+          _ <- Nums.insert.all(row).unit
+          got <- Nums.selectAll.execute().single
+        } yield assertTrue(
+          got.bi == big,
+          got.biOpt == big.some,
+          got.bdOpt.isEmpty,
+          // numeric compare (scale-insensitive) — `numeric` preserves the exact value
+          got.bd.compare(dec) == 0,
+        )
+      },
       test("insert from select") {
         for {
           groupId <- Random.nextUUID
@@ -529,7 +587,7 @@ object CustomQuerySpec extends OxygenSpec[Database] {
     LayerProvider.provideShared[Env](
       Helpers.testContainerLayer,
       Helpers.databaseLayer >>> MigrationService.migrateUnverifiedLayer,
-      MigrationTestUtil.stagedConfigLayer(Person.tableRepr, Note.tableRepr, Note2.tableRepr, Ints.tableRepr, MultiPK1.tableRepr, MultiPK2.tableRepr, LTreeEx.tableRepr),
+      MigrationTestUtil.stagedConfigLayer(Person.tableRepr, Note.tableRepr, Note2.tableRepr, Ints.tableRepr, Nums.tableRepr, MultiPK1.tableRepr, MultiPK2.tableRepr, LTreeEx.tableRepr),
     )
 
 }
