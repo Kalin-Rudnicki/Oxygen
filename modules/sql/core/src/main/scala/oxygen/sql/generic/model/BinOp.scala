@@ -27,6 +27,10 @@ private[generic] object BinOp {
     case `<+>` extends Comp("<+>", "<+>")
     case `@>` extends Comp("@>", "@>")
     case `<@` extends Comp("<@", "<@")
+    case like extends Comp("LIKE", "like")
+    case ilike extends Comp("ILIKE", "ilike")
+    case notLike extends Comp("NOT LIKE", "notLike")
+    case notILike extends Comp("NOT ILIKE", "notILike")
 
     final def show: String = sql.hexFg("#E6C120").toString
 
@@ -40,7 +44,7 @@ private[generic] object BinOp {
 
   }
 
-  // TODO (KR) : combine: `+`. `-`, `*`, `/`, `like`
+  // TODO (KR) : combine: `+`. `-`, `*`, `/`
 
   val sql: StrictEnum[BinOp] = StrictEnum.derive[BinOp]((op: BinOp) => op.sql)
   val scala: StrictEnum[BinOp] = StrictEnum.derive[BinOp]((op: BinOp) => op.scala)

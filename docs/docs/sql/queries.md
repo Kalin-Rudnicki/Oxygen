@@ -121,6 +121,7 @@ input makes it a `QueryO`/`Query`. Pass `debug = true` (`@compile(debug = true)`
 | `select[A]` | select all columns of table `A` |
 | `join[A] if <cond>` / `leftJoin[A] if <cond>` | inner / left join (`leftJoin` yields `Option[A]`) |
 | `where if <cond>` | filter |
+| `s.like(p)` / `s.ilike(p)` / `s.notLike(p)` / `s.notILike(p)` | string pattern match (see below) |
 | `orderBy(a.field.asc, …)`, `limit(n)`, `offset(n)` | ordering / paging |
 | `Q.insert[A]` / `Q.update[A]` / `Q.delete[A]` | begin an insert / update / delete |
 | `set(_.field := value)` | assignment in an update |
@@ -138,6 +139,31 @@ val personJoinNotes: QueryIO[UUID, (Person, Note)] =
     n <- join[Note] if n.personId == p.id
     _ <- where if p.groupId == i
   } yield (p, n)
+```
+
+### String pattern matching (`LIKE` / `ILIKE`)
+
+On `String` columns, four predicates map to SQL's pattern-matching operators. The pattern binds as a
+single scalar `String` parameter, so the generated SQL stays static (`col LIKE ?`):
+
+| Form | SQL | Notes |
+|------|-----|-------|
+| `col.like(pattern)` | `col LIKE ?` | case-sensitive |
+| `col.ilike(pattern)` | `col ILIKE ?` | case-insensitive (Postgres-specific) |
+| `col.notLike(pattern)` | `col NOT LIKE ?` | |
+| `col.notILike(pattern)` | `col NOT ILIKE ?` | case-insensitive (Postgres-specific) |
+
+The pattern uses the usual SQL wildcards: `%` matches any sequence of characters and `_` matches
+exactly one. Predicates compose with `&&` / `||` like any other condition.
+
+```scala
+@compile
+val searchByName: QueryIO[String, Person] =
+  for {
+    pattern <- input[String]
+    p       <- select[Person]
+    _       <- where if p.first.ilike(pattern)   // e.g. "al%" matches "Alice", "alfred", …
+  } yield p
 ```
 
 > Custom column types flow through automatically: `input[Email]` and `select[UserRow]` use the
