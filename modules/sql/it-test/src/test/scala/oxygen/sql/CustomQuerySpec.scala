@@ -419,6 +419,46 @@ object CustomQuerySpec extends OxygenSpec[Database] {
           res2 == Set(ab, abc1, abc2),
         )
       },
+      test("like / ilike") {
+        for {
+          groupId <- Random.nextUUID
+
+          // deterministic first names covering wildcard + case-sensitivity scenarios
+          alice <- Person.generate(groupId)(first = "Alice", age = 30)
+          alicia <- Person.generate(groupId)(first = "Alicia", age = 40)
+          alfred <- Person.generate(groupId)(first = "Alfred", age = 50)
+          bob <- Person.generate(groupId)(first = "Bob", age = 60)
+          aliceLower <- Person.generate(groupId)(first = "alice", age = 70)
+
+          _ <- Person.insert.all(alice, alicia, alfred, bob, aliceLower).unit
+
+          // `%` wildcard: everything starting with "Al" (case-sensitive) -> Alice, Alicia, Alfred
+          likePct <- queries.personFirstLike("Al%").to[Set]
+          // `_` wildcard: "Ali" + exactly two chars -> Alice, Alicia is 6 -> only "Alice" (Ali + ce)
+          likeUnderscore <- queries.personFirstLike("Ali__").to[Set]
+          // LIKE is case-sensitive: "alice" pattern matches only the lowercase row
+          likeCase <- queries.personFirstLike("alice").to[Set]
+          // ILIKE is case-insensitive: "alice" matches "Alice" and "alice"
+          ilikeCase <- queries.personFirstILike("alice").to[Set]
+          // ILIKE with `%`: "al%" case-insensitively -> all the Al-names + lowercase alice
+          ilikePct <- queries.personFirstILike("al%").to[Set]
+          // NOT LIKE: not starting with "Al" (case-sensitive) -> Bob + lowercase alice
+          notLike <- queries.personFirstNotLike("Al%").to[Set]
+          // NOT ILIKE: not starting with "al" case-insensitively -> only Bob
+          notILike <- queries.personFirstNotILike("al%").to[Set]
+          // composition with `&&`: starts with "Al" AND age >= 45 -> Alfred(50)
+          composed <- queries.personLikeAndMinAge.execute("Al%", 45).to[Set]
+        } yield assertTrue(
+          likePct == Set(alice, alicia, alfred),
+          likeUnderscore == Set(alice),
+          likeCase == Set(aliceLower),
+          ilikeCase == Set(alice, aliceLower),
+          ilikePct == Set(alice, alicia, alfred, aliceLower),
+          notLike == Set(bob, aliceLower),
+          notILike == Set(bob),
+          composed == Set(alfred),
+        )
+      },
     )
 
   override def testAspects: Chunk[CustomQuerySpec.TestSpecAspect] = Chunk(TestAspect.nondeterministic, TestAspect.withLiveClock, SqlAspects.isolateTestsInRollbackTransaction)

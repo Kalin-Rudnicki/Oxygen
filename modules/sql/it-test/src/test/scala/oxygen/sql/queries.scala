@@ -472,6 +472,48 @@ object queries {
       _ <- where if n.tree <@ in
     } yield n
 
+  @compile
+  val personFirstLike: QueryIO[String, Person] =
+    for {
+      pattern <- input[String]
+      p <- select[Person]
+      _ <- where if p.first.like(pattern)
+    } yield p
+
+  @compile
+  val personFirstILike: QueryIO[String, Person] =
+    for {
+      pattern <- input[String]
+      p <- select[Person]
+      _ <- where if p.first.ilike(pattern)
+    } yield p
+
+  @compile
+  val personFirstNotLike: QueryIO[String, Person] =
+    for {
+      pattern <- input[String]
+      p <- select[Person]
+      _ <- where if p.first.notLike(pattern)
+    } yield p
+
+  @compile
+  val personFirstNotILike: QueryIO[String, Person] =
+    for {
+      pattern <- input[String]
+      p <- select[Person]
+      _ <- where if p.first.notILike(pattern)
+    } yield p
+
+  // LIKE composed with another predicate (`&&`)
+  @compile
+  val personLikeAndMinAge: QueryIO[(String, Int), Person] =
+    for {
+      pattern <- input[String]
+      minAge <- input[Int]
+      p <- select[Person]
+      _ <- where if p.first.like(pattern) && p.age >= minAge
+    } yield p
+
   //////////////////////////////////////////////////////////////////////////////////////////////////////
   //      Update
   //////////////////////////////////////////////////////////////////////////////////////////////////////

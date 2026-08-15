@@ -91,6 +91,12 @@ object Q {
     def @>(value: A): Boolean = macroOnly // is ancestor of (ltree)
     def <@(value: A): Boolean = macroOnly // is descendant of (ltree)
 
+  extension (self: String)
+    def like(pattern: String): Boolean = macroOnly // SQL `LIKE` (case-sensitive pattern match)
+    def ilike(pattern: String): Boolean = macroOnly // SQL `ILIKE` (case-insensitive pattern match, Postgres-specific)
+    def notLike(pattern: String): Boolean = macroOnly // SQL `NOT LIKE`
+    def notILike(pattern: String): Boolean = macroOnly // SQL `NOT ILIKE` (Postgres-specific)
+
   def mkSqlString(strings: String*): String = macroOnly
 
 }
