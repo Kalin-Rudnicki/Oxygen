@@ -12,6 +12,7 @@ run in `ZIO[Database, QueryError, …]`; you supply a `Database` via its `ZLayer
 final case class DbConfig(
     target: DbConfig.Target,                 // database, host, port
     credentials: Option[DbConfig.Credentials], // username, password
+    connection: DbConfig.Connection,         // ssl, timeouts, application name, extra props
     pool: DbConfig.Pool,                     // minConnections, maxConnections, duration
     logging: DbConfig.Logging,               // queryLogLevel, logSql
     execution: DbConfig.Execution,           // result-buffer tuning
@@ -24,6 +25,7 @@ As JSON (the example app sets the same fields as YAML in `example/apps/web-serve
 {
   "target":      { "database": "oxygen_example", "host": "localhost", "port": 5210 },
   "credentials": { "username": "oxygen_username", "password": "oxygen_password" },
+  "connection":  { "sslMode": "prefer", "connectTimeout": "PT10S", "applicationName": "oxygen_example" },
   "pool":        { "minConnections": 2, "maxConnections": 16, "duration": "PT5M" },
   "logging":     { "queryLogLevel": "Trace", "logSql": true },
   "execution":   { "bufferChunkSize": [16, 64, 64, 256], "bufferNumChunks": 2 }
@@ -34,6 +36,28 @@ As JSON (the example app sets the same fields as YAML in `example/apps/web-serve
 - `queryLogLevel` is a ZIO `LogLevel`; `logSql` toggles logging the SQL text.
 - `DbConfig.Execution.default` provides sensible buffer defaults.
 - Credentials are marked `@jsonSecret`, so they're redacted in safe serialization.
+
+### JDBC connection settings — `DbConfig.Connection`
+
+Optional, typed JDBC connection params, translated into the driver `Properties` alongside
+`user`/`password`. Every field is optional; `DbConfig.Connection.default` is all-empty, which
+preserves the historical behavior of supplying only credentials, so `connection` can be omitted
+entirely from the JSON.
+
+| Field | JDBC property | Notes |
+|-------|---------------|-------|
+| `sslMode` | `sslmode` | One of `disable`, `allow`, `prefer`, `require`, `verify-ca`, `verify-full` (Postgres `sslmode`). |
+| `sslRootCert` | `sslrootcert` | Path to the trusted CA cert — typically required for `verify-ca` / `verify-full`. |
+| `sslCert` | `sslcert` | Path to the client cert (mutual TLS). |
+| `sslKey` | `sslkey` | Path to the client key **file** (a path, not the key material). |
+| `connectTimeout` | `connectTimeout` | `Duration`, sent as whole seconds. |
+| `socketTimeout` | `socketTimeout` | `Duration`, sent as whole seconds. |
+| `applicationName` | `ApplicationName` | Shows up in `pg_stat_activity`. |
+| `extraProperties` | *(verbatim)* | `Map[String, String]` escape hatch for any other driver knob. |
+
+Property values are Postgres (`pgjdbc`) flavored. `extraProperties` are applied **last**, so they
+override the typed properties (and credentials) on a key collision — the escape hatch always wins.
+So `"ssl prefer"` from the ticket is simply `"connection": { "sslMode": "prefer" }`.
 
 ## The Database layer
 
