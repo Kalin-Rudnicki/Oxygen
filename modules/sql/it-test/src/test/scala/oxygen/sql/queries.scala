@@ -221,6 +221,67 @@ object queries {
       _ <- where if p1.groupId == i
     } yield p1
 
+  // OXY-17: IN / NOT IN -> static `col = ANY(?)` / `col <> ALL(?)` (single array bind)
+
+  @compile
+  val selectByIds: QueryIO[Seq[UUID], Person] =
+    for {
+      ids <- input[Seq[UUID]]
+      p <- select[Person]
+      _ <- where if p.id.in(ids)
+    } yield p
+
+  @compile
+  val selectByIdsNotIn: QueryIO[Seq[UUID], Person] =
+    for {
+      ids <- input[Seq[UUID]]
+      p <- select[Person]
+      _ <- where if p.id.notIn(ids)
+    } yield p
+
+  // same as `selectByIds` / `selectByIdsNotIn`, but the value-list is a `Set` instead of a `Seq`
+  @compile
+  val selectByIdsSet: QueryIO[Set[UUID], Person] =
+    for {
+      ids <- input[Set[UUID]]
+      p <- select[Person]
+      _ <- where if p.id.in(ids)
+    } yield p
+
+  @compile
+  val selectByIdsSetNotIn: QueryIO[Set[UUID], Person] =
+    for {
+      ids <- input[Set[UUID]]
+      p <- select[Person]
+      _ <- where if p.id.notIn(ids)
+    } yield p
+
+  @compile
+  val selectByGroupAndIds: QueryIO[(UUID, Seq[UUID]), Person] =
+    for {
+      groupId <- input[UUID]
+      ids <- input[Seq[UUID]]
+      p <- select[Person]
+      _ <- where if p.groupId == groupId && p.id.in(ids)
+    } yield p
+
+  @compile
+  val selectByGroupAndIds2NotIn: QueryIO[(UUID, Seq[UUID]), Person] =
+    for {
+      groupId <- input[UUID]
+      ids <- input[Seq[UUID]]
+      p <- select[Person]
+      _ <- where if p.groupId == groupId && p.id.notIn(ids)
+    } yield p
+
+  @compile
+  val deleteByIds: QueryIO[Seq[UUID], Person] =
+    for {
+      ids <- input[Seq[UUID]]
+      p <- delete[Person]
+      _ <- where if p.id.in(ids)
+    } yield p
+
   @compile
   val selectByIdArray: QueryIO[Seq[UUID], Person] =
     for {

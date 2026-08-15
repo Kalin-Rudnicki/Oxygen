@@ -42,7 +42,10 @@ object GeneratedFragment {
     fragment.getOrElse(GeneratedFragment.empty)
 
   def flatten[S[_]: SeqOps](all: S[GeneratedFragment]): GeneratedFragment =
-    GeneratedFragment(GeneratedSql.flatten(all.map(_.generatedSql)), GeneratedInputEncoder.flatten(all.map(_.generatedInputEncoder)))
+    GeneratedFragment(
+      GeneratedSql.flatten(all.map(_.generatedSql)),
+      GeneratedInputEncoder.flatten(all.map(_.generatedInputEncoder)),
+    )
 
   def indented(inner: GeneratedFragment, indent: String): GeneratedFragment =
     GeneratedFragment(GeneratedSql.indented(inner.generatedSql, indent), inner.generatedInputEncoder)
