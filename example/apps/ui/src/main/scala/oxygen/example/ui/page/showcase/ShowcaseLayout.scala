@@ -66,6 +66,7 @@ object ShowcaseLayout {
       navItem("Messages", MessagesPage, currentPath),
       navItem("Anchors", AnchorsPage, currentPath),
       navItem("Grid", GridPage, currentPath),
+      navItem("Media queries", MediaQueryPage, currentPath),
       navItem("Kitchen sink", KitchenSinkPage, currentPath),
     )
 

@@ -4,12 +4,36 @@ import java.time.YearMonth
 import oxygen.predef.test.*
 import oxygen.ui.web.{LockState, Memo, PageURL}
 import oxygen.ui.web.component.{ColorPicker, DatePicker, DateTimePicker, Icon, InfiniteScroll, LazySection, Pagination, Progress, SideBar, SortableList, Tabs, TimePicker, TopBar}
-import oxygen.ui.web.create.{AnchorId, CSSColor, MediaCSS, Motion}
+import oxygen.ui.web.create.{AnchorId, CSSColor, MediaCSS, MediaQuery, Motion}
 import oxygen.ui.web.service.{IndexedDB, Intersect}
 import oxygen.ui.web.service.HashScroll
 import oxygen.ui.web.style.Breakpoints
 import oxygen.ui.web.style.OxygenColorSystem.*
 import zio.http.{Path, QueryParams}
+
+/** Test sheet exercising the composable media-query DSL (OXY-158). */
+object MediaDslTestSheet extends oxygen.ui.web.create.StyleSheetBuilder {
+  import oxygen.ui.web.create.{*, given}
+
+  object Box extends Class("mq-test-box") {
+    selector(
+      display.flex,
+      flexDirection.column,
+    )
+    // md and up → row. Authored with the ordinary selector DSL, no raw @media strings.
+    media(MediaQuery.mdUp) {
+      selector(flexDirection.row)
+    }
+    // nested media blocks AND together
+    media(MediaQuery.mdUp) {
+      media(MediaQuery.landscape) {
+        selector(gap := "8px")
+      }
+    }
+  }
+
+  override val compiled: StyleSheet = StyleSheet.derived[MediaDslTestSheet.type]
+}
 
 /** Combined Scala.js suite (single main) for oxygen-ui-web pure logic. */
 object OxygenColorSystemSpec extends OxygenSpecDefault {
@@ -133,6 +157,31 @@ object OxygenColorSystemSpec extends OxygenSpecDefault {
           val css = MediaCSS.mdUp(".x { display: none; }")
           assertTrue(css.contains("@media (min-width: 768px)")) &&
           assertTrue(css.contains(".x { display: none; }"))
+        },
+      ),
+      suite("MediaQuery DSL (OXY-158)")(
+        test("MediaQuery renders conditions") {
+          assertTrue(MediaQuery.minWidth(768).query == "(min-width: 768px)") &&
+          assertTrue(MediaQuery.mdUp.query == "(min-width: 768px)") &&
+          assertTrue(MediaQuery.belowMd.query == "(max-width: 767px)") &&
+          assertTrue(MediaQuery.prefersDark.query == "(prefers-color-scheme: dark)")
+        },
+        test("MediaQuery composes with and/or") {
+          assertTrue((MediaQuery.mdUp && MediaQuery.landscape).query == "(min-width: 768px) and (orientation: landscape)") &&
+          assertTrue((MediaQuery.print || MediaQuery.screen).query == "print, screen") &&
+          assertTrue(MediaQuery.between(768, 1024).query == "(min-width: 768px) and (max-width: 1023px)")
+        },
+        test("media() block compiles to an @media wrapper around the selector rule") {
+          val css = MediaDslTestSheet.compiled.body()
+          // base rule is unwrapped
+          assertTrue(css.contains(".mq-test-box")) &&
+          assertTrue(css.contains("flex-direction: column;")) &&
+          // responsive rule is wrapped in @media
+          assertTrue(css.contains("@media (min-width: 768px)")) &&
+          assertTrue(css.contains("flex-direction: row;")) &&
+          // nested media blocks AND together
+          assertTrue(css.contains("@media (min-width: 768px) and (orientation: landscape)")) &&
+          assertTrue(css.contains("gap: 8px;"))
         },
       ),
       suite("Memo")(

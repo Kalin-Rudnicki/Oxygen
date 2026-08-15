@@ -4,7 +4,12 @@ import oxygen.ui.web.style.Breakpoints
 
 /**
   * W5-T02: sanctioned helpers to emit `@media` CSS without a full media-query DSL.
-  * Prefer these over hand-written strings at call sites.
+  *
+  * ''Prefer the composable [[MediaQuery]] + [[media]] DSL (OXY-158) for new stylesheet code'' —
+  * it lets responsive rules be written with the same selector DSL as everything else and emits the
+  * `@media` wrapper for you. These raw-string helpers remain for legacy raw sheets
+  * (e.g. [[oxygen.ui.web.component.ColumnsStyle]], [[oxygen.ui.web.layout.HolyGrail]]) that are not
+  * built through a [[StyleSheetBuilder]].
   */
 object MediaCSS {
 

@@ -273,7 +273,7 @@ showcase (flat/nested commands, every annotation, env layers) lives at
 `example/apps/example-app/.../ShowcaseApp.scala`.
 
 ```bash
-APP_CONFIG=example/apps/web-server/src/main/resources/local.json sbt "example-web-server/run"
+APP_CONFIG=example/apps/web-server/config/local.yaml sbt "example-web-server/run"
 ```
 
 ## Further reading
