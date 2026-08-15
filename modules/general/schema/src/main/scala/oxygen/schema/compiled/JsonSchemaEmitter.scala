@@ -126,6 +126,7 @@ final class JsonSchemaEmitter(schemas: FullCompiledSchemas) {
       case None                    => Json.Obj(ArraySeq.empty) // `{}` — any JSON value
       case Some(Json.Type.String)  => obj("type" -> Json.string("string"))
       case Some(Json.Type.Number)  => obj("type" -> Json.string("number"))
+      case Some(Json.Type.Integer) => obj("type" -> Json.string("integer"))
       case Some(Json.Type.Boolean) => obj("type" -> Json.string("boolean"))
       case Some(Json.Type.Array)   => obj("type" -> Json.string("array"))
       case Some(Json.Type.Object)  => obj("type" -> Json.string("object"))

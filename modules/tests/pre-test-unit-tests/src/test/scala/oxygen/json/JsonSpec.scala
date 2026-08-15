@@ -337,6 +337,20 @@ object JsonSpec extends OxygenSpecDefault {
           directRoundTripTest[IntOrString]("5")(IntOrString(5)),
           directRoundTripTest[IntOrString]("\"hi\"")(IntOrString("hi")),
         ),
+        suite("number type classification")(
+          test("whole values are Integer, fractional values are Number") {
+            assert(Json.parse("123").map(_.tpe))(isRight(equalTo(Json.Type.Integer))) &&
+            assert(Json.parse("-7").map(_.tpe))(isRight(equalTo(Json.Type.Integer))) &&
+            assert(Json.parse("0").map(_.tpe))(isRight(equalTo(Json.Type.Integer))) &&
+            assert(Json.parse("1.0").map(_.tpe))(isRight(equalTo(Json.Type.Integer))) &&
+            assert(Json.parse("1e+3").map(_.tpe))(isRight(equalTo(Json.Type.Integer))) &&
+            assert(Json.parse("1.5").map(_.tpe))(isRight(equalTo(Json.Type.Number))) &&
+            assert(Json.parse("1e-3").map(_.tpe))(isRight(equalTo(Json.Type.Number))) &&
+            assert(Json.parse("0.25").map(_.tpe))(isRight(equalTo(Json.Type.Number)))
+          },
+          failedDecodeTest[Int]("1.5"),
+          successfulDecodeTest[Int]("1.0")(1),
+        ),
       ),
     )
 

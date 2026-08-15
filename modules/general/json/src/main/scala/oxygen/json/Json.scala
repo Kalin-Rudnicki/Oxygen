@@ -41,12 +41,12 @@ sealed trait Json {
   }
 
   final def tpe: Json.Type = this match
-    case Json.Str(_)    => Json.Type.String
-    case _: Json.Number => Json.Type.Number
-    case Json.Bool(_)   => Json.Type.Boolean
-    case Json.Arr(_)    => Json.Type.Array
-    case Json.Obj(_)    => Json.Type.Object
-    case Json.Null      => Json.Type.Null
+    case Json.Str(_)       => Json.Type.String
+    case json: Json.Number => if json.value.isWhole then Json.Type.Integer else Json.Type.Number
+    case Json.Bool(_)      => Json.Type.Boolean
+    case Json.Arr(_)       => Json.Type.Array
+    case Json.Obj(_)       => Json.Type.Object
+    case Json.Null         => Json.Type.Null
 
   final def toJsonString: Option[Json.Str] = this match
     case json: Json.Str => json.some
@@ -82,7 +82,15 @@ sealed trait Json {
 }
 object Json {
 
-  enum Type derives StrictEnum { case String, Number, Boolean, Array, Object, Null }
+  /**
+    * The JSON value discriminants.
+    *
+    * `Integer` and `Number` share the single [[Json.Number]] AST node; they are distinguished at the
+    * value level by [[Json.tpe]] (`Integer` iff the underlying `BigDecimal` is whole). This mirrors
+    * JSON Schema 2020-12 / OpenAPI, where `integer` and `number` are separate types (every integer is
+    * also a valid number).
+    */
+  enum Type derives StrictEnum { case String, Number, Integer, Boolean, Array, Object, Null }
 
   //////////////////////////////////////////////////////////////////////////////////////////////////////
   //      Cases

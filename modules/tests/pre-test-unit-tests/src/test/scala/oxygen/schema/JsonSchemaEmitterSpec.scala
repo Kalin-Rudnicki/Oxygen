@@ -29,6 +29,12 @@ object JsonSchemaEmitterSpec extends OxygenSpecDefault {
       children: List[Tree],
   ) derives JsonSchema
 
+  final case class Measurement(
+      count: Int,
+      ratio: Double,
+      raw: Json.Number,
+  ) derives JsonSchema
+
   //////////////////////////////////////////////////////////////////////////////////////////////////////
   //      Helpers
   //////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -125,6 +131,14 @@ object JsonSchemaEmitterSpec extends OxygenSpecDefault {
           members.fld("type").asString.contains("array"),
           members.fld("items").fld("$ref").asString.exists(_.startsWith("#/$defs/")),
           lead.fld("$ref").asString == members.fld("items").fld("$ref").asString,
+        )
+      },
+      test("Int emits integer, Double emits number, AST Json.Number emits number") {
+        val props = soleDef(standalone[Measurement]).fld("properties")
+        assertTrue(
+          props.fld("count").fld("type").asString.contains("integer"),
+          props.fld("ratio").fld("type").asString.contains("number"),
+          props.fld("raw").fld("type").asString.contains("number"),
         )
       },
       test("recursive type terminates via $ref to itself") {
