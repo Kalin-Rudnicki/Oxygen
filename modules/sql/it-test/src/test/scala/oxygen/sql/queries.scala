@@ -139,6 +139,14 @@ final case class Ints(
 )
 object Ints extends TableCompanion[Ints, Unit](TableRepr.derived[Ints])
 
+final case class Nums(
+    bi: BigInt,
+    bd: BigDecimal,
+    biOpt: Option[BigInt],
+    bdOpt: Option[BigDecimal],
+)
+object Nums extends TableCompanion[Nums, Unit](TableRepr.derived[Nums])
+
 final case class Arrays(
     _1: List[Int],
     _2: Set[String],
@@ -476,6 +484,50 @@ object queries {
       p <- select[Person]
       _ <- where if p.first == first && p.last == last
     } yield count(p)
+
+  // scalar aggregates (OXY-166) over a group. NULL over an empty group -> None (except `sum`'s COALESCE variant -> 0).
+
+  // `sum(_)` == `sum.orZero(_)` -> COALESCE(SUM(_), 0), non-optional (0 over an empty group).
+  @compile
+  val personAgeSumByGroup: QueryIO[UUID, Long] =
+    for {
+      groupId <- input[UUID]
+      p <- select[Person]
+      _ <- where if p.groupId == groupId
+    } yield Q.sum(p.age)
+
+  // `sum.orNull(_)` -> SUM(_), Option (None over an empty group).
+  @compile
+  val personAgeSumOrNullByGroup: QueryIO[UUID, Option[Long]] =
+    for {
+      groupId <- input[UUID]
+      p <- select[Person]
+      _ <- where if p.groupId == groupId
+    } yield Q.sum.orNull(p.age)
+
+  @compile
+  val personAgeAvgByGroup: QueryIO[UUID, Option[BigDecimal]] =
+    for {
+      groupId <- input[UUID]
+      p <- select[Person]
+      _ <- where if p.groupId == groupId
+    } yield Q.avg(p.age)
+
+  @compile
+  val personAgeMinByGroup: QueryIO[UUID, Option[Int]] =
+    for {
+      groupId <- input[UUID]
+      p <- select[Person]
+      _ <- where if p.groupId == groupId
+    } yield Q.min(p.age)
+
+  @compile
+  val personAgeMaxByGroup: QueryIO[UUID, Option[Int]] =
+    for {
+      groupId <- input[UUID]
+      p <- select[Person]
+      _ <- where if p.groupId == groupId
+    } yield Q.max(p.age)
 
   @compile
   val selectSubQuery1: QueryO[(Person, Option[Note])] =

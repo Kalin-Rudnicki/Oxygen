@@ -42,7 +42,7 @@ object Column {
     case object BigInt extends Type.Single("BIGINT")
     case object Real extends Type.Single("REAL")
     case object DoublePrecision extends Type.Single("DOUBLE PRECISION")
-    // TODO (KR) : decimal
+    case object Numeric extends Type.Single("NUMERIC")
 
     // Character Types
     case object Text extends Type.Single("TEXT")

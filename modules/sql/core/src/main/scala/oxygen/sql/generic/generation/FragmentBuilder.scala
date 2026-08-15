@@ -307,8 +307,13 @@ final case class FragmentBuilder(inputs: List[InputPart])(using Quotes) {
 
     def builtIn(queryExpr: QueryExpr.BuiltIn)(using ParseContext, GenerationContext, Quotes): ParseResult[GeneratedFragment] =
       queryExpr match
-        case QueryExpr.Static(_, out, _)      => ParseResult.Success(GeneratedFragment.sql(out))
-        case QueryExpr.CountWithArg(_, inner) => queryExprToFragment(inner, None).map { frag => GeneratedFragment.of("COUNT(", frag, ")") }
+        case QueryExpr.Static(_, out, _)                            => ParseResult.Success(GeneratedFragment.sql(out))
+        case QueryExpr.CountWithArg(_, inner)                       => queryExprToFragment(inner, None).map { frag => GeneratedFragment.of("COUNT(", frag, ")") }
+        case QueryExpr.AggregateWithArg(_, fn, coalesceZero, inner) =>
+          queryExprToFragment(inner, None).map { frag =>
+            if coalesceZero then GeneratedFragment.of(s"COALESCE(${fn.sql}(", frag, "), 0)")
+            else GeneratedFragment.of(s"${fn.sql}(", frag, ")")
+          }
 
     def composite(queryExpr: QueryExpr.Composite, parentContext: Option[TypeclassExpr.RowRepr])(using ParseContext, GenerationContext, Quotes): ParseResult[GeneratedFragment] =
       queryExpr match {

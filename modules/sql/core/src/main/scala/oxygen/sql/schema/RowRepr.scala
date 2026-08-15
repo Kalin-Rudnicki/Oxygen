@@ -231,7 +231,12 @@ object RowRepr extends RowReprLowPriority.LowPriority1 {
       java.lang.Long.valueOf(_),
     )
 
-  // TODO (KR) : bigInt
+  given bigInt: RowRepr[BigInt] =
+    RowRepr.ColumnRepr.simplePF(
+      Column.Type.Numeric,
+      { case value: java.math.BigDecimal => BigInt(value.toBigInteger) },
+      value => new java.math.BigDecimal(value.bigInteger),
+    )
 
   given float: RowRepr[Float] =
     RowRepr.ColumnRepr.simplePF(
@@ -247,7 +252,12 @@ object RowRepr extends RowReprLowPriority.LowPriority1 {
       java.lang.Double.valueOf(_),
     )
 
-  // TODO (KR) : bigDecimal
+  given bigDecimal: RowRepr[BigDecimal] =
+    RowRepr.ColumnRepr.simplePF(
+      Column.Type.Numeric,
+      { case value: java.math.BigDecimal => BigDecimal(value) },
+      _.bigDecimal,
+    )
 
   // =====| Character Types |=====
 

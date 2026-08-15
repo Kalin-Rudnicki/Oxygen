@@ -341,12 +341,17 @@ private[generic] object QueryExpr extends Parser[RawQueryExpr, QueryExpr] {
   sealed trait BuiltIn extends QueryExpr {
 
     override final def show(using Quotes): String = this match
-      case QueryExpr.CountWithArg(_, inner) => s"${"COUNT".cyanFg}( ${inner.show} )"
-      case QueryExpr.Static(_, out, _)      => out.cyanFg.toString
+      case QueryExpr.CountWithArg(_, inner)                       => s"${"COUNT".cyanFg}( ${inner.show} )"
+      case QueryExpr.AggregateWithArg(_, fn, coalesceZero, inner) => if coalesceZero then s"COALESCE( ${fn.sql.cyanFg}( ${inner.show} ), ${"0".magentaFg} )" else s"${fn.sql.cyanFg}( ${inner.show} )"
+      case QueryExpr.Static(_, out, _)                            => out.cyanFg.toString
 
   }
 
   final case class CountWithArg(fullTerm: Term, inner: QueryVariableReferenceLike) extends BuiltIn {
+    override def queryRefs: Growable[VariableReference] = inner.queryRefs
+  }
+
+  final case class AggregateWithArg(fullTerm: Term, fn: AggregateFunction, coalesceZero: Boolean, inner: QueryVariableReferenceLike) extends BuiltIn {
     override def queryRefs: Growable[VariableReference] = inner.queryRefs
   }
 
@@ -438,6 +443,11 @@ private[generic] object QueryExpr extends Parser[RawQueryExpr, QueryExpr] {
             case _                                         => ParseResult.error(rhs.fullTerm, "right-hand side of `in`/`notIn` must be a runtime input collection (e.g. `input[Seq[A]]`)")
           }
         } yield QueryExpr.InList(fullTerm, lhs, notIn, rhs)
+      case RawQueryExpr.AggregateWithArg(fullTerm, fn, coalesceZero, inner) =>
+        parse(inner).flatMap {
+          case inner: QueryExpr.QueryVariableReferenceLike => ParseResult.Success(QueryExpr.AggregateWithArg(fullTerm, fn, coalesceZero, inner))
+          case inner                                       => ParseResult.error(inner.fullTerm, s"can only ${fn.sql}( _ ) a single column")
+        }
     }
 
 }
