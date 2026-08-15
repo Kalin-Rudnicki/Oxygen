@@ -222,6 +222,83 @@ object queries {
     } yield p1
 
   @compile
+  val selectByIdArray: QueryIO[Seq[UUID], Person] =
+    for {
+      ids <- input.array[UUID]
+      p <- select[Person]
+      _ <- where if ids.contains(p.id)
+    } yield p
+
+  // same as `selectByIdArray`, but the input is a `Set` (`input.set`) instead of a `Seq`
+  @compile
+  val selectByIdSet: QueryIO[Set[UUID], Person] =
+    for {
+      ids <- input.set[UUID]
+      p <- select[Person]
+      _ <- where if ids.contains(p.id)
+    } yield p
+
+  @compile
+  val selectByIdArrayAndGroup: QueryIO[(Seq[UUID], UUID), Person] =
+    for {
+      ids <- input.array[UUID]
+      groupId <- input[UUID]
+      p <- select[Person]
+      _ <- where if ids.contains(p.id) && p.groupId == groupId
+    } yield p
+
+  @compile
+  val personJoinNotesByIdArray: QueryIO[Seq[UUID], (Person, Note)] =
+    for {
+      ids <- input.array[UUID]
+      p <- select[Person]
+      n <- join[Note] if n.personId == p.id
+      _ <- where if ids.contains(p.id)
+    } yield (p, n)
+
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
+  //      UNNEST as an input JOIN table source
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
+
+  // SELECT ... FROM UNNEST(?::uuid[]) id JOIN note n ON n.person_id = id
+  @compile
+  val notesByPersonIdUnnest: QueryIO[Seq[UUID], Note] =
+    for {
+      ids <- input.array[UUID]
+      id <- select.unnest(ids)
+      n <- join[Note] if n.personId == id
+    } yield n
+
+  // UNNEST over a `Set` input (`input.set`) rather than a `Seq`
+  @compile
+  val notesByPersonIdUnnestSet: QueryIO[Set[UUID], Note] =
+    for {
+      ids <- input.set[UUID]
+      id <- select.unnest(ids)
+      n <- join[Note] if n.personId == id
+    } yield n
+
+  // also selects the unnested column itself, to prove it decodes + can be referenced in the SELECT
+  @compile
+  val personIdAndNoteUnnest: QueryIO[Seq[UUID], (UUID, Note)] =
+    for {
+      ids <- input.array[UUID]
+      id <- select.unnest(ids)
+      n <- join[Note] if n.personId == id
+    } yield (id, n)
+
+  // composition: UNNEST array input + an additional scalar input used in a WHERE
+  @compile
+  val notesByPersonIdUnnestFilteredByNote: QueryIO[(Seq[UUID], String), Note] =
+    for {
+      ids <- input.array[UUID]
+      noteText <- input[String]
+      id <- select.unnest(ids)
+      n <- join[Note] if n.personId == id
+      _ <- where if n.note == noteText
+    } yield n
+
+  @compile
   val othersWithSameLastNameAsId: QueryIO[UUID, Person] =
     for {
       i <- input[UUID]

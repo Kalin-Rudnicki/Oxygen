@@ -15,6 +15,12 @@ object Q {
 
     def const[I](i: I): T.ConstInput[I] = macroOnly
 
+    /** A `Seq` input bound as a single `?` param. Use `arr.contains(col)` for `col = ANY(?)`. */
+    def array[I]: T.ArrayInput[I] = macroOnly
+
+    /** A `Set` input bound as a single `?` param. Use `arr.contains(col)` for `col = ANY(?)`. */
+    def set[I]: T.SetInput[I] = macroOnly
+
   }
 
   object select {
@@ -22,6 +28,21 @@ object Q {
     def apply[A](using t: TableRepr[A]): T.Select[A] = macroOnly
 
     def subQuery[A](subQueryTableName: String)(q: QueryO[A]): T.SelectSubQuery[A] = macroOnly
+
+    /**
+      * Use an array/collection input as a `UNNEST(?)` table source (one row per element),
+      * aliased so it can be JOINed/filtered/selected against.
+      *
+      * {{{
+      *   for {
+      *     ids <- input.array[UUID]
+      *     id  <- select.unnest(ids)
+      *     n   <- join[Note] if n.personId == id
+      *   } yield n
+      *   // SELECT ... FROM UNNEST(?::uuid[]) id JOIN note n ON n.person_id = id
+      * }}}
+      */
+    def unnest[A](arr: Iterable[A])(using r: RowRepr[A]): T.SelectUnnest[A] = macroOnly
 
   }
 

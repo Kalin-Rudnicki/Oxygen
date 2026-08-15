@@ -185,6 +185,7 @@ private[sql] object ParsedQuery extends Parser[Term, ParsedQuery] {
         select match {
           case select: SelectPart.FromTable    => Growable(select.mapQueryRef)
           case select: SelectPart.FromSubQuery => Growable.many(select.mapQueryRefs)
+          case select: SelectPart.FromUnnest   => select.queryRefs
         },
         Growable.many(joins).flatMap(_.queryRefs),
         Growable.option(where).flatMap(_.filterExpr.queryRefs),
@@ -201,6 +202,7 @@ private[sql] object ParsedQuery extends Parser[Term, ParsedQuery] {
         selectFrag <- select match
           case select: SelectPart.FromTable    => fragmentBuilder.select(select)
           case select: SelectPart.FromSubQuery => fragmentBuilder.select(select)
+          case select: SelectPart.FromUnnest   => fragmentBuilder.select(select)
         joinFrag <- joins.traverse(fragmentBuilder.join).map(GeneratedFragment.flatten(_))
         whereFrag <- where.traverse(fragmentBuilder.where).map(GeneratedFragment.option)
         orderByFrag <- orderBy.traverse(fragmentBuilder.orderBy).map(GeneratedFragment.option)

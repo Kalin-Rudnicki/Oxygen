@@ -54,6 +54,22 @@ object TypeclassExpr {
     def optional: TypeclassExpr.RowRepr =
       TypeclassExpr.RowRepr { '{ $expr.optional } }
 
+    /** Names this schema's (single) column, so an otherwise-unnamed scalar can be referenced as `alias.name`. */
+    def prefixedInline(prefix: String): TypeclassExpr.RowRepr =
+      TypeclassExpr.RowRepr { '{ $expr.prefixedInline(${ Expr(prefix) }) } }
+
+    /**
+      * Wraps this element `RowRepr[A]` into a `RowRepr[Seq[A]]` / `RowRepr[Set[A]]` (see
+      * [[oxygen.sql.schema.RowRepr.seqRepr]] / [[oxygen.sql.schema.RowRepr.setRepr]]), so the whole
+      * collection binds as one Array-typed `?` param.
+      */
+    def collectionAsArray(kind: VariableReference.ArrayInputKind): TypeclassExpr.RowRepr =
+      TypeclassExpr.RowRepr {
+        kind match
+          case VariableReference.ArrayInputKind.Seq => '{ $expr.seqRepr }
+          case VariableReference.ArrayInputKind.Set => '{ $expr.setRepr }
+      }
+
     def productSchemaField(term: Term, field: String): TypeclassExpr.RowRepr =
       TypeclassExpr.RowRepr {
         type T

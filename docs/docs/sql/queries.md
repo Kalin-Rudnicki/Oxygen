@@ -118,6 +118,8 @@ input makes it a `QueryO`/`Query`. Pass `debug = true` (`@compile(debug = true)`
 | Form | Purpose |
 |------|---------|
 | `input[I]` / `input.optional[I]` / `input.const(i)` | bind a runtime / optional / compile-time-constant parameter |
+| `input.array[I]` / `input.set[I]` + `ids.contains(col)` | bind a whole `Seq` / `Set` as one array parameter, expanded to `col = ANY(?)` |
+| `select.unnest(ids)` | use a collection input as a `UNNEST(?)` join/table source (one row per element) |
 | `select[A]` | select all columns of table `A` |
 | `join[A] if <cond>` / `leftJoin[A] if <cond>` | inner / left join (`leftJoin` yields `Option[A]`) |
 | `where if <cond>` | filter |
@@ -142,6 +144,75 @@ val personJoinNotes: QueryIO[UUID, (Person, Note)] =
 
 > Custom column types flow through automatically: `input[Email]` and `select[UserRow]` use the
 > `RowRepr`/encoder/decoder for `Email` you defined in [Models](models.md).
+
+### Array input (`= ANY(?)`)
+
+To filter against a collection of values, bind the whole collection as a **single** array parameter
+with `input.array[I]` (a `Seq[I]`) or `input.set[I]` (a `Set[I]`) and test membership with
+`ids.contains(col)`. This generates Postgres `col = ANY(?)` — one bind parameter carrying a
+`java.sql.Array`, instead of expanding an `IN (…)` list to N placeholders (which hits the JDBC
+~32767-param limit and blows up the plan cache).
+
+```scala
+@compile
+val selectByIdArray: QueryIO[Seq[UUID], Person] =
+  for {
+    ids <- input.array[UUID]
+    p   <- select[Person]
+    _   <- where if ids.contains(p.id)
+  } yield p
+```
+
+```scala
+selectByIdArray.execute(Seq(id1, id2, id3))
+```
+
+Notes:
+
+- `input.array[I]` takes a `Seq[I]`, `input.set[I]` takes a `Set[I]`; either is bound as one JDBC
+  array, so callers pass their collection directly (no `ArraySeq.from(…)` conversion needed).
+- An empty collection yields `col = ANY('{}')`, i.e. no matches.
+- `I` must be a single-column type (e.g. `UUID`, `Long`, `String`, or a `RowRepr` newtype over one).
+  Composite/multi-column element types are not supported yet.
+- Array inputs compose with other inputs, e.g. `where if ids.contains(p.id) && p.groupId == groupId`.
+- No explicit `::type[]` cast is emitted: the JDBC driver builds a typed array via
+  `createArrayOf(<base type>, …)`, so `= ANY(?)` already knows the element type.
+
+### Array input as a join table (`UNNEST(?)`)
+
+The primary way to use a collection input is as a **table source** you can join against: `select.unnest(ids)`
+turns an `input.array[I]` / `input.set[I]` collection into a `UNNEST(?)` from-item that yields one row
+per element, aliased so it can be joined/filtered/selected like any other table. The whole collection
+still binds as a single `java.sql.Array` parameter.
+
+```scala
+@compile
+val notesByPersonIdUnnest: QueryIO[Seq[UUID], Note] =
+  for {
+    ids <- input.array[UUID]
+    id  <- select.unnest(ids)          // FROM UNNEST(?::uuid[]) id(id)
+    n   <- join[Note] if n.personId == id
+  } yield n
+```
+
+generates (roughly):
+
+```sql
+SELECT n.id, n.person_id, n.note
+    FROM UNNEST(?::uuid[]) id(id)
+    JOIN note n ON n.person_id = id.id
+```
+
+Notes:
+
+- The unnested element is a normal query variable — reference it in the join/where (`n.personId == id`)
+  or select it (`yield (id, n)`). It is emitted as a named, qualified column (`id.id`) so it never
+  collides with a same-named column of a joined table.
+- An empty array produces zero rows (the join matches nothing).
+- `I` must be a single-column type, same restriction as `input.array` / `input.set`.
+- Composes with other inputs/joins/wheres, e.g. an extra `input[String]` used in a `where`.
+- Currently supported as the root `FROM` source; `JOIN UNNEST(?)` (unnest as a non-root join item)
+  is not yet supported.
 
 ## A real repo method
 
