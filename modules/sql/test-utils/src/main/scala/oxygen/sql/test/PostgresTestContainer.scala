@@ -20,7 +20,7 @@ object PostgresTestContainer {
         password <- TestContainerService.randomAlphaString(10)
         database <- TestContainerService.randomAlphaString(10)
 
-        dbConfig = DbConfig(DbConfig.Target(database, "localhost", port), DbConfig.Credentials(username, password).some, pool, logging, execution)
+        dbConfig = DbConfig(DbConfig.Target(database, "localhost", port), DbConfig.Credentials(username, password).some, DbConfig.Connection.default, pool, logging, execution)
         container =
           TestContainer
             .make("postgres", "postgres", "latest")

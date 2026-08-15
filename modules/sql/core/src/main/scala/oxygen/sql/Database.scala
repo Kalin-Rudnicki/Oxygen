@@ -44,7 +44,7 @@ object Database {
   def make(config: DbConfig): URIO[Scope, Database] =
     for {
       driver <- Driver.makePSQL
-      connect = driver.getConnection(config.target, config.credentials)
+      connect = driver.getConnection(config.target, config.credentials, config.connection)
       pool <- ConnectionPool.makeZPool(connect, config.pool)
       logConfigRef <- FiberRef.make(config.logging)
       connectionStateRef <- FiberRef.make[ConnectionState](ConnectionState.Pool(pool))
@@ -65,6 +65,7 @@ object Database {
     ZLayer.makeSome[DbConfig, Database](
       ZLayer.service[DbConfig].project(_.target),
       ZLayer.service[DbConfig].project(_.credentials),
+      ZLayer.service[DbConfig].project(_.connection),
       ZLayer.service[DbConfig].project(_.pool),
       ZLayer.service[DbConfig].project(_.logging),
       ZLayer.service[DbConfig].project(_.execution),
