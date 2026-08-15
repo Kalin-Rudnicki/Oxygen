@@ -26,36 +26,61 @@ object StyleSheet {
     StyleSheet(header, () => body)
 
   def compile(header: String, elems: => Seq[Growable[StyleSheetElement.AppliedStyleSheet]]): StyleSheet = {
+    // Consecutive (media-query, selector) run of css key/value pairs → one rule block.
+    final case class Group(media: Option[MediaQuery], selector: String, pairs: Growable[(String, String)])
+
     @tailrec
     def loop(
-        current: Option[(String, Growable[(String, String)])],
+        current: Option[Group],
         queue: List[StyleSheetElement.Leaf],
-        acc: Growable[(String, Growable[(String, String)])],
-    ): Growable[(String, Growable[(String, String)])] =
+        acc: Growable[Group],
+    ): Growable[Group] =
       queue match {
         case head :: tail =>
           current match {
-            case Some((currentKey, currentElems)) if head.selectorString == currentKey =>
-              loop((currentKey, currentElems :+ (head.key, head.value)).some, tail, acc)
-            case Some(current) =>
-              loop((head.selectorString, Growable.single((head.key, head.value))).some, tail, acc :+ current)
+            case Some(g) if g.media == head.media && g.selector == head.selectorString =>
+              loop(g.copy(pairs = g.pairs :+ (head.key, head.value)).some, tail, acc)
+            case Some(g) =>
+              loop(Group(head.media, head.selectorString, Growable.single((head.key, head.value))).some, tail, acc :+ g)
             case None =>
-              loop((head.selectorString, Growable.single((head.key, head.value))).some, tail, acc)
+              loop(Group(head.media, head.selectorString, Growable.single((head.key, head.value))).some, tail, acc)
           }
         case Nil =>
           acc ++ Growable.option(current)
       }
 
-    StyleSheet.makeLazy(header)(
-      loop(
-        None,
-        Growable.many(elems).flatten.flatMap(_.leafs).toArraySeq.sortBy(_.loc.line).toList,
-        Growable.empty,
-      ).map { case (selector, pairs) =>
-        s"$selector {${pairs.map { case (k, v) => s"\n  $k: $v;" }.to[Seq].mkString}\n}"
-      }.to[Seq]
-        .mkString("\n\n"),
-    )
+    def renderRule(selector: String, pairs: Growable[(String, String)]): String =
+      s"$selector {${pairs.map { case (k, v) => s"\n  $k: $v;" }.to[Seq].mkString}\n}"
+
+    def indent(body: String): String =
+      body.linesIterator.map { line => if line.isEmpty then line else s"  $line" }.mkString("\n")
+
+    StyleSheet.makeLazy(header) {
+      val groups: List[Group] =
+        loop(
+          None,
+          Growable.many(elems).flatten.flatMap(_.leafs).toArraySeq.sortBy(_.loc.line).toList,
+          Growable.empty,
+        ).toArraySeq.toList
+
+      // Merge consecutive groups sharing the same media query into a single segment, so that all
+      // rules under one `@media` block end up wrapped together (bare rules stay unwrapped).
+      val segments: List[(Option[MediaQuery], List[Group])] =
+        groups.foldRight(List.empty[(Option[MediaQuery], List[Group])]) { (g, acc) =>
+          acc match {
+            case (m, gs) :: rest if m == g.media => (m, g :: gs) :: rest
+            case _                               => (g.media, g :: Nil) :: acc
+          }
+        }
+
+      segments.map {
+        case (None, gs) =>
+          gs.map { g => renderRule(g.selector, g.pairs) }.mkString("\n\n")
+        case (Some(mq), gs) =>
+          val inner = gs.map { g => renderRule(g.selector, g.pairs) }.mkString("\n\n")
+          s"@media ${mq.query} {\n${indent(inner)}\n}"
+      }.mkString("\n\n")
+    }
   }
 
   def variables(header: String, scope: String = ":root")(vars: (CSSVar, String)*): StyleSheet =

@@ -50,7 +50,7 @@ __build_main() {
 
       printf "\n=====| Generating Scripts |=====\n\n"
       java -jar target/artifacts/jars/example-web-server.jar --: generate target/artifacts/scripts/example-web-server.sh --oxygen-args \
-           -f=example/apps/web-server/src/main/resources/local.json
+           -f=example/apps/web-server/config/local.yaml
       __detected_error_while "generating scripts" || return 1
 
       printf "\n=====| Sourcing Scripts |=====\n\n"

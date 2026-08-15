@@ -226,7 +226,7 @@ export APP_CONFIG=/etc/myapp/config.json
 Or for local dev from the repo:
 
 ```bash
-APP_CONFIG=example/apps/web-server/src/main/resources/local.json sbt "example-web-server/run"
+APP_CONFIG=example/apps/web-server/config/local.yaml sbt "example-web-server/run"
 ```
 
 Until bootstrap `-f`/`-j`/merge returns, this env-or-file pattern is the supported migration path.

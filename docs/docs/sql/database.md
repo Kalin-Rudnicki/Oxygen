@@ -18,7 +18,7 @@ final case class DbConfig(
 )
 ```
 
-As JSON (from the example app's `local.json`):
+As JSON (the example app sets the same fields as YAML in `example/apps/web-server/config/local.yaml`):
 
 ```json
 {

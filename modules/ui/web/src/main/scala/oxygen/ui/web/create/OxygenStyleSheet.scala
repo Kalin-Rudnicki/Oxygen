@@ -31,6 +31,14 @@ object OxygenStyleSheet extends StyleSheetBuilder {
     marginTop := "0",
   )
 
+  // OXY-158: composable media queries — trim the h1 on narrow (phone) viewports.
+  // Written with the ordinary selector DSL; the `@media (max-width: …)` wrapper is emitted for us.
+  media(MediaQuery.belowMd) {
+    T.h1.apply(
+      fontSize := "1.5rem",
+    )
+  }
+
   T.apply("*")
     .apply(
       boxSizing.borderBox,

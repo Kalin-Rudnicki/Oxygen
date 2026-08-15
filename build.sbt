@@ -19,6 +19,14 @@ ThisBuild / libraryDependencySchemes += "org.scala-native" % "test-interface_nat
 enablePlugins(GitVersioning)
 // JGit can't read linked git worktrees (bare-repo error); shell out to the git CLI instead
 ThisBuild / com.github.sbt.git.SbtGit.GitKeys.useConsoleForROGit := true
+// We override versioning by hand below (custom `version`, `useGitDescribe := false`), so sbt-git's
+// describe keys go unused. sbt 2.x's lintUnusedKeysOnLoad otherwise spams ~84 warnings (one per
+// module) on every load — exclude exactly those keys, keeping the lint active for everything else.
+Global / excludeLintKeys ++= Set(
+  com.github.sbt.git.SbtGit.GitKeys.useGitDescribe,
+  com.github.sbt.git.SbtGit.GitKeys.gitDescribedVersion,
+  com.github.sbt.git.SbtGit.GitKeys.versionProperty,
+)
 git.gitTagToVersionNumber := { tag =>
   if (tag.matches("^\\d+\\..*$")) Some(tag)
   else None

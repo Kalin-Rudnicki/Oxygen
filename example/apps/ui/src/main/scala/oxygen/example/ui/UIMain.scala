@@ -30,7 +30,7 @@ object UIMain extends PageApp[UIMain.Env] {
    */
 
   override val styleSheets: ArraySeq[StyleSheet] =
-    coreOxygenStyleSheets
+    coreOxygenStyleSheets ++ ArraySeq(P.showcase.pages.MediaQueryStyle.compiled)
 
   override protected def prePageLoad: RIO[Env & Scope, Unit] =
     ColorMode.applyStoredOrSystem *>
@@ -75,6 +75,7 @@ object UIMain extends PageApp[UIMain.Env] {
     P.showcase.pages.MessagesPage,
     P.showcase.pages.AnchorsPage,
     P.showcase.pages.GridPage,
+    P.showcase.pages.MediaQueryPage,
     P.showcase.pages.KitchenSinkPage,
   )
 
