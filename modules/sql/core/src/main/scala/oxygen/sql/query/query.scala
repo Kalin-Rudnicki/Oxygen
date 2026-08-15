@@ -160,7 +160,8 @@ final class QueryI[I](
   ): QueryResult.Update[QueryError] =
     self.execute(ev((i1, i2, i3, i4, i5, i6, i7, i8)))
 
-  def contramap[I2](f: I2 => I): QueryI[I2] = QueryI[I2](self.ctx, self.encoder.contramap(f))
+  def contramap[I2](f: I2 => I): QueryI[I2] =
+    QueryI[I2](self.ctx, self.encoder.contramap(f))
   def transformIn[I2](using t: Transform[I2, I]): QueryI[I2] = contramap(t.transform)
 
 }
@@ -356,7 +357,8 @@ object QueryIO {
           } yield o,
       )
 
-    override def contramap[I2](f: I2 => I): QueryIO[I2, O] = QueryIO.Simple[I2, O](self.ctx, self.encoder.contramap(f), self.decoder)
+    override def contramap[I2](f: I2 => I): QueryIO[I2, O] =
+      QueryIO.Simple[I2, O](self.ctx, self.encoder.contramap(f), self.decoder)
     override def map[O2](f: O => O2): QueryIO[I, O2] = QueryIO.Simple[I, O2](self.ctx, self.encoder, self.decoder.map(f))
     override def mapOrFail[O2](f: O => Either[String, O2]): QueryIO[I, O2] = QueryIO.Simple[I, O2](self.ctx, self.encoder, self.decoder.mapOrFail(f))
 

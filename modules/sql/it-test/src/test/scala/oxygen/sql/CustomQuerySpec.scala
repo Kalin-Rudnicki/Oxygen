@@ -28,6 +28,68 @@ object CustomQuerySpec extends OxygenSpec[Database] {
           getP2s == p2s.toSet,
         )
       },
+      test("in / notIn (OXY-17)") {
+        for {
+          groupId1 <- Random.nextUUID
+          groupId2 <- Random.nextUUID
+          ps <- Person.generate(groupId1)().replicateZIO(6).map(_.toList)
+          others <- Person.generate(groupId2)().replicateZIO(3).map(_.toList)
+
+          _ <- Person.insert.batched(ps ++ others).unit
+
+          allIds = ps.map(_.id)
+          subset = ps.take(3)
+          subsetIds = subset.map(_.id)
+
+          // non-empty list
+          resSubset <- queries.selectByIds(subsetIds).to[Set]
+          // single-element list
+          resSingle <- queries.selectByIds(List(ps.head.id)).to[Set]
+          // empty list -> `= ANY('{}')` -> FALSE -> no rows
+          resEmpty <- queries.selectByIds(Nil).to[Set]
+          // large list (still a single array bind, static SQL)
+          resAll <- queries.selectByIds(allIds).to[Set]
+
+          // NOT IN: everything in group NOT among the excluded subset
+          allGroup1 <- queries.selectByGroupId(groupId1).to[Set]
+          resNotIn <- queries.selectByGroupAndIds2NotIn(groupId1, subsetIds).to[Set]
+          // NOT IN empty -> WHERE TRUE -> all group-1 rows
+          resNotInEmpty <- queries.selectByGroupAndIds2NotIn(groupId1, Nil).to[Set]
+
+          // composition with another predicate
+          resComposed <- queries.selectByGroupAndIds(groupId1, allIds).to[Set]
+          resComposedWrongGroup <- queries.selectByGroupAndIds(groupId2, allIds).to[Set]
+
+          // `Set` value-list (same `= ANY(?)` / `<> ALL(?)` path)
+          resSubsetSet <- queries.selectByIdsSet(subsetIds.toSet).to[Set]
+          resSetNotIn <- queries.selectByIdsSetNotIn(subsetIds.toSet).to[Set]
+
+          // delete by IN
+          deleted <- queries.deleteByIds(subsetIds).to[Set]
+          afterDelete <- queries.selectByGroupId(groupId1).to[Set]
+        } yield assertTrue(
+          resSubset == subset.toSet,
+          resSingle == Set(ps.head),
+          resEmpty.isEmpty,
+          resAll == ps.toSet,
+          resSubsetSet == subset.toSet,
+          // NOT IN over a Set: all inserted people (both groups) except the excluded subset
+          resSetNotIn == ((ps ++ others).toSet -- subset.toSet),
+          queries.selectByIdsSet.ctx.sql.contains("p.id = ANY(?)"),
+          queries.selectByIdsSetNotIn.ctx.sql.contains("p.id <> ALL(?)"),
+          resNotIn == (allGroup1 -- subset.toSet),
+          resNotInEmpty == allGroup1,
+          resComposed == ps.toSet,
+          resComposedWrongGroup.isEmpty,
+          deleted == subset.toSet,
+          afterDelete == (ps.toSet -- subset.toSet),
+          // SQL is 100% STATIC: a single array bind param (`= ANY(?)` / `<> ALL(?)`), never an
+          // N-placeholder `IN (?, ?, ...)` list -- so the text is identical regardless of list size.
+          queries.selectByIds.ctx.sql.contains("p.id = ANY(?)"),
+          !queries.selectByIds.ctx.sql.contains("IN ("),
+          queries.selectByGroupAndIds2NotIn.ctx.sql.contains("p.id <> ALL(?)"),
+        )
+      },
       test("setAgeTo0") {
         for {
           groupId <- Random.nextUUID

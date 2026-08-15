@@ -43,6 +43,7 @@ private[generic] sealed trait RawQueryExpr {
     case RawQueryExpr.InstantNow(_)                                 => "Instant.now()"
     case RawQueryExpr.OptionApply(_, inner)                         => s"Option(${inner.show})"
     case RawQueryExpr.StringConcat(_, args)                         => args.map(_.show).mkString("CONCAT(", ", ", ")")
+    case RawQueryExpr.InList(_, lhs, notIn, rhs)                    => s"${lhs.show} ${if notIn then "NOT IN" else "IN"} (${rhs.show})"
   }
 
 }
@@ -228,6 +229,29 @@ private[generic] object RawQueryExpr extends Parser[(Term, RefMap), RawQueryExpr
   }
 
   //////////////////////////////////////////////////////////////////////////////////////////////////////
+  //      InList
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
+
+  final case class InList(fullTerm: Term, lhs: RawQueryExpr, notIn: Boolean, rhs: RawQueryExpr) extends RawQueryExpr
+  object InList extends Parser[(Term, RefMap), InList] {
+
+    override def parse(input: (Term, RefMap))(using ParseContext, Quotes): ParseResult[InList] = {
+      val (rootTerm, refs) = input
+      rootTerm match {
+        // `col.in(values)` / `col.notIn(values)` extension-method call -> `in(col)(values)`
+        case singleApply(singleApply(Ident(op @ ("in" | "notIn")), lhs), rhs) =>
+          for {
+            lhs <- RawQueryExpr.parse((lhs, refs))
+            rhs <- RawQueryExpr.parse((rhs, refs))
+          } yield InList(rootTerm, lhs, op == "notIn", rhs)
+        case _ =>
+          ParseResult.unknown(rootTerm, "not an in/notIn")
+      }
+    }
+
+  }
+
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
   //      BuiltIn
   //////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -396,6 +420,7 @@ private[generic] object RawQueryExpr extends Parser[(Term, RefMap), RawQueryExpr
     case OptionGet.optional(res)           => res
     case OptionNullability.optional(res)   => res
     case SelectProductField.optional(res)  => res
+    case InList.optional(res)              => res
     case Binary.optional(res)              => res
     case InstantiateTable.optional(res)    => res
     case RandomUUID.optional(res)          => res

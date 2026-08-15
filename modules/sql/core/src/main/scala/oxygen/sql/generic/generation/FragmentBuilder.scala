@@ -90,6 +90,7 @@ final case class FragmentBuilder(inputs: List[InputPart])(using Quotes) {
         case (queryExpr: QueryExpr.InputVariableReferenceLike, Some(parentContext)) => queryExprToFragment.constOrInput(queryExpr, parentContext)
         case (queryExpr: QueryExpr.QueryVariableReferenceLike, _)                   => queryExprToFragment.query(queryExpr)
         case (queryExpr: QueryExpr.ArrayContains, _)                                => queryExprToFragment.arrayContains(queryExpr)
+        case (queryExpr: QueryExpr.InList, _)                                       => queryExprToFragment.inList(queryExpr)
         case (queryExpr: QueryExpr.Binary, _)                                       => queryExprToFragment.binary(queryExpr)
         case (queryExpr: QueryExpr.BuiltIn, _)                                      => queryExprToFragment.builtIn(queryExpr)
         case (queryExpr: QueryExpr.Composite, _)                                    => queryExprToFragment.composite(queryExpr, parentContext)
@@ -178,6 +179,72 @@ final case class FragmentBuilder(inputs: List[InputPart])(using Quotes) {
           GeneratedInputEncoder.empty,
         )
       }
+
+    /**
+      * `col IN (coll)` / `col NOT IN (coll)` where the value-list is a runtime collection (OXY-17).
+      *
+      * The SQL emitted is 100% STATIC -- a single array bind parameter, never an N-placeholder list:
+      *   - `col IN (coll)`     -> `col = ANY(?)`
+      *   - `col NOT IN (coll)` -> `col <> ALL(?)`
+      *
+      * The whole collection binds as one `java.sql.Array` (reusing OXY-6/OXY-18's
+      * [[oxygen.sql.schema.RowRepr.ArrayRepr]] / `ArraySeqEncoder` / `unsafeWriteArray` machinery), so
+      * the `?` count is constant regardless of the runtime list size -- no sentinel token, no
+      * per-execution SQL rewrite. `= ANY` / `<> ALL` reproduce the exact 3-valued-logic truth table of
+      * SQL `IN` / `NOT IN`, including empty-collection handling (`= ANY('{}')` -> FALSE,
+      * `<> ALL('{}')` -> TRUE) and the classic `NOT IN`-with-NULL footgun (here unreachable: array
+      * columns are non-nullable and optional inputs are rejected below).
+      */
+    def inList(queryExpr: QueryExpr.InList)(using ParseContext, GenerationContext, Quotes): ParseResult[GeneratedFragment] = {
+      import oxygen.sql.schema.RowRepr as SRowRepr
+
+      val lhs: QueryExpr.QueryVariableReferenceLike = queryExpr.lhs
+      val rhs: QueryExpr.InputVariableReferenceLike = queryExpr.rhs
+      val notIn: Boolean = queryExpr.notIn
+
+      val elemTpe: TypeRepr = lhs.fullTerm.tpe.widen // single column element type
+      val collTpe: TypeRepr = rhs.outTpe // declared collection type, e.g. Seq[A]
+
+      for {
+        transform <- inputSymToInputRepr.get(rhs.queryRef.param.sym) match {
+          case Some(InputRepr.NonConst(inputTransformer, false)) =>
+            (inputTransformer >>> rhs) match {
+              case TermTransformer.Die            => ParseResult.error(rhs.fullTerm, "unexpected non-input transform for `in`/`notIn` value-list")
+              case t: TermTransformer.SimpleValid => ParseResult.success(t)
+            }
+          case Some(InputRepr.NonConst(_, true)) => ParseResult.error(rhs.fullTerm, "optional input is not supported as an `in`/`notIn` value-list")
+          case Some(InputRepr.Const(_))          => ParseResult.error(rhs.fullTerm, "const input is not supported as an `in`/`notIn` value-list; use `input[Seq[A]]`")
+          case None                              => ParseResult.error(rhs.rootIdent, "Not able to find in symMap?")
+        }
+
+        colFrag <- GenerationContext.updated(query = GenerationContext.Parens.Never) { queryExprToFragment.query(lhs) }
+
+        // Bind the entire collection as ONE `java.sql.Array` param via the column's own RowRepr,
+        // reusing the array machinery from OXY-6/OXY-18. `ArraySeq.untagged.from` adapts the runtime
+        // `Seq[A]` (order preserved, dups kept) without needing a `ClassTag`.
+        arrayEnc = {
+          type A
+          type Coll
+          given Type[A] = elemTpe.asTypeOf
+          given Type[Coll] = collTpe.asTypeOf
+          TypeclassExpr.InputEncoder {
+            '{
+              SRowRepr
+                .ArrayRepr[A](${ lhs.rowRepr.expr.asExprOf[SRowRepr[A]] })
+                .encoder
+                .contramap[Coll]((c: Coll) => scala.collection.immutable.ArraySeq.untagged.from(c.asInstanceOf[IterableOnce[A]]))
+            }
+          }
+        }
+        baseEnc = GeneratedInputEncoder.nonConst(arrayEnc, collTpe)
+        enc = transform match {
+          case TermTransformer.Id                   => baseEnc
+          case transform: TermTransformer.Transform => baseEnc.contramap(transform)
+        }
+
+        opSql = if notIn then " <> ALL(?)" else " = ANY(?)"
+      } yield GeneratedFragment.both(colFrag.generatedSql ++ GeneratedSql.single(opSql), enc)
+    }
 
     def binary(queryExpr: QueryExpr.Binary)(using ParseContext, GenerationContext, Quotes): ParseResult[GeneratedFragment] =
       queryExpr match {

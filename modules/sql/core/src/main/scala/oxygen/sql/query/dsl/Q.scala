@@ -90,6 +90,10 @@ object Q {
     def <+>(value: A): Double = macroOnly // L1 (Manhattan) distance
     def @>(value: A): Boolean = macroOnly // is ancestor of (ltree)
     def <@(value: A): Boolean = macroOnly // is descendant of (ltree)
+    def in(values: Seq[A]): Boolean = macroOnly // SQL `col = ANY(?)`  -- static, single array bind (OXY-17)
+    def notIn(values: Seq[A]): Boolean = macroOnly // SQL `col <> ALL(?)` -- static, single array bind (OXY-17)
+    def in(values: Set[A]): Boolean = macroOnly // SQL `col = ANY(?)`  -- static, single array bind (OXY-17)
+    def notIn(values: Set[A]): Boolean = macroOnly // SQL `col <> ALL(?)` -- static, single array bind (OXY-17)
 
   extension (self: String)
     def like(pattern: String): Boolean = macroOnly // SQL `LIKE` (case-sensitive pattern match)

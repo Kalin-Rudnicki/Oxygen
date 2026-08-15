@@ -17,6 +17,7 @@ final class DecoderBuilder {
         case (queryExpr: QueryExpr.InputVariableReferenceLike, Some(parentContext)) => convert.input(queryExpr, parentContext)
         case (queryExpr: QueryExpr.QueryVariableReferenceLike, _)                   => convert.query(queryExpr)
         case (_: QueryExpr.ArrayContains, _)                         => ParseResult.success(GeneratedResultDecoder.single(TypeclassExpr.RowRepr.boolean.resultDecoder, TypeRepr.of[Boolean]))
+        case (queryExpr: QueryExpr.InList, _)                        => ParseResult.error(queryExpr.fullTerm, "`in`/`notIn` is a predicate and can not be used as a returned/output value")
         case (queryExpr: QueryExpr.Binary, _)                        => convert.binary(queryExpr)
         case (queryExpr: QueryExpr.BuiltIn, _)                       => convert.builtIn(queryExpr)
         case (queryExpr: QueryExpr.Composite, _)                     => convert.composite(queryExpr, parentContext)

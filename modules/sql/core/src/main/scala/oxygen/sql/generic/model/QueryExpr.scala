@@ -36,6 +36,7 @@ private[generic] sealed trait QueryExpr {
       case unary: QueryExpr.QueryVariableReferenceLike => ParseResult.success(unary.rowRepr)
       case _: QueryExpr.Binary                         => ParseResult.success(TypeclassExpr.RowRepr.boolean)
       case _: QueryExpr.ArrayContains                  => ParseResult.success(TypeclassExpr.RowRepr.boolean)
+      case _: QueryExpr.InList                         => ParseResult.success(TypeclassExpr.RowRepr.boolean)
       case _                                           => ParseResult.error(fullTerm, "Unable to extract RowRepr")
     }
 
@@ -315,6 +316,25 @@ private[generic] object QueryExpr extends Parser[RawQueryExpr, QueryExpr] {
   }
 
   //////////////////////////////////////////////////////////////////////////////////////////////////////
+  //      InList
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
+
+  /**
+    * `col IN (?, ?, ...)` / `col NOT IN (?, ?, ...)` where the value-list is a runtime collection
+    * (OXY-17). The LHS must be a single query column; the RHS must be a non-optional runtime input
+    * collection (`Seq[A]`). Kept deliberately distinct from OXY-6's array `= ANY(?)` / `UNNEST`.
+    */
+  final case class InList(
+      fullTerm: Term,
+      lhs: QueryExpr.QueryVariableReferenceLike,
+      notIn: Boolean,
+      rhs: QueryExpr.InputVariableReferenceLike,
+  ) extends QueryExpr {
+    override def queryRefs: Growable[VariableReference] = lhs.queryRefs ++ rhs.queryRefs
+    override def show(using Quotes): String = s"${lhs.show} ${(if notIn then "NOT IN" else "IN").hexFg("#E6C120")} ( ${rhs.show} )"
+  }
+
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
   //      BuiltIn
   //////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -405,6 +425,19 @@ private[generic] object QueryExpr extends Parser[RawQueryExpr, QueryExpr] {
           case inner: QueryExpr.QueryVariableReferenceLike => ParseResult.Success(QueryExpr.CountWithArg(fullTerm, inner))
           case inner                                       => ParseResult.error(inner.fullTerm, "can only count( _ ) a unary query")
         }
+      case RawQueryExpr.InList(fullTerm, lhs, notIn, rhs) =>
+        for {
+          lhs <- parse(lhs)
+          lhs <- lhs match {
+            case lhs: QueryExpr.QueryVariableReferenceLike => ParseResult.Success(lhs)
+            case _                                         => ParseResult.error(lhs.fullTerm, "left-hand side of `in`/`notIn` must be a single query column")
+          }
+          rhs <- parse(rhs)
+          rhs <- rhs match {
+            case rhs: QueryExpr.InputVariableReferenceLike => ParseResult.Success(rhs)
+            case _                                         => ParseResult.error(rhs.fullTerm, "right-hand side of `in`/`notIn` must be a runtime input collection (e.g. `input[Seq[A]]`)")
+          }
+        } yield QueryExpr.InList(fullTerm, lhs, notIn, rhs)
     }
 
 }

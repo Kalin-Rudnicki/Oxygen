@@ -124,6 +124,7 @@ input makes it a `QueryO`/`Query`. Pass `debug = true` (`@compile(debug = true)`
 | `join[A] if <cond>` / `leftJoin[A] if <cond>` | inner / left join (`leftJoin` yields `Option[A]`) |
 | `where if <cond>` | filter |
 | `s.like(p)` / `s.ilike(p)` / `s.notLike(p)` / `s.notILike(p)` | string pattern match (see below) |
+| `col.in(coll)` / `col.notIn(coll)` | `col = ANY(?)` / `col <> ALL(?)` over a runtime `Seq` / `Set` (static SQL, one array bind) |
 | `orderBy(a.field.asc, …)`, `limit(n)`, `offset(n)` | ordering / paging |
 | `Q.insert[A]` / `Q.update[A]` / `Q.delete[A]` | begin an insert / update / delete |
 | `set(_.field := value)` | assignment in an update |
@@ -239,6 +240,36 @@ Notes:
 - Composes with other inputs/joins/wheres, e.g. an extra `input[String]` used in a `where`.
 - Currently supported as the root `FROM` source; `JOIN UNNEST(?)` (unnest as a non-root join item)
   is not yet supported.
+
+### `IN` / `NOT IN` (value lists)
+
+Filter a single column against a runtime collection with `col.in(coll)` / `col.notIn(coll)`. The
+collection is a `Seq[A]` supplied as a normal `input`. The generated SQL is **100% static** — the
+whole collection binds as a single Postgres array parameter, so the SQL text is identical regardless
+of the list size: `col = ANY(?)` for `in`, `col <> ALL(?)` for `notIn`:
+
+```scala
+@compile
+val peopleByIds: QueryIO[Seq[UUID], Person] =
+  for {
+    ids <- input[Seq[UUID]]
+    p   <- select[Person]
+    _   <- where if p.id.in(ids)   // -> WHERE p.id = ANY(?)
+  } yield p
+```
+
+- Composes with other predicates: `where if p.groupId == groupId && p.id.in(ids)`.
+- Empty list is handled natively by `ANY` / `ALL` (never the illegal `IN ()`): `col = ANY('{}')` is
+  `FALSE` (matches nothing) and `col <> ALL('{}')` is `TRUE` (matches everything) — exactly the
+  truth table of SQL `IN ()` / `NOT IN ()`.
+- `= ANY` / `<> ALL` preserve the same three-valued logic as `IN` / `NOT IN`, including the classic
+  `NOT IN`-with-`NULL` footgun (a `NULL` element makes `NOT IN` yield no rows). Here it is unreachable:
+  array columns are non-nullable and the value-list `input` must be non-optional.
+- Because the SQL and the `?` count are static, the same prepared statement is reused across
+  executions and the JDBC per-statement parameter limit no longer applies to large lists. The
+  value-list must be a runtime `input` (not `const`).
+- This shares the array-bind machinery (`RowRepr.ArrayRepr` / `ArraySeqEncoder`) introduced for
+  array input under OXY-6 / OXY-18; `in` / `notIn` are effectively sugar over `= ANY(?)`.
 
 ## A real repo method
 
