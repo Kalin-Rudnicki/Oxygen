@@ -333,18 +333,24 @@ object Compared {
             case resolvedTo: FullCompiledJsonSchema.JsonNumber =>
               val numberFormat = FromToValues(resolvedFrom.numberFormat, resolvedTo.numberFormat)
               Compared.done(ComparisonResult.JsonNumber(resolvedFrom, resolvedTo, numberFormat))
-            case resolvedTo: FullCompiledJsonSchema.JsonAST if resolvedTo.jsonTypeAnyOr(Json.Type.Number) => Compared.fromIsMoreSpecific(resolvedFrom, resolvedTo)
-            case _                                                                                        => Compared.notComparable(resolvedFrom, resolvedTo)
+            // A typed number is more specific than an AST typed as `number` or `integer` (or untyped).
+            case resolvedTo: FullCompiledJsonSchema.JsonAST if resolvedTo.jsonTypeAnyOr(Json.Type.Number) || resolvedTo.jsonType.contains(Json.Type.Integer) =>
+              Compared.fromIsMoreSpecific(resolvedFrom, resolvedTo)
+            case _ => Compared.notComparable(resolvedFrom, resolvedTo)
           }
 
         private def diffJsonAST(resolvedFrom: FullCompiledJsonSchema.JsonAST, resolvedTo: RootJson): Compared[ComparisonResult] =
           resolvedTo match {
             case resolvedTo: FullCompiledJsonSchema.JsonAST =>
               (resolvedFrom.jsonType, resolvedTo.jsonType) match {
-                case (Some(fromType), Some(toType)) => Compared.done(ComparisonResult.JsonAST(resolvedFrom, resolvedTo, FromToValues(fromType, toType)))
-                case (Some(_), None)                => Compared.fromIsMoreSpecific(resolvedFrom, resolvedTo)
-                case (None, Some(_))                => Compared.toIsMoreSpecific(resolvedFrom, resolvedTo)
-                case (None, None)                   => Compared.exactEqual(resolvedFrom, resolvedTo)
+                // integer -> number is a widening (every integer is a valid number): `from` is the more specific type.
+                case (Some(Json.Type.Integer), Some(Json.Type.Number)) => Compared.fromIsMoreSpecific(resolvedFrom, resolvedTo)
+                // number -> integer is a narrowing (fractional values no longer accepted): `to` is the more specific type, a breaking change.
+                case (Some(Json.Type.Number), Some(Json.Type.Integer)) => Compared.toIsMoreSpecific(resolvedFrom, resolvedTo)
+                case (Some(fromType), Some(toType))                    => Compared.done(ComparisonResult.JsonAST(resolvedFrom, resolvedTo, FromToValues(fromType, toType)))
+                case (Some(_), None)                                   => Compared.fromIsMoreSpecific(resolvedFrom, resolvedTo)
+                case (None, Some(_))                                   => Compared.toIsMoreSpecific(resolvedFrom, resolvedTo)
+                case (None, None)                                      => Compared.exactEqual(resolvedFrom, resolvedTo)
               }
             case _: FullCompiledJsonSchema.JsonString if resolvedFrom.jsonTypeAnyOr(Json.Type.String)  => Compared.toIsMoreSpecific(resolvedFrom, resolvedTo)
             case _: FullCompiledJsonSchema.JsonArray if resolvedFrom.jsonTypeAnyOr(Json.Type.Array)    => Compared.toIsMoreSpecific(resolvedFrom, resolvedTo)
