@@ -35,6 +35,7 @@ private[generic] sealed trait QueryExpr {
     this match {
       case unary: QueryExpr.QueryVariableReferenceLike => ParseResult.success(unary.rowRepr)
       case _: QueryExpr.Binary                         => ParseResult.success(TypeclassExpr.RowRepr.boolean)
+      case _: QueryExpr.ArrayContains                  => ParseResult.success(TypeclassExpr.RowRepr.boolean)
       case _                                           => ParseResult.error(fullTerm, "Unable to extract RowRepr")
     }
 
@@ -298,6 +299,22 @@ private[generic] object QueryExpr extends Parser[RawQueryExpr, QueryExpr] {
   ) extends Binary
 
   //////////////////////////////////////////////////////////////////////////////////////////////////////
+  //      ArrayContains
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
+
+  /**
+    * Represents `arr.contains(col)`, generated as `col = ANY(?)` where `?` binds the whole array.
+    */
+  final case class ArrayContains(
+      fullTerm: Term,
+      queryCol: QueryExpr.QueryVariableReferenceLike,
+      arrInput: QueryExpr.InputVariableReferenceLike,
+  ) extends QueryExpr {
+    override def queryRefs: Growable[VariableReference] = queryCol.queryRefs ++ arrInput.queryRefs
+    override def show(using Quotes): String = s"${arrInput.show}.contains(${queryCol.show})"
+  }
+
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
   //      BuiltIn
   //////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -368,8 +385,13 @@ private[generic] object QueryExpr extends Parser[RawQueryExpr, QueryExpr] {
 
   override def parse(expr: RawQueryExpr)(using ParseContext, Quotes): ParseResult[QueryExpr] =
     expr match {
-      case expr: RawQueryExpr.VariableReferenceLike                            => VariableReferenceLike.parse(expr)
-      case expr: RawQueryExpr.Binary                                           => Binary.parse(expr)
+      case expr: RawQueryExpr.VariableReferenceLike        => VariableReferenceLike.parse(expr)
+      case expr: RawQueryExpr.Binary                       => Binary.parse(expr)
+      case RawQueryExpr.ArrayContains(fullTerm, arr, elem) =>
+        for {
+          arrInput <- QueryExpr.InputVariableReferenceLike.parse(arr)
+          queryCol <- QueryExpr.QueryVariableReferenceLike.parse(elem)
+        } yield QueryExpr.ArrayContains(fullTerm, queryCol, arrInput)
       case RawQueryExpr.InstantiateTable(fullTerm, gen, givenTableRepr, args)  => args.traverse(parse).map(QueryExpr.InstantiateTable(fullTerm, gen, givenTableRepr, _))
       case RawQueryExpr.RandomUUID(fullTerm)                                   => ParseResult.success(QueryExpr.Static(fullTerm, "gen_random_uuid()", TypeclassExpr.RowRepr.uuid))
       case RawQueryExpr.InstantNow(fullTerm)                                   => ParseResult.success(QueryExpr.Static(fullTerm, "NOW()", TypeclassExpr.RowRepr.instant))

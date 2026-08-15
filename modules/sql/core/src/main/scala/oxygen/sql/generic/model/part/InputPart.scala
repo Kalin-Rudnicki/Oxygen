@@ -21,6 +21,8 @@ object InputPart extends MapChainParser[InputPart] {
     for {
       (mapAAFC, input) <- AppliedAnonFunctCall.parseTyped[T.InputLike](term, "map function").parseLhsAndFunct {
         case ('{ Q.input.apply[a] }, mapAAFC)            => mapAAFC.funct.parseParam1.map { mapParam => InputPart(VariableReference.FromInput(mapParam)) }
+        case ('{ Q.input.array[a] }, mapAAFC)            => mapAAFC.funct.parseParam1.map { mapParam => InputPart(VariableReference.ArrayFromInput(mapParam, VariableReference.ArrayInputKind.Seq)) }
+        case ('{ Q.input.set[a] }, mapAAFC)              => mapAAFC.funct.parseParam1.map { mapParam => InputPart(VariableReference.ArrayFromInput(mapParam, VariableReference.ArrayInputKind.Set)) }
         case ('{ Q.input.optional[a] }, mapAAFC)         => mapAAFC.funct.parseParam1.map { mapParam => InputPart(VariableReference.OptionalFromInput(mapParam)) }
         case ('{ Q.input.const[a](${ expr }) }, mapAAFC) => mapAAFC.funct.parseParam1.map { mapParam => InputPart(VariableReference.FromConstInput(mapParam, expr.toTerm, TypeRepr.of[Any])) }
       }

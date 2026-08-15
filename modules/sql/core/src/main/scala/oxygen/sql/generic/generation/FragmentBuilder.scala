@@ -18,6 +18,7 @@ final case class FragmentBuilder(inputs: List[InputPart])(using Quotes) {
   private val nonConstInputParams: List[VariableReference.NonConstInput] =
     inputs.map(_.mapQueryRef).flatMap {
       case p: VariableReference.FromInput         => p.some
+      case p: VariableReference.ArrayFromInput    => p.some
       case p: VariableReference.OptionalFromInput => p.some
       case _: VariableReference.FromConstInput    => None
     }
@@ -60,6 +61,11 @@ final case class FragmentBuilder(inputs: List[InputPart])(using Quotes) {
           case (Some(inputTpeTupGen), VariableReference.FromInput(param)) =>
             val idx: Int = symIdxMap.getOrElse(param.sym, report.errorAndAbort("sym not found?", param.tree.pos))
             InputRepr.NonConst(TermTransformer.FromProductGenericField(inputTpeTupGen, inputTpeTupGen.fields(idx)), false)
+          case (None, VariableReference.ArrayFromInput(_, _)) =>
+            InputRepr.NonConst(TermTransformer.Id, false)
+          case (Some(inputTpeTupGen), VariableReference.ArrayFromInput(param, _)) =>
+            val idx: Int = symIdxMap.getOrElse(param.sym, report.errorAndAbort("sym not found?", param.tree.pos))
+            InputRepr.NonConst(TermTransformer.FromProductGenericField(inputTpeTupGen, inputTpeTupGen.fields(idx)), false)
           case (None, VariableReference.OptionalFromInput(_)) =>
             InputRepr.NonConst(TermTransformer.Id, true)
           case (Some(inputTpeTupGen), VariableReference.OptionalFromInput(param)) =>
@@ -83,6 +89,7 @@ final case class FragmentBuilder(inputs: List[InputPart])(using Quotes) {
         case (queryExpr: QueryExpr.ConstValue, Some(parentContext))                 => queryExprToFragment.constOrInput(queryExpr, parentContext)
         case (queryExpr: QueryExpr.InputVariableReferenceLike, Some(parentContext)) => queryExprToFragment.constOrInput(queryExpr, parentContext)
         case (queryExpr: QueryExpr.QueryVariableReferenceLike, _)                   => queryExprToFragment.query(queryExpr)
+        case (queryExpr: QueryExpr.ArrayContains, _)                                => queryExprToFragment.arrayContains(queryExpr)
         case (queryExpr: QueryExpr.Binary, _)                                       => queryExprToFragment.binary(queryExpr)
         case (queryExpr: QueryExpr.BuiltIn, _)                                      => queryExprToFragment.builtIn(queryExpr)
         case (queryExpr: QueryExpr.Composite, _)                                    => queryExprToFragment.composite(queryExpr, parentContext)
@@ -220,6 +227,17 @@ final case class FragmentBuilder(inputs: List[InputPart])(using Quotes) {
           } yield GeneratedFragment.of(lhsFrag, op.sqlPadded, rhsFrag)
       }
 
+    def arrayContains(queryExpr: QueryExpr.ArrayContains)(using ParseContext, GenerationContext, Quotes): ParseResult[GeneratedFragment] =
+      for {
+        colFrag <- queryExprToFragment.query(queryExpr.queryCol)
+        // wrap the compared column's `RowRepr[A]` into `RowRepr[Seq[A]]` / `RowRepr[Set[A]]`, so the
+        // whole collection binds as a single `?` param (via `ArraySeqEncoder` -> `java.sql.Array`).
+        arrRowRepr <- collectionAsArrayRepr(queryExpr.arrInput, queryExpr.queryCol.rowRepr)
+        inputFrag <- GenerationContext.updated(input = GenerationContext.Parens.Never) {
+          queryExprToFragment.input(queryExpr.arrInput, arrRowRepr)
+        }
+      } yield GeneratedFragment.of(colFrag, " = ANY(", inputFrag, ")")
+
     def builtIn(queryExpr: QueryExpr.BuiltIn)(using ParseContext, GenerationContext, Quotes): ParseResult[GeneratedFragment] =
       queryExpr match
         case QueryExpr.Static(_, out, _)      => ParseResult.Success(GeneratedFragment.sql(out))
@@ -304,6 +322,33 @@ final case class FragmentBuilder(inputs: List[InputPart])(using Quotes) {
       "\n    FROM (\n",
       GeneratedFragment.indented(sq, "        "),
       s"\n    ) AS ${s.subQueryTableName}",
+    )
+
+  /** Wrap an element `RowRepr[A]` into the collection `RowRepr` matching how `input` was declared (`array` -> `Seq`, `set` -> `Set`). */
+  private def collectionAsArrayRepr(
+      input: QueryExpr.InputVariableReferenceLike,
+      elemRowRepr: TypeclassExpr.RowRepr,
+  )(using ParseContext): ParseResult[TypeclassExpr.RowRepr] =
+    input.queryRef match
+      case VariableReference.ArrayFromInput(_, kind) => ParseResult.success(elemRowRepr.collectionAsArray(kind))
+      case _                                         => ParseResult.error(input.fullTerm, "expected an `input.array` / `input.set` collection")
+
+  def select(s: SelectPart.FromUnnest)(using ParseContext, GenerationContext, Quotes): ParseResult[GeneratedFragment] =
+    for {
+      // bind the referenced collection input as a single `?` param via `RowRepr[Seq[A]]` / `RowRepr[Set[A]]` (`ArraySeqEncoder`)
+      arrRowRepr <- collectionAsArrayRepr(s.arrInput, s.elemRowRepr)
+      inputFrag <- GenerationContext.updated(input = GenerationContext.Parens.Never) {
+        queryExprToFragment.input(s.arrInput, arrRowRepr)
+      }
+      // cast `?::<baseType>[]` so postgres knows the array/element type of the table source, then
+      // `<alias>(<alias>)` names the single output column so it can be referenced as `<alias>.<alias>`.
+      alias = s.mapQueryRef.sqlString
+      castType: Expr[String] = '{ "::" + ${ s.elemRowRepr.expr }.columns.columns.head.columnType.baseType + "[]" }
+    } yield GeneratedFragment.of(
+      "\n    FROM UNNEST(",
+      inputFrag,
+      GeneratedFragment.sql(castType),
+      s") $alias($alias)",
     )
 
   def update(u: UpdatePart)(using Quotes): ParseResult[GeneratedFragment] =

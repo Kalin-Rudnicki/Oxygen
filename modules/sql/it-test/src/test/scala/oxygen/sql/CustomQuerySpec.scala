@@ -321,6 +321,84 @@ object CustomQuerySpec extends OxygenSpec[Database] {
           res2 == Set(n3, n4),
         )
       },
+      test("array input (= ANY(?))") {
+        for {
+          groupId1 <- Random.nextUUID
+          groupId2 <- Random.nextUUID
+          p1s <- Person.generate(groupId1)().replicateZIO(5)
+          p2s <- Person.generate(groupId2)().replicateZIO(5)
+
+          _ <- Person.insert.batched(p1s ++ p2s).unit
+
+          all = p1s ++ p2s
+          // a plain `Seq` (not `ArraySeq`) is bound directly -- no conversion needed
+          someIds = (p1s.take(2) ++ p2s.take(1)).map(_.id).toSeq
+
+          // basic: single array param expands to `= ANY(?)`
+          res1 <- queries.selectByIdArray(someIds).to[Set]
+          // `input.set` variant: same `= ANY(?)`, but the caller passes a `Set`
+          resSet <- queries.selectByIdSet((p1s.take(2) ++ p2s.take(1)).map(_.id).toSet).to[Set]
+          // empty collection -> `x = ANY('{}')` -> no matches
+          resEmpty <- queries.selectByIdArray(Seq.empty[java.util.UUID]).to[Set]
+          // large array bound as ONE param (no N-placeholder expansion / plan-cache blowup)
+          randomIds <- Random.nextUUID.replicateZIO(1000)
+          bigIds = all.map(_.id).toSeq ++ randomIds
+          resBig <- queries.selectByIdArray(bigIds).to[Set]
+          // composition with a scalar input
+          resGroup <- queries.selectByIdArrayAndGroup(all.map(_.id).toSeq, groupId1).to[Set]
+        } yield assertTrue(
+          res1 == (p1s.take(2) ++ p2s.take(1)).toSet,
+          resSet == (p1s.take(2) ++ p2s.take(1)).toSet,
+          resEmpty.isEmpty,
+          resBig == all.toSet,
+          resGroup == p1s.toSet,
+        )
+      },
+      test("UNNEST(?) as an input join table") {
+        for {
+          groupId <- Random.nextUUID
+          // 5 people, each with 2 notes
+          people <- Person.generate(groupId)().replicateZIO(5)
+          _ <- Person.insert.batched(people).unit
+          notes <- ZIO.foreach(people)(p => Note.generate(p.id)().replicateZIO(2)).map(_.flatten)
+          _ <- Note.insert.batched(notes).unit
+
+          notesByPerson = notes.groupBy(_.personId)
+
+          // basic: JOIN only returns notes for the person-ids present in the array
+          selectedPeople = people.take(2)
+          selectedIds = selectedPeople.map(_.id).toSeq
+          expectedNotes = selectedPeople.flatMap(p => notesByPerson.getOrElse(p.id, Nil)).toSet
+
+          basic <- queries.notesByPersonIdUnnest(selectedIds).to[Set]
+          // UNNEST over a `Set` input yields the same rows
+          basicSet <- queries.notesByPersonIdUnnestSet(selectedPeople.map(_.id).toSet).to[Set]
+
+          // the unnested column decodes + is selectable: (personId, note)
+          withId <- queries.personIdAndNoteUnnest(selectedIds).to[Set]
+
+          // empty collection -> UNNEST('{}') -> zero rows
+          empty <- queries.notesByPersonIdUnnest(Seq.empty[java.util.UUID]).to[Set]
+
+          // larger array (all real ids + 1000 random misses), still one bound param
+          randomIds <- Random.nextUUID.replicateZIO(1000)
+          bigIds = people.map(_.id).toSeq ++ randomIds
+          big <- queries.notesByPersonIdUnnest(bigIds).to[Set]
+
+          // composition: UNNEST array input + an extra scalar input in a WHERE
+          targetNote = notes.head
+          composed <- queries.notesByPersonIdUnnestFilteredByNote((people.map(_.id).toSeq, targetNote.note)).to[Set]
+        } yield assertTrue(
+          basic == expectedNotes,
+          basicSet == expectedNotes,
+          withId == expectedNotes.map(n => (n.personId, n)),
+          empty.isEmpty,
+          big == notes.toSet,
+          // only notes matching both a person-id in the array AND the exact note text
+          composed == notes.filter(_.note == targetNote.note).toSet,
+          composed.nonEmpty,
+        )
+      },
       test("ltree") {
         def make(labels: String*): UIO[LTreeEx] =
           Random.nextUUID.map(LTreeEx(_, oxygen.sql.model.LTree(ArraySeq.from(labels))))

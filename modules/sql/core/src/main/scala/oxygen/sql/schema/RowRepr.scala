@@ -41,6 +41,22 @@ trait RowRepr[A] {
 
   final def optional: RowRepr[Option[A]] = RowRepr.OptionalRepr(this)
 
+  /**
+    * A `RowRepr` for a `Seq[A]` bound as a single Array-typed column (`ArraySeqEncoder` -> `java.sql.Array`).
+    * The runtime `Seq` is adapted to `ArraySeq` for encoding; decoding widens the `ArraySeq` back to `Seq`.
+    * `A` must be a single, non-nullable column (enforced by [[RowRepr.ArrayRepr]]).
+    */
+  final def seqRepr: RowRepr[Seq[A]] =
+    RowRepr.ArrayRepr(this).transform(as => as, ArraySeq.untagged.from)
+
+  /**
+    * A `RowRepr` for a `Set[A]` bound as a single Array-typed column (`ArraySeqEncoder` -> `java.sql.Array`).
+    * The runtime `Set` is adapted to `ArraySeq` for encoding; decoding collects the `ArraySeq` into a `Set`.
+    * `A` must be a single, non-nullable column (enforced by [[RowRepr.ArrayRepr]]).
+    */
+  final def setRepr: RowRepr[Set[A]] =
+    RowRepr.ArrayRepr(this).transform(_.toSet, ArraySeq.untagged.from)
+
   final def transform[B](ab: A => B, ba: B => A): RowRepr[B] = RowRepr.Transform(this, ab, ba)
   final def transformOrFail[B](ab: A => Either[String, B], ba: B => A): RowRepr[B] = RowRepr.TransformOrFail(this, ab, ba)
 

@@ -16,11 +16,12 @@ final class DecoderBuilder {
         case (queryExpr: QueryExpr.ConstValue, Some(parentContext))                 => convert.const(queryExpr, parentContext)
         case (queryExpr: QueryExpr.InputVariableReferenceLike, Some(parentContext)) => convert.input(queryExpr, parentContext)
         case (queryExpr: QueryExpr.QueryVariableReferenceLike, _)                   => convert.query(queryExpr)
-        case (queryExpr: QueryExpr.Binary, _)                                       => convert.binary(queryExpr)
-        case (queryExpr: QueryExpr.BuiltIn, _)                                      => convert.builtIn(queryExpr)
-        case (queryExpr: QueryExpr.Composite, _)                                    => convert.composite(queryExpr, parentContext)
-        case (queryExpr: QueryExpr.ConstValue, None)                                => ParseResult.error(queryExpr.fullTerm, "No RowRepr to compare with")
-        case (queryExpr: QueryExpr.InputVariableReferenceLike, None)                => ParseResult.error(queryExpr.fullTerm, "No RowRepr to compare with")
+        case (_: QueryExpr.ArrayContains, _)                         => ParseResult.success(GeneratedResultDecoder.single(TypeclassExpr.RowRepr.boolean.resultDecoder, TypeRepr.of[Boolean]))
+        case (queryExpr: QueryExpr.Binary, _)                        => convert.binary(queryExpr)
+        case (queryExpr: QueryExpr.BuiltIn, _)                       => convert.builtIn(queryExpr)
+        case (queryExpr: QueryExpr.Composite, _)                     => convert.composite(queryExpr, parentContext)
+        case (queryExpr: QueryExpr.ConstValue, None)                 => ParseResult.error(queryExpr.fullTerm, "No RowRepr to compare with")
+        case (queryExpr: QueryExpr.InputVariableReferenceLike, None) => ParseResult.error(queryExpr.fullTerm, "No RowRepr to compare with")
 
     def const(queryExpr: QueryExpr.ConstValue, parentContext: TypeclassExpr.RowRepr): ParseResult[GeneratedResultDecoder] =
       ParseResult.success(GeneratedResultDecoder.single(parentContext.resultDecoder, queryExpr.fullTerm.tpe.widen))

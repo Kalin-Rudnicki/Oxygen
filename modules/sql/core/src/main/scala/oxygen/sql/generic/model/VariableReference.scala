@@ -15,6 +15,7 @@ private[generic] sealed trait VariableReference {
 
   final def show: String = this match
     case VariableReference.FromInput(param)                     => param.name.greenFg.toString
+    case VariableReference.ArrayFromInput(param, kind)          => s"${kind.show}(${param.name.greenFg})"
     case VariableReference.OptionalFromInput(param)             => s"optional(${param.name.greenFg})"
     case VariableReference.FromConstInput(param, term, _)       => s"const(${param.name.greenFg} = ${term.showAnsiCode})"
     case VariableReference.FromQuery(_, _, _, true, sqlString)  => sqlString.hexFg("#7EB77F").toString
@@ -33,6 +34,27 @@ private[generic] object VariableReference {
 
   final case class FromInput(
       param: Function.NamedParam,
+  ) extends NonConstInput {
+    override val nonConstInputType: TypeRepr = param.tpe
+  }
+
+  /** The collection kind of an [[ArrayFromInput]] -- both bind as a single `java.sql.Array` param. */
+  enum ArrayInputKind {
+    case Seq, Set
+    def show: String = this match
+      case ArrayInputKind.Seq => "array"
+      case ArrayInputKind.Set => "set"
+  }
+
+  /**
+    * A collection input bound as a single `?` param (`java.sql.Array`).
+    * `param.tpe` is the user-facing collection type -- `Seq[A]` (`kind = Seq`) or `Set[A]`
+    * (`kind = Set`) -- so the query input type matches what the user declared; it is converted to a
+    * JDBC array at bind time.
+    */
+  final case class ArrayFromInput(
+      param: Function.NamedParam,
+      kind: ArrayInputKind,
   ) extends NonConstInput {
     override val nonConstInputType: TypeRepr = param.tpe
   }

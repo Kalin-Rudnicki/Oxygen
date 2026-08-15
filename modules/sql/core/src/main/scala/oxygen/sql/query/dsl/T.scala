@@ -32,6 +32,30 @@ object T {
     def flatMap[I2, O](f: I => QueryIO[I2, O]): QueryIO[I2, O] = macroOnly
   }
 
+  /**
+    * A `Seq` bound as a single `?` parameter (`java.sql.Array`).
+    * The body param has type `Seq[A]`; use `arr.contains(col)` to generate `col = ANY(?)`.
+    * `A` must be a single-column type.
+    */
+  final class ArrayInput[A] private extends InputLike {
+    def flatMap(f: Seq[A] => Query): QueryI[Seq[A]] = macroOnly
+    def flatMap[I2](f: Seq[A] => QueryI[I2])(using zip: Zip[Seq[A], I2]): QueryI[zip.Out] = macroOnly
+    def flatMap[O](f: Seq[A] => QueryO[O]): QueryIO[Seq[A], O] = macroOnly
+    def flatMap[I2, O](f: Seq[A] => QueryIO[I2, O])(using zip: Zip[Seq[A], I2]): QueryIO[zip.Out, O] = macroOnly
+  }
+
+  /**
+    * A `Set` bound as a single `?` parameter (`java.sql.Array`).
+    * The body param has type `Set[A]`; use `arr.contains(col)` to generate `col = ANY(?)`.
+    * `A` must be a single-column type.
+    */
+  final class SetInput[A] private extends InputLike {
+    def flatMap(f: Set[A] => Query): QueryI[Set[A]] = macroOnly
+    def flatMap[I2](f: Set[A] => QueryI[I2])(using zip: Zip[Set[A], I2]): QueryI[zip.Out] = macroOnly
+    def flatMap[O](f: Set[A] => QueryO[O]): QueryIO[Set[A], O] = macroOnly
+    def flatMap[I2, O](f: Set[A] => QueryIO[I2, O])(using zip: Zip[Set[A], I2]): QueryIO[zip.Out, O] = macroOnly
+  }
+
   //////////////////////////////////////////////////////////////////////////////////////////////////////
   //      CRUD
   //////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -47,6 +71,17 @@ object T {
   }
 
   final class Select[A] private {
+    def map[B](f: A => B): QueryO[B] = macroOnly
+    def flatMap[B](f: A => Ret[B]): QueryO[B] = macroOnly
+  }
+
+  /**
+    * A `UNNEST(?)` table source: the array/collection `arr` is bound as a single `?` param and
+    * expanded into one row per element, aliased so it can be joined/filtered/selected against.
+    * The body param has type `A` (the element type); the whole array binds as one `java.sql.Array`.
+    * Generates `FROM UNNEST(?::type[]) alias`. `A` must be a single-column type.
+    */
+  final class SelectUnnest[A] private {
     def map[B](f: A => B): QueryO[B] = macroOnly
     def flatMap[B](f: A => Ret[B]): QueryO[B] = macroOnly
   }

@@ -14,6 +14,7 @@ sealed trait SelectPart {
   final def optTableRepr: Option[TypeclassExpr.TableRepr] = this match
     case SelectPart.FromTable(_, tableRepr) => tableRepr.some
     case _: SelectPart.FromSubQuery         => None
+    case _: SelectPart.FromUnnest           => None
 
 }
 object SelectPart extends MapChainParser.Deferred[SelectPart] {
@@ -87,6 +88,53 @@ object SelectPart extends MapChainParser.Deferred[SelectPart] {
 
   }
 
-  override lazy val deferTo: MapChainParser[SelectPart] = FromTable || FromSubQuery
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
+  //      FromUnnest
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
+
+  /**
+    * `FROM UNNEST(?::type[]) alias` : uses an array/collection input (`arrInput`) as a table source
+    * that yields one row per element. The element is exposed as the query var `mapQueryRef`
+    * (a single, alias-named column) so it can be joined/filtered/selected against.
+    */
+  final case class FromUnnest(
+      mapQueryRef: VariableReference.FromQuery,
+      arrInput: QueryExpr.InputVariableReferenceLike,
+      elemRowRepr: TypeclassExpr.RowRepr,
+  ) extends SelectPart {
+
+    override def show(using Quotes): String =
+      s"FROM UNNEST(${arrInput.show}) ${mapQueryRef.show}"
+
+    def queryRefs: Growable[VariableReference] =
+      mapQueryRef +: arrInput.queryRefs
+
+  }
+  object FromUnnest extends MapChainParser[FromUnnest] {
+
+    override def parse(term: Term, refs: RefMap, prevFunction: String)(using ParseContext, Quotes): MapChainParseResult[FromUnnest] =
+      for {
+        (mapAAFC, (elemRowRepr, arrTerm)) <- AppliedAnonFunctCall.parseTyped[T.SelectUnnest[?]](term, "map function").parseLhs { //
+          case '{ Q.select.unnest[a]($arr)(using $rowRepr) } => ParseResult.success((TypeclassExpr.RowRepr(rowRepr), arr.toTerm.underlyingArgument))
+        }
+        mapParam <- mapAAFC.funct.parseParam1
+        mapFunctName <- functionNames.mapOrFlatMap.parse(mapAAFC.nameRef).unknownAsError
+
+        // resolve the array input that is being unnested (must be a previously-declared `input.array[_]`)
+        rawArr <- RawQueryExpr.VariableReferenceLike.parse((arrTerm, refs)).unknownAsError
+        arrInput <- QueryExpr.InputVariableReferenceLike.parse(rawArr)
+
+        // the element becomes a query var; name its single column = the alias, so it is referenced as
+        // `alias.alias` (qualified), avoiding ambiguity with same-named columns of joined tables.
+        alias = mapParam.name.camelToSnake
+        namedElemRowRepr = elemRowRepr.prefixedInline(alias)
+        mapQueryRef = VariableReference.FromQuery(mapParam, namedElemRowRepr, true)
+        newRefs = refs.add(mapQueryRef)
+
+      } yield MapChainResult(FromUnnest(mapQueryRef, arrInput, namedElemRowRepr), mapFunctName, newRefs, mapAAFC.appliedFunctionBody)
+
+  }
+
+  override lazy val deferTo: MapChainParser[SelectPart] = FromTable || FromSubQuery || FromUnnest
 
 }

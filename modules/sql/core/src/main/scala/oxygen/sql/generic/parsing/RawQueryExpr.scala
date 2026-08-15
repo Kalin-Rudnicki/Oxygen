@@ -35,6 +35,7 @@ private[generic] sealed trait RawQueryExpr {
     case RawQueryExpr.OptionNullability(_, inner, showScala, _)     => s"${inner.show}.${showScala.hexFg("#35A7FF")}"
     case RawQueryExpr.SelectPrimaryKey(_, inner, _)                 => s"${inner.show}.${"tablePK".hexFg("#35A7FF")}"
     case RawQueryExpr.SelectNonPrimaryKey(_, inner, _)              => s"${inner.show}.${"tableNPK".hexFg("#35A7FF")}"
+    case RawQueryExpr.ArrayContains(_, arr, elem)                   => s"${arr.show}.${"contains".magentaFg}(${elem.show})"
     case bin: RawQueryExpr.Binary if bin.lhs.isBin || bin.rhs.isBin => s"(${bin.lhs.show}) ${bin.op.show} (${bin.rhs.show})"
     case bin: RawQueryExpr.Binary                                   => s"${bin.lhs.show} ${bin.op.show} ${bin.rhs.show}"
     case RawQueryExpr.InstantiateTable(_, gen, _, args)             => args.map(_.show).mkString(s"${gen.typeRepr.showCode}.apply(", ", ", ")")
@@ -163,6 +164,34 @@ private[generic] object RawQueryExpr extends Parser[(Term, RefMap), RawQueryExpr
         case (term, _) =>
           ParseResult.unknown(term, "not a non-primary-key select")
       }
+
+  }
+
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
+  //      ArrayContains
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
+
+  final case class ArrayContains(
+      fullTerm: Term,
+      arr: RawQueryExpr.VariableReferenceLike,
+      elem: RawQueryExpr.VariableReferenceLike,
+  ) extends RawQueryExpr
+  object ArrayContains extends Parser[(Term, RefMap), ArrayContains] {
+
+    override def parse(input: (Term, RefMap))(using ParseContext, Quotes): ParseResult[ArrayContains] = {
+      val (rootTerm, refs) = input
+      rootTerm match {
+        case singleApply(Select(lhs, "contains"), rhs) =>
+          VariableReferenceLike.parse((lhs, refs)) match {
+            case ParseResult.Success(arr @ ReferencedVariable(_, _: VariableReference.ArrayFromInput)) =>
+              VariableReferenceLike.parse((rhs, refs)).unknownAsError.map(ArrayContains(rootTerm, arr, _))
+            case _ =>
+              ParseResult.unknown(rootTerm, "not an array `.contains(_)`")
+          }
+        case _ =>
+          ParseResult.unknown(rootTerm, "not an array `.contains(_)`")
+      }
+    }
 
   }
 
@@ -358,6 +387,7 @@ private[generic] object RawQueryExpr extends Parser[(Term, RefMap), RawQueryExpr
 
   override def parse(input: (Term, RefMap))(using ParseContext, Quotes): ParseResult[RawQueryExpr] = input match
     case ConstValue.optional(res)          => res
+    case ArrayContains.optional(res)       => res
     case ReferencedVariable.optional(res)  => res
     case StaticCount.optional(res)         => res
     case CountWithArg.optional(res)        => res
