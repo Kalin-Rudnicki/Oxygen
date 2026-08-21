@@ -31,7 +31,7 @@ object Drawer {
           top := 0,
           left := 0,
           width := 100.vw,
-          height := 100.vh,
+          height := 100.dvh, // OFF-427: track the visible viewport on mobile (URL-bar show/hide)
           zIndex := ZIndices.modalBehindPageMessages,
           backgroundColor := S.color.bg.transparent,
           // dim backdrop via pseudo not available — use nested full-size dark layer

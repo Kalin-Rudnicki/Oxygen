@@ -25,6 +25,7 @@ val coreOxygenStyleSheets: ArraySeq[StyleSheet] =
       InlinePseudoClassStyles.compiled,
       OxygenStyleSheet.compiled,
       ColumnsStyle.sheet,
+      HolyGrail.baseSheet,
       HolyGrail.responsiveSheet,
       Motion.sheet,
       Tooltip.sheet,

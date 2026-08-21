@@ -53,7 +53,7 @@ final case class CenteredCard[-Env, +Action, -StateGet, +StateSet <: StateGet](
       justifyContent.center,
       alignItems.center,
       backgroundColorAttr := _pageBg,
-      minHeight := 100.vh,
+      minHeight := 100.dvh, // OFF-427: track the visible viewport on mobile (URL-bar show/hide)
       widthAttr := 100.pct,
       div(
         backgroundColorAttr := _cardBg,
