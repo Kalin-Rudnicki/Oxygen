@@ -1,7 +1,8 @@
 # HTTP Docs — Feature Plan
 
-> Status: **Phases 1–3 implemented (1 & 2 tested); Phase 4 pending**
-> Modules: `modules/http/zio` (oxygen-http), `modules/general/schema` (oxygen-schema)
+> Status: **Phases 1–4 implemented & tested**
+> Modules: `modules/http/zio` (oxygen-http), `modules/http/test-utils` (oxygen-http-test),
+> `modules/general/schema` (oxygen-schema)
 
 ## Implementation status
 
@@ -10,7 +11,7 @@
 | 1 — Compiled HTTP spec | ✅ done | `oxygen.http.schema.compiled`: model (`RawCompiledApiSpec` & friends, `CompiledParamType`, `CompiledExpectedStatuses`) in pure cross src; `FullCompiledApiSpec` (resolved graph + `show`); `CompiledApiSpec.compile(Seq[EndpointSchema])` compiler in `.jvm`. Compiles JVM + JS. |
 | 2 — Serve via middleware | ✅ done | `ApiSpecEndpointMiddleware` (`.jvm/server`): compiles applied endpoints' schemas and appends a `GET /oxygen/api-spec` endpoint serving the spec as JSON. **Wired into `example-web-server`** (`WebServerMain` → `CompiledEndpoints.endpointLayer(endpointMiddleware = new ApiSpecEndpointMiddleware())`). |
 | 3 — UI rendering | ✅ done | `oxygen.ui.web.apispec.ApiSpecPage` (`RoutablePage.NoParams[RawClient]`): GETs `/oxygen/api-spec` via `RawClient`, decodes with `JsonCodec`, builds `FullCompiledApiSpec`, renders endpoints (grouped by API; method/path/params/bodies) + schema graph (products→fields, sums→cases; other variants fall back to `toIndentedString`). Registered in `example/apps/ui` (`UIMain`, route `/page/api-spec`) with a `RawClient.default` layer. Compiles JVM + JS. |
-| 4 — Compat detection | ⬜ pending | Decided: persist + diff via `oxygen.schema.compat`. Not started. |
+| 4 — Compat detection | ✅ done | `oxygen.http.schema.compat`: `HttpApiSpecComparison.compare(from, to)` (shared) diffs two `RawCompiledApiSpec`s into a binary gate + located breaking changes, honouring the request/response-opposite rule; `HttpApiSpecCheck` (`.jvm`) persists/diffs the committed JSON (mirrors `MigrationCheck`) with `Config(allowUpdate, allowIncompatible)` + `fromEnv` + `Outcome`. Reusable `ApiSpecCompatibilitySpec` in the new `oxygen-http-test` module (mirrors `DbMigrationSpec`). Compiles JVM + JS. |
 
 **Tests:** `modules/http/it-test/.../CompiledApiSpecSpec.scala` (5 tests, green) — compiles all
 6 `UserApi` endpoints, dedupes shared `User`, JSON round-trips, `FullCompiledApiSpec.show`
@@ -226,9 +227,55 @@ as-is for the *type* layer; we add the *endpoint/API* layer on top of it.
 - **Reference template:** the existing example UI app at `example/apps/ui` (`UIMain extends
   PageApp`, pages extend `RoutablePage`, fetches via `DeriveClient.clientLayer[...]`).
 
-### Phase 4 — API-incompatibility detection (eventually)
-- Persist the compiled spec (avro/sql-migration paradigm), diff via `oxygen.schema.compat`
-  extended to the endpoint/API layer, fail CI on breaking changes; env-var-gated update.
+### Phase 4 — API-incompatibility detection ✅ (OFF-352)
+Persist the compiled spec (avro/sql-migration paradigm), diff it at the endpoint/API layer, fail
+CI on breaking changes; env-var-gated update. Landed as:
+
+- **`HttpApiSpecComparison.compare(from, to): Result`** (`oxygen.http.schema.compat`, shared) — walks
+  the two `RawCompiledApiSpec`s and returns a binary `Compatibility` (Compatible / Incompatible) plus a
+  list of located `BreakingChange`s. **Request vs response are exact opposites**, per the author's tables:
+  one `Dir`-parameterised rule set drives both, so they can't drift. Request = old client writes / new
+  server reads (compatible ⇔ the server accepts a superset); response = the mirror.
+
+  | Field change | Request | Response |  | Sum-case change | Request | Response |
+  |---|---|---|---|---|---|---|
+  | add required | breaking | ok |  | add case | ok | breaking |
+  | add optional | ok | ok |  | remove case | breaking | ok |
+  | remove required | ok | breaking |  | | | |
+  | required→optional | ok | breaking |  | | | |
+  | optional→required | breaking | ok |  | | | |
+
+  Endpoint/API removed = breaking; added = ok. Status codes are not gated (oxygen-http de-emphasises
+  them — decoding keys off body discriminators).
+
+  > **Why not delegate to `oxygen.schema.compat`?** That engine resolves *both* refs against a single
+  > bundle (`eval(full, full)`), so it can only compare distinctly-identified types — it cannot compare
+  > two independently-compiled specs where a type keeps its name and changes in place (the common case
+  > here), and its `ByName`/`Full` constructors are `private[schema]` so the two sides can't be
+  > namespaced externally. So the endpoint layer resolves each side against **its own** bundle and walks
+  > the structure directly; per-type-shape verdicts mirror that engine, and unhandled/mismatched shapes
+  > fall back to structural equality (never a false "compatible"). A future two-bundle-aware `compare`
+  > (OXY-29 / OFF-369) could replace this walk.
+
+- **`HttpApiSpecCheck`** (`.jvm`) — mirrors `oxygen.sql.migration.MigrationCheck`:
+  `Config(allowUpdate, allowIncompatible)` + `Config.fromEnv` + `Outcome`
+  (`UpToDate` / `Wrote` / `PendingUpdate` / `BlockedIncompatible`) +
+  `check(path, currentSpec, config)`. Persists a single `RawCompiledApiSpec.withoutLineNos` JSON file;
+  a missing file is a genesis `PendingUpdate` / `Wrote`. Env-var gates:
+
+  | Env var | Effect |
+  |---|---|
+  | `OXYGEN_HTTP_ALLOW_UPDATE=true` | write the new committed spec instead of failing (else `PendingUpdate`) |
+  | `OXYGEN_HTTP_ALLOW_INCOMPATIBLE=true` | additionally permit a breaking change (else `BlockedIncompatible`) |
+
+- **`ApiSpecCompatibilitySpec`** (new module **`oxygen-http-test`**, `oxygen.http.test`) — a reusable
+  base mirroring `DbMigrationSpec`: a subclass supplies `apiSpecPath` + `currentEndpoints`; the single
+  test (`@@ TestAspect.withLiveEnvironment`) surfaces `PendingUpdate` / `BlockedIncompatible` as failures
+  with actionable messages. Harness + comparison tests live in `http-it`.
+
+**Deferred (follow-ups):** history-of-docs snapshots (the seed marked it optional); wiring an example
+app + committing an initial `oxygen-http-api-spec.json`; a two-bundle `oxygen.schema.compat.compare`
+(OXY-29 / OFF-369) that would let the endpoint layer reuse the schema engine directly.
 
 ---
 
