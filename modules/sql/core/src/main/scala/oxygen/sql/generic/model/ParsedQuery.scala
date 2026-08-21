@@ -69,6 +69,7 @@ private[sql] object ParsedQuery extends Parser[Term, ParsedQuery] {
           fragmentBuilder = FragmentBuilder(inputs)
           insertFrag <- fragmentBuilder.insert(insert)
           valuesFrag <- fragmentBuilder.values(insert, into)
+          onConflictFrag <- into.onConflict.traverse(fragmentBuilder.onConflict(_, insert.tableRepr)).map(GeneratedFragment.option)
           returningFrag <- fragmentBuilder.ret(ret, "              ")
           frag = GeneratedFragment.of(
             insertFrag,
@@ -76,6 +77,7 @@ private[sql] object ParsedQuery extends Parser[Term, ParsedQuery] {
             '{ ${ insert.tableRepr.expr }.rowRepr.columns.`a, b, c` },
             ")",
             valuesFrag,
+            onConflictFrag,
             GeneratedFragment.option(
               returningFrag.map { ret =>
                 GeneratedFragment.of(
@@ -102,6 +104,7 @@ private[sql] object ParsedQuery extends Parser[Term, ParsedQuery] {
         inputs: List[InputPart],
         insert: InsertPart.FromSelect,
         select: ParsedQuery.SelectQuery,
+        onConflict: Option[OnConflictPart],
         ret: ReturningPart,
         refs: RefMap,
     ) extends InsertQuery {
@@ -127,6 +130,7 @@ private[sql] object ParsedQuery extends Parser[Term, ParsedQuery] {
           fragmentBuilder = FragmentBuilder(inputs)
           insertFrag <- fragmentBuilder.insert(insert)
           selectFrag <- select.makeFragment
+          onConflictFrag <- onConflict.traverse(fragmentBuilder.onConflict(_, insert.tableRepr)).map(GeneratedFragment.option)
           returningFrag <- fragmentBuilder.ret(ret, "              ")
           frag = GeneratedFragment.of(
             insertFrag,
@@ -134,6 +138,7 @@ private[sql] object ParsedQuery extends Parser[Term, ParsedQuery] {
             '{ ${ insert.tableRepr.expr }.rowRepr.columns.`a, b, c` },
             ")\n",
             selectFrag,
+            onConflictFrag,
             GeneratedFragment.option(
               returningFrag.map { ret =>
                 GeneratedFragment.of(
@@ -384,7 +389,7 @@ private[sql] object ParsedQuery extends Parser[Term, ParsedQuery] {
           ParsedQuery.InsertQuery.Basic(inputs, insert, into, ret, refs)
         case FullQueryResult(inputs, PartialQuery.InsertQuery.FromSelect(insert, s, into), ret, refs) =>
           val fullSelect = ParsedQuery.SelectQuery(inputs, s.select, s.joins, s.where, s.orderBy, s.limit, s.offset, into.toReturning, refs)
-          ParsedQuery.InsertQuery.FromSelect(inputs, insert, fullSelect, ret, refs)
+          ParsedQuery.InsertQuery.FromSelect(inputs, insert, fullSelect, into.onConflict, ret, refs)
         case FullQueryResult(inputs, PartialQuery.SelectQuery(select, joins, where, orderBy, limit, offset), ret, refs) =>
           ParsedQuery.SelectQuery(inputs, select, joins, where, orderBy, limit, offset, ret, refs)
         case FullQueryResult(inputs, PartialQuery.UpdateQuery(update, joins, where, set), ret, refs) =>

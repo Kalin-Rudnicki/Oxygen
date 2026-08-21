@@ -217,6 +217,38 @@ object queries {
       )
     } yield ()
 
+  // OFF-328: `ON CONFLICT` (upsert) support in the hand-written DSL, targeting the primary key.
+
+  @compile
+  val insertPersonOnConflictDoNothing: QueryI[Person] =
+    for {
+      i <- input[Person]
+      (_, into) <- Q.insert[Person]
+      _ <- into(i).onConflictDoNothing
+    } yield ()
+
+  @compile
+  val insertPersonOnConflictDoUpdate: QueryI[Person] =
+    for {
+      i <- input[Person]
+      (_, into) <- Q.insert[Person]
+      _ <- into(i).onConflictDoUpdate
+    } yield ()
+
+  @compile
+  val insertNoteForPeopleOnConflictDoNothing: Query =
+    for {
+      (_, into) <- Q.insert.fromSelect[Note]
+      p <- Q.select[Person]
+      _ <- into(
+        Note(
+          UUID.randomUUID(),
+          p.id,
+          mkSqlString(Q.const("Adding note for person "), p.first, " ", p.last, " : everyone"),
+        ),
+      ).onConflictDoNothing
+    } yield ()
+
   //////////////////////////////////////////////////////////////////////////////////////////////////////
   //      Select
   //////////////////////////////////////////////////////////////////////////////////////////////////////

@@ -127,6 +127,7 @@ input makes it a `QueryO`/`Query`. Pass `debug = true` (`@compile(debug = true)`
 | `col.in(coll)` / `col.notIn(coll)` | `col = ANY(?)` / `col <> ALL(?)` over a runtime `Seq` / `Set` (static SQL, one array bind) |
 | `orderBy(a.field.asc, …)`, `limit(n)`, `offset(n)` | ordering / paging |
 | `Q.insert[A]` / `Q.update[A]` / `Q.delete[A]` | begin an insert / update / delete |
+| `into(v).onConflictDoNothing` / `into(v).onConflictDoUpdate` | `ON CONFLICT (pk) DO NOTHING` / `DO UPDATE …` on an insert (see below) |
 | `set(_.field := value)` | assignment in an update |
 | `count.*` / `count(a.field)` | `COUNT` aggregate (result `Long`, never null) |
 | `sum(a.field)` / `sum.orNull(a.field)` / `avg(a.field)` / `min(a.field)` / `max(a.field)` | scalar aggregate |
@@ -211,6 +212,39 @@ val searchByName: QueryIO[String, Person] =
 
 > Custom column types flow through automatically: `input[Email]` and `select[UserRow]` use the
 > `RowRepr`/encoder/decoder for `Email` you defined in [Models](models.md).
+
+### `ON CONFLICT` (upsert)
+
+A hand-written insert (`Q.insert[A]` or `Q.insert.fromSelect[A]`) can be made idempotent by chaining
+an `ON CONFLICT` clause onto the `into(…)` value. The conflict target is the table's **primary key**:
+
+| Form | SQL | Behavior on a PK collision |
+|------|-----|----------------------------|
+| `into(v).onConflictDoNothing` | `ON CONFLICT (pk) DO NOTHING` | keep the existing row |
+| `into(v).onConflictDoUpdate` | `ON CONFLICT (pk) DO UPDATE SET <non-pk> = EXCLUDED.<non-pk>` | overwrite every non-PK column from the incoming row |
+
+```scala
+@compile
+val upsertPerson: QueryI[Person] =
+  for {
+    p         <- input[Person]
+    (_, into) <- Q.insert[Person]
+    _         <- into(p).onConflictDoUpdate   // INSERT … ON CONFLICT (id) DO UPDATE SET group_id = EXCLUDED.group_id, …
+  } yield ()
+```
+
+Notes:
+
+- The target is always the PK (matching the generated `upsert` / `insertOrDoNothing`). Explicit
+  non-PK conflict targets, `ON CONSTRAINT`, partial-index `WHERE`, and custom `DO UPDATE SET … WHERE`
+  are not supported yet.
+- `onConflictDoUpdate` falls back to `DO NOTHING` when the table has no non-PK columns (a bare
+  `DO UPDATE SET` with no assignments is invalid SQL).
+- Works on both `Q.insert[A]` and `Q.insert.fromSelect[A]`, and composes with `batchOptimizedInsert`
+  (the `ON CONFLICT …` suffix rides along after `VALUES`).
+- For the common whole-row cases the generated CRUD `upsert` / `insertOrDoNothing` (see
+  [Generated CRUD](#generated-crud)) are simpler — reach for the DSL form when the insert itself is
+  hand-written (custom columns, `fromSelect`, …).
 
 ### Array input (`= ANY(?)`)
 

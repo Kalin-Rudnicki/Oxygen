@@ -8,10 +8,12 @@ import scala.quoted.*
 
 final case class IntoPart(
     queryExpr: QueryExpr,
+    onConflict: Option[OnConflictPart],
 )
 object IntoPart extends MapChainParser[IntoPart] {
 
   final case class FromSelect(into: IntoPart) {
+    def onConflict: Option[OnConflictPart] = into.onConflict
     def toReturning: ReturningPart = ReturningPart(into.queryExpr.fullTerm, ReturningPart.Elem(into.queryExpr, None) :: Nil)
   }
   object FromSelect extends MapChainParser.Deferred[FromSelect] {
@@ -26,12 +28,18 @@ object IntoPart extends MapChainParser[IntoPart] {
       mapAAFC <- AppliedAnonFunctCall.parseTyped[T.InsertValues](term, "map function").ignore
       _ <- mapAAFC.funct.parseEmptyParams
       mapFunctName <- functionNames.mapOrFlatMap.parse(mapAAFC.nameRef).unknownAsError
-      (_, argTerm) <- mapAAFC.lhs match { // TODO (KR) : validate `intoIdent`
+      // peel an optional `.onConflictDoNothing` / `.onConflictDoUpdate` suffix off the `into(...)` call
+      (intoTerm, onConflict) = mapAAFC.lhs match {
+        case Select(inner, "onConflictDoNothing") => (inner, Option(OnConflictPart.DoNothing))
+        case Select(inner, "onConflictDoUpdate")  => (inner, Option(OnConflictPart.DoUpdate))
+        case other                                => (other, None)
+      }
+      (_, argTerm) <- intoTerm match { // TODO (KR) : validate `intoIdent`
         case Apply(Select(intoIdent: Ident, "apply"), argTerm :: Nil) => ParseResult.Success((intoIdent, argTerm))
         case _                                                        => ParseResult.error(mapAAFC.lhs, "does not look like `into(...)`")
       }
       valueQueryExpr <- RawQueryExpr.parse((argTerm, refs)).unknownAsError
       valueQueryExpr <- QueryExpr.parse(valueQueryExpr).unknownAsError
-    } yield MapChainResult(IntoPart(valueQueryExpr), mapFunctName, refs, mapAAFC.appliedFunctionBody)
+    } yield MapChainResult(IntoPart(valueQueryExpr, onConflict), mapFunctName, refs, mapAAFC.appliedFunctionBody)
 
 }

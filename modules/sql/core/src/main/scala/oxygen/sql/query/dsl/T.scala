@@ -129,6 +129,15 @@ object T {
     def map[B](f: Unit => B): Ret[B] = macroOnly
     def flatMap[B](f: Unit => Ret[B]): Ret[B] = macroOnly
 
+    /** `ON CONFLICT (pk...) DO NOTHING` -- skip rows that collide on the primary key. */
+    def onConflictDoNothing: InsertValues = macroOnly
+
+    /**
+      * `ON CONFLICT (pk...) DO UPDATE SET <non-pk> = EXCLUDED.<non-pk>` -- upsert on the primary key.
+      * Falls back to `DO NOTHING` when the table has no non-primary-key columns.
+      */
+    def onConflictDoUpdate: InsertValues = macroOnly
+
   }
 
   final class UpdateSet private {
