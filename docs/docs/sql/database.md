@@ -53,11 +53,36 @@ entirely from the JSON.
 | `connectTimeout` | `connectTimeout` | `Duration`, sent as whole seconds. |
 | `socketTimeout` | `socketTimeout` | `Duration`, sent as whole seconds. |
 | `applicationName` | `ApplicationName` | Shows up in `pg_stat_activity`. |
+| `preparedStatementCache` | *(nested)* | pgjdbc server-side prepared-statement caching — see below. |
 | `extraProperties` | *(verbatim)* | `Map[String, String]` escape hatch for any other driver knob. |
 
 Property values are Postgres (`pgjdbc`) flavored. `extraProperties` are applied **last**, so they
 override the typed properties (and credentials) on a key collision — the escape hatch always wins.
 So `"ssl prefer"` from the ticket is simply `"connection": { "sslMode": "prefer" }`.
+
+#### Prepared-statement caching — `DbConfig.Connection.preparedStatementCache`
+
+pgjdbc keeps a **per-connection cache of server-prepared statements keyed by SQL text** (it survives
+the client-side `PreparedStatement.close()`), and promotes a statement to a server-prepared plan after
+it has been executed `prepareThreshold` times. Because oxygen-sql pools and reuses connections, this
+amortizes the Postgres `Parse` cost across executions of the same SQL. This block exposes the pgjdbc
+knobs in a typed way; **every field is optional and omitting the block is a no-op** that leaves
+pgjdbc's own defaults in force.
+
+| Field | JDBC property | pgjdbc default | Notes |
+|-------|---------------|----------------|-------|
+| `prepareThreshold` | `prepareThreshold` | `5` | Executions before a statement becomes server-prepared. `0` disables server-side prepared plans. |
+| `cacheQueries` | `preparedStatementCacheQueries` | `256` | Number of statements cached per connection. `0` disables client-side caching. |
+| `cacheSizeMiB` | `preparedStatementCacheSizeMiB` | `5` | Max cache size per connection, in MiB. `0` disables client-side caching. |
+
+```json
+"connection": {
+  "preparedStatementCache": { "prepareThreshold": 5, "cacheQueries": 256, "cacheSizeMiB": 5 }
+}
+```
+
+To turn client-side statement caching off entirely, set `"cacheQueries": 0` (and/or
+`"cacheSizeMiB": 0`).
 
 ## The Database layer
 
