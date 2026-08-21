@@ -32,6 +32,45 @@ Defined in `oxygen.sql.schema`:
 | `@primaryKey` | Field is part of the primary key (composite if on several fields) | — |
 | `@inlineColumnNames` | For an embedded case class, drop the field-name prefix on its columns | — |
 
+## Foreign keys & indices
+
+Foreign keys and indices can be declared at the **field** level or the **class** level:
+
+```scala
+final case class Note(
+    @primaryKey id: UUID,
+    @references[Person] personId: UUID,   // field-level FK -> Person's primary key
+    @indexed title: String,               // field-level (non-unique) index
+    @indexed.unique slug: String,         // field-level unique index
+)
+
+// class-level FK (supports composite keys) + class-level index over several columns
+@foreignKey[Order, Customer]((_.customerId, _.id))
+@index[Order](_.customerId, _.createdAt)
+@index.unique[Order](_.externalId)
+final case class Order(@primaryKey id: UUID, customerId: UUID, externalId: String, createdAt: Instant)
+```
+
+### Explicit constraint / index names
+
+By default the constraint and index names are **auto-generated** from the table, columns, and (for
+indices) uniqueness. Auto-names are stable but verbose, and they *change* if you rename a column. To
+pin a **stable, readable** name — handy for hand-written migrations — use the `.named` variants:
+
+| Auto-named | Explicitly named |
+|------------|------------------|
+| `@references[Person]` | `@references.named[Person]("fk_note_person")` |
+| `@foreignKey[A, B](…)` | `@foreignKey.named[A, B]("fk_name", …)` |
+| `@indexed` | `@indexed.named("idx_name")` |
+| `@indexed.unique` | `@indexed.unique.named("idx_name")` |
+| `@index[A](…)` | `@index.named[A]("idx_name", …)` |
+| `@index.unique[A](…)` | `@index.unique.named[A]("idx_name", …)` |
+
+The name is the **leading argument** (before the column selectors), and is validated at compile time
+(it must be a string literal). A blank name is treated as "auto-generate", so `.named("")` is
+equivalent to the plain annotation. Explicit names flow through to the generated DDL verbatim
+(`ADD CONSTRAINT fk_name …`, `CREATE UNIQUE INDEX idx_name …`).
+
 ## Companions & primary keys
 
 `TableCompanion[A, K]` takes the derived repr and is parameterized by the **primary key type** `K`:

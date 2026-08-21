@@ -12,6 +12,12 @@ final class DeriveTableRepr[A: Type](
     instances: Expressions[RowRepr, A],
 )(using quotes: Quotes, fTpe: Type[RowRepr], generic: ProductGeneric[A]) {
 
+  /** Convert an explicit-name annotation argument into `Option[String]`: a blank/whitespace name means "auto-generate" (`None`). */
+  private def explicitNameExpr(nameExpr: Expr[String])(using Quotes): Expr[Option[String]] = {
+    val trimmed: String = nameExpr.valueOrAbort.trim
+    if trimmed.isEmpty then '{ Option.empty[String] } else '{ Some(${ Expr(trimmed) }) }
+  }
+
   private def schemaNameExpr: Expr[String] =
     Expr { generic.annotations.optionalOfValue[schemaName].fold("public")(_.name) }
 
@@ -106,16 +112,22 @@ final class DeriveTableRepr[A: Type](
     private def classForeignKey(expr: Expr[foreignKey[A, ?]])(using quotes: Quotes): Expr[ForeignKeyRepr[A, ?]] = {
       type RT
       given Type[RT] = expr match
-        case '{ `foreignKey`[A, rt](${ _ }*) }     => TypeRepr.of[rt].asTypeOf
-        case '{ new `foreignKey`[A, rt](${ _ }*) } => TypeRepr.of[rt].asTypeOf
-        case _                                     => report.errorAndAbort("unable to extract reference type", expr)
+        case '{ new `foreignKey`.`named`[A, rt]($_, ${ _ }*) } => TypeRepr.of[rt].asTypeOf
+        case '{ `foreignKey`[A, rt](${ _ }*) }                 => TypeRepr.of[rt].asTypeOf
+        case '{ new `foreignKey`[A, rt](${ _ }*) }             => TypeRepr.of[rt].asTypeOf
+        case _                                                 => report.errorAndAbort("unable to extract reference type", expr)
 
       val typedExpr: Expr[foreignKey[A, RT]] = expr.asExprOf[foreignKey[A, RT]]
 
+      val explicitName: Expr[Option[String]] = typedExpr match
+        case '{ new `foreignKey`.`named`[A, RT]($name, ${ _ }*) } => explicitNameExpr(name)
+        case _                                                    => '{ Option.empty[String] }
+
       val pairsList: Seq[Expr[(A => Any, RT => Any)]] = typedExpr match
-        case '{ `foreignKey`[A, RT](${ Varargs(exprs) }*) }     => exprs
-        case '{ new `foreignKey`[A, RT](${ Varargs(exprs) }*) } => exprs
-        case _                                                  => report.errorAndAbort("unable to extract foreign key expr pairs", expr)
+        case '{ new `foreignKey`.`named`[A, RT]($_, ${ Varargs(exprs) }*) } => exprs
+        case '{ `foreignKey`[A, RT](${ Varargs(exprs) }*) }                 => exprs
+        case '{ new `foreignKey`[A, RT](${ Varargs(exprs) }*) }             => exprs
+        case _                                                              => report.errorAndAbort("unable to extract foreign key expr pairs", expr)
 
       type RT_FK
       val rtGeneric: ProductGeneric[RT] = ProductGeneric.of[RT]
@@ -143,7 +155,7 @@ final class DeriveTableRepr[A: Type](
 
       '{
         ForeignKeyRepr[A, RT](
-          None, // TODO (KR) : allow for explicit fk naming
+          $explicitName,
           Lazy { $rtTableReprExpr },
           currentTableRepr => ArraySeq(${ pairs.map(_.current.toColumns('currentTableRepr)).seqToArraySeqExpr }*).flatten,
           referencesTableRepr => ArraySeq(${ pairs.map(_.references.toColumns('referencesTableRepr)).seqToArraySeqExpr }*).flatten,
@@ -164,10 +176,15 @@ final class DeriveTableRepr[A: Type](
     private def fieldForeignKey[FT](field: generic.Field[FT], expr: Expr[references[?]])(using Quotes): Expr[ForeignKeyRepr[A, ?]] = {
       type RT
       given Type[RT] = expr match
-        case '{ `references`[rt]() }     => TypeRepr.of[rt].asTypeOf
-        case '{ new `references`[rt]() } => TypeRepr.of[rt].asTypeOf
-        case '{ new `references`[rt] }   => TypeRepr.of[rt].asTypeOf
-        case _                           => report.errorAndAbort("unable to extract reference type", expr)
+        case '{ new `references`.`named`[rt]($_) } => TypeRepr.of[rt].asTypeOf
+        case '{ `references`[rt]() }               => TypeRepr.of[rt].asTypeOf
+        case '{ new `references`[rt]() }           => TypeRepr.of[rt].asTypeOf
+        case '{ new `references`[rt] }             => TypeRepr.of[rt].asTypeOf
+        case _                                     => report.errorAndAbort("unable to extract reference type", expr)
+
+      val explicitName: Expr[Option[String]] = expr match
+        case '{ new `references`.`named`[rt]($name) } => explicitNameExpr(name)
+        case _                                        => '{ Option.empty[String] }
 
       type RT_FK
       val rtGeneric: ProductGeneric[RT] = ProductGeneric.of[RT]
@@ -188,7 +205,7 @@ final class DeriveTableRepr[A: Type](
 
       '{
         ForeignKeyRepr[A, RT](
-          None, // TODO (KR) : allow for explicit fk naming
+          $explicitName,
           Lazy { $rtTableReprExpr },
           currentTableRepr => ${ pair.current.toColumns('currentTableRepr) },
           referencesTableRepr => ${ pair.references.toColumns('referencesTableRepr) },
@@ -245,25 +262,34 @@ final class DeriveTableRepr[A: Type](
 
     private def classIndex(expr: Expr[index[A]])(using quotes: Quotes): Expr[IndexRepr[A]] = {
       val isUnique: Boolean = expr match
-        case '{ `index`[A](${ _ }*) }              => false
-        case '{ new `index`[A](${ _ }*) }          => false
-        case '{ `index`.`unique`[A](${ _ }*) }     => true
-        case '{ new `index`.`unique`[A](${ _ }*) } => true
-        case _                                     => report.errorAndAbort("unable to extract index uniqueness", expr)
+        case '{ new `index`.`unique`.`named`[A]($_, ${ _ }*) } => true
+        case '{ `index`.`unique`[A](${ _ }*) }                 => true
+        case '{ new `index`.`unique`[A](${ _ }*) }             => true
+        case '{ new `index`.`named`[A]($_, ${ _ }*) }          => false
+        case '{ `index`[A](${ _ }*) }                          => false
+        case '{ new `index`[A](${ _ }*) }                      => false
+        case _                                                 => report.errorAndAbort("unable to extract index uniqueness", expr)
+
+      val explicitName: Expr[Option[String]] = expr match
+        case '{ new `index`.`unique`.`named`[A]($name, ${ _ }*) } => explicitNameExpr(name)
+        case '{ new `index`.`named`[A]($name, ${ _ }*) }          => explicitNameExpr(name)
+        case _                                                    => '{ Option.empty[String] }
 
       val fieldList: Seq[Expr[A => Any]] = expr match
-        case '{ `index`[A](${ Varargs(exprs) }*) }              => exprs
-        case '{ new `index`[A](${ Varargs(exprs) }*) }          => exprs
-        case '{ `index`.`unique`[A](${ Varargs(exprs) }*) }     => exprs
-        case '{ new `index`.`unique`[A](${ Varargs(exprs) }*) } => exprs
-        case _                                                  => report.errorAndAbort("unable to extract index fields", expr)
+        case '{ new `index`.`unique`.`named`[A]($_, ${ Varargs(exprs) }*) } => exprs
+        case '{ new `index`.`named`[A]($_, ${ Varargs(exprs) }*) }          => exprs
+        case '{ `index`.`unique`[A](${ Varargs(exprs) }*) }                 => exprs
+        case '{ new `index`.`unique`[A](${ Varargs(exprs) }*) }             => exprs
+        case '{ `index`[A](${ Varargs(exprs) }*) }                          => exprs
+        case '{ new `index`[A](${ Varargs(exprs) }*) }                      => exprs
+        case _                                                              => report.errorAndAbort("unable to extract index fields", expr)
 
       val fields: Seq[IndexField[A, ?]] =
         fieldList.map { ff => IndexField.parse(generic, ff) }
 
       '{
         IndexRepr[A](
-          None, // TODO (KR) : allow for explicit fk naming
+          $explicitName,
           ${ Expr(isUnique) },
           currentTableRepr => ArraySeq(${ fields.map(_.toColumns('currentTableRepr)).seqToArraySeqExpr }*).flatten,
         )
@@ -281,18 +307,22 @@ final class DeriveTableRepr[A: Type](
     }
 
     private def fieldIndex[FT](field: generic.Field[FT], expr: Expr[indexed])(using Quotes): Expr[IndexRepr[A]] = {
-      val isUnique: Boolean = expr match
-        case '{ `indexed`() }              => false
-        case '{ new `indexed`() }          => false
-        case '{ `indexed`.`unique`() }     => true
-        case '{ new `indexed`.`unique`() } => true
-        case _                             => report.errorAndAbort("unable to extract index uniqueness", expr)
+      val (explicitName, isUnique): (Expr[Option[String]], Boolean) = expr match
+        case '{ new `indexed`.`unique`.`named`($name) } => (explicitNameExpr(name), true)
+        case '{ new `indexed`.`named`($name) }          => (explicitNameExpr(name), false)
+        case '{ `indexed`.`unique`() }                  => ('{ Option.empty[String] }, true)
+        case '{ new `indexed`.`unique`() }              => ('{ Option.empty[String] }, true)
+        case '{ new `indexed`.`unique` }                => ('{ Option.empty[String] }, true)
+        case '{ `indexed`() }                           => ('{ Option.empty[String] }, false)
+        case '{ new `indexed`() }                       => ('{ Option.empty[String] }, false)
+        case '{ new `indexed` }                         => ('{ Option.empty[String] }, false)
+        case _                                          => report.errorAndAbort("unable to extract index uniqueness", expr)
 
       val idxField: IndexField[A, ?] = IndexField(generic, field)
 
       '{
         IndexRepr[A](
-          None, // TODO (KR) : allow for explicit idx naming
+          $explicitName,
           ${ Expr(isUnique) },
           currentTableRepr => ${ idxField.toColumns('currentTableRepr) },
         )
