@@ -8,6 +8,7 @@ type Atomically = oxygen.storage.Atomically
 object Atomically {
 
   val atomically: ZIOAspectAtLeastR[Atomically] = oxygen.storage.Atomically.atomically
+  val ensureAtomic: ZIOAspectAtLeastR[Atomically] = oxygen.storage.Atomically.ensureAtomic
 
   /**
     * TLDR : Transaction(commit/rollback) -> Savepoint(commit/rollback) -> Savepoint(commit/rollback) -> ...
@@ -34,6 +35,15 @@ object Atomically {
     override def atomically[R, E, A](effect: ZIO[R, E, A]): ZIO[R, E, A] =
       ZIO.scoped { atomicallyScoped *> effect }
 
+    override def ensureAtomicScoped: URIO[Scope, Unit] =
+      db.currentConnectionType.flatMap {
+        case Database.ConnectionState.ConnectionType.Transactionless  => atomicallyScoped
+        case _: Database.ConnectionState.ConnectionType.Transactional => ZIO.unit
+      }
+
+    override def ensureAtomic[R, E, A](effect: ZIO[R, E, A]): ZIO[R, E, A] =
+      ZIO.scoped { ensureAtomicScoped *> effect }
+
   }
   object LiveDB {
 
@@ -41,6 +51,12 @@ object Atomically {
       new ZIOAspectAtLeastR.Impl[Database] {
         override def apply[R <: Database, E, A](effect: ZIO[R, E, A])(using trace: Trace): ZIO[R, E, A] =
           (effect @@ Atomically.atomically).provideSomeLayer[R](LiveDB.layer)
+      }
+
+    val ensureAtomic: ZIOAspectAtLeastR[Database] =
+      new ZIOAspectAtLeastR.Impl[Database] {
+        override def apply[R <: Database, E, A](effect: ZIO[R, E, A])(using trace: Trace): ZIO[R, E, A] =
+          (effect @@ Atomically.ensureAtomic).provideSomeLayer[R](LiveDB.layer)
       }
 
     val layer: URLayer[Database, Atomically] =
@@ -74,6 +90,15 @@ object Atomically {
     override def atomically[R, E, A](effect: ZIO[R, E, A]): ZIO[R, E, A] =
       ZIO.scoped { atomicallyScoped *> effect }
 
+    override def ensureAtomicScoped: URIO[Scope, Unit] =
+      db.currentConnectionType.flatMap {
+        case Database.ConnectionState.ConnectionType.Transactionless  => atomicallyScoped
+        case _: Database.ConnectionState.ConnectionType.Transactional => ZIO.unit
+      }
+
+    override def ensureAtomic[R, E, A](effect: ZIO[R, E, A]): ZIO[R, E, A] =
+      ZIO.scoped { ensureAtomicScoped *> effect }
+
   }
   object RollbackDB {
 
@@ -81,6 +106,12 @@ object Atomically {
       new ZIOAspectAtLeastR.Impl[Database] {
         override def apply[R <: Database, E, A](effect: ZIO[R, E, A])(using trace: Trace): ZIO[R, E, A] =
           (effect @@ Atomically.atomically).provideSomeLayer[R](RollbackDB.layer)
+      }
+
+    val ensureAtomic: ZIOAspectAtLeastR[Database] =
+      new ZIOAspectAtLeastR.Impl[Database] {
+        override def apply[R <: Database, E, A](effect: ZIO[R, E, A])(using trace: Trace): ZIO[R, E, A] =
+          (effect @@ Atomically.ensureAtomic).provideSomeLayer[R](RollbackDB.layer)
       }
 
     val layer: URLayer[Database, Atomically] =
