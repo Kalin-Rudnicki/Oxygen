@@ -115,10 +115,12 @@ object DbConfig {
   /**
     * @param bufferChunkSize Size of the chunk to read from JDBC result set
     * @param bufferNumChunks Optional buffering of chunks.
+    * @param queryTimeout Optional per-query timeout. [[None]] means no timeout (the default). Applied via JDBC `setQueryTimeout`, so it is rounded up to whole seconds. Can be overridden for a single effect via [[Database.withQueryTimeout]].
     */
   final case class Execution(
       bufferChunkSize: NonEmptyList[Int] = NonEmptyList.of(16, 64, 64, 256, 256, 2048),
       bufferNumChunks: Option[Int] = 2.some,
+      queryTimeout: Option[Duration] = None,
   ) derives JsonSchema
   object Execution {
     val default: Execution = Execution()
