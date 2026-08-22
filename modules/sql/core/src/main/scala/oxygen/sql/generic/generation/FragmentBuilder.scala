@@ -541,6 +541,34 @@ final case class FragmentBuilder(inputs: List[InputPart])(using Quotes) {
       valuesFrag,
     )
 
+  /**
+    * `ON CONFLICT (pk...) DO NOTHING | DO UPDATE SET <non-pk> = EXCLUDED.<non-pk>`.
+    * The conflict target is the table's primary-key columns, and `DO UPDATE` sets every non-pk column
+    * to its `EXCLUDED` value -- falling back to `DO NOTHING` when there are no non-pk columns (a bare
+    * `DO UPDATE SET` with no assignments is not valid SQL). The column names are resolved from the
+    * table's `TableRepr` at runtime, mirroring the string built by `TableCompanion.upsert`.
+    */
+  def onConflict(oc: OnConflictPart, tableRepr: TypeclassExpr.TableRepr)(using Quotes): ParseResult[GeneratedFragment] = {
+    val sqlExpr: Expr[String] =
+      oc match {
+        case OnConflictPart.DoNothing =>
+          '{
+            val pkNames: ArraySeq[String] = ${ tableRepr.expr }.pk.rowRepr.columns.columns.map(_.name)
+            "\n    ON CONFLICT (" + pkNames.mkString(", ") + ")\n    DO NOTHING"
+          }
+        case OnConflictPart.DoUpdate =>
+          '{
+            val pkNames: ArraySeq[String] = ${ tableRepr.expr }.pk.rowRepr.columns.columns.map(_.name)
+            val npkNames: ArraySeq[String] = ${ tableRepr.expr }.npk.rowRepr.columns.columns.map(_.name)
+            val target: String = "\n    ON CONFLICT (" + pkNames.mkString(", ") + ")"
+            if npkNames.isEmpty then target + "\n    DO NOTHING"
+            else target + "\n    DO UPDATE\n    SET " + npkNames.map { n => n + " = EXCLUDED." + n }.mkString(",\n        ")
+          }
+      }
+
+    ParseResult.success(GeneratedFragment.sql(sqlExpr))
+  }
+
   private def setPart(s: SetPart.SetExpr)(using ParseContext, GenerationContext, Quotes): ParseResult[GeneratedFragment] = {
     val setTargetRowRepr: TypeclassExpr.RowRepr = s.fieldToSetExpr.rowRepr
     val setTargetColumnNames: Expr[ArraySeq[String]] = setTargetRowRepr.columns.exprSeqNames

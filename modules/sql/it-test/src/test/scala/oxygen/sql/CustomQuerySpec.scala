@@ -362,6 +362,38 @@ object CustomQuerySpec extends OxygenSpec[Database] {
           ),
         )
       },
+      test("on conflict (DO NOTHING / DO UPDATE)") {
+        for {
+          groupId <- Random.nextUUID
+          id <- Random.nextUUID
+          p1 <- Person.generate(groupId)(id = id, age = 10)
+          p2 = p1.copy(age = 20)
+          p3 = p1.copy(age = 30)
+
+          // first insert lands the row
+          _ <- queries.insertPersonOnConflictDoNothing(p1).unit
+          afterInsert <- Person.selectByPK(id).single
+
+          // same PK -> DO NOTHING keeps the original row (age stays 10)
+          _ <- queries.insertPersonOnConflictDoNothing(p2).unit
+          afterDoNothing <- Person.selectByPK(id).single
+
+          // same PK -> DO UPDATE overwrites the non-pk columns from EXCLUDED (age -> 30)
+          _ <- queries.insertPersonOnConflictDoUpdate(p3).unit
+          afterDoUpdate <- Person.selectByPK(id).single
+        } yield assertTrue(
+          afterInsert == p1,
+          afterDoNothing == p1,
+          afterDoUpdate == p3,
+          // generated SQL shape
+          queries.insertPersonOnConflictDoNothing.ctx.sql.contains("ON CONFLICT (id)"),
+          queries.insertPersonOnConflictDoNothing.ctx.sql.contains("DO NOTHING"),
+          queries.insertPersonOnConflictDoUpdate.ctx.sql.contains("ON CONFLICT (id)"),
+          queries.insertPersonOnConflictDoUpdate.ctx.sql.contains("DO UPDATE"),
+          queries.insertPersonOnConflictDoUpdate.ctx.sql.contains("age = EXCLUDED.age"),
+          queries.insertNoteForPeopleOnConflictDoNothing.ctx.sql.contains("ON CONFLICT (id)"),
+        )
+      },
       test("insert from select 2") {
         for {
           groupId <- Random.nextUUID
