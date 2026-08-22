@@ -26,6 +26,9 @@ final class Database(
   //           : Or maybe, keeping track of transaction/savepoints in the db state is not necessary.
   //           : This might be prevented by the mutex, but should be tested.
 
+  /** Peek the current connection type without allocating an atomic child (unlike [[getAtomicChild]], which always does). */
+  private[sql] def currentConnectionType: UIO[Database.ConnectionState.ConnectionType.Any] = connectionStateRef.get.map(_.connectionType)
+
   private[sql] def getConnection: ZIO[Scope, ConnectionError, Connection] = connectionStateRef.getWith(_.getConnection)
   private[sql] def getConnectionAndType: ZIO[Scope, ConnectionError, (Connection, Database.ConnectionState.ConnectionType.Any)] = connectionStateRef.getWith(_.getConnectionAndType)
 
