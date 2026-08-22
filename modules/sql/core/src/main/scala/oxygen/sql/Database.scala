@@ -9,7 +9,7 @@ import zio.*
 import zio.stream.*
 
 final class Database(
-    private val executionConfig: DbConfig.Execution,
+    private val executionConfigRef: FiberRef[DbConfig.Execution],
     private val logConfigRef: FiberRef[DbConfig.Logging],
     connectionStateRef: FiberRef[Database.ConnectionState],
 ) {
@@ -46,9 +46,10 @@ object Database {
       driver <- Driver.makePSQL
       connect = driver.getConnection(config.target, config.credentials, config.connection)
       pool <- ConnectionPool.makeZPool(connect, config.pool)
+      executionConfigRef <- FiberRef.make(config.execution)
       logConfigRef <- FiberRef.make(config.logging)
       connectionStateRef <- FiberRef.make[ConnectionState](ConnectionState.Pool(pool))
-    } yield Database(config.execution, logConfigRef, connectionStateRef)
+    } yield Database(executionConfigRef, logConfigRef, connectionStateRef)
 
   val baseLayer: URLayer[ConnectionPool & DbConfig.Logging & DbConfig.Execution, Database] =
     ZLayer.scoped {
@@ -56,9 +57,10 @@ object Database {
         pool <- ZIO.service[ConnectionPool]
         logConfig <- ZIO.service[DbConfig.Logging]
         executionConfig <- ZIO.service[DbConfig.Execution]
+        executionConfigRef <- FiberRef.make(executionConfig)
         logConfigRef <- FiberRef.make(logConfig)
         connectionStateRef <- FiberRef.make[ConnectionState](ConnectionState.Pool(pool))
-      } yield Database(executionConfig, logConfigRef, connectionStateRef)
+      } yield Database(executionConfigRef, logConfigRef, connectionStateRef)
     }
 
   val layer: URLayer[DbConfig, Database] =
@@ -86,7 +88,7 @@ object Database {
       }
 
   private[sql] val executionConfig: URIO[Database, DbConfig.Execution] =
-    ZIO.serviceWith[Database](_.executionConfig)
+    ZIO.serviceWithZIO[Database](_.executionConfigRef.get)
 
   //////////////////////////////////////////////////////////////////////////////////////////////////////
   //      Connection State
@@ -171,6 +173,30 @@ object Database {
 
     override def apply[R <: Database, E, A](effect: ZIO[R, E, A])(using trace: Trace): ZIO[R, E, A] =
       ZIO.serviceWithZIO[Database](_.logConfigRef.locallyWith(f)(effect))
+
+  }
+
+  private final class ModifyExecutionConfig(f: DbConfig.Execution => DbConfig.Execution) extends ZIOAspectAtLeastR.Impl[Database] {
+
+    override def apply[R <: Database, E, A](effect: ZIO[R, E, A])(using trace: Trace): ZIO[R, E, A] =
+      ZIO.serviceWithZIO[Database](_.executionConfigRef.locallyWith(f)(effect))
+
+  }
+
+  /**
+    * Overrides the query timeout for the wrapped effect only, modeled on [[withQueryLogLevel]].
+    * The override is fiber-local (via [[DbConfig.Execution.queryTimeout]] behind a `FiberRef`), so it
+    * applies to every query executed within the effect and is restored afterwards.
+    *
+    * {{{
+    *   longRunningDbMigrationEffect @@ Database.withQueryTimeout(1.hour)
+    * }}}
+    */
+  object withQueryTimeout {
+
+    def apply(timeout: Duration): ZIOAspectAtLeastR[Database] = ModifyExecutionConfig(_.copy(queryTimeout = Some(timeout)))
+
+    val none: ZIOAspectAtLeastR[Database] = ModifyExecutionConfig(_.copy(queryTimeout = None))
 
   }
 

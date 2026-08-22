@@ -213,6 +213,19 @@ object PreparedStatement {
           }
         }
         .mapError(QueryError.JDBCError("setting fetch size", _))
+
+      exeCfg <- Database.executionConfig
+      _ <- ZIO
+        .foreachDiscard(queryTimeoutSeconds(exeCfg.queryTimeout)) { seconds => ZIO.attempt { rawPS.setQueryTimeout(seconds) } }
+        .mapError(QueryError.JDBCError("setting query timeout", _))
     } yield ps).uninterruptible.mapError(QueryError(ctx, _))
+
+  /**
+    * JDBC `setQueryTimeout` takes whole seconds, where `0` means "no timeout". Convert a [[Duration]] by
+    * rounding UP to the next whole second so that a sub-second timeout never silently becomes `0` (= no
+    * limit). A non-positive duration yields [[None]] (leaving the JDBC default of no timeout in place).
+    */
+  private def queryTimeoutSeconds(timeout: Option[Duration]): Option[Int] =
+    timeout.collect { case d if d.toNanos > 0L => math.min(Int.MaxValue.toLong, (d.toNanos + 999999999L) / 1000000000L).toInt }
 
 }
