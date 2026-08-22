@@ -1,6 +1,8 @@
 package oxygen.pulsar.client
 
+import java.util.concurrent.{CompletionException, ExecutionException}
 import org.apache.pulsar.client.admin.PulsarAdmin as RawPulsarAdminClient
+import org.apache.pulsar.client.admin.PulsarAdminException
 import org.apache.pulsar.common.policies.data.TenantInfo
 import oxygen.predef.core.*
 import oxygen.pulsar.model.*
@@ -49,7 +51,7 @@ final class PulsarAdminClient(client: RawPulsarAdminClient) { self =>
     def createIfDNE(tenant: PulsarTenant): Task[Unit] =
       list.flatMap {
         case tenants if tenants.contains(tenant) => ZIO.logInfo(s"Pulsar tenant already exists [${tenant.tenant}]")
-        case _                                   => create(tenant)
+        case _                                   => succeedIfAlreadyExists(s"Pulsar tenant already exists [${tenant.tenant}]")(create(tenant))
       }
 
   }
@@ -76,7 +78,7 @@ final class PulsarAdminClient(client: RawPulsarAdminClient) { self =>
       self.tenant.createIfDNE(tenant) *>
         list(tenant).flatMap {
           case namespaces if namespaces.contains(namespace) => ZIO.logInfo(s"Pulsar namespace already exists [${namespace.fullyQualified}]")
-          case _                                            => create(namespace)
+          case _                                            => succeedIfAlreadyExists(s"Pulsar namespace already exists [${namespace.fullyQualified}]")(create(namespace))
         }
     }
 
@@ -128,13 +130,44 @@ final class PulsarAdminClient(client: RawPulsarAdminClient) { self =>
         filtered = topics.filter(_.ignorePartition == baseTopic)
         numPartitions = filtered.flatMap(_.partition).length
         _ <-
-          if filtered.isEmpty then create(topic, partitions)
+          if filtered.isEmpty then succeedIfAlreadyExists(s"Pulsar topic already exists [${topic.fullyQualified}]")(create(topic, partitions))
           else if numPartitions != partitions.getOrElse(0) then ZIO.logWarning(s"Pulsar topic exists [${topic.fullyQualified}], but has mismatching partitions")
           else ZIO.logInfo(s"Pulsar topic already exists [${topic.fullyQualified}]")
       } yield ()
     }
 
   }
+
+  /**
+    * Runs a `create*` effect, treating an "already exists" failure as success.
+    *
+    * `createIfDNE` uses a check-then-act (list, then create) pattern which is not atomic: under
+    * concurrent calls two fibers can both observe the resource as missing and both attempt to
+    * create it, and the loser receives a 409 `PulsarAdminException` ("... already exists"). Since
+    * the post-condition (the resource exists) still holds, this is treated as success.
+    */
+  private def succeedIfAlreadyExists(alreadyExistsMessage: String)(create: Task[Unit]): Task[Unit] =
+    create.catchSome {
+      case error if isAlreadyExists(error) => ZIO.logInfo(alreadyExistsMessage)
+    }
+
+  /**
+    * Whether `error` represents an "already exists" / 409 conflict from a Pulsar `create*` call.
+    *
+    *   - A `PulsarAdminException` with HTTP status 409 is treated as already-exists.
+    *   - `CompletionException` / `ExecutionException` (as surfaced by `ZIO.fromCompletableFuture`)
+    *     are unwrapped and re-checked.
+    *   - Otherwise fall back to a case-insensitive check for "already exists" in the message.
+    */
+  private def isAlreadyExists(error: Throwable): Boolean =
+    error match {
+      case e: PulsarAdminException if e.getStatusCode == 409 =>
+        true
+      case (_: CompletionException | _: ExecutionException) if error.getCause != null && (error.getCause ne error) =>
+        isAlreadyExists(error.getCause)
+      case _ =>
+        Option(error.getMessage).exists(_.toLowerCase.contains("already exists"))
+    }
 
   private def listFlat[A, B](a: Task[ArraySeq[A]], b: A => Task[ArraySeq[B]]): Task[ArraySeq[B]] =
     a.flatMap(ZIO.foreach(_)(b)).map(_.flatten)
