@@ -10,7 +10,7 @@
 | 1 — Compiled HTTP spec | ✅ done | `oxygen.http.schema.compiled`: model (`RawCompiledApiSpec` & friends, `CompiledParamType`, `CompiledExpectedStatuses`) in pure cross src; `FullCompiledApiSpec` (resolved graph + `show`); `CompiledApiSpec.compile(Seq[EndpointSchema])` compiler in `.jvm`. Compiles JVM + JS. |
 | 2 — Serve via middleware | ✅ done | `ApiSpecEndpointMiddleware` (`.jvm/server`): compiles applied endpoints' schemas and appends a `GET /oxygen/api-spec` endpoint serving the spec as JSON. **Wired into `example-web-server`** (`WebServerMain` → `CompiledEndpoints.endpointLayer(endpointMiddleware = new ApiSpecEndpointMiddleware())`). |
 | 3 — UI rendering | ✅ done | `oxygen.ui.web.apispec.ApiSpecPage` (`RoutablePage.NoParams[RawClient]`): GETs `/oxygen/api-spec` via `RawClient`, decodes with `JsonCodec`, builds `FullCompiledApiSpec`, renders endpoints (grouped by API; method/path/params/bodies) + schema graph (products→fields, sums→cases; other variants fall back to `toIndentedString`). Registered in `example/apps/ui` (`UIMain`, route `/page/api-spec`) with a `RawClient.default` layer. Compiles JVM + JS. |
-| 4 — Compat detection | ⬜ pending | Decided: persist + diff via `oxygen.schema.compat`. Not started. |
+| 4 — Compat detection | 🟡 spec landed (OFF-369) | `oxygen.http.schema.compat`: `HttpCompat.compare(from, to): HttpComparisonResult` — diffs two `RawCompiledApiSpec`s, reusing the type-level `Compared`/`ComparisonResult`/`AddedRemovedBoth` for type refs and adding the HTTP rules (table below). Spec-only; **persist-to-file + CI-fail is still OXY-38** (not started). |
 
 **Tests:** `modules/http/it-test/.../CompiledApiSpecSpec.scala` (5 tests, green) — compiles all
 6 `UserApi` endpoints, dedupes shared `User`, JSON round-trips, `FullCompiledApiSpec.show`
@@ -226,9 +226,54 @@ as-is for the *type* layer; we add the *endpoint/API* layer on top of it.
 - **Reference template:** the existing example UI app at `example/apps/ui` (`UIMain extends
   PageApp`, pages extend `RoutablePage`, fetches via `DeriveClient.clientLayer[...]`).
 
-### Phase 4 — API-incompatibility detection (eventually)
-- Persist the compiled spec (avro/sql-migration paradigm), diff via `oxygen.schema.compat`
-  extended to the endpoint/API layer, fail CI on breaking changes; env-var-gated update.
+### Phase 4 — API-incompatibility detection
+
+**Spec / comparison half — landed (OFF-369 / ex OXY-29).** `oxygen.http.schema.compat`:
+- `HttpCompat.compare(from, to): HttpComparisonResult` — normalizes both sides (`withoutLineNos`), diffs
+  apis→endpoints by name, then per endpoint: method, path shapes, query/header params, request &
+  response bodies. Every *type-reference* transition is delegated to the type-level
+  `Compared.compareRoot` and its `ComparisonResult` is read directionally (see the variance rule).
+  Both specs are resolved against one merged schema bundle (the type-level `Compared` resolves both refs
+  in a single bundle), so version-distinct type names diff exactly.
+- `HttpComparisonResult` — an accumulating monoid of `HttpBreak` (breaking) + `HttpChange`
+  (backwards-compatible) findings, each tagged with an `HttpLocation`; `isCompatible` and a three-way
+  `HttpCompatibility` summary (`ExactEqual` / `BackwardsCompatible` / `Breaking`). No `JsonCodec` (an
+  in-memory result, like `ComparisonResult`); the serialized artifact stays the `RawCompiledApiSpec`.
+
+**The compatibility table** (🤖 default — grounded in OFF-369's stated examples; the exact table was an
+explicit open question, so this is a proposed default, not a hard spec). '''Variance''' is the axis:
+request inputs (path / query / header / request-body) are '''contravariant''' (compatible ⇔ accepts a
+superset); responses (response-body / response-header) are '''covariant''' (compatible ⇔ produces a
+subset).
+
+| Change | Verdict |
+|---|---|
+| remove endpoint / remove api | breaking |
+| add endpoint / add api | compatible |
+| change method | breaking |
+| remove a path shape (rename / re-shape) | breaking; add a path shape | compatible |
+| add **required** request param | breaking; add **optional** | compatible |
+| request param optional → required | breaking; required → optional | compatible |
+| remove a request param | compatible (server ignores it) |
+| request body empty → present | breaking; present → empty | compatible |
+| request body type: `to` narrower | breaking; `to` wider | compatible |
+| response body present → empty | breaking; empty → present | compatible |
+| response body kind change (single ↔ SSE ↔ line-stream) | breaking |
+| response body type: `to` wider | breaking; `to` narrower | compatible |
+| remove a **required** response header | breaking; optional | compatible |
+| product field: add required input / drop required output | breaking |
+| enum value / sum case: remove on input | breaking; add (either side) | compatible |
+| status codes / `caseStatuses` / `mcp` | descriptive — **not** compared |
+
+Type-ref lattice interpretation (`ComparisonResult` → verdict, per variance): `ExactEqual` → ok;
+`FromIsMoreSpecific` (to wider) → break output / ok input; `ToIsMoreSpecific` (to narrower) → break input
+/ ok output; `NotComparable` → break; structural product/sum/enum nodes read their `AddedRemovedBoth`
+directionally as above. Open subtleties (e.g. whether widening a closed *output* sum should really be
+compatible) follow the ticket's stated rule for now.
+
+**Enforcement / CI half — still OXY-38 (not started).** Persist the compiled spec (avro/sql-migration
+paradigm), run `HttpCompat.compare` in CI, fail on a `Breaking` result; env-var-gated update. This half
+deliberately owns all persistence + CI wiring — the compat library above is pure and I/O-free.
 
 ---
 
