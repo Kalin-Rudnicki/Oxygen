@@ -273,7 +273,10 @@ object OxygenStyleSheet extends StyleSheetBuilder {
       top := 0,
       left := 0,
       width := 100.vw,
+      // OFF-427: 100vh → 100dvh fallback pair (stylesheet selectors keep duplicate keys); tracks the
+      // visible viewport as the mobile URL bar shows/hides, with a vh fallback for older browsers.
       height := 100.vh,
+      height := 100.dvh,
       display.flex,
       justifyContent.center,
       alignItems.center,

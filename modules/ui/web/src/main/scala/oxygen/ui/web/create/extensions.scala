@@ -11,6 +11,7 @@ extension (self: Int)
   def ch: String = s"${self}ch"
   def vw: String = s"${self}vw"
   def vh: String = s"${self}vh"
+  def dvh: String = s"${self}dvh"
 
 extension (self: Double)
   def pct: String = s"$self%"

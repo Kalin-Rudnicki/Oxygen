@@ -43,7 +43,8 @@ final case class HolyGrail[-Env, +Action, -StateGet, +StateSet <: StateGet](
           Widget.`class`("oxy-holy-grail"),
           //
           display.grid,
-          height := 100.vh,
+          // height comes from `baseSheet` (100vh → 100dvh fallback pair); kept out of the inline
+          // style so the below-md `responsiveSheet` rule can win on mobile (OFF-427).
           width := 100.vw,
           minHeight := 0,
           minWidth := 0,
@@ -66,7 +67,7 @@ final case class HolyGrail[-Env, +Action, -StateGet, +StateSet <: StateGet](
       else
         div(
           Widget.`class`("oxy-holy-grail", "oxy-holy-grail--center-only"),
-          height := 100.vh,
+          // height from `baseSheet` (see grid shell above) — OFF-427.
           width := 100.vw,
           minHeight := 0,
           minWidth := 0,
@@ -301,6 +302,27 @@ object HolyGrail extends WidgetTypes[HolyGrail] {
   def apply(): HolyGrail.Const = empty
 
   /**
+    * OFF-427: base height for the shell, kept out of the inline style so the below-`md`
+    * [[responsiveSheet]] rule can win on mobile (an inline style beats any non-`!important`
+    * stylesheet rule).
+    *
+    * The `100vh` → `100dvh` pair is a CSS fallback: modern browsers take the later, valid `100dvh`
+    * (tracks the *visible* viewport as the mobile URL bar shows/hides — the bug); older browsers that
+    * don't understand `dvh` drop it and fall back to `100vh`.
+    *
+    * MUST be registered *before* [[responsiveSheet]] in [[oxygen.ui.web.defaults.coreOxygenStyleSheets]]
+    * — equal specificity, media queries add none, so source order decides who wins below `md`.
+    */
+  val baseSheet: StyleSheet =
+    StyleSheet.makeConst("holy-grail-base")(
+      """.oxy-holy-grail {
+        |  height: 100vh;
+        |  height: 100dvh;
+        |}
+        |""".stripMargin,
+    )
+
+  /**
     * W5-T04: below `md`, hide left/right sidebars and force a single-column shell
     * so fixed desktop grids don't blow up mobile. Drawer/hamburger = Round 2 / TopBar todo.
     *
@@ -318,8 +340,8 @@ object HolyGrail extends WidgetTypes[HolyGrail] {
           |    "center"
           |    "bottom-bar" !important;
           |  height: auto;
-          |  min-height: 100dvh;
           |  min-height: 100vh;
+          |  min-height: 100dvh;
           |  width: 100%;
           |}
           |.oxy-holy-grail-left,
