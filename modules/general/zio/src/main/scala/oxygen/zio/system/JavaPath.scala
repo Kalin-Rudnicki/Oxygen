@@ -125,9 +125,10 @@ final case class JavaPath(javaPath: J.Path) extends Path {
       FileSystem.attempt(pathName, s"copy to $destination") { J.Files.copy(this.javaPath, destination.javaPath) }
     }
 
-  override def moveTo(destination: Path): IO[FileSystemError, Unit] =
+  override def moveTo(destination: Path, replaceExisting: Boolean): IO[FileSystemError, Unit] =
     JavaPath.safeJava(destination).flatMap { destination =>
-      FileSystem.attempt(pathName, s"move to $destination") { J.Files.move(this.javaPath, destination.javaPath) }
+      val options: Seq[J.CopyOption] = if replaceExisting then Seq(J.StandardCopyOption.REPLACE_EXISTING) else Seq.empty
+      FileSystem.attempt(pathName, s"move to $destination") { J.Files.move(this.javaPath, destination.javaPath, options*) }
     }
 
   /////// Delete ///////////////////////////////////////////////////////////////
