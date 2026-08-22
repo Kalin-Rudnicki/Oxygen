@@ -77,6 +77,38 @@ created in the *same* migration stay compatible, since the table is empty.
 > **No default values yet.** A non-nullable column add is always classified incompatible, because a
 > `NOT NULL` column with no default breaks existing rows. Default-value support is planned.
 
+### Rich per-column diagnostics
+
+The generator's classification is a single flag. When you want to know *what* is incompatible — not
+just *that* something is — use the pure comparison spec directly:
+
+```scala
+import oxygen.sql.migration.compat.DbCompatibilitySpec
+
+val result = DbCompatibilitySpec.compare(fromState, toState)   // two MigrationStates
+result.compatibility   // MigrationCompatibility — the same verdict the generator uses
+result.isCompatible    // Boolean
+println(result.pruned.toIndentedString.toString)   // only the actual differences
+```
+
+`compare` diffs extensions, schemas, and every table (added / removed / changed), and within a
+changed table its columns, primary key, foreign keys, and indices. The result is the DB analogue of
+the HTTP-schema `oxygen.schema.compat` lattice — it reuses that package's `FromToValues` /
+`AddedRemovedBoth` and collapses to the same binary `MigrationCompatibility` the harness consumes, so
+the rich diagnostics never disagree with the coarse gate.
+
+On top of the generator's rules it also classifies **column-type changes**, which the flag ignores:
+
+| Type transition | Verdict |
+|-----------------|---------|
+| Same type | compatible |
+| Lossless widening: `SMALLINT → INT → BIGINT`, `REAL → DOUBLE PRECISION` | compatible |
+| The reverse of a widening (a narrowing) | incompatible |
+| `T[] → U[]` | delegates to `T → U` |
+| Any other cross-type change | incompatible (fail-closed) |
+
+It is spec-only and database-free — a diagnostic lens over two schema states, not a new gate.
+
 ## Applying at runtime
 
 `MigrationService` reads the committed files and applies any the database hasn't run. Point it at
