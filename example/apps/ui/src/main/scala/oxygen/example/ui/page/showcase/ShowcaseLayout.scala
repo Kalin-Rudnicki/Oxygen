@@ -27,7 +27,19 @@ object ShowcaseLayout {
     )
   }
 
-  def topBar: TopBar.Const =
+  /**
+    * Open/closed state for the shared chrome's dropdowns. Genuinely one-per-page (like [[PageMessages]] /
+    * [[PageLock]]), so the layout backs it with a [[PageLocalState]] and `.attach`es it — the dropdowns
+    * stay pure lens-over-state; only this shared chrome opts into page-local storage so every page gets the
+    * bar without threading it through its own PageState.
+    */
+  final case class ChromeState(
+      overlays: DropdownMenu.State = DropdownMenu.State(),
+      user: DropdownMenu.State = DropdownMenu.State(),
+  )
+  private object ChromeLocal extends PageLocalState[ChromeState]("ShowcaseChrome")(ChromeState())
+
+  def topBar: Widget =
     // Height left unset — HolyGrail.topHeight owns the row so TopBar does not fight it.
     TopBar.empty
       .brand
@@ -36,7 +48,24 @@ object ShowcaseLayout {
         TopBar.item("App").onClickPush(P.index.IndexPage.nav()),
         TopBar.item("Styles").onClickPush(StylesPage.nav()),
         TopBar.item("Components").onClickPush(ComponentsPage.nav()),
+        // A real nav dropdown in the shared chrome — groups the overlay demos.
+        TopBar.item.dropdown("Overlays", (s: ChromeState) => s.overlays)(
+          TopBar.menuItem("Modal").onClickPush(ModalPage.nav()),
+          TopBar.menuItem("Drawer").onClickPush(DrawerPage.nav()),
+          TopBar.menuItem("Dropdown menu").onClickPush(DropdownMenuPage.nav()),
+          TopBar.menuItem("Tooltips").onClickPush(TooltipPage.nav()),
+        ),
       )
+      .right(
+        // Right-aligned action menu (End alignment) with an icon trigger + separator.
+        TopBar.item.dropdownWithIcon(Icon.user, "Jane", (s: ChromeState) => s.user)(
+          TopBar.menuItem("Profile").withIcon(Icon.user).onClickPush(DashboardPage.nav()),
+          TopBar.menuItem("Theme").withIcon(Icon.settings).onClickPush(ThemePage.nav()),
+          TopBar.menuSeparator,
+          TopBar.menuItem("Sign-in").withIcon(Icon.logOut).onClickPush(SignInPage.nav()),
+        ),
+      )
+      .attach(ChromeLocal)
 
   def sideNav(currentPath: Seq[String]): SideBar.Const =
     SideBar().surface.middle(
@@ -56,6 +85,7 @@ object ShowcaseLayout {
       navItem("All form fields", FormAllPage, currentPath),
       navItem("Modal", ModalPage, currentPath),
       navItem("Drawer", DrawerPage, currentPath),
+      navItem("Dropdown menu", DropdownMenuPage, currentPath),
       navItem("Tooltips", TooltipPage, currentPath),
       navItem("Table", TablePage, currentPath),
       navItem("Feed", FeedPage, currentPath),

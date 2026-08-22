@@ -5,7 +5,6 @@ package oxygen.ui.web
 //           : - CheckBox
 //           : - ContextMenu
 //           : - DateTimeSelect
-//           : - DropdownMenu
 //           : - Icon
 //           : - Link
 //           : - RadioButtons

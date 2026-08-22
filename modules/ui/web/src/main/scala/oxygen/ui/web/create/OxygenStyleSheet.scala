@@ -352,6 +352,147 @@ object OxygenStyleSheet extends StyleSheetBuilder {
   }
 
   //////////////////////////////////////////////////////////////////////////////////////////////////////
+  //      DropdownMenu
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
+
+  /**
+    * Action / nav popup menu (OXY-152). A `position: relative` anchor holding a trigger, a full-viewport
+    * transparent scrim (outside-click), and an absolutely-positioned panel of `menuitem`s.
+    * Consumed by [[oxygen.ui.web.component.DropdownMenu]] and TopBar dropdown items.
+    */
+  object DropdownMenu extends Class("dropdown-menu") { dm =>
+
+    selector(
+      position.relative,
+      display.inlineFlex,
+      alignItems.stretch,
+      // Fill the cross-axis of a flex parent (e.g. TopBar row) so the trigger matches sibling
+      // full-height items; inert in normal block flow (standalone usage).
+      alignSelf := "stretch",
+    )
+
+    object Trigger extends dm.Class("trigger") {
+      selector(
+        display.inlineFlex,
+        alignItems.center,
+        gap := S.spacing._2,
+        cursor.pointer,
+        userSelect.none,
+      )
+      Trigger.pc("focus-visible")(
+        outline := s"2px solid ${S.color.fg.focus}",
+        Widget.raw.css("outline-offset", "-2px"),
+      )
+    }
+
+    object Caret extends dm.Class("caret") {
+      selector(
+        display.inlineFlex,
+        alignItems.center,
+        transition := "transform 0.15s ease",
+      )
+    }
+
+    object Scrim extends dm.Class("scrim") {
+      selector(
+        position.fixed,
+        top := 0,
+        left := 0,
+        width := 100.vw,
+        height := 100.vh,
+        backgroundColor := "transparent",
+        zIndex := ZIndices.dropdownMenuScrim,
+      )
+    }
+
+    object Panel extends dm.Class("panel") { p =>
+      selector(
+        position.absolute,
+        top := 100.pct,
+        marginTop := S.spacing._1,
+        minWidth := 12.rem,
+        maxWidth := 20.rem,
+        maxHeight := 70.vh,
+        // Scroll container also clips first/last item hover to the rounded corners (no padding gap).
+        overflowY.auto,
+        display.flex,
+        flexDirection.column,
+        padding := 0.px,
+        backgroundColor := S.color.bg.layerOne,
+        border := s"1px solid ${S.color.fg.subtle}",
+        borderRadius := S.borderRadius._3,
+        boxShadow := "0 12px 32px rgba(0,0,0,0.24)",
+        zIndex := ZIndices.dropdownMenuPanel,
+        animation := "oxy-fade-in var(--oxy-motion-duration-fast) var(--oxy-motion-easing-enter) both",
+      )
+      object AlignStart extends p.Modifier("align-start") {
+        selector(left := 0)
+      }
+      object AlignEnd extends p.Modifier("align-end") {
+        selector(right := 0)
+      }
+    }
+
+    object Item extends dm.Class("item") { i =>
+      selector(
+        display.flex,
+        alignItems.center,
+        gap := S.spacing._2,
+        width := 100.pct,
+        padding := css(S.spacing._2, S.spacing._3),
+        cursor.pointer,
+        userSelect.none,
+        whiteSpace.nowrap,
+        color := S.color.fg.default,
+        fontSize := S.fontSize._3,
+        backgroundColor := "transparent",
+      )
+      Item.pc("hover")(
+        backgroundColor := S.color.bg.layerTwo,
+      )
+      Item.pc("focus")(
+        backgroundColor := S.color.bg.layerTwo,
+        outline := "none",
+      )
+      object Disabled extends i.Modifier("disabled") {
+        selector(
+          color := S.color.fg.subtle,
+          cursor := "not-allowed",
+          opacity := "0.55",
+        )
+      }
+    }
+
+    object ItemIcon extends dm.Class("item-icon") {
+      selector(
+        display.inlineFlex,
+        alignItems.center,
+        color := S.color.fg.moderate,
+      )
+    }
+
+    object Separator extends dm.Class("separator") {
+      selector(
+        height := 1.px,
+        margin := css(S.spacing._1, 0.px),
+        backgroundColor := S.color.fg.subtle,
+        opacity := "0.5",
+      )
+    }
+
+    object Open extends dm.Modifier("open")
+
+    // Cross-cutting rules (objects above already initialized).
+    ((DropdownMenu & Open) >> Caret)(
+      transform := "rotate(180deg)",
+    )
+    ((Item & Item.Disabled).pc("hover"))(
+      backgroundColor := "transparent",
+    )
+
+  }
+
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
   //      Table
   //////////////////////////////////////////////////////////////////////////////////////////////////////
 

@@ -119,6 +119,7 @@ They are **not** fine as the public way apps collect domain input when a form co
 | Date / time | `DatePicker` / `TimePicker` / `DateTimePicker` (+ `.form`) |
 | Files | `FileDropZone` (+ `.form`) |
 | Color seed | `ColorPicker` (+ `.form`) |
+| Action / nav popup menu | `DropdownMenu` (or `TopBar.item.dropdown`) — not a hand-rolled overlay |
 | Page shell | `HolyGrail` / `CenteredCard` (`layout`) |
 
 ---
