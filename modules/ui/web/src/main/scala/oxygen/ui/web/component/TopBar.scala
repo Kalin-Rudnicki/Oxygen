@@ -1,8 +1,10 @@
 package oxygen.ui.web.component
 
+import monocle.Lens
 import oxygen.predef.core.*
 import oxygen.ui.web.*
 import oxygen.ui.web.create.{*, given}
+import oxygen.ui.web.internal.LensUtil
 import zio.http.URL
 
 /**
@@ -144,31 +146,16 @@ object TopBar extends WidgetTypes[TopBar] {
   final case class Item[-Env, +Action, -StateGet, +StateSet <: StateGet] private (
       private val _children: Growable[Widget.Polymorphic[Env, Action, StateGet, StateSet]],
       private val _bar: Cache,
-      private val _dropdownId: Option[String],
-      private val _triggerContent: Growable[Widget],
-      private val _menuItems: Growable[DropdownMenu.Item[Env, Action]],
+      // Some => this item is a dropdown; the fn builds the shared DropdownMenu once the bar's colors
+      // (Cache) and alignment (alignEnd) are known at render. The menu's open-state lens is captured inside.
+      private val _dropdownBuild: Option[(Cache, Boolean) => Widget.Polymorphic[Env, Action, StateGet, StateSet]],
       private val _alignEnd: Boolean,
   ) extends PWidget.Deferred[Env, Action, StateGet, StateSet] {
 
     private lazy val _built: Widget.Polymorphic[Env, Action, StateGet, StateSet] =
-      _dropdownId match {
-        case Some(id) =>
-          // Trigger reuses the bar-item chrome (height / colors / hover) + caret; panel is the shared DropdownMenu.
-          DropdownMenu(id, _triggerContent.to[Seq]*)
-            .items(_menuItems.to[Seq]*)
-            .align(if _alignEnd then DropdownMenu.Align.End else DropdownMenu.Align.Start)
-            .caret
-            .trigger(
-              create.height := 100.pct,
-              padding := "0 1rem",
-              fontSize := S.fontSize._5,
-              color := _bar.itemFg,
-              fontWeight := S.fontWeight.medium,
-              backgroundColor.dynamic.hover := _bar.itemHover,
-              backgroundColor.dynamic.hoverActive := _bar.itemActive,
-            )
-        case None =>
-          TopBar.itemWidget(_bar).appendChildren(_children)
+      _dropdownBuild match {
+        case Some(build) => build(_bar, _alignEnd)
+        case None        => TopBar.itemWidget(_bar).appendChildren(_children)
       }
 
     override protected def build: PWidget[Env, Action, StateGet, StateSet] = _built
@@ -179,44 +166,59 @@ object TopBar extends WidgetTypes[TopBar] {
     private[TopBar] def withBarColors(c: Cache, alignEnd: Boolean): Item[Env, Action, StateGet, StateSet] =
       copy(_bar = c, _alignEnd = alignEnd)
 
+    // Build the DropdownMenu for this item, over page state `S`, once bar colors + alignment are known.
+    private def dropdownWith[Env2 <: Env, Action2 >: Action, S](
+        triggerContent: Growable[Widget],
+        lens: Lens[S, DropdownMenu.State],
+        addItems: Seq[DropdownMenu.Item[Env2, Action2]],
+    ): Item[Env2, Action2, S, S] =
+      Item[Env2, Action2, S, S](
+        _children = Growable.empty,
+        _bar = _bar,
+        _dropdownBuild = Some { (cache, alignEnd) =>
+          // Trigger reuses the bar-item chrome (height / colors / hover) + caret; panel is the shared DropdownMenu.
+          DropdownMenu
+            .fromLens(lens, triggerContent)
+            .items(addItems*)
+            .align(if alignEnd then DropdownMenu.Align.End else DropdownMenu.Align.Start)
+            .caret
+            .trigger(TopBar.dropdownTriggerMods(cache)*)
+        },
+        _alignEnd = _alignEnd,
+      )
+
     /**
-      * Turn this item into a dropdown / popup menu (OXY-152). `id` must be stable + unique per call site
-      * (keys the menu's internal open/closed state). Built on the shared [[DropdownMenu]] component so the
-      * panel behaviour (scrim, keyboard, a11y) is consistent everywhere.
+      * Turn this item into a dropdown / popup menu (OXY-152). Open/closed lives on the bar's page state `S`
+      * via `f` (e.g. `_.productsMenu`), threaded through [[TopBar]]'s polymorphic state like any other
+      * stateful widget — no component-owned state. Built on the shared [[DropdownMenu]] so the panel
+      * behaviour (scrim, keyboard, a11y) is consistent everywhere.
       *
       * {{{
-      * TopBar.item.dropdown("nav-products", "Products")(
+      * // page state: final case class PageState(productsMenu: DropdownMenu.State = DropdownMenu.State())
+      * TopBar.item.dropdown("Products", _.productsMenu)(
       *   TopBar.menuItem("Overview").onClickPush(OverviewPage.nav()),
       *   TopBar.menuItem("Pricing").onClickPush(PricingPage.nav()),
       *   TopBar.menuSeparator,
       * )
       * }}}
       */
-    def dropdown[Env2 <: Env, Action2 >: Action, StateGet2 <: StateGet, StateSet2 >: StateSet <: StateGet2](
-        id: String,
+    inline def dropdown[Env2 <: Env, Action2 >: Action, S](
         label: String,
+        inline f: S => DropdownMenu.State,
     )(
         addItems: DropdownMenu.Item[Env2, Action2]*,
-    ): Item[Env2, Action2, StateGet2, StateSet2] =
-      copy(
-        _dropdownId = id.some,
-        _triggerContent = Growable.single(span(label)),
-        _menuItems = _menuItems ++ Growable.many(addItems),
-      )
+    ): Item[Env2, Action2, S, S] =
+      dropdownWith(Growable.single(span(label)), LensUtil.genLens(f), addItems)
 
     /** Dropdown with a leading icon on the trigger. */
-    def dropdownWithIcon[Env2 <: Env, Action2 >: Action, StateGet2 <: StateGet, StateSet2 >: StateSet <: StateGet2](
-        id: String,
+    inline def dropdownWithIcon[Env2 <: Env, Action2 >: Action, S](
         icon: Icon,
         label: String,
+        inline f: S => DropdownMenu.State,
     )(
         addItems: DropdownMenu.Item[Env2, Action2]*,
-    ): Item[Env2, Action2, StateGet2, StateSet2] =
-      copy(
-        _dropdownId = id.some,
-        _triggerContent = Growable.many(Seq(icon.md, span(label))),
-        _menuItems = _menuItems ++ Growable.many(addItems),
-      )
+    ): Item[Env2, Action2, S, S] =
+      dropdownWith(Growable.many(Seq(icon.md, span(label))), LensUtil.genLens(f), addItems)
 
     def apply[Env2 <: Env, Action2 >: Action, StateGet2 <: StateGet, StateSet2 >: StateSet <: StateGet2](
         addChildren: PWidget[Env2, Action2, StateGet2, StateSet2]*,
@@ -257,7 +259,7 @@ object TopBar extends WidgetTypes[TopBar] {
   }
   object Item extends WidgetTypes[TopBar.Item] {
 
-    val empty: TopBar.Item.Const = Item(Growable.empty, Cache.default, None, Growable.empty, Growable.empty, false)
+    val empty: TopBar.Item.Const = Item(Growable.empty, Cache.default, None, false)
 
     def apply(text: String): TopBar.Item.Const =
       empty.apply(text)
@@ -290,6 +292,18 @@ object TopBar extends WidgetTypes[TopBar] {
   private def unsafeUrl(url: String): URL = URL.decode(url) match
     case Right(url)  => url
     case Left(error) => throw new RuntimeException(s"Invalid URL [$url]: $error")
+
+  /** Trigger chrome for a bar dropdown item — matches [[itemWidget]] (height / colors / hover). */
+  private def dropdownTriggerMods(c: Cache): Seq[Widget] =
+    Seq(
+      create.height := 100.pct,
+      padding := "0 1rem",
+      fontSize := S.fontSize._5,
+      color := c.itemFg,
+      fontWeight := S.fontWeight.medium,
+      backgroundColor.dynamic.hover := c.itemHover,
+      backgroundColor.dynamic.hoverActive := c.itemActive,
+    )
 
   private def itemWidget(c: Cache): Node = {
     import oxygen.ui.web.create.height as heightAttr

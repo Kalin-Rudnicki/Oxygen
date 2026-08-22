@@ -1,10 +1,12 @@
 package oxygen.ui.web.component
 
+import monocle.Lens
 import org.scalajs.dom
 import org.scalajs.dom.HTMLElement
 import oxygen.predef.core.*
 import oxygen.ui.web.*
 import oxygen.ui.web.create.{*, given}
+import oxygen.ui.web.internal.LensUtil
 import oxygen.ui.web.service.Window
 import zio.*
 import zio.http.URL
@@ -12,10 +14,10 @@ import zio.http.URL
 /**
   * Action / nav popup menu (OXY-152; reserved by the `component` package TODO).
   *
-  * A click-to-open menu of typed [[DropdownMenu.Item]]s. Owns its own open/closed state internally
-  * (a per-instance [[PageLocalState]] keyed by a caller-supplied stable `id`), so it drops in anywhere
-  * as a plain stateless widget — no need to thread a `Boolean` through page state. Reused by
-  * [[TopBar]] dropdown items and available for SideBar / overflow menus.
+  * A click-to-open menu of typed [[DropdownMenu.Item]]s. Open/closed lives on page state `S` via a
+  * [[Lens]] (see [[DropdownMenu.State]]) — the same lens-into-`S` pattern as [[Tabs]] / [[Drawer]], no
+  * component-owned/global state. Each panel item is a normal `(Env, Action)` entry; selecting one runs its
+  * effect and closes the menu.
   *
   * Behaviour:
   *   - opens on click / `Enter` / `Space` / `ArrowDown` on the trigger,
@@ -27,7 +29,7 @@ import zio.http.URL
   * (`O.DropdownMenu`), included via [[oxygen.ui.web.defaults.coreOxygenStyleSheets]].
   *
   * {{{
-  * DropdownMenu("nav-products", "Products")
+  * DropdownMenu[PageState](_.productsMenu, span("Products"))
   *   .items(
   *     DropdownMenu.item("Overview").onClickPush(OverviewPage.nav()),
   *     DropdownMenu.item("Pricing").withIcon(Icon.tag).onClickPush(PricingPage.nav()),
@@ -40,40 +42,51 @@ import zio.http.URL
   * with `overflow:hidden` could clip — a portal/`fixed` variant is future work). Trigger opens on click,
   * not hover.
   */
-final case class DropdownMenu[-Env, +Action](
-    private val _id: String,
+final class DropdownMenu[-Env, +Action, S] private (
+    private val lens: Lens[S, DropdownMenu.State],
     private val _trigger: Growable[Widget],
     private val _items: Seq[DropdownMenu.Item[Env, Action]],
     private val _align: DropdownMenu.Align,
     private val _showCaret: Boolean,
     private val _ariaLabel: Option[String],
-) extends PWidget.Deferred[Env, Action, Any, Nothing] {
+) extends PWidget.Deferred.Stateful[Env, Action, S] {
+
+  private def copy[Env2 <: Env, Action2 >: Action](
+      _trigger: Growable[Widget] = _trigger,
+      _items: Seq[DropdownMenu.Item[Env2, Action2]] = _items,
+      _align: DropdownMenu.Align = _align,
+      _showCaret: Boolean = _showCaret,
+      _ariaLabel: Option[String] = _ariaLabel,
+  ): DropdownMenu[Env2, Action2, S] =
+    new DropdownMenu(lens, _trigger, _items, _align, _showCaret, _ariaLabel)
 
   def items[Env2 <: Env, Action2 >: Action](
       addItems: DropdownMenu.Item[Env2, Action2]*,
-  ): DropdownMenu[Env2, Action2] =
+  ): DropdownMenu[Env2, Action2, S] =
     copy(_items = _items ++ addItems)
 
-  def trigger(mods: Widget*): DropdownMenu[Env, Action] = copy(_trigger = _trigger ++ Growable.many(mods))
+  def trigger(mods: Widget*): DropdownMenu[Env, Action, S] = copy(_trigger = _trigger ++ Growable.many(mods))
 
-  def align(a: DropdownMenu.Align): DropdownMenu[Env, Action] = copy(_align = a)
-  def alignStart: DropdownMenu[Env, Action] = align(DropdownMenu.Align.Start)
-  def alignEnd: DropdownMenu[Env, Action] = align(DropdownMenu.Align.End)
+  def align(a: DropdownMenu.Align): DropdownMenu[Env, Action, S] = copy(_align = a)
+  def alignStart: DropdownMenu[Env, Action, S] = align(DropdownMenu.Align.Start)
+  def alignEnd: DropdownMenu[Env, Action, S] = align(DropdownMenu.Align.End)
 
-  def caret: DropdownMenu[Env, Action] = copy(_showCaret = true)
-  def noCaret: DropdownMenu[Env, Action] = copy(_showCaret = false)
+  def caret: DropdownMenu[Env, Action, S] = copy(_showCaret = true)
+  def noCaret: DropdownMenu[Env, Action, S] = copy(_showCaret = false)
 
-  def ariaLabel(label: String): DropdownMenu[Env, Action] = copy(_ariaLabel = label.some)
+  def ariaLabel(label: String): DropdownMenu[Env, Action, S] = copy(_ariaLabel = label.some)
 
-  override protected def build: PWidget[Env, Action, Any, Nothing] =
-    DropdownMenu.openStateFor(_id).attach { st =>
-      val isOpen: Boolean = st.renderTimeValue
-      val ddId: String = _id
+  override protected def build: PWidget.Stateful[Env, Action, S] =
+    Widget.state[S].fixGet { (ws, s) =>
+      import DropdownMenu.*
+      val isOpen: Boolean = lens.get(s).open
 
-      val triggerNode: WidgetEAS[Env, Action, Boolean] =
+      def open(trigger: HTMLElement): UIO[Unit] =
+        ws.update(lens.modify(_.show)) *> ZIO.succeed(afterRender(() => panelOf(trigger).foreach(focusItem(_, 0))))
+
+      val triggerNode: WidgetEAS[Env, Action, S] =
         div(
           O.DropdownMenu.Trigger,
-          id := DropdownMenu.triggerElemId(ddId),
           Widget.raw.htmlAttr("role", "button"),
           Widget.raw.htmlAttr("aria-haspopup", "menu"),
           Widget.raw.htmlAttr("aria-expanded", isOpen.toString),
@@ -81,17 +94,17 @@ final case class DropdownMenu[-Env, +Action](
           _ariaLabel.map(Widget.raw.htmlAttr("aria-label", _)).getOrElse(Widget.empty),
           Widget.fragment(_trigger.to[Seq]),
           Widget.when(_showCaret)(span(O.DropdownMenu.Caret, Icon.chevronDown.sm)),
-          onClick.s[Boolean].handle { s =>
-            if isOpen then s.set(false)
-            else DropdownMenu.openAndFocus(s, ddId)
+          onClick.es[S].handle { (st, e) =>
+            if isOpen then st.update(lens.modify(_.hide))
+            else open(e.currentTarget.asInstanceOf[HTMLElement])
           },
-          onKeyDown.es[Boolean].handle { (s, e) =>
+          onKeyDown.es[S].handle { (st, e) =>
             e.key match {
               case "Enter" | " " | "ArrowDown" =>
                 e.preventDefault()
-                DropdownMenu.openAndFocus(s, ddId)
+                open(e.currentTarget.asInstanceOf[HTMLElement])
               case "Escape" =>
-                s.set(false)
+                st.update(lens.modify(_.hide))
               case _ =>
                 ZIO.unit
             }
@@ -105,17 +118,34 @@ final case class DropdownMenu[-Env, +Action](
           fragment(
             div(
               O.DropdownMenu.Scrim,
-              onClick.s[Boolean].handle(_.set(false)),
+              onClick.s[S].handle(_.update(lens.modify(_.hide))),
             ),
             div(
               O.DropdownMenu.Panel.optMods(
-                _.AlignStart -> (_align == DropdownMenu.Align.Start),
-                _.AlignEnd -> (_align == DropdownMenu.Align.End),
+                _.AlignStart -> (_align == Align.Start),
+                _.AlignEnd -> (_align == Align.End),
               ),
-              Widget.raw.htmlAttr(DropdownMenu.panelDataAttr, ddId),
               Widget.raw.htmlAttr("role", "menu"),
-              onKeyDown.es[Boolean].handle { (s, e) => DropdownMenu.panelKeyDown(s, e, ddId) },
-              Widget.foreach(_items.toList) { item => DropdownMenu.renderItem(item) },
+              onKeyDown.es[S].handle { (st, e) =>
+                val panel = e.currentTarget.asInstanceOf[HTMLElement]
+                e.key match {
+                  case "ArrowDown"   => e.preventDefault(); ZIO.succeed(moveFocus(panel, +1))
+                  case "ArrowUp"     => e.preventDefault(); ZIO.succeed(moveFocus(panel, -1))
+                  case "Home"        => e.preventDefault(); ZIO.succeed(focusItem(panel, 0))
+                  case "End"         => e.preventDefault(); ZIO.succeed(focusItem(panel, Int.MaxValue))
+                  case "Enter" | " " => e.preventDefault(); ZIO.succeed(clickActive())
+                  case "Escape"      =>
+                    val trigger = triggerOf(panel)
+                    st.update(lens.modify(_.hide)) *> ZIO.succeed(afterRender(() => trigger.foreach(_.focus())))
+                  case "Tab" =>
+                    st.update(lens.modify(_.hide))
+                  case _ =>
+                    ZIO.unit
+                }
+              },
+              Widget.foreach(_items.toList) { item =>
+                DropdownMenu.renderItem(item)(rh => item._onSelect(rh) *> ws.update(lens.modify(_.hide)))
+              },
             ),
           ),
         ),
@@ -127,19 +157,27 @@ object DropdownMenu {
 
   enum Align { case Start, End }
 
+  /** Open/closed state for one menu; lives on page state via a [[Lens]] (see class docs). */
+  final case class State(open: Boolean = false) {
+    def show: State = copy(open = true)
+    def hide: State = copy(open = false)
+    def toggle: State = copy(open = !open)
+  }
+
   //////////////////////////////////////////////////////////////////////////////////////////////////////
   //      Entry points
   //////////////////////////////////////////////////////////////////////////////////////////////////////
 
-  /**
-    * @param id stable identifier for this menu's open/closed state — must be unique + stable per call site
-    *           (used to key the internal [[PageLocalState]] across re-renders).
-    */
-  def apply(id: String, triggerContent: Widget*): DropdownMenu[Any, Nothing] =
-    new DropdownMenu(id, Growable.many(triggerContent), Nil, Align.Start, _showCaret = true, None)
+  /** Build over an explicit lens into page state `S` (used by [[TopBar]]'s dropdown items). */
+  def fromLens[S](lens: Lens[S, State], trigger: Growable[Widget]): DropdownMenu[Any, Nothing, S] =
+    new DropdownMenu(lens, trigger, Nil, Align.Start, _showCaret = true, None)
 
-  /** Label + optional caret trigger. */
-  def apply(id: String): DropdownMenu[Any, Nothing] = apply(id, Widget.empty)
+  /**
+    * @param f accessor to this menu's [[State]] on page state `S` (e.g. `_.productsMenu`); its open/closed
+    *          flag lives there, threaded like any other stateful widget.
+    */
+  inline def apply[S](inline f: S => State, trigger: Widget*): DropdownMenu[Any, Nothing, S] =
+    fromLens(LensUtil.genLens(f), Growable.many(trigger))
 
   val item: Item.Const = Item.empty
   def item(label: String): Item.Const = Item.empty.label(label)
@@ -191,22 +229,10 @@ object DropdownMenu {
   }
 
   //////////////////////////////////////////////////////////////////////////////////////////////////////
-  //      Internal state registry
-  //////////////////////////////////////////////////////////////////////////////////////////////////////
-
-  // scala.js is single-threaded; a plain mutable map memoizes one PageLocalState per stable id
-  // (state itself is scoped per page instance internally). Keeps `id`-keyed state stable across re-renders.
-  private val openStates: scala.collection.mutable.Map[String, PageLocalState[Boolean]] =
-    scala.collection.mutable.Map.empty
-
-  private def openStateFor(id: String): PageLocalState[Boolean] =
-    openStates.getOrElseUpdate(id, new PageLocalState[Boolean](s"DropdownMenu[$id]")(false) {})
-
-  //////////////////////////////////////////////////////////////////////////////////////////////////////
   //      Rendering
   //////////////////////////////////////////////////////////////////////////////////////////////////////
 
-  private def renderItem[Env, Action](item: Item[Env, Action]): WidgetEAS[Env, Action, Boolean] =
+  private def renderItem[Env, Action, S](item: Item[Env, Action])(onSelect: RaiseHandler[Any, Action] => ZIO[Env & Scope, UIError, Unit]): WidgetEAS[Env, Action, S] =
     if item._isSeparator then
       div(O.DropdownMenu.Separator, Widget.raw.htmlAttr("role", "separator"))
     else
@@ -218,7 +244,7 @@ object DropdownMenu {
         item._icon.map(icon => span(O.DropdownMenu.ItemIcon, icon.sm)).getOrElse(Widget.empty),
         span(item._label),
         Widget.when(!item._isDisabled)(
-          onClick.as[Action, Boolean].handle { (s, rh) => item._onSelect(rh) *> s.set(false) },
+          onClick.as[Action, S].handle { (_, rh) => onSelect(rh) },
         ),
       )
 
@@ -226,45 +252,30 @@ object DropdownMenu {
   //      Keyboard + focus (driven by real DOM events → safe without a mount hook)
   //////////////////////////////////////////////////////////////////////////////////////////////////////
 
-  private val panelDataAttr: String = "data-oxy-dd"
-  private def triggerElemId(id: String): String = s"oxy-dd-trigger-$id"
-
-  private def openAndFocus(st: WidgetState[Boolean], id: String): UIO[Unit] =
-    st.set(true) *> ZIO.succeed { afterRender(() => focusItem(id, 0)) }
-
-  private def panelKeyDown(st: WidgetState[Boolean], e: dom.KeyboardEvent, id: String): UIO[Unit] =
-    e.key match {
-      case "ArrowDown"   => e.preventDefault(); ZIO.succeed(moveFocus(id, +1))
-      case "ArrowUp"     => e.preventDefault(); ZIO.succeed(moveFocus(id, -1))
-      case "Home"        => e.preventDefault(); ZIO.succeed(focusItem(id, 0))
-      case "End"         => e.preventDefault(); ZIO.succeed(focusItem(id, Int.MaxValue))
-      case "Enter" | " " =>
-        e.preventDefault()
-        ZIO.succeed(clickActive())
-      case "Escape" =>
-        st.set(false) *> ZIO.succeed(focusTrigger(id))
-      case "Tab" =>
-        st.set(false)
-      case _ =>
-        ZIO.unit
-    }
-
   private def afterRender(f: () => Unit): Unit =
     dom.window.requestAnimationFrame(_ => f()): Unit
 
-  private def enabledItems(id: String): Seq[HTMLElement] = {
-    val nodes = dom.document.querySelectorAll(s"[$panelDataAttr='$id'] [role='menuitem']:not([aria-disabled='true'])")
+  /** The `role=menu` panel that is a sibling of this menu's trigger (both live under the same root). */
+  private def panelOf(trigger: HTMLElement): Option[HTMLElement] =
+    Option(trigger.parentElement).flatMap(root => Option(root.querySelector("[role='menu']"))).map(_.asInstanceOf[HTMLElement])
+
+  /** The `role=button` trigger that is a sibling of this menu's panel. */
+  private def triggerOf(panel: HTMLElement): Option[HTMLElement] =
+    Option(panel.parentElement).flatMap(root => Option(root.querySelector("[role='button']"))).map(_.asInstanceOf[HTMLElement])
+
+  private def enabledItems(panel: HTMLElement): Seq[HTMLElement] = {
+    val nodes = panel.querySelectorAll("[role='menuitem']:not([aria-disabled='true'])")
     (0 until nodes.length).map(i => nodes(i).asInstanceOf[HTMLElement])
   }
 
   /** Focus item at `idx` (clamped); `Int.MaxValue` = last. */
-  private def focusItem(id: String, idx: Int): Unit = {
-    val items = enabledItems(id)
+  private def focusItem(panel: HTMLElement, idx: Int): Unit = {
+    val items = enabledItems(panel)
     if items.nonEmpty then items(idx.max(0).min(items.size - 1)).focus()
   }
 
-  private def moveFocus(id: String, delta: Int): Unit = {
-    val items = enabledItems(id)
+  private def moveFocus(panel: HTMLElement, delta: Int): Unit = {
+    val items = enabledItems(panel)
     if items.nonEmpty then {
       val active = dom.document.activeElement
       val current = items.indexWhere(_ eq active)
@@ -277,14 +288,6 @@ object DropdownMenu {
     dom.document.activeElement match {
       case el: HTMLElement => el.click()
       case _               => ()
-    }
-
-  private def focusTrigger(id: String): Unit =
-    afterRender { () =>
-      dom.document.getElementById(triggerElemId(id)) match {
-        case el: HTMLElement => el.focus()
-        case _               => ()
-      }
     }
 
 }
