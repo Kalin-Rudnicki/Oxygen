@@ -4,7 +4,6 @@ import oxygen.example.ui.page.showcase.ShowcaseLayout
 import oxygen.ui.web.*
 import oxygen.ui.web.component.*
 import oxygen.ui.web.create.{*, given}
-import oxygen.ui.web.service.ColorMode
 import zio.*
 
 object KitchenSinkPage extends RoutablePage.NoParams[Any] {
@@ -27,8 +26,7 @@ object KitchenSinkPage extends RoutablePage.NoParams[Any] {
           display.flex,
           gap := S.spacing._2,
           flexWrap.wrap,
-          Button("Theme light").small.subtle.content(onClick := ColorMode.setAndPersist(ColorMode.Mode.Light)),
-          Button("Theme dark").small.subtle.content(onClick := ColorMode.setAndPersist(ColorMode.Mode.Dark)),
+          ColorModePicker(), // OXY-154: reusable picker
           Button("Open modal").small.content(onClick := state.update(_.copy(modal = Some(())))),
           Button("Toast").small.informational.content(onClick := PageMessages.add(PageMessage.info("Kitchen sink toast"))),
         ),

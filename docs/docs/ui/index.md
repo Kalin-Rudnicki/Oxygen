@@ -44,7 +44,7 @@ import oxygen.ui.web.component.*
 import oxygen.ui.web.create.{*, given}
 import oxygen.ui.web.layout.* // HolyGrail, CenteredCard
 import oxygen.ui.web.defaults.* // coreOxygenStyleSheets
-import oxygen.ui.web.service.{ColorMode, Theme}
+import oxygen.ui.web.service.ColorTheme // unified color-mode + theme-pack facade
 ```
 
 Prefer imports over fully-qualified paths at call sites.
@@ -58,10 +58,7 @@ object MyUI extends PageApp[MyEnv] {
     coreOxygenStyleSheets // reset + theme vars + core chrome
 
   override protected def prePageLoad: RIO[MyEnv & Scope, Unit] =
-    ColorMode.applyStoredOrSystem *>
-      Theme.applyStoredOrDefault *>
-      ColorMode.subscribeCrossTab *>
-      Theme.subscribeCrossTab
+    ColorTheme.install // apply stored mode + pack, then keep both in sync across tabs
 
   override val pages: ArraySeq[RoutablePage[MyEnv]] = ArraySeq(
     HomePage,

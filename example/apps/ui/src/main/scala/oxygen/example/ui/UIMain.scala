@@ -9,7 +9,7 @@ import oxygen.ui.web.*
 import oxygen.ui.web.apispec.ApiSpecPage
 import oxygen.ui.web.create.*
 import oxygen.ui.web.defaults.*
-import oxygen.ui.web.service.{ColorMode, LocalStorage, Theme}
+import oxygen.ui.web.service.{ColorTheme, LocalStorage}
 import scala.collection.immutable.ArraySeq
 import zio.*
 
@@ -33,10 +33,7 @@ object UIMain extends PageApp[UIMain.Env] {
     coreOxygenStyleSheets ++ ArraySeq(P.showcase.pages.MediaQueryStyle.compiled)
 
   override protected def prePageLoad: RIO[Env & Scope, Unit] =
-    ColorMode.applyStoredOrSystem *>
-      Theme.applyStoredOrDefault *>
-      ColorMode.subscribeCrossTab *>
-      Theme.subscribeCrossTab
+    ColorTheme.install
 
   override val pages: ArraySeq[RoutablePage[Env]] = ArraySeq(
     P.index.IndexPage,
