@@ -137,6 +137,185 @@
           "table": {
             "tableName": {
               "schema": "public",
+              "table": "init_payment_method"
+            },
+            "primaryKeyColumns": [
+              "id"
+            ],
+            "columns": [
+              {
+                "name": "id",
+                "columnType": "UUID",
+                "nullable": false
+              },
+              {
+                "name": "user_id",
+                "columnType": "UUID",
+                "nullable": false
+              },
+              {
+                "name": "stripe_id",
+                "columnType": "TEXT",
+                "nullable": false
+              },
+              {
+                "name": "client_secret",
+                "columnType": "TEXT",
+                "nullable": false
+              },
+              {
+                "name": "created_at",
+                "columnType": "TIMESTAMP WITH TIME ZONE",
+                "nullable": false
+              },
+              {
+                "name": "completed_at",
+                "columnType": "TIMESTAMP WITH TIME ZONE",
+                "nullable": true
+              }
+            ],
+            "foreignKeys": [
+            ],
+            "indices": [
+            ]
+          }
+        }
+      }
+    },
+    {
+      "stepNo": 5,
+      "derived": true,
+      "step": {
+        "CreateTable": {
+          "table": {
+            "tableName": {
+              "schema": "public",
+              "table": "payment"
+            },
+            "primaryKeyColumns": [
+              "id"
+            ],
+            "columns": [
+              {
+                "name": "id",
+                "columnType": "UUID",
+                "nullable": false
+              },
+              {
+                "name": "user_id",
+                "columnType": "UUID",
+                "nullable": false
+              },
+              {
+                "name": "payment_method_id",
+                "columnType": "UUID",
+                "nullable": false
+              },
+              {
+                "name": "stripe_id",
+                "columnType": "TEXT",
+                "nullable": false
+              },
+              {
+                "name": "amount",
+                "columnType": "NUMERIC",
+                "nullable": false
+              },
+              {
+                "name": "currency",
+                "columnType": "TEXT",
+                "nullable": false
+              },
+              {
+                "name": "description",
+                "columnType": "TEXT",
+                "nullable": false
+              },
+              {
+                "name": "status",
+                "columnType": "TEXT",
+                "nullable": false
+              },
+              {
+                "name": "created_at",
+                "columnType": "TIMESTAMP WITH TIME ZONE",
+                "nullable": false
+              }
+            ],
+            "foreignKeys": [
+            ],
+            "indices": [
+            ]
+          }
+        }
+      }
+    },
+    {
+      "stepNo": 6,
+      "derived": true,
+      "step": {
+        "CreateTable": {
+          "table": {
+            "tableName": {
+              "schema": "public",
+              "table": "payment_method"
+            },
+            "primaryKeyColumns": [
+              "id"
+            ],
+            "columns": [
+              {
+                "name": "id",
+                "columnType": "UUID",
+                "nullable": false
+              },
+              {
+                "name": "user_id",
+                "columnType": "UUID",
+                "nullable": false
+              },
+              {
+                "name": "stripe_id",
+                "columnType": "TEXT",
+                "nullable": false
+              },
+              {
+                "name": "name",
+                "columnType": "TEXT",
+                "nullable": true
+              },
+              {
+                "name": "repr",
+                "columnType": "JSONB",
+                "nullable": false
+              },
+              {
+                "name": "ord",
+                "columnType": "INT",
+                "nullable": false
+              },
+              {
+                "name": "created_at",
+                "columnType": "TIMESTAMP WITH TIME ZONE",
+                "nullable": false
+              }
+            ],
+            "foreignKeys": [
+            ],
+            "indices": [
+            ]
+          }
+        }
+      }
+    },
+    {
+      "stepNo": 7,
+      "derived": true,
+      "step": {
+        "CreateTable": {
+          "table": {
+            "tableName": {
+              "schema": "public",
               "table": "post"
             },
             "primaryKeyColumns": [
@@ -178,7 +357,7 @@
       }
     },
     {
-      "stepNo": 5,
+      "stepNo": 8,
       "derived": true,
       "step": {
         "CreateTable": {
@@ -220,6 +399,11 @@
                 "name": "hashed_password",
                 "columnType": "TEXT",
                 "nullable": false
+              },
+              {
+                "name": "stripe_customer_id",
+                "columnType": "TEXT",
+                "nullable": true
               },
               {
                 "name": "created_at",
@@ -348,6 +532,161 @@
       {
         "tableName": {
           "schema": "public",
+          "table": "init_payment_method"
+        },
+        "primaryKeyColumns": [
+          "id"
+        ],
+        "columns": [
+          {
+            "name": "id",
+            "columnType": "UUID",
+            "nullable": false
+          },
+          {
+            "name": "user_id",
+            "columnType": "UUID",
+            "nullable": false
+          },
+          {
+            "name": "stripe_id",
+            "columnType": "TEXT",
+            "nullable": false
+          },
+          {
+            "name": "client_secret",
+            "columnType": "TEXT",
+            "nullable": false
+          },
+          {
+            "name": "created_at",
+            "columnType": "TIMESTAMP WITH TIME ZONE",
+            "nullable": false
+          },
+          {
+            "name": "completed_at",
+            "columnType": "TIMESTAMP WITH TIME ZONE",
+            "nullable": true
+          }
+        ],
+        "foreignKeys": [
+        ],
+        "indices": [
+        ]
+      },
+      {
+        "tableName": {
+          "schema": "public",
+          "table": "payment"
+        },
+        "primaryKeyColumns": [
+          "id"
+        ],
+        "columns": [
+          {
+            "name": "id",
+            "columnType": "UUID",
+            "nullable": false
+          },
+          {
+            "name": "user_id",
+            "columnType": "UUID",
+            "nullable": false
+          },
+          {
+            "name": "payment_method_id",
+            "columnType": "UUID",
+            "nullable": false
+          },
+          {
+            "name": "stripe_id",
+            "columnType": "TEXT",
+            "nullable": false
+          },
+          {
+            "name": "amount",
+            "columnType": "NUMERIC",
+            "nullable": false
+          },
+          {
+            "name": "currency",
+            "columnType": "TEXT",
+            "nullable": false
+          },
+          {
+            "name": "description",
+            "columnType": "TEXT",
+            "nullable": false
+          },
+          {
+            "name": "status",
+            "columnType": "TEXT",
+            "nullable": false
+          },
+          {
+            "name": "created_at",
+            "columnType": "TIMESTAMP WITH TIME ZONE",
+            "nullable": false
+          }
+        ],
+        "foreignKeys": [
+        ],
+        "indices": [
+        ]
+      },
+      {
+        "tableName": {
+          "schema": "public",
+          "table": "payment_method"
+        },
+        "primaryKeyColumns": [
+          "id"
+        ],
+        "columns": [
+          {
+            "name": "id",
+            "columnType": "UUID",
+            "nullable": false
+          },
+          {
+            "name": "user_id",
+            "columnType": "UUID",
+            "nullable": false
+          },
+          {
+            "name": "stripe_id",
+            "columnType": "TEXT",
+            "nullable": false
+          },
+          {
+            "name": "name",
+            "columnType": "TEXT",
+            "nullable": true
+          },
+          {
+            "name": "repr",
+            "columnType": "JSONB",
+            "nullable": false
+          },
+          {
+            "name": "ord",
+            "columnType": "INT",
+            "nullable": false
+          },
+          {
+            "name": "created_at",
+            "columnType": "TIMESTAMP WITH TIME ZONE",
+            "nullable": false
+          }
+        ],
+        "foreignKeys": [
+        ],
+        "indices": [
+        ]
+      },
+      {
+        "tableName": {
+          "schema": "public",
           "table": "post"
         },
         "primaryKeyColumns": [
@@ -423,6 +762,11 @@
             "name": "hashed_password",
             "columnType": "TEXT",
             "nullable": false
+          },
+          {
+            "name": "stripe_customer_id",
+            "columnType": "TEXT",
+            "nullable": true
           },
           {
             "name": "created_at",

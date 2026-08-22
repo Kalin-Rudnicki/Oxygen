@@ -59,6 +59,8 @@ jobs:
         uses: ./.github/actions/sbt-cache
       - name: Compile
         run: sbt example/Test/compile
+      - name: Test
+        run: sbt example-web-server/testFull
       - name: WebComp
         run: sbt example-ui-web/webComp
 

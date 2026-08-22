@@ -120,8 +120,9 @@ object PageManager {
 
           _ <- pageInstance.render(navType)
 
-          // W7-T03: after first paint, scroll to #fragment (retry for async content)
-          _ <- oxygen.ui.web.service.HashScroll.toFragment(fragment).unit
+          // W7-T03 / OFF-428: after first paint, scroll to #fragment (retry for async content),
+          // or reset to the top of the page when there is no fragment (page switch).
+          _ <- oxygen.ui.web.service.PageScroll.onNavigate(fragment)
 
           _ <- ZIO.logTrace("PageManager.postLoad.start")
           _ <-
