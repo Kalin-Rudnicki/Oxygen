@@ -61,6 +61,8 @@ trait JsonEncoder[A] {
 
   def secret: JsonEncoder.Secret[A] = JsonEncoder.Secret.fromJsonEncoder(this)
 
+  def omit: JsonEncoder.Omit[A] = JsonEncoder.Omit.fromJsonEncoder(this)
+
 }
 object JsonEncoder extends Derivable[JsonEncoder.ObjectEncoder], JsonEncoderLowPriority.LowPriority1 {
 
@@ -374,6 +376,40 @@ object JsonEncoder extends Derivable[JsonEncoder.ObjectEncoder], JsonEncoderLowP
   }
 
   //////////////////////////////////////////////////////////////////////////////////////////////////////
+  //      Omit
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
+
+  /**
+    * An encoder which unconditionally omits its field from an enclosing JSON object (`addToObject = false`).
+    *
+    * Unlike [[Secret]] (which redirects a field into the "secret" channel), an omitted field never appears
+    * on the wire at all. When used as a top-level/non-object encoder, it still encodes normally via the
+    * underlying encoder; the omission only takes effect at the object-field level.
+    */
+  sealed trait Omit[A] extends JsonEncoder[A] {
+    override final def addToObject(value: A): Boolean = false
+    override def contramap[B](f: B => A): JsonEncoder.Omit[B] = JsonEncoder.Omit.Contramapped(this, f)
+    override def omit: JsonEncoder.Omit[A] = this
+  }
+  object Omit {
+
+    def fromJsonEncoder[A](underlying: JsonEncoder[A]): JsonEncoder.Omit[A] = underlying match
+      case underlying: JsonEncoder.Omit[A] => underlying
+      case underlying                      => JsonEncoder.Omit.OmitEncoder(underlying)
+
+    final case class OmitEncoder[A] private[Omit] (underlying: JsonEncoder[A]) extends JsonEncoder.Omit[A] {
+      override def encodeJsonAST(value: A): Json = underlying.encodeJsonAST(value)
+      override def encodeSplitJsonAST(value: A): Ior[PlainTextJson, SecretJson] = underlying.encodeSplitJsonAST(value)
+    }
+
+    final case class Contramapped[A, B](encoder: JsonEncoder.Omit[A], f: B => A) extends JsonEncoder.Omit[B] {
+      override def encodeJsonAST(value: B): Json = encoder.encodeJsonAST(f(value))
+      override def encodeSplitJsonAST(value: B): Ior[PlainTextJson, SecretJson] = encoder.encodeSplitJsonAST(f(value))
+    }
+
+  }
+
+  //////////////////////////////////////////////////////////////////////////////////////////////////////
   //      Generic
   //////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -390,8 +426,10 @@ object JsonEncoder extends Derivable[JsonEncoder.ObjectEncoder], JsonEncoderLowP
         valType = ValDef.ValType.LazyVal,
       ) { [b] => (_, _) ?=> (field: generic.Field[b]) =>
         val baseInstance: Expr[JsonEncoder[b]] = field.summonTypeClass[JsonEncoder]
+        val isOmitted: Boolean = field.annotations.optionalOf[jsonOmit].nonEmpty
         val isPlain: Boolean = field.annotations.optionalOf[jsonSecret].isEmpty
-        if isPlain then baseInstance
+        if isOmitted then '{ $baseInstance.omit }
+        else if isPlain then baseInstance
         else '{ $baseInstance.secret }
       }
     } { DeriveProductJsonEncoder[A](_) }

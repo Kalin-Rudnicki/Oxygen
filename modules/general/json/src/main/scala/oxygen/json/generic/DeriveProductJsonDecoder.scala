@@ -15,8 +15,12 @@ final class DeriveProductJsonDecoder[A](
     val tmp1: Growable[Expr[Iterable[String]]] =
       generic.mapChildren.mapExpr[Iterable[String]] { [a] => (_, _) ?=> (field: generic.Field[a]) =>
         val isFlattened: Boolean = field.annotations.optionalOf[jsonFlatten].nonEmpty
+        val isOmitted: Boolean = field.annotations.optionalOf[jsonOmit].nonEmpty
 
-        if isFlattened then
+        if isOmitted then
+          // Omitted fields are not part of the wire schema, so they contribute no keys.
+          '{ Nil }
+        else if isFlattened then
           '{
             ${ field.getExpr(instances) }.toObjectDecoderOrThrow.keys
           }
@@ -35,8 +39,16 @@ final class DeriveProductJsonDecoder[A](
       val fieldNameExpr: Expr[String] = Expr(field.annotations.optionalOfValue[jsonField].fold(field.name)(_.name))
       val instanceExpr: Expr[JsonDecoder[a]] = field.getExpr(instances)
       val isFlattened: Boolean = field.annotations.optionalOf[jsonFlatten].nonEmpty
+      val isOmitted: Boolean = field.annotations.optionalOf[jsonOmit].nonEmpty
 
-      if isFlattened then
+      if isOmitted then
+        // `@jsonOmit`: field is never on the wire. Any incoming value is ignored; reconstruct from
+        // the decoder's `onMissingFromObject` (constructor default, `None`, `WasNotSpecified`, ...).
+        '{
+          $instanceExpr.onMissingFromObject
+            .toRight(JsonError(JsonError.Path.Field($fieldNameExpr) :: Nil, JsonError.Cause.MissingRequired))
+        }
+      else if isFlattened then
         // TODO (KR) : is there a more type-safe & compile-time way to do this?
         '{
           $instanceExpr.toObjectDecoderOrThrow.decodeJsonObjectAST($obj, $map)

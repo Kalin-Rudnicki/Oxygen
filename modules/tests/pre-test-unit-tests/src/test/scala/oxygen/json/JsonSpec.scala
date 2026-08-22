@@ -179,6 +179,37 @@ object JsonSpec extends OxygenSpecDefault {
       field: Json,
   ) derives JsonCodec
 
+  final case class OmitAnnotated(
+      s: String,
+      @jsonOmit hidden: String = "default",
+  ) derives JsonCodec
+
+  final case class OmitAnnotatedOption(
+      s: String,
+      @jsonOmit hidden: Option[String],
+  ) derives JsonCodec
+
+  final case class OmitWrapped(
+      s: String,
+      hidden: OmitValue[String] = OmitValue("default"),
+  ) derives JsonCodec
+
+  final case class OmitWrappedOption(
+      s: String,
+      hidden: OmitValue[Option[String]] = OmitValue(None),
+  ) derives JsonCodec
+
+  final case class OmitFlatten(
+      outer1: Int,
+      @jsonOmit @jsonFlatten inner: FlattenInner = FlattenInner(0, None),
+  ) derives JsonCodec
+
+  @jsonStrict
+  final case class OmitStrict(
+      i: Int,
+      @jsonOmit hidden: String = "default",
+  ) derives JsonCodec
+
   override def testSpec: TestSpec =
     suite("JsonSpec")(
       suite("provided instances")(
@@ -288,6 +319,48 @@ object JsonSpec extends OxygenSpecDefault {
           directRoundTripTest[NonStrict2]("""{"b":true,"i":1,"s":"here"}""")(NonStrict2(true, Strict1(1, "here".some))),
           directRoundTripTest[NonStrict2]("""{"b":true,"i":1}""")(NonStrict2(true, Strict1(1, None))),
           successfulDecodeTest[NonStrict2]("""{"b":true,"i":1,"s":"here","extra":true}""")(NonStrict2(true, Strict1(1, "here".some))),
+        ),
+        suite("omit")(
+          suite("@jsonOmit annotation")(
+            // encodes without the omitted field; decodes without the key using the default
+            directRoundTripTest[OmitAnnotated]("""{"s":"a"}""")(OmitAnnotated("a")),
+            directRoundTripTest[OmitAnnotated]("""{"s":"a"}""")(OmitAnnotated("a", "default")),
+            // omitted regardless of the field's runtime value
+            test("omits non-default value") {
+              assert(JsonEncoder[OmitAnnotated].encodeJsonStringCompact(OmitAnnotated("a", "SECRET")))(equalTo("""{"s":"a"}"""))
+            },
+            // an incoming value for the omitted key is ignored (non-strict)
+            successfulDecodeTest[OmitAnnotated]("""{"s":"a","hidden":"ignored"}""")(OmitAnnotated("a", "default")),
+          ),
+          suite("@jsonOmit with Option (no default)")(
+            directRoundTripTest[OmitAnnotatedOption]("""{"s":"a"}""")(OmitAnnotatedOption("a", None)),
+            test("omits present Option value") {
+              assert(JsonEncoder[OmitAnnotatedOption].encodeJsonStringCompact(OmitAnnotatedOption("a", "x".some)))(equalTo("""{"s":"a"}"""))
+            },
+          ),
+          suite("OmitValue wrapper")(
+            directRoundTripTest[OmitWrapped]("""{"s":"a"}""")(OmitWrapped("a")),
+            test("omits non-default wrapped value") {
+              assert(JsonEncoder[OmitWrapped].encodeJsonStringCompact(OmitWrapped("a", OmitValue("SECRET"))))(equalTo("""{"s":"a"}"""))
+            },
+            // NOTE: unlike the `@jsonOmit` annotation, the `OmitValue` type only affects encoding.
+            // On decode there is no annotation to hook, so a present key is decoded normally.
+            successfulDecodeTest[OmitWrapped]("""{"s":"a","hidden":"ignored"}""")(OmitWrapped("a", OmitValue("ignored"))),
+            // OmitValue[Option[_]] round-trips without an explicit constructor default value
+            directRoundTripTest[OmitWrappedOption]("""{"s":"a"}""")(OmitWrappedOption("a")),
+          ),
+          suite("@jsonOmit + @jsonFlatten")(
+            // omit wins over flatten: the flattened object is fully suppressed
+            directRoundTripTest[OmitFlatten]("""{"outer1":1}""")(OmitFlatten(1)),
+            test("omits flattened value") {
+              assert(JsonEncoder[OmitFlatten].encodeJsonStringCompact(OmitFlatten(1, FlattenInner(2, "x".some))))(equalTo("""{"outer1":1}"""))
+            },
+          ),
+          suite("@jsonOmit + @jsonStrict")(
+            directRoundTripTest[OmitStrict]("""{"i":1}""")(OmitStrict(1)),
+            // in strict mode the omitted key is not part of the schema -> rejected as extra
+            failedDecodeTest[OmitStrict]("""{"i":1,"hidden":"x"}"""),
+          ),
         ),
       ),
       suite("string transform")(

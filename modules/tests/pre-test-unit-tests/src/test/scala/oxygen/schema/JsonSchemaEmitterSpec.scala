@@ -35,6 +35,11 @@ object JsonSchemaEmitterSpec extends OxygenSpecDefault {
       raw: Json.Number,
   ) derives JsonSchema
 
+  final case class WithOmit(
+      name: String,
+      @jsonOmit internalId: String = "internal",
+  ) derives JsonSchema
+
   //////////////////////////////////////////////////////////////////////////////////////////////////////
   //      Helpers
   //////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -139,6 +144,16 @@ object JsonSchemaEmitterSpec extends OxygenSpecDefault {
           props.fld("count").fld("type").asString.contains("integer"),
           props.fld("ratio").fld("type").asString.contains("number"),
           props.fld("raw").fld("type").asString.contains("number"),
+        )
+      },
+      test("@jsonOmit field is hidden from the emitted schema") {
+        val withOmit = soleDef(standalone[WithOmit])
+        val props = withOmit.fld("properties")
+        val required = stringSet(withOmit.fld("required"))
+        assertTrue(
+          props.objKeys == Set("name"),
+          !props.objKeys.contains("internalId"),
+          !required.contains("internalId"),
         )
       },
       test("recursive type terminates via $ref to itself") {
