@@ -122,8 +122,7 @@ lazy val `oxygen-modules-jvm`: Project =
 
       // http
       `oxygen-http`.jvm,
-      // TODO (KR) : add
-      // `oxygen-http-test`.jvm,
+      `oxygen-http-test`,
 
       // jwt
       `oxygen-crypto-model`.jvm,
@@ -667,6 +666,19 @@ lazy val `oxygen-sql-test`: Project =
       `oxygen-sql-migration` % testAndCompile,
     )
 
+lazy val `oxygen-http-test`: Project =
+  project
+    .in(file("modules/http/test-utils"))
+    .settings(
+      publishedProjectSettings,
+      name := "oxygen-http-test",
+      description := "Test utils for oxygen-http (compiled-spec compatibility checking).",
+    )
+    .dependsOn(
+      `oxygen-http`.jvm % testAndCompile,
+      `oxygen-test`.jvm % testAndCompile,
+    )
+
 // TODO (KR) :
 // lazy val `oxygen-events-pulsar-test`: Project =
 //   project
@@ -726,9 +738,8 @@ lazy val `http-it`: Project =
       description := "http-it",
     )
     .dependsOn(
-      // TODO (KR) : replace
-      // `oxygen-http-test`
       `oxygen-http`.jvm % testAndCompile,
+      `oxygen-http-test` % testAndCompile,
     )
 
 lazy val `events-it`: Project =
