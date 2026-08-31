@@ -37,7 +37,7 @@ final case class JwksValidator(
       _ <- ZIO.fail(SignatureError.InvalidAlgorithm(key.alg, token.header.alg)).unlessDiscard(token.header.alg == key.alg)
       _ <- SignatureService.Validator
         .Live(key)
-        .validateBase64(token.`headerBase64.payloadBase64`, Signature.Base64(token.signatureBase64))
+        .validateBase64(token.`headerBase64.payloadBase64`, token.signatureBase64)
     } yield ()
 
   /** Cached lookup; on an unknown `kid`, refetch the JWKS once (throttled) and look again. */
