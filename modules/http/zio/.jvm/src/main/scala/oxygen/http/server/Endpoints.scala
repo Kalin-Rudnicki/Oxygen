@@ -3,7 +3,7 @@ package oxygen.http.server
 import oxygen.predef.core.*
 import zio.*
 
-final class Endpoints[-Apis] private[server] (
+final class Endpoints[Apis] private[server] (
     private val endpoints: Growable[Endpoints.Tagged[? >: Apis]],
 ) {
 

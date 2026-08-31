@@ -4,7 +4,7 @@ import oxygen.http.server.mcp.McpEndpoint
 import zio.*
 import zio.http.Response
 
-final case class Endpoint[-Api](
+final case class Endpoint[Api](
     schema: EndpointSchema,
     handle: Api => EndpointInput => Option[URIO[Scope, Option[Response]]],
     mcp: Option[McpEndpoint[Api]],

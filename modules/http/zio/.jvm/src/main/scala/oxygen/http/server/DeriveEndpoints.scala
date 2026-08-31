@@ -6,7 +6,7 @@ import oxygen.meta.*
 import oxygen.predef.core.*
 import scala.quoted.*
 
-trait DeriveEndpoints[-Api] {
+trait DeriveEndpoints[Api] {
   def endpoints: Growable[Endpoint[Api]]
   final def appliedEndpoints(api: Api): AppliedEndpoints = AppliedEndpoints { endpoints.map(_(api)) }
 }

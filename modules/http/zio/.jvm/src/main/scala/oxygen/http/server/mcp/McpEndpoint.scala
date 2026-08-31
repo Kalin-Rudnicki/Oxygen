@@ -13,7 +13,7 @@ import zio.*
   * a [[McpToolResult]] with `isError = true` (MCP returns input/execution errors as tool results so
   * the model can self-correct, per spec SEP-1303).
   */
-final case class McpEndpoint[-Api](
+final case class McpEndpoint[Api](
     schema: McpEndpointSchema,
     handle: Api => McpInput => URIO[Scope, McpToolResult],
 ) {
