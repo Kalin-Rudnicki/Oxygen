@@ -1,0 +1,99 @@
+# Oxygen GitLab CI — a simplified mirror of the GitHub Actions `CI.yml` pre-merge
+# checks, for the `gitlab` remote (krrss `oss/oxygen`). Releases are NOT done here
+# (that stays on GitHub — Release.yml); this pipeline is purely the pre-merge gate.
+#
+# Jobs ported 1:1 from .github/workflows/CI.yml (same sbt invocations), minus the
+# GitHub-specific warm-cache / caching-action scaffolding — the shared krrss sbt
+# image (.sbt) resolves the build instead.
+#
+# MR-only: the whole point is the pre-merge check, and there are no tag/release
+# jobs to run, so tags get no pipeline (keeps a tag push from spawning an empty one).
+workflow:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+
+include:
+  - project: 'krrss/util/pipeline-utils'
+    ref: main
+    file: '/util.yaml'
+
+stages:
+  - test
+
+# Extra memory for the heavy sbt jobs. The shared `.sbt` template caps the pod at
+# 4Gi, which is fine for scalafmt but OOM-kills (exit 137) the full-aggregate
+# cross-compiles: JVM + Scala.js + Scala Native linking use a lot of memory OUTSIDE
+# the JVM heap. Mirror GitHub CI's working shape — a modest heap in a big container.
+.big-mem:
+  variables:
+    KUBERNETES_MEMORY_REQUEST: "2Gi"
+    KUBERNETES_MEMORY_LIMIT: "8Gi"
+    SBT_OPTS: "-Xmx3G -Xss6M"
+
+# Fail the MR if the pre-merge fix-marker check trips: scripts/check-for-fix.sh
+# scans the tree for leftover fix sentinels. Runs on a tiny alpine image (git +
+# bash only) — no sbt needed. Mirrors CI.yml's `fix-todo`.
+fix-todo:
+  extends:
+    - .runner
+    - ".mr=auto,tag=never"
+  stage: test
+  image: alpine:3.21
+  before_script:
+    - apk add --no-cache bash git
+  script:
+    - bash scripts/check-for-fix.sh
+
+# Cross-compile main + test sources on every platform (JVM / JS / Native) — the
+# `+` cross-builds across the crossScalaVersions/platforms. Compile-only gate.
+compiles-on-all-platforms:
+  extends:
+    - .runner
+    - .sbt
+    - .big-mem
+    - ".mr=auto,tag=never"
+  stage: test
+  script:
+    - sbt +Test/compile
+
+# The `example/` app must keep building and its slice of tests must pass: compile
+# the example (+ tests), run the web-server tests, and web-compile the web UI.
+example-compiles:
+  extends:
+    - .runner
+    - .sbt
+    - .big-mem
+    - ".mr=auto,tag=never"
+  stage: test
+  script:
+    - sbt example/Test/compile
+    - sbt example-web-server/testFull
+    - sbt example-ui-web/webComp
+
+# Full JVM test suite (cross-built). JS/Native are compile-gated above; JVM is the
+# platform we actually run tests on here.
+test-jvm:
+  extends:
+    - .runner
+    - .sbt
+    - .big-mem
+    - ".mr=auto,tag=never"
+  stage: test
+  script:
+    - sbt +jvm-test
+
+# scalafmt check across build + all modules + it + example (the `fmt-check` alias).
+check-formatting:
+  extends:
+    - .runner
+    - .sbt
+    - ".mr=auto,tag=never"
+  stage: test
+  script:
+    - sbt fmt-check
+
+# TODO(integration-tests): port the `integration-test` job from CI.yml
+#   (`sbt +it/testFull`). Deferred here because the `it` suite needs backing
+#   services (e.g. Postgres via testcontainers) that this bare sbt runner can't
+#   provide — wire a DB service (or the kitchen-sink image + docker:dind) first,
+#   then add an `integration-test` job in the `test` stage mirroring the above.
