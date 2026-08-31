@@ -5,16 +5,16 @@ import oxygen.predef.json.*
 import scala.util.Try
 
 final case class BearerToken private[crypto] (
-    headerBase64: String,
+    headerBase64: Bytes.UrlBase64,
     header: JWTHeader,
-    payloadBase64: String,
+    payloadBase64: Bytes.UrlBase64,
     payload: String,
-    signatureBase64: String,
+    signatureBase64: Signature.Base64,
 ) {
 
-  def `headerBase64.payloadBase64`: String = s"$headerBase64.$payloadBase64"
+  def `headerBase64.payloadBase64`: String = s"${headerBase64.unwrap}.${payloadBase64.unwrap}"
 
-  def token: String = s"$headerBase64.$payloadBase64.$signatureBase64"
+  def token: String = s"${headerBase64.unwrap}.${payloadBase64.unwrap}.${signatureBase64.bytes.unwrap}"
   def bearer: String = s"Bearer $token"
 
 }
@@ -32,11 +32,11 @@ object BearerToken {
       header <- un64edHeader.fromJsonString[JWTHeader].leftMap(_.getMessage)
       un64edPayload <- base64Decode(payloadBase64)
     } yield BearerToken(
-      headerBase64 = headerBase64,
+      headerBase64 = Bytes.UrlBase64(headerBase64),
       header = header,
-      payloadBase64 = payloadBase64,
+      payloadBase64 = Bytes.UrlBase64(payloadBase64),
       payload = un64edPayload,
-      signatureBase64 = signatureBase64,
+      signatureBase64 = Signature.Base64(signatureBase64),
     )
 
   /**

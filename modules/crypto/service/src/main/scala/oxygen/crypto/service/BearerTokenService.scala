@@ -1,6 +1,5 @@
 package oxygen.crypto.service
 
-import java.nio.charset.StandardCharsets
 import oxygen.crypto.model.*
 import oxygen.json.syntax.json.*
 import zio.*
@@ -24,7 +23,7 @@ object BearerTokenService {
     ) extends BearerTokenService.Validator {
 
       override def validateToken(token: BearerToken): IO[SignatureError, Unit] =
-        validator.validateBase64(token.`headerBase64.payloadBase64`, Signature.Base64(token.signatureBase64))
+        validator.validateBase64(token.`headerBase64.payloadBase64`, token.signatureBase64)
 
     }
 
@@ -49,21 +48,20 @@ object BearerTokenService {
 
       override def validateToken(token: BearerToken): IO[SignatureError, Unit] =
         ZIO.fail(SignatureError.InvalidAlgorithm(validator.alg, token.header.alg)).unlessDiscard(validator.alg == token.header.alg) *>
-          validator.validateBase64(token.`headerBase64.payloadBase64`, Signature.Base64(token.signatureBase64))
+          validator.validateBase64(token.`headerBase64.payloadBase64`, token.signatureBase64)
 
       override def issueToken(payload: String): UIO[BearerToken] = {
         val header: JWTHeader = JWTHeader(signer.alg, Some(JWTHeader.Type.JWT))
-        val headerStringPlain: String = header.toJsonStringCompact
-        val headerStringBase64: String = Base64.urlEncoder.encodeToString(headerStringPlain.getBytes(StandardCharsets.UTF_8))
-        val payloadBase64: String = Base64.urlEncoder.encodeToString(payload.getBytes(StandardCharsets.UTF_8))
+        val headerBase64: Bytes.UrlBase64 = Bytes.Raw.stringBytes(header.toJsonStringCompact).urlBase64
+        val payloadBase64: Bytes.UrlBase64 = Bytes.Raw.stringBytes(payload).urlBase64
         for {
-          signature <- signer.signBase64(s"$headerStringBase64.$payloadBase64")
+          signature <- signer.signBase64(s"${headerBase64.unwrap}.${payloadBase64.unwrap}")
         } yield BearerToken(
-          headerBase64 = headerStringBase64,
+          headerBase64 = headerBase64,
           header = header,
           payloadBase64 = payloadBase64,
           payload = payload,
-          signatureBase64 = signature.bytes,
+          signatureBase64 = signature,
         )
       }
 
