@@ -13,7 +13,6 @@ import oxygen.example.webServer.mcp.{NoteApi, NoteApiImpl}
 import oxygen.executable.*
 import oxygen.http.api.{*, given}
 import oxygen.http.server.*
-import oxygen.http.server.mcp.{McpAuthService, McpEndpointMiddleware}
 import oxygen.json.JsonCodec
 import oxygen.payments.stripe.service.LiveStripeService
 import oxygen.schema.instances.jsonCodecFromSchema
@@ -61,14 +60,13 @@ object WebServerMain extends CliApp.Executable[WebServerMain] {
 
     type ApiEnv = UIApi & ResourceApi & UserApi & ConnectionApi & PostApi & StreamApi & NoteApi & PaymentApi
 
-    // A tiny in-memory, auth-less API (NoteApi) exposed over HTTP *and* as MCP tools. Its impl is a
-    // normal Ref-backed ZLayer; the MCP middleware resolves it (and the McpAuthService) from the env.
+    // A tiny in-memory, auth-less API (NoteApi) served over HTTP. MCP is now a separate stack —
+    // the same NoteApi is derived as MCP tools independently (McpDerive.derived[NoteApi]); see NoteMcpSpec.
     private val endpoints: Endpoints[ApiEnv] =
       Endpoints.empty.add[UserApi].add[ConnectionApi].add[PostApi].add[StreamApi].add[NoteApi].add[UIApi].add[ResourceApi].add[PaymentApi]
 
-    private val middlewares: Middlewares[McpAuthService] =
-      McpEndpointMiddleware.defaultMiddleware("oxygen-example") >>>
-        ApiSpecEndpointMiddleware.defaultMiddleware
+    private val middlewares: Middlewares[Any] =
+      ApiSpecEndpointMiddleware.defaultMiddleware
 
     def layer(config: Config): TaskLayer[Env] =
       ZLayer.make[Env](
@@ -81,7 +79,6 @@ object WebServerMain extends CliApp.Executable[WebServerMain] {
         ZLayer.succeed(config.resources),
         Server.layer.simple(config.http.port),
         endpoints.toLayer,
-        ZLayer.succeed[McpAuthService](McpAuthService.NoAuth),
         middlewares.toLayer,
         CompiledEndpoints.layer,
         Server.layer.serving,

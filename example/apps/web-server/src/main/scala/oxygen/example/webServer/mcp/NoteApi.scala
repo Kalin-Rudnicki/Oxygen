@@ -33,28 +33,21 @@ object NoteError {
 //////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /**
-  * A tiny, in-memory, auth-less example API. Every route is opted in to MCP with `@mcp.tool`, so the
-  * same trait is served as a normal HTTP API *and* as MCP tools (via the `EndpointMiddlewares` builder
-  * in `WebServerMain`). No `@mcp.auth` anywhere — `McpAuthService.NoAuth`.
+  * A tiny, in-memory, auth-less example API. Since MCP and HTTP are segregated, the same trait is
+  * derived twice, on two lines: as a normal HTTP API (`derives DeriveEndpoints`, served in
+  * `WebServerMain`) and — independently — as MCP tools (`McpDerive.derived[NoteApi]`, see
+  * `NoteMcpSpec`). `@doc` on a model field flows into the MCP tool's input schema via its `JsonSchema`.
   */
 trait NoteApi derives DeriveEndpoints {
 
-  // Docs flow into the MCP tool at three levels:
-  //   - `@httpDoc` on the route  -> the tool's `description`
-  //   - `@httpDoc` on a param    -> that input property's `description` (a "flat param")
-  //   - `@doc` on a model field  -> that property's `description` inside `$defs` (a "nested param")
-
-  @mcp.tool
   @httpDoc("Create a note and return it (with its generated id).")
   @route.post("/api/notes")
   def create(@httpDoc("The note to create.") @param.body req: CreateNote): IO[NoteError, Note]
 
-  @mcp.tool
   @httpDoc("Fetch a single note by id.")
   @route.get("/api/notes/%")
   def get(@httpDoc("The id of the note to fetch, e.g. \"note-1\".") @param.path id: String): IO[NoteError, Note]
 
-  @mcp.tool
   @httpDoc("List all notes.")
   @route.get("/api/notes")
   def list(): IO[NoteError, List[Note]]

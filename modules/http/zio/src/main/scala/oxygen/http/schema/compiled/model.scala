@@ -1,6 +1,5 @@
 package oxygen.http.schema.compiled
 
-import oxygen.http.schema.McpEndpointSchema
 import oxygen.json.*
 import oxygen.predef.core.*
 import oxygen.schema.compiled.{CompiledSchemaRef, RawCompiledSchemas}
@@ -131,7 +130,6 @@ final case class RawCompiledEndpoint(
     request: RawCompiledRequest,
     successResponse: RawCompiledResponse,
     errorResponse: RawCompiledResponse,
-    mcp: Option[McpEndpointSchema],
 ) derives JsonCodec
 
 final case class RawCompiledApi(

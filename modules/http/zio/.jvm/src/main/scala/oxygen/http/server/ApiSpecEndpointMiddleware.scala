@@ -44,7 +44,6 @@ final case class ApiSpecEndpointMiddleware(
         successResponseSchema = ResponseSchema(ExpectedStatuses.Exact(Status.Ok), ArraySeq.empty, ResponseBodySchema.Empty),
         errorResponseSchema = ResponseSchema(ExpectedStatuses.None, ArraySeq.empty, ResponseBodySchema.Empty),
         doc = s"Serves the compiled oxygen-http API spec as JSON.".some,
-        mcp = None,
       )
 
     // Lift the body's media type into a real Content-Type header — building a Response directly
@@ -59,7 +58,6 @@ final case class ApiSpecEndpointMiddleware(
         // routing already filters by method+path, but self-check keeps this correct under any scan strategy
         if input.request.method == Method.GET && input.request.fullPath == config.path then Some(ZIO.succeed(Some(response)))
         else None,
-      mcp = None,
     )
   }
 

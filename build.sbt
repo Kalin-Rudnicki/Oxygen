@@ -125,6 +125,10 @@ lazy val `oxygen-modules-jvm`: Project =
       // TODO (KR) : add
       // `oxygen-http-test`.jvm,
 
+      // mcp
+      `oxygen-mcp-core`,
+      `oxygen-mcp-http`,
+
       // jwt
       `oxygen-crypto-model`.jvm,
       `oxygen-crypto-service`,
@@ -534,6 +538,39 @@ lazy val `oxygen-http`: CrossProject =
     // MCP support (JVM server) validates JWT bearer tokens via oxygen-crypto-service.
     .jvmConfigure(_.dependsOn(`oxygen-crypto-service` % testAndCompile))
 
+//////////////////////////////////////////////////////////////////////////////////////////////////////
+//      MCP
+//////////////////////////////////////////////////////////////////////////////////////////////////////
+
+lazy val `oxygen-mcp-core`: Project =
+  project
+    .in(file("modules/mcp/core"))
+    .settings(
+      publishedProjectSettings,
+      name := "oxygen-mcp-core",
+      description := "Model Context Protocol — core protocol, tool model, and codecs (transport-agnostic).",
+    )
+    .dependsOn(
+      `oxygen-json`.jvm % testAndCompile,
+      `oxygen-schema`.jvm % testAndCompile,
+      `oxygen-zio`.jvm % testAndCompile,
+      `oxygen-test`.jvm % Test,
+    )
+
+lazy val `oxygen-mcp-http`: Project =
+  project
+    .in(file("modules/mcp/http"))
+    .settings(
+      publishedProjectSettings,
+      name := "oxygen-mcp-http",
+      description := "Model Context Protocol — Streamable-HTTP transport, built as hand-rolled oxygen-http endpoints.",
+    )
+    .dependsOn(
+      `oxygen-mcp-core` % testAndCompile,
+      `oxygen-http`.jvm % testAndCompile,
+      `oxygen-test`.jvm % Test,
+    )
+
 lazy val `oxygen-ui-electron`: Project =
   project
     .in(file("modules/ui/electron"))
@@ -907,6 +944,7 @@ lazy val `example-web-server`: Project =
       `oxygen-executable`.jvm % testAndCompile,
       `example-api`.jvm % testAndCompile,
       `example-domain-impl` % testAndCompile,
+      `oxygen-mcp-core` % Test,
       `oxygen-sql-test` % Test,
     )
 

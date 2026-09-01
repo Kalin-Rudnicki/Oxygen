@@ -2,7 +2,6 @@ package oxygen.ui.web.apispec
 
 import oxygen.core.syntax.string.*
 import oxygen.http.client.RawClient
-import oxygen.http.schema.McpEndpointSchema
 import oxygen.http.schema.compiled.*
 import oxygen.json.JsonCodec
 import oxygen.schema.compiled.{CompiledSchemaRef, FullCompiledJsonSchema, FullCompiledPlainSchema, FullCompiledSchema}
@@ -138,20 +137,6 @@ object ApiSpecPage extends RoutablePage.NoParams[RawClient] {
       borderRadius := 6.px,
       minWidth := 62.px,
       textAlign.center,
-    )
-
-  /** Violet badge marking an endpoint that's exposed as an MCP tool (with its tool name + a lock if authed). */
-  private def mcpBadge(mcp: McpEndpointSchema): Node =
-    span(
-      s"MCP · ${mcp.toolName}" + (if mcp.requiresAuth then "  🔒" else ""),
-      display.inlineBlock,
-      backgroundColor := "#7c3aed",
-      color := "#ffffff",
-      fontWeight._600,
-      fontSize := 11.px,
-      letterSpacing := "0.5px",
-      padding := "3px 9px",
-      borderRadius := 6.px,
     )
 
   private def tagPill(text: String): Node =
@@ -378,11 +363,11 @@ object ApiSpecPage extends RoutablePage.NoParams[RawClient] {
     val pathStr: String = ep.request.paths.toList.map(renderPath).mkString("  |  ")
     card(
       row(
-        (Seq[Widget](
+        Seq[Widget](
           methodBadge(method),
           span(humanize(ep.name), fontWeight.bold, fontSize := 16.px, color := S.color.fg.default),
           span(pathStr, mono, fontSize := 14.px, color := S.color.fg.moderate),
-        ) ++ ep.mcp.toSeq.map(mcpBadge))*,
+        )*,
       ),
       ep.doc.fold(fragment)(d => p(d, color := S.color.fg.moderate, margin := css(S.spacing._3, "0"))),
       paramBlock("Path parameters", ep.request.paths.toList.flatMap(pathParams)),
