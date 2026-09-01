@@ -17,7 +17,7 @@ import zio.http.{Method, Response, Status}
   *   - The [[RequestSchema]] is the const path (`method` + one [[RequestPathsSchema.Const]] per
   *     segment), no query params / headers / body schema.
   *   - The [[EndpointSchema]] is trivial: an `Ok` success response and a `None` error response schema
-  *     (matching [[ApiSpecEndpointMiddleware]]), no MCP projection.
+  *     (matching [[ApiSpecEndpointMiddleware]]).
   *   - The [[AppliedEndpoint.handle]] matches on `method` + full path: it returns
   *     `Some(handle(input).map(_.some))` only when the request matches, and `None` otherwise — so an
   *     unmatched request falls through to the next endpoint (it does NOT succeed-with-404).
@@ -50,7 +50,6 @@ object HttpRoute {
         successResponseSchema = ResponseSchema(ExpectedStatuses.Exact(Status.Ok), ArraySeq.empty, ResponseBodySchema.Empty),
         errorResponseSchema = ResponseSchema(ExpectedStatuses.None, ArraySeq.empty, ResponseBodySchema.Empty),
         doc = doc,
-        mcp = None,
       )
 
     AppliedEndpoint(
@@ -59,7 +58,6 @@ object HttpRoute {
         // routing already filters by method+path, but the self-check keeps this correct under any scan strategy
         if input.request.method == method && input.request.fullPath == path then Some(handle(input).map(_.some))
         else None,
-      mcp = None,
     )
   }
 

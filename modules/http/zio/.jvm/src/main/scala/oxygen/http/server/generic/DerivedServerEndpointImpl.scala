@@ -4,9 +4,7 @@ import oxygen.http.core.*
 import oxygen.http.core.partial.ResponseCodecNoStatus
 import oxygen.http.model.ServerErrors
 import oxygen.http.model.internal.*
-import oxygen.http.schema.McpEndpointSchema
 import oxygen.http.server.*
-import oxygen.http.server.mcp.*
 import oxygen.predef.core.*
 import oxygen.schema.AnySchemaT
 import oxygen.zio.ExtractedCauses
@@ -46,19 +44,10 @@ trait DerivedServerEndpointImpl[Api, In] {
   protected def makeSchema: EndpointSchema
 
   final def toEndpoint: Endpoint[Api] =
-    Endpoint[Api](makeSchema, handle, toMcpEndpoint)
-
-  def toMcpEndpoint: Option[McpEndpoint[Api]]
+    Endpoint[Api](makeSchema, handle)
 
 }
 object DerivedServerEndpointImpl {
-
-  final case class McpParts[In, E, A](
-      schema: McpEndpointSchema,
-      requestCodec: McpRequestCodec[In],
-      errorResponseCodec: McpResponseCodec[E],
-      successResponseCodec: McpResponseCodec[A],
-  )
 
   //////////////////////////////////////////////////////////////////////////////////////////////////////
   //      FromZIO
@@ -72,7 +61,6 @@ object DerivedServerEndpointImpl {
       errorResponseCodec: ResponseCodec[E],
       successResponseCodec: ResponseCodec[A],
       serverErrorHandler: ServerErrorHandler[E],
-      mcp: Option[McpParts[In, E, A]],
       impl: (Api, In) => ZIO[Scope, E, A],
   ) extends DerivedServerEndpointImpl[Api, In] {
 
@@ -93,25 +81,7 @@ object DerivedServerEndpointImpl {
         successResponseSchema = successResponseCodec.unsafeBuild(apiName, endpointName),
         errorResponseSchema = errorResponseCodec.unsafeBuild(apiName, endpointName),
         doc = doc,
-        mcp = mcp.map(_.schema),
       )
-
-    override def toMcpEndpoint: Option[McpEndpoint[Api]] =
-      mcp.map { mcp =>
-        def execMcp(api: Api)(mcpInput: McpInput): ZIO[Scope, McpToolResult, McpToolResult] =
-          for {
-            // TODO (KR) : different error handling? more aligned with typeclasses used for normal HTTP request?
-            in <- mcp.requestCodec.decode(mcpInput) match
-              case Right(value) => ZIO.succeed(value)
-              case Left(error)  => ZIO.fail(McpToolResult.decodeError(error))
-            res <- impl(api, in).mapError { e => McpToolResult(mcp.errorResponseCodec.encode(e).to[List], true) }
-          } yield McpToolResult(mcp.successResponseCodec.encode(res).to[List], false)
-
-        McpEndpoint[Api](
-          schema = mcp.schema,
-          handle = api => mcpInput => execMcp(api)(mcpInput).merge,
-        )
-      }
 
   }
 
@@ -150,10 +120,7 @@ object DerivedServerEndpointImpl {
         successResponseSchema = sseResponseCodec.unsafeBuild(apiName, endpointName),
         errorResponseSchema = errorResponseCodec.unsafeBuild(apiName, endpointName),
         doc = doc,
-        mcp = None,
       )
-
-    override def toMcpEndpoint: Option[McpEndpoint[Api]] = None
 
   }
 
@@ -192,10 +159,7 @@ object DerivedServerEndpointImpl {
         successResponseSchema = linesResponseCodec.unsafeBuild(apiName, endpointName),
         errorResponseSchema = errorResponseCodec.unsafeBuild(apiName, endpointName),
         doc = doc,
-        mcp = None,
       )
-
-    override def toMcpEndpoint: Option[McpEndpoint[Api]] = None
 
   }
 
