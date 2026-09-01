@@ -7,8 +7,8 @@ import oxygen.json.Json
   * hands to the dispatcher (and on into a tool handler via [[McpToolInput]]).
   *
   * This is pure data: **no** token validation, introspection, or OAuth logic lives in `mcp-core`. All
-  * of that ("the complex OAuth stuff") is abstracted behind traits consumed by the `McpMiddleware` in
-  * `mcp-http`, which is what constructs an [[McpPrincipal]].
+  * of that ("the complex OAuth stuff") is abstracted behind traits consumed by the `McpHttp` transport
+  * in `mcp-http`, which is what constructs an [[McpPrincipal]].
   */
 final case class McpPrincipal(
     subject: String,

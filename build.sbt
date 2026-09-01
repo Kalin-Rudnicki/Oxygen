@@ -127,6 +127,7 @@ lazy val `oxygen-modules-jvm`: Project =
 
       // mcp
       `oxygen-mcp-core`,
+      `oxygen-mcp-http`,
 
       // jwt
       `oxygen-crypto-model`.jvm,
@@ -553,6 +554,20 @@ lazy val `oxygen-mcp-core`: Project =
       `oxygen-json`.jvm % testAndCompile,
       `oxygen-schema`.jvm % testAndCompile,
       `oxygen-zio`.jvm % testAndCompile,
+      `oxygen-test`.jvm % Test,
+    )
+
+lazy val `oxygen-mcp-http`: Project =
+  project
+    .in(file("modules/mcp/http"))
+    .settings(
+      publishedProjectSettings,
+      name := "oxygen-mcp-http",
+      description := "Model Context Protocol — Streamable-HTTP transport, built as hand-rolled oxygen-http endpoints.",
+    )
+    .dependsOn(
+      `oxygen-mcp-core` % testAndCompile,
+      `oxygen-http`.jvm % testAndCompile,
       `oxygen-test`.jvm % Test,
     )
 
