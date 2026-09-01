@@ -9,6 +9,7 @@ import oxygen.mcp.api.model.response.*
 import oxygen.mcp.domain.*
 import oxygen.mcp.domain.model.*
 import oxygen.predef.test.*
+import oxygen.schema.PlainTextSchema
 import zio.*
 import zio.http.*
 
@@ -42,13 +43,31 @@ object McpHttpSpec extends OxygenSpecDefault {
   private val mcpEndpoint: AppliedEndpoint =
     McpHttp.endpoints(server).toArraySeq.find(e => e.method.contains(Method.POST)).get
 
+  // A typed bearer decoded through its PlainTextSchema by `McpTokenVerifier.fromPlainText`; only "tok-…" is a token.
+  private final case class RawTok(value: String)
+  private given PlainTextSchema[RawTok] =
+    PlainTextSchema.string.transformOrFail[RawTok](s => if s.startsWith("tok-") then Right(RawTok(s)) else Left(s"not a tok: $s"), _.value)
+  private val plainTextVerifier: McpTokenVerifier =
+    McpTokenVerifier.fromPlainText[RawTok] { t =>
+      if t.value == "tok-expired" then ZIO.fail("expired") else ZIO.succeed(McpPrincipal(t.value.drop(4), Set.empty, t.value, Json.obj()))
+    }
+  private val authedEndpoint: AppliedEndpoint =
+    McpHttp
+      .endpoints(server, McpHttp.Auth.bearer(plainTextVerifier, ProtectedResourceMetadata("https://rs.invalid/mcp", List("https://as.invalid"), Set.empty)))
+      .toArraySeq
+      .find(e => e.method.contains(Method.POST))
+      .get
+
   /** Drive a request straight through the endpoint's `handle` (as the endpoint tree would). */
-  private def post(body: String): UIO[Response] =
+  private def post(body: String): UIO[Response] = postTo(mcpEndpoint, None, body)
+
+  private def postTo(endpoint: AppliedEndpoint, bearer: Option[String], body: String): UIO[Response] =
     ZIO.scoped {
       for {
-        request <- ReceivedRequest.fromRequest(Request(method = Method.POST, url = URL.root / "mcp", body = Body.fromString(body)))
+        base <- ZIO.succeed(Request(method = Method.POST, url = URL.root / "mcp", body = Body.fromString(body)))
+        request <- ReceivedRequest.fromRequest(bearer.fold(base)(b => base.addHeader("Authorization", s"Bearer $b")))
         input = EndpointInput(request, ServerErrorConfig(exposeInternalErrors = false))
-        maybe <- mcpEndpoint.handle(input).getOrElse(ZIO.none)
+        maybe <- endpoint.handle(input).getOrElse(ZIO.none)
       } yield maybe.get
     }
 
@@ -70,6 +89,22 @@ object McpHttpSpec extends OxygenSpecDefault {
         } yield assertTrue(
           resp.status == Status.Unauthorized,
           resp.headers.rawHeader("WWW-Authenticate").exists(_.contains("Bearer")),
+        )
+      },
+      test("McpTokenVerifier.fromPlainText decodes the bare bearer via PlainTextSchema, then validates") {
+        val body = s"""{ "jsonrpc": "2.0", "id": 4, "method": "tools/call", "params": { "name": "secure", "arguments": {}, "_meta": $meta } }"""
+        for {
+          ok <- postTo(authedEndpoint, Some("tok-alice"), body)
+          okStr <- ok.body.asString
+          notTok <- postTo(authedEndpoint, Some("garbage"), body)
+          notTokStr <- notTok.body.asString
+          expired <- postTo(authedEndpoint, Some("tok-expired"), body)
+        } yield assertTrue(
+          ok.status == Status.Ok,
+          okStr.contains("secure"),
+          notTok.status == Status.Unauthorized,
+          notTokStr.contains("not a tok: garbage"),
+          expired.status == Status.Unauthorized,
         )
       },
       test("POST /mcp tools/call on an open tool returns 200 and the result") {

@@ -82,8 +82,9 @@ object McpDerive {
           report.errorAndAbort(s"McpDerive: tool method `${m.name}` must return zio.ZIO[Scope | Any, E, A] (e.g. URIO[Scope, A]); got ${resType.showAnsiCode}")
       }
 
-    // An `McpPrincipal` / `Option[McpPrincipal]` param is injected from the authenticated caller rather
-    // than decoded from args (and excluded from the input schema); a required principal sets requiresAuth.
+    // A param whose type has a `McpPrincipalDecoder` (e.g. `McpPrincipal`, or a consumer's own typed token)
+    // is injected from the authenticated caller rather than decoded from args (and excluded from the input
+    // schema); a required (non-`Option`) one sets requiresAuth.
     val requiresAuth: Boolean = params.exists(p => isRequiredPrincipal(p.tpe))
 
     val toolDoc: Option[String] = m.annotations.optionalOfValue[mcpDoc].map(_.doc)
@@ -119,21 +120,43 @@ object McpDerive {
     }
   }
 
-  private def isRequiredPrincipal(using Quotes)(pt: TypeRepr): Boolean = pt =:= TypeRepr.of[McpPrincipal]
-  private def isOptionalPrincipal(using Quotes)(pt: TypeRepr): Boolean = pt =:= TypeRepr.of[Option[McpPrincipal]]
+  /** The given `McpPrincipalDecoder` for `pt`, if one is in scope at the derivation site. */
+  private def principalDecoder(using Quotes)(pt: TypeRepr): Option[Expr[McpPrincipalDecoder[?]]] = {
+    type T
+    given Type[T] = pt.asTypeOf
+    Expr.summon[McpPrincipalDecoder[T]]
+  }
+
+  /** A required (non-`Option`) injected caller: any type with a `McpPrincipalDecoder`. */
+  private def isRequiredPrincipal(using Quotes)(pt: TypeRepr): Boolean =
+    !(pt =:= TypeRepr.of[McpToolInput]) && principalDecoder(pt).isDefined
+
+  /** The inner type of an `Option[t]` whose `t` has a `McpPrincipalDecoder` (an optional injected caller). */
+  private def optionalPrincipalInner(using Quotes)(pt: TypeRepr): Option[TypeRepr] =
+    pt.asType match {
+      case '[Option[t]] => Option.when(principalDecoder(TypeRepr.of[t]).isDefined)(TypeRepr.of[t])
+      case _            => None
+    }
 
   /**
-    * The [[McpParamCodec]] for one param: an injected principal / tool-input, or — for a model-supplied
-    * param — the summoned name-agnostic [[McpFieldParamCodec]] `.named` with the param name (+ `@mcpDoc`).
+    * The [[McpParamCodec]] for one param: an injected caller (via its [[McpPrincipalDecoder]]) / tool-input,
+    * or — for a model-supplied param — the summoned name-agnostic [[McpFieldParamCodec]] `.named` with the
+    * param name (+ `@mcpDoc`). An injected-caller type wins over a `JsonSchema` for the same type.
     */
   private def codecExpr[T: Type](m: Symbol, p: ParamRepr)(using Quotes): Expr[McpParamCodec[T]] =
-    if isRequiredPrincipal(p.tpe) then '{ McpParamCodec.principal }.asExprOf[McpParamCodec[T]]
-    else if isOptionalPrincipal(p.tpe) then '{ McpParamCodec.optionalPrincipal }.asExprOf[McpParamCodec[T]]
-    else if p.tpe =:= TypeRepr.of[McpToolInput] then '{ McpParamCodec.toolInput }.asExprOf[McpParamCodec[T]]
-    else {
-      val field: Expr[McpFieldParamCodec[T]] = summonFieldCodec[T](s"param `${p.name}` of tool `${m.name}`")
-      '{ $field.named(${ Expr(p.name) }, ${ Expr(p.doc) }) }
-    }
+    if p.tpe =:= TypeRepr.of[McpToolInput] then '{ McpParamCodec.toolInput }.asExprOf[McpParamCodec[T]]
+    else if isRequiredPrincipal(p.tpe) then
+      '{ McpParamCodec.principal[T](using ${ principalDecoder(p.tpe).get.asExprOf[McpPrincipalDecoder[T]] }) }
+    else
+      optionalPrincipalInner(p.tpe) match {
+        case Some(inner) =>
+          type I
+          given Type[I] = inner.asTypeOf
+          '{ McpParamCodec.optionalPrincipal[I](using ${ Expr.summon[McpPrincipalDecoder[I]].get }) }.asExprOf[McpParamCodec[T]]
+        case None =>
+          val field: Expr[McpFieldParamCodec[T]] = summonFieldCodec[T](s"param `${p.name}` of tool `${m.name}`")
+          '{ $field.named(${ Expr(p.name) }, ${ Expr(p.doc) }) }
+      }
 
   private def buildInvocation[Api: Type](
       m: Symbol,

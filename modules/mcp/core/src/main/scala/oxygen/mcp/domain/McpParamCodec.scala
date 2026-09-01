@@ -12,8 +12,8 @@ import oxygen.mcp.domain.model.*
   *   - model-supplied — a named [[Field]], produced by [[McpFieldParamCodec.named]]: it decodes from the
   *     `tools/call` `arguments` and contributes an [[inputParam]] to the tool's `inputSchema`; or
   *   - injected — supplied from the [[McpToolInput]] rather than the arguments, and excluded from the
-  *     input schema (`inputParam = None`): the authenticated [[principal]] / [[optionalPrincipal]], or the
-  *     whole [[toolInput]].
+  *     input schema (`inputParam = None`): the authenticated caller as any type with a
+  *     [[McpPrincipalDecoder]] ([[principal]] / [[optionalPrincipal]]), or the whole [[toolInput]].
   */
 sealed trait McpParamCodec[A] {
 
@@ -43,13 +43,24 @@ object McpParamCodec {
     override def decode(args: Json, input: McpToolInput): Either[McpError, A] = decodeFn(input)
   }
 
-  /** The authenticated caller, injected from [[McpToolInput.principal]] — requires auth (`401` if absent). */
-  val principal: McpParamCodec[McpPrincipal] =
-    new Injected[McpPrincipal](_.principal.toRight(McpError.Unauthorized("authentication required")))
+  /**
+    * The authenticated caller as `A`, injected from [[McpToolInput.principal]] through its
+    * [[McpPrincipalDecoder]] — requires auth (`401` if absent).
+    */
+  def principal[A](using decoder: McpPrincipalDecoder[A]): McpParamCodec[A] =
+    new Injected[A](_.principal.toRight(McpError.Unauthorized("authentication required")).flatMap(decoder.decode))
 
-  /** The authenticated caller if present, injected from [[McpToolInput.principal]] — does not require auth. */
-  val optionalPrincipal: McpParamCodec[Option[McpPrincipal]] =
-    new Injected[Option[McpPrincipal]](input => Right(input.principal))
+  /**
+    * The authenticated caller as `A` if present, injected from [[McpToolInput.principal]] through its
+    * [[McpPrincipalDecoder]] — does not require auth (`None` when unauthenticated).
+    */
+  def optionalPrincipal[A](using decoder: McpPrincipalDecoder[A]): McpParamCodec[Option[A]] =
+    new Injected[Option[A]](input =>
+      input.principal match {
+        case None    => Right(None)
+        case Some(p) => decoder.decode(p).map(Some(_))
+      },
+    )
 
   /** The whole [[McpToolInput]], injected for handlers that need the raw call context. */
   val toolInput: McpParamCodec[McpToolInput] =

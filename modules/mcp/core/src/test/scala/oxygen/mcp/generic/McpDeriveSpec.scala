@@ -5,7 +5,7 @@ import oxygen.mcp.api.model as API
 import oxygen.mcp.domain.*
 import oxygen.mcp.domain.model.*
 import oxygen.predef.test.*
-import oxygen.schema.JsonSchema
+import oxygen.schema.{JsonSchema, PlainTextSchema}
 import zio.*
 
 object McpDeriveSpec extends OxygenSpecDefault {
@@ -56,6 +56,38 @@ object McpDeriveSpec extends OxygenSpecDefault {
   }
   private val securedLayer: ULayer[Secured] = ZLayer.succeed[Secured](LiveSecured)
 
+  // A consumer's OWN typed caller: any type with a `McpPrincipalDecoder` is injected + auth-requiring,
+  // exactly like `McpPrincipal` — tools take the domain type directly instead of the generic principal.
+  private final case class Caller(name: String, canRead: Boolean)
+  private object Caller {
+    given McpPrincipalDecoder[Caller] =
+      McpPrincipalDecoder.fromReason(p => if p.subject.isEmpty then Left("empty subject") else Right(Caller(p.subject, p.scopes.contains("read"))))
+  }
+  private trait Typed derives DeriveMcp {
+    def hello(caller: Caller): URIO[Scope, String]
+    def maybeHello(caller: Option[Caller], punct: String): URIO[Scope, String]
+  }
+  private object LiveTyped extends Typed {
+    override def hello(caller: Caller): URIO[Scope, String] = ZIO.succeed(s"hello ${caller.name} read=${caller.canRead}")
+    override def maybeHello(caller: Option[Caller], punct: String): URIO[Scope, String] = ZIO.succeed(caller.fold("hello anon")(c => s"hello ${c.name}") + punct)
+  }
+  private val typedLayer: ULayer[Typed] = ZLayer.succeed[Typed](LiveTyped)
+
+  // A caller type decoded straight from the raw bearer via its PlainTextSchema (`fromPlainText`).
+  private final case class RawTok(value: String)
+  private object RawTok {
+    given PlainTextSchema[RawTok] =
+      PlainTextSchema.string.transformOrFail[RawTok](s => if s.startsWith("tok-") then Right(RawTok(s)) else Left(s"not a tok: $s"), _.value)
+    given McpPrincipalDecoder[RawTok] = McpPrincipalDecoder.fromPlainText[RawTok]
+  }
+  private trait Plain derives DeriveMcp {
+    def raw(t: RawTok): URIO[Scope, String]
+  }
+  private object LivePlain extends Plain {
+    override def raw(t: RawTok): URIO[Scope, String] = ZIO.succeed(t.value)
+  }
+  private val plainServer: UIO[McpServer] = serverFor(McpTools.empty.add[Plain], ZLayer.succeed[Plain](LivePlain))
+
   private val cfg: McpServer.Config =
     McpServer.Config(
       supportedVersions = List(API.ProtocolVersion.V2026_07_28),
@@ -78,6 +110,8 @@ object McpDeriveSpec extends OxygenSpecDefault {
   private val securedAppliedTools: UIO[AppliedMcpTools] = appliedTools(McpTools.empty.add[Secured], securedLayer)
   private val calcServer: UIO[McpServer] = serverFor(McpTools.empty.add[Calculator], calcLayer)
   private val securedServer: UIO[McpServer] = serverFor(McpTools.empty.add[Secured], securedLayer)
+  private val typedAppliedTools: UIO[AppliedMcpTools] = appliedTools(McpTools.empty.add[Typed], typedLayer)
+  private val typedServer: UIO[McpServer] = serverFor(McpTools.empty.add[Typed], typedLayer)
   private val failyServer: UIO[McpServer] = serverFor(McpTools.empty.add[Faily], failyLayer)
   private val guardedServer: UIO[McpServer] = serverFor(McpTools.empty.add[Guarded], guardedLayer)
 
@@ -188,6 +222,39 @@ object McpDeriveSpec extends OxygenSpecDefault {
             case _                              => false
           },
         )
+      },
+      test("a param of any type with a McpPrincipalDecoder is an injected, auth-requiring caller") {
+        for {
+          tools <- typedAppliedTools
+          srv <- typedServer
+          hi <- callText(srv, "hello", "{}", Some(alice))
+          anon <- callAs(srv, "hello", "{}", None)
+          bad <- callAs(srv, "hello", "{}", Some(alice.copy(subject = "")))
+          maybeAnon <- callText(srv, "maybeHello", "{ \"punct\": \"!\" }", None)
+          maybeAlice <- callText(srv, "maybeHello", "{ \"punct\": \"?\" }", Some(alice))
+        } yield {
+          val byName = tools.arraySeq.map(t => t.tool.name -> t).toMap
+          assertTrue(
+            byName("hello").requiresAuth,
+            !byName("maybeHello").requiresAuth,
+            // the typed caller is injected, not an input-schema property; the real arg still is
+            !byName("hello").tool.inputSchema.toString.contains("caller"),
+            !byName("maybeHello").tool.inputSchema.toString.contains("caller"),
+            byName("maybeHello").tool.inputSchema.toString.contains("punct"),
+            hi == List("hello alice read=true"),
+            anon == Left(McpError.Unauthorized("authentication required")),
+            bad == Left(McpError.Unauthorized("empty subject")),
+            maybeAnon == List("hello anon!"),
+            maybeAlice == List("hello alice?"),
+          )
+        }
+      },
+      test("fromPlainText decodes the raw bearer through the type's PlainTextSchema") {
+        for {
+          srv <- plainServer
+          ok <- callText(srv, "raw", "{}", Some(alice.copy(token = "tok-123")))
+          bad <- callAs(srv, "raw", "{}", Some(alice.copy(token = "nope")))
+        } yield assertTrue(ok == List("tok-123"), bad == Left(McpError.Unauthorized("not a tok: nope")))
       },
       test("an Option[McpPrincipal] param is injected and does not require auth") {
         for {
