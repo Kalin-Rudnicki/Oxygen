@@ -944,6 +944,7 @@ lazy val `example-web-server`: Project =
       `oxygen-executable`.jvm % testAndCompile,
       `example-api`.jvm % testAndCompile,
       `example-domain-impl` % testAndCompile,
+      `oxygen-mcp-core` % Test,
       `oxygen-sql-test` % Test,
     )
 
