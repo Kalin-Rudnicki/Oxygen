@@ -125,6 +125,9 @@ lazy val `oxygen-modules-jvm`: Project =
       // TODO (KR) : add
       // `oxygen-http-test`.jvm,
 
+      // mcp
+      `oxygen-mcp-core`,
+
       // jwt
       `oxygen-crypto-model`.jvm,
       `oxygen-crypto-service`,
@@ -533,6 +536,25 @@ lazy val `oxygen-http`: CrossProject =
     )
     // MCP support (JVM server) validates JWT bearer tokens via oxygen-crypto-service.
     .jvmConfigure(_.dependsOn(`oxygen-crypto-service` % testAndCompile))
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////
+//      MCP
+//////////////////////////////////////////////////////////////////////////////////////////////////////
+
+lazy val `oxygen-mcp-core`: Project =
+  project
+    .in(file("modules/mcp/core"))
+    .settings(
+      publishedProjectSettings,
+      name := "oxygen-mcp-core",
+      description := "Model Context Protocol — core protocol, tool model, and codecs (transport-agnostic).",
+    )
+    .dependsOn(
+      `oxygen-json`.jvm % testAndCompile,
+      `oxygen-schema`.jvm % testAndCompile,
+      `oxygen-zio`.jvm % testAndCompile,
+      `oxygen-test`.jvm % Test,
+    )
 
 lazy val `oxygen-ui-electron`: Project =
   project
